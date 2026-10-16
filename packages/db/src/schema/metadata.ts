@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 import { boolean, index, integer, jsonb, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
+import type { FieldValidation, PicklistOption } from '@crm/core';
 import { baseColumns } from './columns.js';
 
 /**
@@ -24,9 +25,9 @@ export const fieldDefinitions = pgTable(
     /** Enforced by a partial unique index created on demand, not by this flag alone. */
     isUnique: boolean('is_unique').notNull().default(false),
     /** Picklist options: [{ value, label, isActive }]. */
-    options: jsonb('options').$type<readonly Record<string, unknown>[]>(),
-    /** FieldValidation from @crm/core: min, max, lengths, pattern, currencies. */
-    validation: jsonb('validation').$type<Record<string, unknown>>(),
+    options: jsonb('options').$type<readonly PicklistOption[]>(),
+    /** min, max, lengths, pattern, allowed currencies. */
+    validation: jsonb('validation').$type<FieldValidation>(),
     defaultValue: jsonb('default_value'),
     position: integer('position').notNull().default(0),
     /** System fields may be relabelled and reordered, never deleted. */

@@ -1,6 +1,7 @@
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { loadDbEnv } from './env.js';
+import { loadRootEnvFile } from './load-env.js';
 import { runMigrations } from './migrator.js';
 
 /** CLI entry point: `pnpm db:migrate`. */
@@ -8,6 +9,7 @@ import { runMigrations } from './migrator.js';
 const here = dirname(fileURLToPath(import.meta.url));
 const migrationsDir = join(here, '..', 'migrations');
 
+loadRootEnvFile();
 const env = loadDbEnv();
 const connectionString = env.DATABASE_MIGRATION_URL ?? env.DATABASE_URL;
 

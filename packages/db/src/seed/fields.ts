@@ -1,0 +1,74 @@
+import type { FieldDefinition } from '@crm/core';
+
+/**
+ * System field definitions (ADR-0004).
+ *
+ * The standard columns are registered here as field metadata so that forms,
+ * list views, filters, import and export read **one** source for both system
+ * and custom fields. The moment there are two sources, one of them gets
+ * forgotten — usually export, which is how hidden fields leak.
+ *
+ * `isSystem` means the key and type are fixed. Tenants may relabel, reorder and
+ * deactivate these, but not delete them.
+ */
+
+type SystemField = Omit<FieldDefinition, 'isSystem'> & { readonly isSystem: true };
+
+function systemField(
+  key: string,
+  label: string,
+  type: FieldDefinition['type'],
+  position: number,
+  overrides: Partial<FieldDefinition> = {},
+): SystemField {
+  return {
+    key,
+    label,
+    type,
+    required: false,
+    isActive: true,
+    position,
+    ...overrides,
+    isSystem: true,
+  };
+}
+
+export const CONTACT_SYSTEM_FIELDS: readonly SystemField[] = [
+  systemField('first_name', 'First name', 'text', 10),
+  systemField('last_name', 'Last name', 'text', 20, { required: true }),
+  systemField('email', 'Email', 'email', 30),
+  systemField('phone', 'Phone', 'phone', 40),
+  systemField('whatsapp', 'WhatsApp', 'phone', 50),
+  systemField('title', 'Job title', 'text', 60),
+  systemField('lead_source', 'Lead source', 'picklist', 70, {
+    options: [
+      { value: 'referral', label: 'Referral' },
+      { value: 'website', label: 'Website' },
+      { value: 'walk_in', label: 'Walk-in' },
+      { value: 'exhibition', label: 'Exhibition' },
+      { value: 'social', label: 'Social media' },
+      { value: 'other', label: 'Other' },
+    ],
+  }),
+  systemField('owner_id', 'Owner', 'user_lookup', 80),
+];
+
+export const ACCOUNT_SYSTEM_FIELDS: readonly SystemField[] = [
+  systemField('name', 'Account name', 'text', 10, { required: true }),
+  systemField('domain', 'Website domain', 'text', 20),
+  systemField('industry', 'Industry', 'text', 30),
+  systemField('phone', 'Phone', 'phone', 40),
+  systemField('email', 'Email', 'email', 50),
+  systemField('website', 'Website', 'url', 60),
+  systemField('gstin', 'GSTIN', 'text', 70, {
+    // 15 characters: 2 state code, 10 PAN, 1 entity, 1 'Z', 1 checksum.
+    validation: { pattern: '[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}' },
+  }),
+  systemField('employee_count', 'Employees', 'number', 80, { validation: { min: '0' } }),
+  systemField('owner_id', 'Owner', 'user_lookup', 90),
+];
+
+export const SYSTEM_FIELDS_BY_OBJECT: Readonly<Record<string, readonly SystemField[]>> = {
+  contact: CONTACT_SYSTEM_FIELDS,
+  account: ACCOUNT_SYSTEM_FIELDS,
+};

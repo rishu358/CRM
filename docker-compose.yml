@@ -12,7 +12,11 @@ services:
       # Deterministic collation so index behaviour matches CI and production.
       POSTGRES_INITDB_ARGS: '--locale=C.UTF-8 --encoding=UTF8'
     ports:
-      - '5432:5432'
+      # Deliberately not the default ports. This machine already runs a native
+      # PostgreSQL service on 5432 and another Redis on 6379; two listeners on
+      # one port make connections land somewhere surprising rather than fail
+      # cleanly, which is a miserable thing to debug.
+      - '15432:5432'
     volumes:
       - crm-postgres-data:/var/lib/postgresql/data
       - ./packages/db/sql/bootstrap:/docker-entrypoint-initdb.d:ro
@@ -32,7 +36,7 @@ services:
     container_name: crm-redis
     restart: unless-stopped
     ports:
-      - '6379:6379'
+      - '16379:6379'
     volumes:
       - crm-redis-data:/data
     healthcheck:
