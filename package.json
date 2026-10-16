@@ -1,0 +1,41 @@
+{
+  "name": "crm-platform",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@9.15.4",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "dev": "turbo run dev --parallel",
+    "build": "turbo run build",
+    "test": "turbo run test",
+    "test:e2e": "turbo run test:e2e",
+    "test:security": "turbo run test:security",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "db:generate": "pnpm --filter @crm/db db:generate",
+    "db:migrate": "pnpm --filter @crm/db db:migrate",
+    "db:seed": "pnpm --filter @crm/db db:seed",
+    "infra:up": "docker compose up -d",
+    "infra:down": "docker compose down",
+    "format": "prettier --write \"**/*.{ts,tsx,js,json,md,yaml,yml}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,json,md,yaml,yml}\""
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "@vitest/coverage-v8": "^5.0.5",
+    "dotenv": "^18.0.8",
+    "prettier": "^3.9.10",
+    "tsx": "^4.23.15",
+    "turbo": "^2.11.8",
+    "typescript": "5.9.3",
+    "vitest": "^5.0.5"
+  },
+  "pnpm": {
+    "overrides": {
+      "typescript": "5.9.3",
+      "eslint": "9.39.5"
+    }
+  }
+}

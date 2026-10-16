@@ -1,0 +1,47 @@
+# Local development infrastructure.
+# Production uses managed Postgres/Redis; this file only ever serves dev + CI.
+services:
+  postgres:
+    image: postgres:16.6-alpine
+    container_name: crm-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: crm
+      # Deterministic collation so index behaviour matches CI and production.
+      POSTGRES_INITDB_ARGS: '--locale=C.UTF-8 --encoding=UTF8'
+    ports:
+      - '5432:5432'
+    volumes:
+      - crm-postgres-data:/var/lib/postgresql/data
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d crm']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    command:
+      - postgres
+      # Surface slow queries during development so we catch N+1 early.
+      - -c
+      - log_min_duration_statement=200
+
+  redis:
+    image: redis:7.4-alpine
+    container_name: crm-redis
+    restart: unless-stopped
+    ports:
+      - '6379:6379'
+    volumes:
+      - crm-redis-data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    command: ['redis-server', '--appendonly', 'yes']
+
+volumes:
+  crm-postgres-data:
+  crm-redis-data:

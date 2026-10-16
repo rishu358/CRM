@@ -1,0 +1,40 @@
+# dependencies
+node_modules/
+.pnpm-store/
+
+# build output
+dist/
+build/
+.next/
+out/
+*.tsbuildinfo
+
+# turbo
+.turbo/
+
+# env & secrets — never commit (CLAUDE.md §5.8)
+.env
+.env.*
+!.env.example
+
+# test & coverage
+coverage/
+playwright-report/
+test-results/
+blob-report/
+.playwright/
+
+# logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# editor / os
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# local database volumes
+.docker-data/
