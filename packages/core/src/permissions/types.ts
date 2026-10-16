@@ -60,8 +60,8 @@ export interface Actor {
 
 /** The ownership facts `can()` needs to judge a specific record. */
 export interface RecordRef {
-  readonly ownerId: Uuid | null;
-  readonly teamId?: Uuid | null;
+  readonly ownerId: string | null;
+  readonly teamId?: string | null;
 }
 
 /** Collection-level check (no record yet) or record-level check. */

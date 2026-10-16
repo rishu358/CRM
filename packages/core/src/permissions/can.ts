@@ -70,7 +70,7 @@ export function satisfiesConstraint(constraint: RecordConstraint, record: Record
     case 'team': {
       if (record.ownerId !== null && record.ownerId === constraint.userId) return true;
       const teamId = record.teamId;
-      return teamId != null && constraint.teamIds.includes(teamId);
+      return teamId != null && constraint.teamIds.some((id) => id === teamId);
     }
   }
 }

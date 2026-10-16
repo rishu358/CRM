@@ -19,7 +19,7 @@
     "lint": "eslint src",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:security": "vitest run --dir src/permissions"
+    "test:security": "vitest run src/permissions"
   },
   "dependencies": {
     "uuid": "^14.0.3",

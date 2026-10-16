@@ -8,7 +8,9 @@
   "exports": {
     ".": "./src/index.ts",
     "./schema": "./src/schema/index.ts",
-    "./testing": "./src/testing/index.ts"
+    "./testing": "./src/testing/index.ts",
+    "./testing/global-setup": "./src/testing/global-setup.ts",
+    "./seed": "./src/seed/index.ts"
   },
   "scripts": {
     "lint": "eslint src",

@@ -26,7 +26,6 @@ function randomSuffix(id: string): string {
 
 export interface SeededTenant {
   readonly tenantId: string;
-  readonly adminRoleId: string;
 }
 
 export interface SeededUser {
@@ -37,6 +36,13 @@ export interface SeededUser {
 export class Fixtures {
   constructor(private readonly pool: pg.Pool) {}
 
+  /**
+   * Create a bare tenant with no roles.
+   *
+   * Roles come either from `provisionTenantDefaults` (the real path) or from an
+   * explicit `createRole` call. Seeding one here as well collided with
+   * provisioning on the unique (tenant_id, name) index.
+   */
   async createTenant(options: { name?: string; slug?: string } = {}): Promise<SeededTenant> {
     const tenantId = newId();
     const slug = options.slug ?? `t-${randomSuffix(tenantId)}`;
@@ -45,8 +51,7 @@ export class Fixtures {
       options.name ?? `Tenant ${slug}`,
       slug,
     ]);
-    const adminRoleId = await this.createRole(tenantId, 'Admin', { isSystem: true });
-    return { tenantId, adminRoleId };
+    return { tenantId };
   }
 
   async createRole(

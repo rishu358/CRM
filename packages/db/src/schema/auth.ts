@@ -17,8 +17,11 @@ export const sessions = pgTable(
   {
     id: uuid('id').primaryKey(),
     userId: uuid('user_id').notNull(),
-    /** Opaque, high-entropy. Stored hashed by the auth layer, never returned. */
-    token: text('token').notNull(),
+    /**
+     * SHA-256 of the session token. The token itself is never stored, so a
+     * stolen backup yields no usable sessions.
+     */
+    tokenHash: text('token_hash').notNull(),
     expiresAt: timestamptz('expires_at').notNull(),
     ipAddress: text('ip_address'),
     userAgent: text('user_agent'),
@@ -33,7 +36,7 @@ export const sessions = pgTable(
     revokedAt: timestamptz('revoked_at'),
   },
   (table) => [
-    uniqueIndex('sessions_token_key').on(table.token),
+    uniqueIndex('sessions_token_hash_key').on(table.tokenHash),
     index('sessions_user_idx').on(table.userId),
     index('sessions_expires_idx').on(table.expiresAt),
   ],

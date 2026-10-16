@@ -28,8 +28,16 @@ let contactB: string;
 beforeAll(async () => {
   db = createTestDatabase(inject('dbUrls'));
 
-  tenantA = await db.fixtures.createTenant({ name: 'Acme Jewellers' });
-  tenantB = await db.fixtures.createTenant({ name: 'Rival Traders' });
+  const seededA = await db.fixtures.createTenant({ name: 'Acme Jewellers' });
+  const seededB = await db.fixtures.createTenant({ name: 'Rival Traders' });
+  tenantA = {
+    tenantId: seededA.tenantId,
+    adminRoleId: await db.fixtures.createRole(seededA.tenantId, 'Admin', { isSystem: true }),
+  };
+  tenantB = {
+    tenantId: seededB.tenantId,
+    adminRoleId: await db.fixtures.createRole(seededB.tenantId, 'Admin', { isSystem: true }),
+  };
 
   userA = await db.fixtures.createUser(tenantA.tenantId, tenantA.adminRoleId);
   userB = await db.fixtures.createUser(tenantB.tenantId, tenantB.adminRoleId);
@@ -289,7 +297,7 @@ describe('the global user directory is scoped by membership (ADR-0014)', () => {
     // application cannot read password hashes or session tokens.
     const error = await captureDbError(() =>
       withTenant(db.app.db, { tenantId: tenantA.tenantId, userId: userA.userId }, (tx) =>
-        tx.execute(sql`select token from sessions`),
+        tx.execute(sql`select token_hash from sessions`),
       ),
     );
     expect(error.message).toMatch(/permission denied/i);
