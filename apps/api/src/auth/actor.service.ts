@@ -1,8 +1,8 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { compilePermissions, ForbiddenError, type Actor, type Uuid } from '@crm/core';
 import type { FieldPermissionRow, RolePermissionRow } from '@crm/core';
-import { sql } from 'drizzle-orm';
 import { DatabaseService } from '../database/database.service.js';
+import { sql } from '@crm/db';
 
 /**
  * Builds the Actor that `can()` reasons about (ADR-0008).

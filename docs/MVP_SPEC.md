@@ -148,9 +148,9 @@ P1: `record_lookup, formula, rollup, file`. Values are validated in `packages/co
 
 **Acceptance**
 
-- [ ] Given 5 failed logins in 10 min, further attempts are delayed and an `auth_events` row is written.
-- [ ] Changing the password revokes all other sessions.
-- [ ] A tenant with "MFA required" blocks access until the user enrolls.
+- [x] Given 5 failed logins in 10 min, further attempts are delayed and an `auth_events` row is written.
+- [x] Changing the password revokes all other sessions.
+- [x] A tenant with "MFA required" blocks access until the user enrolls.
 
 ### M2. Tenant Setup & Onboarding (P0)
 

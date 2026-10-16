@@ -13,6 +13,7 @@
     "test:security": "vitest run --project security"
   },
   "dependencies": {
+    "@better-auth/utils": "0.5.0",
     "@crm/contracts": "workspace:^",
     "@crm/core": "workspace:^",
     "@crm/db": "workspace:^",
@@ -23,6 +24,7 @@
     "@nestjs/common": "12",
     "@nestjs/core": "12",
     "@nestjs/platform-fastify": "12",
+    "better-auth": "1.7.10",
     "dotenv": "^18.0.8",
     "drizzle-orm": "^0.45.4",
     "fastify": "^5.12.7",

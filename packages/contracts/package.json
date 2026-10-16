@@ -13,6 +13,10 @@
     "./contacts": {
       "types": "./dist/contacts.d.ts",
       "default": "./dist/contacts.js"
+    },
+    "./auth": {
+      "types": "./dist/auth.d.ts",
+      "default": "./dist/auth.js"
     }
   },
   "scripts": {

@@ -1,8 +1,7 @@
 import { ValidationError, type FieldDefinition, type RecordConstraint } from '@crm/core';
 import { sortableFieldKeys } from '@crm/core';
 import type { FilterOperator, ParsedFilter } from '@crm/contracts';
-import { contacts } from '@crm/db';
-import { and, eq, inArray, isNull, or, sql, type SQL } from 'drizzle-orm';
+import { contacts, and, eq, inArray, isNull, or, sql, type SQL } from '@crm/db';
 
 /**
  * SQL fragments for the contacts repository.

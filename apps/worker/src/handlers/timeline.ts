@@ -1,6 +1,5 @@
 import { newId } from '@crm/core';
-import { timelineEvents, type Tx } from '@crm/db';
-import { sql } from 'drizzle-orm';
+import { timelineEvents, type Tx, sql } from '@crm/db';
 import type { OutboxRow } from '../relay.js';
 
 /**

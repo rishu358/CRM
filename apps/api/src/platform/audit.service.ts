@@ -21,8 +21,23 @@ export type AuditAction =
   | 'restore'
   | 'export'
   | 'login'
+  | 'logout'
   | 'permission_change'
   | 'impersonate';
+
+/**
+ * Who acted, for the audit row.
+ *
+ * Narrower than `Actor` on purpose: the audit writer needs the tenant and the
+ * user and nothing else, and asking for a full Actor forced the auth module —
+ * which runs before any Actor exists — to fabricate one with empty
+ * permissions. A fake Actor in the codebase is worth avoiding even where it is
+ * only read for two fields.
+ */
+export interface AuditIdentity {
+  readonly tenantId: string;
+  readonly userId: string | null;
+}
 
 export interface AuditEntry {
   readonly action: AuditAction;
@@ -34,12 +49,12 @@ export interface AuditEntry {
 
 @Injectable()
 export class AuditService {
-  async record(tx: Tx, actor: Actor, entry: AuditEntry): Promise<void> {
+  async record(tx: Tx, actor: Actor | AuditIdentity, entry: AuditEntry): Promise<void> {
     const context = currentRequestContext();
     await tx.insert(auditLogs).values({
       id: newId(),
       tenantId: actor.tenantId,
-      actorId: actor.userId,
+      actorId: actor.userId ?? null,
       action: entry.action,
       objectType: entry.objectType,
       recordId: entry.recordId,

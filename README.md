@@ -14,19 +14,25 @@ pnpm install
 cp .env.example .env
 pnpm infra:up          # Postgres on 15432, Redis on 16379
 pnpm db:migrate
-pnpm db:seed           # prints session tokens for the demo users
+pnpm db:seed           # prints sign-in credentials for the demo users
 pnpm build             # shared packages compile to dist; apps resolve them from there
 pnpm dev               # web :3000, api :3001, worker
 ```
 
-Then open http://localhost:3000/sign-in and paste one of the tokens the seed
-printed. Signing in as the **Owner** shows every contact; the **Sales rep** sees
-only their own, which is record scope working end to end.
+Then open http://localhost:3000/sign-in and use one of the addresses the seed
+printed, with the password it printed alongside them. Signing in as the
+**Owner** shows every contact; the **Sales rep** sees only their own, which is
+record scope working end to end.
 
-> Email-and-password sign-in, MFA and Google sign-in are not built yet
-> (MVP_SPEC M1). The sign-in screen takes a session token so the app is usable
-> before that lands; it does not authenticate anybody. See
-> [ADR-0014](docs/adr/0014-self-hosted-auth.md).
+Sign-up, email verification, password reset and TOTP two-factor all work from
+the UI. Verification and reset emails are not delivered in development — the
+console email provider prints them, links included, to the API's log.
+
+Google sign-in is built but switched off until `GOOGLE_CLIENT_ID` and
+`GOOGLE_CLIENT_SECRET` are set; without them those two endpoints return 404.
+See [ADR-0014](docs/adr/0014-self-hosted-auth.md) and
+[ADR-0017](docs/adr/0017-better-auth-as-primitives-not-framework.md) for what
+Better Auth is and is not used for here.
 
 ### Ports
 

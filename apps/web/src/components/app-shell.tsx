@@ -1,10 +1,11 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import type { ReactNode } from 'react';
-import { cn } from '@crm/ui';
+import { Button, cn } from '@crm/ui';
 import { t, type TranslationKey } from '../lib/i18n';
+import { signOut } from '../lib/session';
 
 /**
  * The application frame: sidebar, header, content.
@@ -16,11 +17,25 @@ const NAV: readonly { href: string; label: TranslationKey; ready: boolean }[] = 
   { href: '/contacts', label: 'nav.contacts', ready: true },
   { href: '/accounts', label: 'nav.accounts', ready: false },
   { href: '/deals', label: 'nav.deals', ready: false },
-  { href: '/settings', label: 'nav.settings', ready: false },
+  { href: '/settings/security', label: 'nav.settings', ready: true },
 ];
 
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
+
+  /**
+   * Sign out server-side, then go to the sign-in screen.
+   *
+   * `/api/session` revokes the session as well as clearing the cookie —
+   * dropping the cookie alone would leave a live session that a copied token
+   * could still use.
+   */
+  const leave = async () => {
+    await signOut();
+    router.push('/sign-in');
+    router.refresh();
+  };
 
   return (
     <div className="flex min-h-screen">
@@ -59,6 +74,12 @@ export function AppShell({ children }: { children: ReactNode }) {
             );
           })}
         </ul>
+
+        <div className="mt-6 border-t border-border pt-4">
+          <Button variant="ghost" size="sm" className="w-full" onClick={() => void leave()}>
+            {t('auth.signOut')}
+          </Button>
+        </div>
       </nav>
 
       <main className="min-w-0 flex-1 p-4 md:p-8">{children}</main>

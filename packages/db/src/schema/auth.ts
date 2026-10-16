@@ -34,11 +34,14 @@ export const sessions = pgTable(
       .notNull()
       .default(sql`now()`),
     revokedAt: timestamptz('revoked_at'),
+    /** Last request made with this session; updated at most once a minute. */
+    lastSeenAt: timestamptz('last_seen_at'),
   },
   (table) => [
     uniqueIndex('sessions_token_hash_key').on(table.tokenHash),
     index('sessions_user_idx').on(table.userId),
     index('sessions_expires_idx').on(table.expiresAt),
+    index('sessions_user_active_idx').on(table.userId, table.revokedAt, table.expiresAt),
   ],
 );
 
@@ -72,26 +75,48 @@ export const authAccounts = pgTable(
   ],
 );
 
-/** Short-lived tokens for email verification, password reset and invites. */
+/**
+ * Short-lived, single-use tokens.
+ *
+ * `value` is the SHA-256 of the token, never the token, for the same reason
+ * `sessions.token_hash` is: a stolen backup must not yield working
+ * password-reset links. `purpose` keeps the three flows apart, so a token
+ * minted to verify an email cannot be redeemed to reset a password.
+ */
 export const verifications = pgTable(
   'verifications',
   {
     id: uuid('id').primaryKey(),
+    /** The email address, lowercased. Kept even when `userId` is set. */
     identifier: text('identifier').notNull(),
+    /** SHA-256 of the token. */
     value: text('value').notNull(),
+    /** email_verification | password_reset | mfa_challenge */
+    purpose: text('purpose').notNull().default('email_verification'),
+    userId: uuid('user_id'),
     expiresAt: timestamptz('expires_at').notNull(),
+    /** Set on first redemption. A second attempt finds it non-null and fails. */
     consumedAt: timestamptz('consumed_at'),
     createdAt: timestamptz('created_at')
       .notNull()
       .default(sql`now()`),
   },
   (table) => [
+    uniqueIndex('verifications_value_key').on(table.value),
     index('verifications_identifier_idx').on(table.identifier),
     index('verifications_expires_idx').on(table.expiresAt),
+    index('verifications_user_purpose_idx').on(table.userId, table.purpose),
   ],
 );
 
-/** Enrolled second factors. `secret` is encrypted at the application layer. */
+/**
+ * Enrolled second factors. One of each type per user, so re-enrolling replaces
+ * rather than accumulates — an authenticator someone thinks they removed must
+ * stop working.
+ *
+ * `secret` is encrypted at the application layer: for TOTP the base32 secret,
+ * for backup codes a JSON array of SHA-256 code hashes.
+ */
 export const mfaFactors = pgTable(
   'mfa_factors',
   {
@@ -101,11 +126,15 @@ export const mfaFactors = pgTable(
     type: text('type').notNull(),
     secret: text('secret').notNull(),
     verifiedAt: timestamptz('verified_at'),
+    lastUsedAt: timestamptz('last_used_at'),
     createdAt: timestamptz('created_at')
       .notNull()
       .default(sql`now()`),
   },
-  (table) => [index('mfa_factors_user_idx').on(table.userId)],
+  (table) => [
+    index('mfa_factors_user_idx').on(table.userId),
+    uniqueIndex('mfa_factors_user_type_key').on(table.userId, table.type),
+  ],
 );
 
 /**
@@ -134,10 +163,12 @@ export const authEvents = pgTable(
   (table) => [
     index('auth_events_email_time_idx').on(table.email, table.occurredAt),
     index('auth_events_user_time_idx').on(table.userId, table.occurredAt),
+    index('auth_events_ip_time_idx').on(table.ipAddress, table.occurredAt),
   ],
 );
 
 export type Session = typeof sessions.$inferSelect;
+export type Verification = typeof verifications.$inferSelect;
 export type AuthAccount = typeof authAccounts.$inferSelect;
 export type MfaFactor = typeof mfaFactors.$inferSelect;
 export type AuthEvent = typeof authEvents.$inferSelect;

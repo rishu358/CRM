@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { and, eq } from 'drizzle-orm';
 import type { FieldDefinition, ObjectType } from '@crm/core';
-import { fieldDefinitions, type Tx } from '@crm/db';
+import { fieldDefinitions, type Tx, and, eq } from '@crm/db';
 
 /**
  * Reads field metadata (ADR-0004).

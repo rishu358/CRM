@@ -32,6 +32,22 @@ export const ErrorCode = {
   ENTITLEMENT_REQUIRED: 'ENTITLEMENT_REQUIRED',
   /** A write referenced a field the caller may not write, or that does not exist. */
   FIELD_NOT_WRITABLE: 'FIELD_NOT_WRITABLE',
+  /**
+   * Sign-in failed.
+   *
+   * Deliberately one code for "no such address" and "wrong password": two
+   * codes would turn sign-in into a directory of who banks here
+   * (MVP_SPEC M1).
+   */
+  INVALID_CREDENTIALS: 'INVALID_CREDENTIALS',
+  /** A one-time token was wrong, already used, or past its expiry. */
+  INVALID_TOKEN: 'INVALID_TOKEN',
+  /** The address has not been confirmed yet. */
+  EMAIL_NOT_VERIFIED: 'EMAIL_NOT_VERIFIED',
+  /** The workspace requires a second factor and this user has not enrolled. */
+  MFA_ENROLMENT_REQUIRED: 'MFA_ENROLMENT_REQUIRED',
+  /** The submitted second factor was wrong. */
+  MFA_INVALID: 'MFA_INVALID',
   /** Unexpected failure. Details are logged, never returned. */
   INTERNAL: 'INTERNAL',
 } as const;
@@ -133,6 +149,54 @@ export class FieldNotWritableError extends DomainError {
       403,
       fieldKeys.map((path) => ({ path, message: 'Field is not writable' })),
     );
+  }
+}
+
+/**
+ * Sign-in failed, without saying which half failed.
+ *
+ * One message and one code for a missing account and a wrong password. Telling
+ * them apart is a user-enumeration oracle, and the only people it helps are
+ * the ones trying addresses (MVP_SPEC M1).
+ */
+export class InvalidCredentialsError extends DomainError {
+  constructor() {
+    super(ErrorCode.INVALID_CREDENTIALS, 'Incorrect email address or password', 401);
+  }
+}
+
+/** A one-time token was wrong, already redeemed, or expired. */
+export class InvalidTokenError extends DomainError {
+  constructor(message = 'This link is invalid or has expired') {
+    super(ErrorCode.INVALID_TOKEN, message, 400);
+  }
+}
+
+export class EmailNotVerifiedError extends DomainError {
+  constructor() {
+    super(ErrorCode.EMAIL_NOT_VERIFIED, 'Confirm your email address before signing in', 403);
+  }
+}
+
+/**
+ * The workspace requires MFA and this user has not enrolled.
+ *
+ * Distinct from `MFA_INVALID`: the client reacts by sending the user to
+ * enrolment, not by asking for another code.
+ */
+export class MfaEnrolmentRequiredError extends DomainError {
+  constructor() {
+    super(
+      ErrorCode.MFA_ENROLMENT_REQUIRED,
+      'This workspace requires two-factor authentication. Set it up to continue.',
+      403,
+    );
+  }
+}
+
+export class MfaInvalidError extends DomainError {
+  constructor() {
+    super(ErrorCode.MFA_INVALID, 'That code is not valid', 401);
   }
 }
 
