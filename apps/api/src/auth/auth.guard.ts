@@ -9,6 +9,7 @@ import { UnauthenticatedError, isUuid, type Actor } from '@crm/core';
 import type { FastifyRequest } from 'fastify';
 import { API_ENV_TOKEN } from '../config/env.js';
 import type { ApiEnv } from '../config/env.js';
+import { TenantRateLimitService } from '../platform/rate-limit.service.js';
 import { ActorService } from './actor.service.js';
 import { SessionService } from './session.service.js';
 
@@ -42,6 +43,7 @@ export class AuthGuard implements CanActivate {
   constructor(
     @Inject(SessionService) private readonly sessions: SessionService,
     @Inject(ActorService) private readonly actors: ActorService,
+    @Inject(TenantRateLimitService) private readonly tenantLimit: TenantRateLimitService,
     @Inject(API_ENV_TOKEN) private readonly env: ApiEnv,
   ) {}
 
@@ -64,7 +66,13 @@ export class AuthGuard implements CanActivate {
 
     // resolveActor checks membership, so a header-supplied tenant is only ever
     // accepted for a tenant this user actually belongs to.
-    request.actor = await this.actors.resolve(session.userId, tenantId);
+    const actor = await this.actors.resolve(session.userId, tenantId);
+
+    // Counted against the tenant membership proved, not the header the client
+    // sent, so one caller cannot exhaust another workspace's budget.
+    this.tenantLimit.check(actor.tenantId);
+
+    request.actor = actor;
     request.sessionId = session.sessionId;
     return true;
   }

@@ -15,7 +15,25 @@ import { webEnv } from '../../../lib/env';
  */
 const bodySchema = z.object({ token: z.string().min(16).max(512) }).strict();
 
+/**
+ * Same CSRF reasoning as the proxy route: this one sets the session cookie, so
+ * a cross-site POST here would be worse, not better.
+ */
+function isSameOrigin(request: NextRequest): boolean {
+  const origin = request.headers.get('origin');
+  if (origin === null) return false;
+  try {
+    return new URL(origin).origin === request.nextUrl.origin;
+  } catch {
+    return false;
+  }
+}
+
 export async function POST(request: NextRequest) {
+  if (!isSameOrigin(request)) {
+    return NextResponse.json({ error: 'Cross-site request refused' }, { status: 403 });
+  }
+
   const env = webEnv();
   const parsed = bodySchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
@@ -44,7 +62,10 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({ ok: true });
 }
 
-export async function DELETE() {
+export async function DELETE(request: NextRequest) {
+  if (!isSameOrigin(request)) {
+    return NextResponse.json({ error: 'Cross-site request refused' }, { status: 403 });
+  }
   (await cookies()).delete(webEnv().SESSION_COOKIE_NAME);
   return NextResponse.json({ ok: true });
 }

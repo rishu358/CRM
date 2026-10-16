@@ -108,3 +108,41 @@ test.describe('authentication', () => {
     await expect(page).toHaveURL(/\/sign-in/);
   });
 });
+
+test.describe('CSRF defence on the cookie-authenticated routes', () => {
+  test('refuses a state-changing request from another origin', async ({ page, request }) => {
+    await signIn(page, tokens.owner);
+
+    // Same session cookie, but an Origin that is not ours. Without the check
+    // any page on the internet could drive the API as the signed-in user.
+    const response = await request.post('/api/proxy/contacts', {
+      headers: { origin: 'https://evil.example', 'content-type': 'application/json' },
+      data: { lastName: 'Forged' },
+      failOnStatusCode: false,
+    });
+    expect(response.status()).toBe(403);
+  });
+
+  test('refuses a state-changing request with no Origin header', async ({ page, request }) => {
+    await signIn(page, tokens.owner);
+
+    const response = await request.post('/api/proxy/contacts', {
+      headers: { 'content-type': 'application/json' },
+      data: { lastName: 'Forged' },
+      failOnStatusCode: false,
+    });
+    expect(response.status()).toBe(403);
+  });
+
+  test('still allows a same-origin write from the app itself', async ({ page }) => {
+    await signIn(page, tokens.owner);
+
+    await page.getByRole('button', { name: 'New contact' }).click();
+    const dialog = page.getByRole('dialog');
+    const surname = `Sameorigin${Date.now().toString().slice(-6)}`;
+    await dialog.getByLabel('Last name').fill(surname);
+    await dialog.getByRole('button', { name: 'Save' }).click();
+
+    await expect(page.getByRole('link', { name: surname })).toBeVisible();
+  });
+});
