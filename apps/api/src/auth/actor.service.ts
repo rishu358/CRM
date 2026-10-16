@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { compilePermissions, ForbiddenError, type Actor, type Uuid } from '@crm/core';
 import type { FieldPermissionRow, RolePermissionRow } from '@crm/core';
 import { sql } from 'drizzle-orm';
@@ -18,7 +18,7 @@ import { DatabaseService } from '../database/database.service.js';
  */
 @Injectable()
 export class ActorService {
-  constructor(private readonly database: DatabaseService) {}
+  constructor(@Inject(DatabaseService) private readonly database: DatabaseService) {}
 
   async resolve(userId: string, tenantId: string): Promise<Actor> {
     return this.database.runInTenant({ tenantId, userId }, async (tx) => {

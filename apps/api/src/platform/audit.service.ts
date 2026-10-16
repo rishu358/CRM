@@ -57,12 +57,23 @@ export class AuditService {
  * Comparing by JSON rather than identity so that two equal objects or dates do
  * not register as a change and fill the audit log with noise.
  */
+/**
+ * Bookkeeping columns, excluded from diffs.
+ *
+ * They change on every write by definition, so including them buries the one
+ * field the user actually edited and makes "updated: updatedBy, title" the
+ * normal shape of a timeline entry. The actor and the time are recorded on the
+ * audit row itself, so nothing is lost by leaving them out here.
+ */
+const INTERNAL_COLUMNS = new Set(['createdAt', 'updatedAt', 'createdBy', 'updatedBy', 'version']);
+
 export function diffChanges(
   before: Record<string, unknown>,
   after: Record<string, unknown>,
 ): Record<string, { old?: unknown; new?: unknown }> {
   const changes: Record<string, { old?: unknown; new?: unknown }> = {};
   for (const key of Object.keys(after)) {
+    if (INTERNAL_COLUMNS.has(key)) continue;
     const oldValue = before[key];
     const newValue = after[key];
     if (JSON.stringify(oldValue ?? null) !== JSON.stringify(newValue ?? null)) {

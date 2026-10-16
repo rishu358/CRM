@@ -93,3 +93,67 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
+
+  e2e:
+    name: End-to-end
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16.6-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: crm
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d crm"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7.4-alpine
+        ports: ['6379:6379']
+    env:
+      DATABASE_URL: postgres://crm_app:crm_app_dev@localhost:5432/crm
+      DATABASE_MIGRATION_URL: postgres://crm_migrator:crm_migrator_dev@localhost:5432/crm
+      DATABASE_AUTH_URL: postgres://crm_auth:crm_auth_dev@localhost:5432/crm
+      DATABASE_WORKER_URL: postgres://crm_worker:crm_worker_dev@localhost:5432/crm
+      REDIS_URL: redis://localhost:6379
+      AUTH_SECRET: ci-only-secret-at-least-32-characters-long
+      API_URL: http://localhost:3001
+      WEB_URL: http://localhost:3000
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      # The service container starts without our roles, so apply the same
+      # bootstrap the local Postgres image runs from its entrypoint.
+      - name: Bootstrap database roles
+        run: |
+          PGPASSWORD=postgres psql -h localhost -U postgres -d crm -f packages/db/sql/bootstrap/01-extensions-and-roles.sql
+      - run: pnpm db:migrate
+      - run: pnpm --filter @crm/web exec playwright install --with-deps chromium
+      - name: Start API and wait for it
+        run: |
+          pnpm --filter @crm/api start &
+          for _ in $(seq 1 30); do
+            if curl -fsS http://localhost:3001/api/v1/health > /dev/null; then
+              echo "API ready"; exit 0
+            fi
+            sleep 2
+          done
+          echo "API did not become ready" >&2; exit 1
+        env:
+          NODE_ENV: production
+      - run: pnpm --filter @crm/web exec playwright test
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: apps/web/playwright-report/
+          retention-days: 7

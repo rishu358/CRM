@@ -1,4 +1,4 @@
-import { newId } from '@crm/core';
+import { generateSessionToken, hashSessionToken, newId } from '@crm/core';
 import { sql } from 'drizzle-orm';
 import { createDbClient, withTenant } from './client.js';
 import { loadDbEnv } from './env.js';
@@ -84,9 +84,32 @@ try {
     );
   });
 
+  // 5. A session per demo user, so the web app can be used before the auth
+  //    module lands. These are real sessions created the same way the API
+  //    creates them — the database stores only the hash — not a back door:
+  //    nothing here bypasses a check, it just saves typing a password that no
+  //    sign-in flow exists to accept yet.
+  const tokens = new Map<string, string>();
+  for (const [userId, who] of [
+    [ownerId, 'Owner'],
+    [repId, 'Sales rep'],
+  ] as const) {
+    const token = generateSessionToken();
+    await auth.db.execute(
+      sql`insert into sessions (id, user_id, token_hash, expires_at, active_tenant_id)
+          values (${newId()}, ${userId}, ${hashSessionToken(token)}, now() + interval '14 days', ${tenantId})`,
+    );
+    tokens.set(who, token);
+  }
+
   console.warn(`Seeded demo tenant ${tenantId} (slug demo-${suffix})`);
-  console.warn(`  Owner:     owner-${suffix}@example.com`);
-  console.warn(`  Sales rep: rep-${suffix}@example.com`);
+  console.warn('');
+  console.warn('Sign in at http://localhost:3000/sign-in with one of these tokens:');
+  for (const [who, token] of tokens) {
+    console.warn(`  ${who.padEnd(10)} ${token}`);
+  }
+  console.warn('');
+  console.warn(`  Owner sees every contact; the sales rep sees only their own.`);
 } finally {
   await Promise.all([app.close(), auth.close()]);
 }

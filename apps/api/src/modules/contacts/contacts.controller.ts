@@ -1,4 +1,15 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, Post, Patch, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Inject,
+  Param,
+  Post,
+  Patch,
+  Query,
+} from '@nestjs/common';
 import {
   contactCreateSchema,
   contactDeleteQuerySchema,
@@ -26,7 +37,7 @@ import { ContactsService } from './contacts.service.js';
  */
 @Controller('contacts')
 export class ContactsController {
-  constructor(private readonly contacts: ContactsService) {}
+  constructor(@Inject(ContactsService) private readonly contacts: ContactsService) {}
 
   @Get()
   async list(

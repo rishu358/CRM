@@ -43,6 +43,9 @@ export async function createApp(env: ApiEnv = loadApiEnv()): Promise<NestFastify
     },
     hsts: env.NODE_ENV === 'production' ? { maxAge: 31_536_000, includeSubDomains: true } : false,
     referrerPolicy: { policy: 'no-referrer' },
+    // DENY, not helmet's default SAMEORIGIN: the API is never framed, and
+    // MVP_SPEC §8 asks for DENY explicitly.
+    frameguard: { action: 'deny' },
     crossOriginResourcePolicy: { policy: 'same-site' },
   });
 

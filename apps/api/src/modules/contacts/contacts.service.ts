@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import {
   assertCan,
   buildCustomFieldsPatchSchema,
@@ -49,11 +49,11 @@ import { allowedSortKeys } from './contacts.sql-helpers.js';
 @Injectable()
 export class ContactsService {
   constructor(
-    private readonly database: DatabaseService,
-    private readonly repository: ContactsRepository,
-    private readonly fieldMetadata: FieldMetadataService,
-    private readonly audit: AuditService,
-    private readonly outbox: OutboxService,
+    @Inject(DatabaseService) private readonly database: DatabaseService,
+    @Inject(ContactsRepository) private readonly repository: ContactsRepository,
+    @Inject(FieldMetadataService) private readonly fieldMetadata: FieldMetadataService,
+    @Inject(AuditService) private readonly audit: AuditService,
+    @Inject(OutboxService) private readonly outbox: OutboxService,
   ) {}
 
   async list(
@@ -190,8 +190,6 @@ export class ContactsService {
       }
 
       const changes = diffChanges(existing, updated);
-      delete changes['updatedAt'];
-      delete changes['version'];
 
       await this.audit.record(tx, actor, {
         action: 'update',

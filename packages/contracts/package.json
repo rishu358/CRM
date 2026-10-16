@@ -3,16 +3,23 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "main": "./src/index.ts",
-  "types": "./src/index.ts",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
-    ".": "./src/index.ts",
-    "./contacts": "./src/contacts.ts"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./contacts": {
+      "types": "./dist/contacts.d.ts",
+      "default": "./dist/contacts.js"
+    }
   },
   "scripts": {
     "lint": "eslint src",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run --passWithNoTests",
+    "build": "tsc -p tsconfig.build.json"
   },
   "dependencies": {
     "@crm/core": "workspace:^",

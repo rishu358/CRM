@@ -1,4 +1,4 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, Inject } from '@nestjs/common';
 import { DatabaseService } from './database/database.service.js';
 import { Public } from './auth/auth.guard.js';
 
@@ -11,7 +11,7 @@ import { Public } from './auth/auth.guard.js';
  */
 @Controller('health')
 export class HealthController {
-  constructor(private readonly database: DatabaseService) {}
+  constructor(@Inject(DatabaseService) private readonly database: DatabaseService) {}
 
   @Get()
   @Public()

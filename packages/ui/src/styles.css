@@ -1,0 +1,156 @@
+/*
+ * Design tokens (CLAUDE.md §9).
+ *
+ * Every colour is an HSL triple in a CSS variable, so light and dark are one
+ * stylesheet and a tenant theme can be layered on later without a rebuild.
+ * Components reference the semantic names only — never a raw hex value.
+ *
+ * Contrast: the foreground/background pairs below are chosen to clear WCAG 2.1
+ * AA (4.5:1 for body text), which MVP_SPEC §9 requires.
+ */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222 47% 11%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+
+    --primary: 221 83% 45%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 222 47% 11%;
+
+    --muted: 210 40% 96%;
+    --muted-foreground: 215 20% 38%;
+
+    --accent: 210 40% 94%;
+    --accent-foreground: 222 47% 11%;
+
+    --destructive: 0 72% 42%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 142 72% 29%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 35 92% 33%;
+    --warning-foreground: 0 0% 100%;
+
+    --border: 214 32% 88%;
+    --input: 214 32% 88%;
+    --ring: 221 83% 45%;
+
+    --radius: 0.5rem;
+    --font-sans: ui-sans-serif, system-ui, sans-serif;
+    --font-mono: ui-monospace, monospace;
+  }
+
+  /*
+   * Dark tokens appear twice on purpose.
+   *
+   * The media query is what makes dark mode actually reachable: a viewer whose
+   * OS is dark gets it with no toggle and no JavaScript. `:not([data-theme='light'])`
+   * lets an explicit light choice win over the OS preference.
+   *
+   * The attribute rule below is the explicit opt-in, for a future theme switch
+   * and for tests that need to force one appearance.
+   */
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) {
+      --background: 222 47% 7%;
+      --foreground: 210 40% 96%;
+
+      --card: 222 45% 10%;
+      --card-foreground: 210 40% 96%;
+
+      --popover: 222 45% 10%;
+      --popover-foreground: 210 40% 96%;
+
+      --primary: 217 91% 65%;
+      --primary-foreground: 222 47% 7%;
+
+      --secondary: 217 33% 17%;
+      --secondary-foreground: 210 40% 96%;
+
+      --muted: 217 33% 17%;
+      --muted-foreground: 215 20% 70%;
+
+      --accent: 217 33% 20%;
+      --accent-foreground: 210 40% 96%;
+
+      --destructive: 0 73% 60%;
+      --destructive-foreground: 222 47% 7%;
+
+      --success: 142 69% 52%;
+      --success-foreground: 222 47% 7%;
+
+      --warning: 38 92% 60%;
+      --warning-foreground: 222 47% 7%;
+
+      --border: 217 33% 22%;
+      --input: 217 33% 22%;
+      --ring: 217 91% 65%;
+    }
+  }
+
+  :root[data-theme='dark'],
+  .dark {
+    --background: 222 47% 7%;
+    --foreground: 210 40% 96%;
+
+    --card: 222 45% 10%;
+    --card-foreground: 210 40% 96%;
+
+    --popover: 222 45% 10%;
+    --popover-foreground: 210 40% 96%;
+
+    --primary: 217 91% 65%;
+    --primary-foreground: 222 47% 7%;
+
+    --secondary: 217 33% 17%;
+    --secondary-foreground: 210 40% 96%;
+
+    --muted: 217 33% 17%;
+    --muted-foreground: 215 20% 70%;
+
+    --accent: 217 33% 20%;
+    --accent-foreground: 210 40% 96%;
+
+    --destructive: 0 73% 60%;
+    --destructive-foreground: 222 47% 7%;
+
+    --success: 142 69% 52%;
+    --success-foreground: 222 47% 7%;
+
+    --warning: 38 92% 60%;
+    --warning-foreground: 222 47% 7%;
+
+    --border: 217 33% 22%;
+    --input: 217 33% 22%;
+    --ring: 217 91% 65%;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings:
+      'rlig' 1,
+      'calt' 1;
+  }
+
+  /* Focus must always be visible: keyboard users are not an edge case. */
+  :focus-visible {
+    @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
+  }
+}

@@ -1,5 +1,6 @@
-import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
+import { timingSafeEqual } from 'node:crypto';
 import { Inject, Injectable } from '@nestjs/common';
+import { generateSessionToken, hashSessionToken } from '@crm/core';
 import { sql } from 'drizzle-orm';
 import { API_ENV_TOKEN } from '../config/env.js';
 import { DatabaseService } from '../database/database.service.js';
@@ -23,14 +24,7 @@ export interface VerifiedSession {
   readonly activeTenantId: string | null;
 }
 
-export function hashSessionToken(token: string): string {
-  return createHash('sha256').update(token, 'utf8').digest('hex');
-}
-
-/** 32 bytes of CSPRNG output, base64url encoded. */
-export function generateSessionToken(): string {
-  return randomBytes(32).toString('base64url');
-}
+export { generateSessionToken, hashSessionToken };
 
 interface SessionRow {
   readonly id: string;
@@ -42,7 +36,7 @@ interface SessionRow {
 @Injectable()
 export class SessionService {
   constructor(
-    private readonly database: DatabaseService,
+    @Inject(DatabaseService) private readonly database: DatabaseService,
     @Inject(API_ENV_TOKEN) private readonly env: ApiEnv,
   ) {}
 

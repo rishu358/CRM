@@ -1,13 +1,12 @@
-import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
 import { loadDbEnv } from './env.js';
+import { packageRootFrom } from './package-root.js';
 import { loadRootEnvFile } from './load-env.js';
 import { runMigrations } from './migrator.js';
 
 /** CLI entry point: `pnpm db:migrate`. */
 
-const here = dirname(fileURLToPath(import.meta.url));
-const migrationsDir = join(here, '..', 'migrations');
+const migrationsDir = join(packageRootFrom(import.meta.url), 'migrations');
 
 loadRootEnvFile();
 const env = loadDbEnv();

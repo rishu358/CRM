@@ -5,3 +5,4 @@ export * from './errors/index.js';
 export * from './objects/index.js';
 export * from './permissions/index.js';
 export * from './fields/index.js';
+export * from './sessions/index.js';

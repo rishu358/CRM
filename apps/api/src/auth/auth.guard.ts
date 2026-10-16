@@ -40,8 +40,8 @@ export const CurrentActor = createParamDecorator((_data: unknown, context: Execu
 @Injectable()
 export class AuthGuard implements CanActivate {
   constructor(
-    private readonly sessions: SessionService,
-    private readonly actors: ActorService,
+    @Inject(SessionService) private readonly sessions: SessionService,
+    @Inject(ActorService) private readonly actors: ActorService,
     @Inject(API_ENV_TOKEN) private readonly env: ApiEnv,
   ) {}
 

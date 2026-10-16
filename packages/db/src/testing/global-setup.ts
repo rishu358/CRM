@@ -1,6 +1,5 @@
 import { readFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
 import { PostgreSqlContainer } from '@testcontainers/postgresql';
 import pg from 'pg';
 import type { TestProject } from 'vitest/node';
@@ -18,8 +17,9 @@ import { runMigrations } from '../migrator.js';
  * unprivileged roles the application uses.
  */
 
-const here = dirname(fileURLToPath(import.meta.url));
-const packageRoot = join(here, '..', '..');
+import { packageRootFrom } from '../package-root.js';
+
+const packageRoot = packageRootFrom(import.meta.url);
 
 export interface TestDbUrls {
   readonly app: string;
