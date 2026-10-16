@@ -1,0 +1,86 @@
+import { sql } from 'drizzle-orm';
+import { boolean, index, pgTable, text, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import { citext, timestamptz } from './columns.js';
+
+/**
+ * Identity (ADR-0014).
+ *
+ * `users` is a **global** identity table: one person, one row, no matter how
+ * many tenants they belong to. Consultants and agencies legitimately work across
+ * several businesses, and duplicating them per tenant would mean duplicate
+ * passwords and duplicate MFA enrolments.
+ *
+ * Because it is global, `users` carries **no `tenant_id` and no tenant RLS
+ * policy**. Tenant scoping lives in `memberships`, which is tenant-owned and does
+ * carry RLS. Adding a tenant policy here would break multi-tenant membership;
+ * omitting the membership join when reading users would leak the user directory.
+ * Both mistakes are covered by tests.
+ */
+export const users = pgTable(
+  'users',
+  {
+    id: uuid('id').primaryKey(),
+    /** citext: addresses are compared case-insensitively everywhere. */
+    email: citext('email').notNull(),
+    emailVerifiedAt: timestamptz('email_verified_at'),
+    name: text('name').notNull(),
+    image: text('image'),
+    locale: text('locale').notNull().default('en-IN'),
+    timezone: text('timezone').notNull().default('Asia/Kolkata'),
+    mfaEnabled: boolean('mfa_enabled').notNull().default(false),
+    /**
+     * Invalidates every session issued before this instant. Set on password
+     * change so revocation is one write rather than a sweep over sessions
+     * (MVP_SPEC M1 acceptance).
+     */
+    sessionsValidFrom: timestamptz('sessions_valid_from')
+      .notNull()
+      .default(sql`now()`),
+    createdAt: timestamptz('created_at')
+      .notNull()
+      .default(sql`now()`),
+    updatedAt: timestamptz('updated_at')
+      .notNull()
+      .default(sql`now()`),
+    deletedAt: timestamptz('deleted_at'),
+  },
+  (table) => [uniqueIndex('users_email_key').on(table.email)],
+);
+
+/**
+ * Which tenants a user belongs to, and as what.
+ *
+ * Tenant-owned, RLS-protected, and the join every user lookup must go through.
+ */
+export const memberships = pgTable(
+  'memberships',
+  {
+    id: uuid('id').primaryKey(),
+    tenantId: uuid('tenant_id').notNull(),
+    userId: uuid('user_id').notNull(),
+    roleId: uuid('role_id').notNull(),
+    /** invited | active | suspended */
+    status: text('status').notNull().default('invited'),
+    invitedBy: uuid('invited_by'),
+    invitedAt: timestamptz('invited_at'),
+    joinedAt: timestamptz('joined_at'),
+    createdAt: timestamptz('created_at')
+      .notNull()
+      .default(sql`now()`),
+    updatedAt: timestamptz('updated_at')
+      .notNull()
+      .default(sql`now()`),
+    createdBy: uuid('created_by'),
+    updatedBy: uuid('updated_by'),
+  },
+  (table) => [
+    uniqueIndex('memberships_tenant_user_key').on(table.tenantId, table.userId),
+    index('memberships_tenant_role_idx').on(table.tenantId, table.roleId),
+    index('memberships_user_idx').on(table.userId),
+  ],
+);
+
+export type User = typeof users.$inferSelect;
+export type NewUser = typeof users.$inferInsert;
+export type Membership = typeof memberships.$inferSelect;
+export type NewMembership = typeof memberships.$inferInsert;

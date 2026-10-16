@@ -1,0 +1,11 @@
+{
+  "extends": "@crm/config/tsconfig/library.json",
+  "compilerOptions": {
+    // The package is consumed as TypeScript source across the workspace, so
+    // nothing is emitted from here and rootDir only needs to cover the files
+    // being checked — which includes the test and tooling configs.
+    "rootDir": ".",
+    "types": ["node"]
+  },
+  "include": ["src/**/*.ts", "vitest.config.ts", "drizzle.config.ts"]
+}
