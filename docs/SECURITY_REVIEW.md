@@ -1,10 +1,10 @@
 # Security self-review
 
 Required by CLAUDE.md §11.5 after each module. This covers the foundation plus
-the Contacts module, reviewed against §5 rule by rule.
+the Contacts, Auth and Invitations modules, reviewed against §5 rule by rule.
 
-Reviewed: 2026-10-16 · Scope: `packages/core`, `packages/db`, `apps/api`,
-`apps/worker`, `apps/web` (Contacts, Auth).
+Reviewed: 2026-10-17 · Scope: `packages/core`, `packages/db`, `apps/api`,
+`apps/worker`, `apps/web` (Contacts, Auth, Invitations).
 
 ## §5 rule by rule
 
@@ -19,12 +19,47 @@ Reviewed: 2026-10-16 · Scope: `packages/core`, `packages/db`, `apps/api`,
 | 7   | No SQL string concatenation; whitelisted sort/filter             | **Met**       | `contacts.sql-helpers.ts` resolves every client-supplied key against field metadata; injection attempts through `sort` and `filter` are tested                                                                                                                                                                                                                                                                                         |
 | 8   | Secrets from the environment; never logged                       | **Met**       | Validated env modules are the only readers; pino redaction list; `.env` is git-ignored                                                                                                                                                                                                                                                                                                                                                 |
 | 9   | Secure cookies, CSRF, MFA, rate-limited auth, revocation         | **Met**       | Cookie is httpOnly/SameSite=Lax/Secure-in-prod, set server-side and never readable by page script (an E2E test asserts `document.cookie` and both web storages); CSRF origin checks on both cookie-authenticated routes; TOTP + backup codes with tenant-level enforcement in `AuthGuard`; progressive delay in `AuthThrottleService` plus a per-IP ceiling in `AuthRateLimitGuard`; revocation via `sessions_valid_from` in one write |
-| 10  | Audit create/update/delete, logins, exports, role changes        | **Partial**   | Contacts CRUD, **plus login, logout and password changes**, audited in the same transaction and append-only by withheld grants. A password change is audited in every workspace the user belongs to, because it affects access to all of them. Permission-change auditing arrives with M3                                                                                                                                              |
+| 10  | Audit create/update/delete, logins, exports, role changes        | **Partial**   | Contacts CRUD, login, logout, password changes, **plus every invitation, acceptance and revocation**, each written in the same transaction as the change and append-only by withheld grants. A password change is audited in every workspace the user belongs to, because it affects access to all of them. Permission-change auditing arrives with M3                                                                                 |
 | 11  | CSV export with formula-injection escaping                       | **Not built** | Export is not implemented yet                                                                                                                                                                                                                                                                                                                                                                                                          |
 | 12  | File type by magic bytes, presigned URLs                         | **Not built** | Attachments are not implemented yet                                                                                                                                                                                                                                                                                                                                                                                                    |
 | 13  | SSRF protection on outbound requests                             | **Not built** | No outbound requests exist yet                                                                                                                                                                                                                                                                                                                                                                                                         |
 | 14  | Rate limit per tenant **and** per user                           | **Met**       | Per-user/IP at the edge via `@fastify/rate-limit`; per-tenant in `TenantRateLimitService`, keyed on the membership-proven tenant so it cannot be spoofed                                                                                                                                                                                                                                                                               |
 | 15  | Say so when unsure                                               | —             | This document                                                                                                                                                                                                                                                                                                                                                                                                                          |
+
+## Invitations (MVP_SPEC M2), reviewed
+
+The module is the first thing in the product that writes a second
+`memberships` row, so the whole permission engine only becomes reachable in
+production because of it. Three decisions in it are security decisions, and all
+three are written down in [ADR-0018](adr/0018-invitation-acceptance-identity.md)
+rather than left implicit in the code.
+
+| Question                                                       | Answer, and where it is proved                                                                                                                                                                                                                              |
+| -------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Can a token join a workspace it was not issued for?            | No. The workspace is on the invitation's row; the token's prefix is a routing hint whose only effect is choosing an RLS context, so a swapped prefix matches no digest. `invitations.security.spec.ts` "cannot be pointed at another workspace"             |
+| Can a token confer a role it was not issued with?              | No. `role_id` is read from the row at redemption and appears in no request body; the contracts are `.strict()`, so sending one is a 422. "confers only the invited role, whatever the recipient asks for"                                                   |
+| Can somebody accept an invitation that is not theirs?          | No. Every identity check runs before the redeeming UPDATE, so a refused attempt leaves the link usable by the real recipient. "refuses somebody signed in as a different address, and leaves the link usable"                                               |
+| Can an emailed link produce a session for an existing account? | No — that would walk past a second factor its owner enrolled. The recipient signs in first. "never issues a session from a link when the address already has an account"                                                                                    |
+| Does inviting reveal whether an address has an account?        | No. The response is the invitation either way; the difference is only in the mail that address receives. The acceptance screen does say so, but only to somebody already holding a token mailed there (ADR-0018)                                            |
+| Is the token ever readable back out of the API?                | No. Only its SHA-256 is stored, and `InvitationRow` has no field for either — so an administrator cannot read a colleague's link and redeem it. "keeps the secret and its digest out of every response"                                                     |
+| Can an invitation undo a suspension, or re-role a member?      | No to both. A suspended membership is a 409, and an invitation accepted by an existing active member is spent without touching their role. Two tests                                                                                                        |
+| Does an unaccepted membership grant anything?                  | No. `ActorService` has always required `status = 'active'`; invitations are the first thing that can produce another state, so there is now a test that says so                                                                                             |
+| Is a link single-use, expiring, and retired by a newer one?    | Yes, all three. Redemption is one guarded UPDATE, so two concurrent acceptances cannot both win; a second invitation to the same address marks the first `superseded`. Four tests, plus an E2E that spends the seeded link and then fails to spend it again |
+
+The four mandatory suites from CLAUDE.md §10 are in
+`invitations.security.spec.ts`: tenant A cannot list, read or act on tenant B's
+invitations (and gets a 404 identical, request id aside, to one for an id that
+never existed); a user without the grant is refused the list, the invite and
+the revocation; the token and its digest never appear in a response;
+unauthenticated requests get 401.
+
+### What is deliberately public
+
+`GET` and `POST /api/v1/invitations/accept` are `@Public()`, because the
+recipient may have no account yet. They are not unauthenticated — the token in
+the link is the credential — and they carry `AuthRateLimitGuard`, the same
+per-source ceiling sign-in has, because a link with a secret in it is worth
+guessing at.
 
 ## The M1 acceptance criteria, and where each is proved
 
@@ -93,9 +128,19 @@ These are not oversights; they belong to modules that have not been built.
   memory adapter for tests, and both refuse to start in production — so a
   production deploy fails loudly rather than writing verification links into a
   log file. Resend or SES is still to be written.
-- **Audit coverage is partial.** Contacts and authentication. Every module
-  added must write its audit entry in the same transaction, as
+- **Audit coverage is partial.** Contacts, authentication and invitations.
+  Every module added must write its audit entry in the same transaction, as
   `contacts.service.ts` does.
+- **`GET /invitations/roles` lives in the invitations module.** Listing a
+  workspace's roles belongs to the users-and-roles module M3 will build; it is
+  here because the invite form is the only screen that needs it, and it sits
+  behind the same `invitation:create` grant as inviting rather than behind a
+  weaker one. Likewise the membership writes in `invitations.repository.ts`:
+  `memberships` has no module of its own yet, and one place owning them is
+  better than two.
+- **Nothing cleans up spent invitations.** Accepted, revoked and expired rows
+  stay forever, deliberately — they are the record of who invited whom. A
+  retention job belongs with the rest of M11's data-rights work, not here.
 - **Sign-up is not atomic across the role boundary.** Creating the identity and
   provisioning the workspace's roles happen as two different database roles,
   `crm_auth` and `crm_app`, so they cannot share a transaction. The tenant
@@ -126,6 +171,11 @@ These are not oversights; they belong to modules that have not been built.
   nobody still runs a hash comparison against a dummy. Six tests assert the
   responses are identical. It costs real usability, and the alternative leaks
   every address that has ever signed up.
+- **An invitation token's prefix is not an authorization.** It names a
+  workspace so the row can be read under RLS at all, and it is checked by
+  finding the digest _inside_ that workspace. Anybody reading
+  `parseInvitationToken` and seeing a tenant id come out of client input should
+  read ADR-0018 before changing anything around it.
 - **One-time tokens carry a `purpose`.** Without it, a link proving only that
   someone can read their email would be redeemable as a password reset. The
   column, its CHECK constraint and the test all exist for that one scenario.

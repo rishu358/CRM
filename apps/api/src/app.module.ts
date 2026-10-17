@@ -5,6 +5,7 @@ import { AuthModule } from './auth/auth.module.js';
 import { DatabaseModule } from './database/database.module.js';
 import { HealthController } from './health.controller.js';
 import { ContactsModule } from './modules/contacts/contacts.module.js';
+import { InvitationsModule } from './modules/invitations/invitations.module.js';
 import { PlatformModule } from './platform/platform.module.js';
 import type { ApiEnv } from './config/env.js';
 
@@ -21,7 +22,13 @@ export class AppModule {
   static forRoot(env: ApiEnv): DynamicModule {
     return {
       module: AppModule,
-      imports: [DatabaseModule.forRoot(env), AuthModule, PlatformModule, ContactsModule],
+      imports: [
+        DatabaseModule.forRoot(env),
+        AuthModule,
+        PlatformModule,
+        ContactsModule,
+        InvitationsModule,
+      ],
       controllers: [HealthController],
       providers: [{ provide: APP_GUARD, useExisting: AuthGuard }],
     };

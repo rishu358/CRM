@@ -82,6 +82,22 @@ export async function changePassword(
   return outcome.status === 'failed' ? outcome.error : null;
 }
 
+/**
+ * Accept an invitation by creating the account it was sent to.
+ *
+ * Through `/api/session` rather than the proxy, because this is the one
+ * acceptance path that produces a session token (ADR-0018) and the token must
+ * become an httpOnly cookie before the page sees a response.
+ */
+export async function acceptInvitationAsNewAccount(input: {
+  token: string;
+  name: string;
+  password: string;
+}): Promise<AuthFailure | null> {
+  const outcome = await postSession({ action: 'accept-invitation', ...input });
+  return outcome.status === 'failed' ? outcome.error : null;
+}
+
 export async function signOut(): Promise<void> {
   await globalThis.fetch('/api/session', { method: 'DELETE' });
 }

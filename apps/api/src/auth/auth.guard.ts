@@ -41,6 +41,30 @@ export interface AuthenticatedRequest extends FastifyRequest {
   sessionId?: string;
 }
 
+/**
+ * Pull the session token off a request: cookie first, bearer second.
+ *
+ * Exported because one route genuinely needs an *optional* session. Accepting
+ * an invitation is reachable both signed out (a new account is created) and
+ * signed in (the membership is linked to the existing one), so it cannot sit
+ * behind the guard — and must still be able to see who is signed in
+ * (ADR-0018). Sharing this function rather than copying three lines keeps the
+ * two paths from drifting over which credential wins.
+ */
+export function extractSessionToken(request: FastifyRequest, cookieName: string): string | null {
+  const cookies = (request as FastifyRequest & { cookies?: Record<string, string | undefined> })
+    .cookies;
+  const fromCookie = cookies?.[cookieName];
+  if (typeof fromCookie === 'string' && fromCookie.length > 0) return fromCookie;
+
+  const header = request.headers.authorization;
+  if (typeof header === 'string' && header.startsWith('Bearer ')) {
+    const value = header.slice('Bearer '.length).trim();
+    if (value.length > 0) return value;
+  }
+  return null;
+}
+
 /** Inject the Actor into a handler parameter. */
 export const CurrentActor = createParamDecorator((_data: unknown, context: ExecutionContext) => {
   const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
@@ -132,17 +156,7 @@ export class AuthGuard implements CanActivate {
    * tests, where there is no cookie jar.
    */
   private extractToken(request: FastifyRequest): string | null {
-    const cookies = (request as FastifyRequest & { cookies?: Record<string, string | undefined> })
-      .cookies;
-    const fromCookie = cookies?.[this.env.SESSION_COOKIE_NAME];
-    if (typeof fromCookie === 'string' && fromCookie.length > 0) return fromCookie;
-
-    const header = request.headers.authorization;
-    if (typeof header === 'string' && header.startsWith('Bearer ')) {
-      const value = header.slice('Bearer '.length).trim();
-      if (value.length > 0) return value;
-    }
-    return null;
+    return extractSessionToken(request, this.env.SESSION_COOKIE_NAME);
   }
 
   /**

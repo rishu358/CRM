@@ -4,9 +4,10 @@ import { z } from 'zod';
 import { webEnv } from '../../../lib/env';
 
 /**
- * Sign in, finish an MFA challenge, change a password, sign out.
+ * Sign in, finish an MFA challenge, change a password, accept an invitation
+ * as a new account, sign out.
  *
- * These four are handled here rather than through `/api/proxy/*` for one
+ * These are handled here rather than through `/api/proxy/*` for one
  * reason: they are the requests whose response contains a session token, and
  * the token must be turned into an httpOnly cookie on *this* origin before it
  * ever reaches the page. The proxy deliberately drops `Set-Cookie`, so a
@@ -42,7 +43,32 @@ const changePasswordSchema = z
   })
   .strict();
 
-const bodySchema = z.discriminatedUnion('action', [signInSchema, mfaSchema, changePasswordSchema]);
+/**
+ * Accepting an invitation with a brand-new account.
+ *
+ * Only this shape of acceptance comes here. Accepting from an account that
+ * already exists issues no session, so it is an ordinary `/api/proxy` call;
+ * this one creates the account and signs it in, and that token must become a
+ * cookie before the page ever sees a response (ADR-0018).
+ *
+ * The token carries the workspace and the role. Neither is in this body, and
+ * the API would refuse them if they were.
+ */
+const acceptInvitationSchema = z
+  .object({
+    action: z.literal('accept-invitation'),
+    token: z.string().min(40).max(512),
+    name: z.string().min(1).max(120),
+    password: z.string().min(1).max(200),
+  })
+  .strict();
+
+const bodySchema = z.discriminatedUnion('action', [
+  signInSchema,
+  mfaSchema,
+  changePasswordSchema,
+  acceptInvitationSchema,
+]);
 
 /**
  * Reject a cross-site state-changing request (CLAUDE.md §5.9).
@@ -173,6 +199,11 @@ function upstreamCall(body: z.infer<typeof bodySchema>): {
       return {
         path: '/api/v1/auth/change-password',
         payload: { currentPassword: body.currentPassword, newPassword: body.newPassword },
+      };
+    case 'accept-invitation':
+      return {
+        path: '/api/v1/invitations/accept',
+        payload: { token: body.token, name: body.name, password: body.password },
       };
   }
 }

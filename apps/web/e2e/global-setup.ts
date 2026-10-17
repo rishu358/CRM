@@ -33,19 +33,21 @@ ${result.stderr ?? ''}`;
 
   const credentials: Record<string, string> = {};
   for (const line of output.split('\n')) {
-    const match = /^\s{2}(Owner|Sales rep|MFA demo|Password)\s+(\S+)\s*$/.exec(line);
+    const match = /^\s{2}(Owner|Sales rep|MFA demo|Password|Invited|Invite)\s+(\S+)\s*$/.exec(line);
     if (match?.[1] !== undefined && match[2] !== undefined) {
       const key = {
         Owner: 'owner',
         'Sales rep': 'rep',
         'MFA demo': 'mfaUser',
         Password: 'password',
+        Invited: 'invitedEmail',
+        Invite: 'inviteToken',
       }[match[1]];
       if (key !== undefined) credentials[key] = match[2];
     }
   }
 
-  for (const key of ['owner', 'rep', 'mfaUser', 'password']) {
+  for (const key of ['owner', 'rep', 'mfaUser', 'password', 'invitedEmail', 'inviteToken']) {
     if (credentials[key] === undefined) {
       throw new Error(`Could not read ${key} from the seed output:\n${output}`);
     }

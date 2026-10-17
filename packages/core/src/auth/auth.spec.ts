@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { newId } from '../ids/index.js';
 import {
   BACKUP_CODE_COUNT,
   findBackupCode,
@@ -16,8 +17,10 @@ import {
 import { FAILURE_THRESHOLD, isThrottled, throttleDelayMs } from './throttle.js';
 import {
   TOKEN_TTL_SECONDS,
+  generateInvitationToken,
   generateOneTimeToken,
   hashOneTimeToken,
+  parseInvitationToken,
   secretsMatch,
 } from './tokens.js';
 
@@ -136,5 +139,51 @@ describe('one-time tokens', () => {
     expect(secretsMatch('abc', 'abd')).toBe(false);
     expect(secretsMatch('abc', 'abcd')).toBe(false);
     expect(secretsMatch('', '')).toBe(true);
+  });
+});
+
+describe('invitation tokens', () => {
+  it('carries the workspace id as a prefix and a fresh secret after it', () => {
+    const tenantId = newId();
+    const token = generateInvitationToken(tenantId);
+
+    const parsed = parseInvitationToken(token);
+    expect(parsed?.tenantId).toBe(tenantId);
+    expect(parsed?.secret.length).toBeGreaterThanOrEqual(43);
+
+    // A second invitation to the same workspace shares only the prefix.
+    expect(parseInvitationToken(generateInvitationToken(tenantId))?.secret).not.toBe(
+      parsed?.secret,
+    );
+  });
+
+  it('refuses anything whose prefix is not a workspace id', () => {
+    // The prefix reaches `SET LOCAL app.tenant_id`, so a malformed one must be
+    // rejected here rather than passed along (ADR-0018).
+    expect(parseInvitationToken('not-a-uuid.' + 'a'.repeat(43))).toBeNull();
+    expect(parseInvitationToken('.' + 'a'.repeat(43))).toBeNull();
+    expect(parseInvitationToken('a'.repeat(80))).toBeNull();
+    expect(parseInvitationToken('')).toBeNull();
+  });
+
+  it('refuses a secret too short to be one of ours', () => {
+    expect(parseInvitationToken(`${newId()}.short`)).toBeNull();
+  });
+
+  it('hashes the whole token, prefix included', () => {
+    const tenantId = newId();
+    const token = generateInvitationToken(tenantId);
+    const secret = parseInvitationToken(token)?.secret ?? '';
+
+    // Binding the prefix into the digest means a swapped prefix fails the
+    // lookup as well as landing in the wrong RLS context.
+    expect(hashOneTimeToken(token)).not.toBe(hashOneTimeToken(secret));
+    expect(hashOneTimeToken(token)).not.toBe(hashOneTimeToken(`${newId()}.${secret}`));
+  });
+
+  it('gives an invitation the longest life of any one-time token', () => {
+    // Seven days, fixed by MVP_SPEC M2.
+    expect(TOKEN_TTL_SECONDS.team_invite).toBe(7 * 24 * 60 * 60);
+    expect(TOKEN_TTL_SECONDS.team_invite).toBeGreaterThan(TOKEN_TTL_SECONDS.email_verification);
   });
 });

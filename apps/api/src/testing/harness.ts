@@ -35,9 +35,15 @@ export interface ApiHarness {
   close(): Promise<void>;
 }
 
-/** Pull the one-time token out of a link in an email body. */
+/**
+ * Pull the one-time token out of a link in an email body.
+ *
+ * The character class includes `.` because an invitation token carries its
+ * workspace id as a dotted prefix (ADR-0018); every other token here is plain
+ * base64url.
+ */
 export function tokenFromEmail(body: string): string {
-  const match = /[?&]token=([A-Za-z0-9_-]+)/.exec(body);
+  const match = /[?&]token=([A-Za-z0-9._-]+)/.exec(body);
   if (match?.[1] === undefined) {
     throw new Error(`No token in email body:
 ${body}`);

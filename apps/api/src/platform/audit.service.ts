@@ -26,15 +26,16 @@ export type AuditAction =
   | 'impersonate';
 
 /**
- * Who acted, for the audit row.
+ * Who acted, for the audit row and for the outbox event beside it.
  *
- * Narrower than `Actor` on purpose: the audit writer needs the tenant and the
- * user and nothing else, and asking for a full Actor forced the auth module —
- * which runs before any Actor exists — to fabricate one with empty
- * permissions. A fake Actor in the codebase is worth avoiding even where it is
- * only read for two fields.
+ * Narrower than `Actor` on purpose: both writers need the tenant and the user
+ * and nothing else, and asking for a full Actor forced the auth module — which
+ * runs before any Actor exists — to fabricate one with empty permissions. A
+ * fake Actor in the codebase is worth avoiding even where it is only read for
+ * two fields. Invitation acceptance has the same shape: the person accepting
+ * has no membership yet, so there is nothing for `can()` to compile.
  */
-export interface AuditIdentity {
+export interface WriterIdentity {
   readonly tenantId: string;
   readonly userId: string | null;
 }
@@ -49,7 +50,7 @@ export interface AuditEntry {
 
 @Injectable()
 export class AuditService {
-  async record(tx: Tx, actor: Actor | AuditIdentity, entry: AuditEntry): Promise<void> {
+  async record(tx: Tx, actor: Actor | WriterIdentity, entry: AuditEntry): Promise<void> {
     const context = currentRequestContext();
     await tx.insert(auditLogs).values({
       id: newId(),

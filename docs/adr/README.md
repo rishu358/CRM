@@ -25,3 +25,4 @@ supersedes the old one and update the old one's **Status** to
 | [0015](0015-toolchain-version-pinning.md)               | Toolchain pinned to the type-aware-lint-compatible set        | Accepted |
 | [0016](0016-explicit-dependency-injection-tokens.md)    | Explicit `@Inject` tokens on every injected parameter         | Accepted |
 | [0017](0017-better-auth-as-primitives-not-framework.md) | Better Auth as primitives, not as the session framework       | Accepted |
+| [0018](0018-invitation-acceptance-identity.md)          | Invitation acceptance identity, and where its token lives     | Accepted |

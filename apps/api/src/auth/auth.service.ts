@@ -345,6 +345,103 @@ export class AuthService {
   }
 
   // -------------------------------------------------------------------------
+  // Identity, for the invitations module (MVP_SPEC M2, ADR-0018)
+  //
+  // Four narrow methods rather than letting another module import
+  // `AuthRepository`: modules talk through services (CLAUDE.md §3), and the
+  // identity tables are the last place to make an exception. Each one answers
+  // exactly one question the invitation flow has to ask.
+  // -------------------------------------------------------------------------
+
+  /**
+   * Is there an account at this address, and what is the person called?
+   *
+   * Server-side only. Nothing derived from this may reach a response except
+   * to somebody holding an invitation token mailed to that very address
+   * (ADR-0018) — anywhere else it is the enumeration oracle this module
+   * spends most of its effort avoiding.
+   */
+  async findAccountByEmail(email: string): Promise<{ userId: string; name: string } | null> {
+    const user = await this.repository.findUserByEmail(email);
+    if (user === null || user.deleted_at !== null) return null;
+    return { userId: user.id, name: user.name };
+  }
+
+  async emailForUser(userId: string): Promise<string | null> {
+    const user = await this.repository.findUserById(userId);
+    return user?.email ?? null;
+  }
+
+  /**
+   * Create the account an invitation's recipient does not have yet.
+   *
+   * The address is marked verified on creation, because the invitation token
+   * arrived in that mailbox and was redeemed from it — the same proof the
+   * verification link exists to collect. Sending a second link to confirm
+   * what has just been confirmed would strand new team members behind an
+   * email they have no reason to expect.
+   *
+   * No workspace is provisioned: the invitation supplies one. That is the
+   * difference between this and `signUp`.
+   */
+  async createInvitedAccount(input: {
+    email: string;
+    name: string;
+    password: string;
+  }): Promise<string> {
+    const passwordHash = await this.passwords.hash(input.password);
+
+    const userId = await this.repository.transaction(async (tx) => {
+      const id = await this.repository.createUser(
+        { email: input.email, name: input.name, emailVerified: true },
+        tx,
+      );
+      await this.repository.upsertCredential(
+        {
+          userId: id,
+          providerId: CREDENTIAL_PROVIDER,
+          accountId: input.email,
+          passwordHash,
+        },
+        tx,
+      );
+      return id;
+    });
+
+    await this.throttle.recordEvent('signup', true, { email: input.email, userId });
+    return userId;
+  }
+
+  /**
+   * Undo `createInvitedAccount` when the acceptance it was made for fails.
+   *
+   * Same compensation as `signUp`'s: leaving a half-made account behind would
+   * permanently reserve the address, and the no-enumeration rule means the
+   * person would never be told why their next attempt did nothing.
+   */
+  async discardInvitedAccount(userId: string): Promise<void> {
+    await this.repository.transaction((tx) => this.repository.deleteUser(userId, tx));
+  }
+
+  /** Issue a session in a named workspace. Used once an invitation is accepted. */
+  async startSessionIn(userId: string, tenantId: string): Promise<string> {
+    const context = currentRequestContext();
+    const { token, sessionId } = await this.sessions.issue(userId, {
+      tenantId,
+      ipAddress: context?.ipAddress ?? null,
+      userAgent: context?.userAgent ?? null,
+    });
+    await this.throttle.recordEvent('login_succeeded', true, { userId });
+    await this.auditLogin(tenantId, userId, sessionId, 'login');
+    return token;
+  }
+
+  /** Point an existing session at the workspace its owner has just joined. */
+  async switchSessionTo(sessionId: string, tenantId: string): Promise<void> {
+    await this.repository.setSessionTenant(sessionId, tenantId);
+  }
+
+  // -------------------------------------------------------------------------
   // Sign-out
   // -------------------------------------------------------------------------
 
