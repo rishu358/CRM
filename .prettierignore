@@ -11,3 +11,6 @@ apps/web/e2e/.credentials.json
 dist
 # Generated and rewritten by Next on every build.
 apps/web/next-env.d.ts
+# Sibling checkouts the desktop app creates for parallel sessions.
+# They are whole copies of this repo, not source to format from here.
+.claude/worktrees/
