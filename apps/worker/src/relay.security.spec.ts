@@ -1,7 +1,6 @@
-import { createDbClient, withTenant, withoutTenant, type DbClient } from '@crm/db';
+import { createDbClient, withTenant, withoutTenant, type DbClient, sql } from '@crm/db';
 import { Fixtures } from '@crm/db/testing';
 import { newId } from '@crm/core';
-import { sql } from 'drizzle-orm';
 import pg from 'pg';
 import { pino } from 'pino';
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';

@@ -5,13 +5,16 @@ import {
   type CanActivate,
   type ExecutionContext,
 } from '@nestjs/common';
-import { UnauthenticatedError, isUuid, type Actor } from '@crm/core';
+import { MfaEnrolmentRequiredError, UnauthenticatedError, isUuid, type Actor } from '@crm/core';
 import type { FastifyRequest } from 'fastify';
 import { API_ENV_TOKEN } from '../config/env.js';
 import type { ApiEnv } from '../config/env.js';
 import { TenantRateLimitService } from '../platform/rate-limit.service.js';
 import { ActorService } from './actor.service.js';
+import { AuthRepository } from './auth.repository.js';
+import { MfaService } from './mfa.service.js';
 import { SessionService } from './session.service.js';
+import { mfaRequiredFor } from './tenant-settings.js';
 
 /**
  * Authenticate the request and attach the resolved Actor.
@@ -21,6 +24,17 @@ import { SessionService } from './session.service.js';
  * who forgets the decorator is authenticated, not open (CLAUDE.md §5.3).
  */
 export const PUBLIC_ROUTE_KEY = 'crm:public-route';
+
+/**
+ * Routes that stay reachable in a workspace that requires MFA but where the
+ * user has not enrolled yet.
+ *
+ * Without this, switching the requirement on would lock out every member who
+ * had not already enrolled — including the administrator who switched it on —
+ * because the enrolment endpoints would be blocked by the rule they exist to
+ * satisfy.
+ */
+export const SKIP_MFA_KEY = 'crm:skip-mfa-check';
 
 export interface AuthenticatedRequest extends FastifyRequest {
   actor?: Actor;
@@ -44,12 +58,20 @@ export class AuthGuard implements CanActivate {
     @Inject(SessionService) private readonly sessions: SessionService,
     @Inject(ActorService) private readonly actors: ActorService,
     @Inject(TenantRateLimitService) private readonly tenantLimit: TenantRateLimitService,
+    @Inject(MfaService) private readonly mfa: MfaService,
+    @Inject(AuthRepository) private readonly repository: AuthRepository,
     @Inject(API_ENV_TOKEN) private readonly env: ApiEnv,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const handler = context.getHandler() as { [PUBLIC_ROUTE_KEY]?: boolean };
-    const controller = context.getClass() as { [PUBLIC_ROUTE_KEY]?: boolean };
+    const handler = context.getHandler() as {
+      [PUBLIC_ROUTE_KEY]?: boolean;
+      [SKIP_MFA_KEY]?: boolean;
+    };
+    const controller = context.getClass() as {
+      [PUBLIC_ROUTE_KEY]?: boolean;
+      [SKIP_MFA_KEY]?: boolean;
+    };
     if (handler[PUBLIC_ROUTE_KEY] === true || controller[PUBLIC_ROUTE_KEY] === true) {
       return true;
     }
@@ -72,9 +94,34 @@ export class AuthGuard implements CanActivate {
     // sent, so one caller cannot exhaust another workspace's budget.
     this.tenantLimit.check(actor.tenantId);
 
+    // MFA enforcement (MVP_SPEC M1 acceptance): a workspace with "MFA
+    // required" blocks access until the user enrols. Checked here rather than
+    // per controller so a new module cannot forget it, and after the actor is
+    // resolved because the requirement belongs to the tenant, not the user —
+    // the same person may be required to use MFA in one workspace and not in
+    // another.
+    const skipMfa = handler[SKIP_MFA_KEY] === true || controller[SKIP_MFA_KEY] === true;
+    if (!skipMfa && (await this.mfaOutstanding(actor))) {
+      throw new MfaEnrolmentRequiredError();
+    }
+
     request.actor = actor;
     request.sessionId = session.sessionId;
+
+    // Last-seen powers the "your devices" list. Deliberately not awaited: it
+    // is write-behind bookkeeping, it is rate-limited in SQL to one update a
+    // minute, and a request must not fail or wait because of it.
+    void this.repository.touchSession(session.sessionId).catch(() => undefined);
+
     return true;
+  }
+
+  /** Does this workspace require a second factor this user has not enrolled? */
+  private async mfaOutstanding(actor: Actor): Promise<boolean> {
+    const memberships = await this.repository.listMemberships(actor.userId);
+    const active = memberships.find((row) => row.tenant_id === actor.tenantId);
+    if (active === undefined || !mfaRequiredFor(active.settings)) return false;
+    return !(await this.mfa.isEnrolled(actor.userId));
   }
 
   /**
@@ -112,6 +159,37 @@ export class AuthGuard implements CanActivate {
     if (typeof requested === 'string' && isUuid(requested)) return requested;
     return sessionTenantId;
   }
+}
+
+/**
+ * Inject the current session's id into a handler parameter.
+ *
+ * Needed by anything that must distinguish "this device" from the others —
+ * the session list, sign-out, and the password change that keeps the caller
+ * signed in while revoking everyone else.
+ */
+export const CurrentSessionId = createParamDecorator(
+  (_data: unknown, context: ExecutionContext) => {
+    const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
+    if (request.sessionId === undefined) throw new UnauthenticatedError();
+    return request.sessionId;
+  },
+);
+
+/**
+ * Keep a route reachable for a user who has not yet enrolled in MFA that
+ * their workspace requires. Only for the routes that let them enrol, sign out
+ * or read their own profile.
+ */
+export function SkipMfaCheck() {
+  return <T>(
+    _target: object,
+    _key: string | symbol,
+    descriptor: TypedPropertyDescriptor<T>,
+  ): void => {
+    const handler = descriptor.value as Record<string, unknown> | undefined;
+    if (handler !== undefined) handler[SKIP_MFA_KEY] = true;
+  };
 }
 
 /**

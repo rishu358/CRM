@@ -1,4 +1,24 @@
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { config as loadEnv } from 'dotenv';
 import type { NextConfig } from 'next';
+
+/**
+ * Load the monorepo's root `.env`, the one the API, worker and seed read.
+ *
+ * Next only looks inside this app's own directory, so without this the web
+ * app quietly fell back to its defaults while every other package used the
+ * file. That is the worst shape for a configuration bug: nothing fails, the
+ * app just talks to whatever `API_URL` defaults to.
+ *
+ * `override: false` so a variable already in the environment — set by CI, by
+ * a deployment, or on the command line — still wins.
+ */
+loadEnv({
+  path: join(dirname(fileURLToPath(import.meta.url)), '..', '..', '.env'),
+  override: false,
+  quiet: true,
+});
 
 const config: NextConfig = {
   reactStrictMode: true,

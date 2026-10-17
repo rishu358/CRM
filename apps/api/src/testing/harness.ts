@@ -6,6 +6,7 @@ import pg from 'pg';
 import { createApp } from '../bootstrap.js';
 import { loadApiEnv, type ApiEnv } from '../config/env.js';
 import { SessionService } from '../auth/session.service.js';
+import { EMAIL_PROVIDER, type MemoryEmailProvider } from '../platform/email/email.provider.js';
 
 /**
  * Boots the real application against the test database.
@@ -23,10 +24,35 @@ export interface ApiHarness {
   provision(tenantId: string): Promise<ReadonlyMap<string, string>>;
   /** Issue a real session and return its bearer token. */
   signIn(userId: string, tenantId: string): Promise<string>;
+  /**
+   * The mail the app has sent.
+   *
+   * Verification and reset tokens exist only in the email — the database
+   * stores their hashes — so this is how a test follows the same path a user
+   * does, rather than asserting on our storage.
+   */
+  readonly emails: MemoryEmailProvider;
   close(): Promise<void>;
 }
 
-export async function startApiHarness(urls: TestDbUrls): Promise<ApiHarness> {
+/** Pull the one-time token out of a link in an email body. */
+export function tokenFromEmail(body: string): string {
+  const match = /[?&]token=([A-Za-z0-9_-]+)/.exec(body);
+  if (match?.[1] === undefined) {
+    throw new Error(`No token in email body:
+${body}`);
+  }
+  return match[1];
+}
+
+/**
+ * @param overrides environment values for a test that needs different limits
+ *   or providers than the shared defaults below.
+ */
+export async function startApiHarness(
+  urls: TestDbUrls,
+  overrides: Record<string, string> = {},
+): Promise<ApiHarness> {
   const env = loadApiEnv({
     NODE_ENV: 'test',
     DATABASE_URL: urls.app,
@@ -37,6 +63,18 @@ export async function startApiHarness(urls: TestDbUrls): Promise<ApiHarness> {
     // High enough that the suite's own traffic never trips the limiter and
     // turns a permission assertion into a confusing 429.
     RATE_LIMIT_MAX_PER_USER: '100000',
+    // The suite makes hundreds of sign-in attempts from one address, which a
+    // production-sized auth limit would rightly refuse. The limit itself is
+    // covered by its own test, which sets a small ceiling deliberately.
+    AUTH_RATE_LIMIT_MAX_PER_IP: '100000',
+    // Mail is captured rather than printed, so a test can read the token out
+    // of the message the same way a user reads it out of their inbox.
+    EMAIL_PROVIDER: 'memory',
+    // The throttle still engages and is still asserted on; what is shortened
+    // is only how long the suite waits for it. Setting it to zero would let a
+    // regression that removed the delay entirely pass unnoticed.
+    AUTH_THROTTLE_MAX_DELAY_MS: '50',
+    ...overrides,
   });
 
   const app = await createApp(env);
@@ -46,6 +84,7 @@ export async function startApiHarness(urls: TestDbUrls): Promise<ApiHarness> {
   const superuserPool = new pg.Pool({ connectionString: urls.superuser, max: 4 });
   const appClient: DbClient = createDbClient({ connectionString: urls.app, maxConnections: 4 });
   const sessions = app.get(SessionService);
+  const emails = app.get<MemoryEmailProvider>(EMAIL_PROVIDER);
 
   return {
     app,
@@ -57,6 +96,7 @@ export async function startApiHarness(urls: TestDbUrls): Promise<ApiHarness> {
       );
       return result.roleIdsByName;
     },
+    emails,
     signIn: async (userId: string, tenantId: string) => {
       const { token } = await sessions.issue(userId, { tenantId });
       return token;

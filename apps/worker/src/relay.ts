@@ -1,5 +1,4 @@
-import { sql } from 'drizzle-orm';
-import { withTenant, withoutTenant, type Database, type Tx } from '@crm/db';
+import { withTenant, withoutTenant, type Database, type Tx, sql } from '@crm/db';
 import type { Logger } from 'pino';
 
 /**

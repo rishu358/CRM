@@ -131,6 +131,68 @@ export class Fixtures {
     return { userId, membershipId };
   }
 
+  /**
+   * Give a user a password, pre-verified, as signup would have left them.
+   *
+   * Takes an already-computed hash rather than a plaintext password: hashing
+   * belongs to the API's `PasswordHasher` (ADR-0017), and a second
+   * implementation here would be one more thing that can silently disagree
+   * with the real one.
+   */
+  async setCredential(userId: string, email: string, passwordHash: string): Promise<void> {
+    await this.pool.query(
+      `INSERT INTO auth_accounts (id, user_id, provider_id, account_id, password_hash)
+       VALUES ($1, $2, 'credential', $3, $4)
+       ON CONFLICT (provider_id, account_id) DO UPDATE SET password_hash = EXCLUDED.password_hash`,
+      [newId(), userId, email, passwordHash],
+    );
+  }
+
+  async markEmailVerified(userId: string): Promise<void> {
+    await this.pool.query(`UPDATE users SET email_verified_at = now() WHERE id = $1`, [userId]);
+  }
+
+  async emailFor(userId: string): Promise<string> {
+    const result = await this.pool.query<{ email: string }>(
+      `SELECT email::text AS email FROM users WHERE id = $1`,
+      [userId],
+    );
+    const email = result.rows[0]?.email;
+    if (email === undefined) throw new Error(`No user ${userId}`);
+    return email;
+  }
+
+  /** Merge a key into `tenants.settings`, e.g. `{ mfaRequired: true }`. */
+  async setTenantSettings(tenantId: string, settings: Record<string, unknown>): Promise<void> {
+    await this.pool.query(`UPDATE tenants SET settings = settings || $2::jsonb WHERE id = $1`, [
+      tenantId,
+      JSON.stringify(settings),
+    ]);
+  }
+
+  /** Authentication events, newest first. Used to assert on brute-force rows. */
+  async authEvents(where: {
+    email?: string;
+    userId?: string;
+  }): Promise<{ type: string; succeeded: boolean }[]> {
+    const result = await this.pool.query<{ type: string; succeeded: boolean }>(
+      `SELECT type, succeeded FROM auth_events
+       WHERE ($1::text IS NULL OR email = $1) AND ($2::uuid IS NULL OR user_id = $2)
+       ORDER BY occurred_at DESC`,
+      [where.email ?? null, where.userId ?? null],
+    );
+    return result.rows;
+  }
+
+  async countActiveSessions(userId: string): Promise<number> {
+    const result = await this.pool.query<{ count: string }>(
+      `SELECT count(*)::text AS count FROM sessions
+       WHERE user_id = $1 AND revoked_at IS NULL AND expires_at > now()`,
+      [userId],
+    );
+    return Number(result.rows[0]?.count ?? '0');
+  }
+
   async createTeam(tenantId: string, name: string, userIds: readonly string[]): Promise<string> {
     const teamId = newId();
     await this.pool.query(`INSERT INTO teams (id, tenant_id, name) VALUES ($1, $2, $3)`, [

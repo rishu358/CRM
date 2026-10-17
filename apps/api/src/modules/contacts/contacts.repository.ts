@@ -1,8 +1,18 @@
 import { Injectable } from '@nestjs/common';
 import type { FieldDefinition, RecordConstraint } from '@crm/core';
 import type { ParsedFilter, SortDirection } from '@crm/contracts';
-import { contacts, type Contact, type Tx } from '@crm/db';
-import { and, asc, desc, eq, getTableColumns, sql, type SQL } from 'drizzle-orm';
+import {
+  contacts,
+  type Contact,
+  type Tx,
+  and,
+  asc,
+  desc,
+  eq,
+  getTableColumns,
+  sql,
+  type SQL,
+} from '@crm/db';
 import { decodeCursor, encodeCursor, type Cursor } from './cursor.js';
 import {
   constraintToSql,

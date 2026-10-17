@@ -1,10 +1,10 @@
 import { timingSafeEqual } from 'node:crypto';
 import { Inject, Injectable } from '@nestjs/common';
 import { generateSessionToken, hashSessionToken } from '@crm/core';
-import { sql } from 'drizzle-orm';
 import { API_ENV_TOKEN } from '../config/env.js';
 import { DatabaseService } from '../database/database.service.js';
 import type { ApiEnv } from '../config/env.js';
+import { sql } from '@crm/db';
 
 /**
  * Session verification (ADR-0014).

@@ -1,7 +1,13 @@
 # ADR-0014: Self-hosted authentication (Better Auth) with data in our database
 
-- **Status:** Accepted
+- **Status:** Accepted, amended by [ADR-0017](0017-better-auth-as-primitives-not-framework.md)
 - **Date:** 2026-10-16
+
+> **Amendment (ADR-0017).** The decision to self-host identity in our own Postgres
+> stands. What changed is _how much_ of Better Auth we use: its password hashing,
+> TOTP and OAuth providers, but not its session store, database adapter or HTTP
+> handler — its session model stores the raw token, which we do not. See ADR-0017
+> for the evidence.
 
 ## Context
 
