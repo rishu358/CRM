@@ -1,5 +1,7 @@
 'use client';
 
+import { useEffect } from 'react';
+
 import {
   Button,
   Card,
@@ -13,7 +15,9 @@ import Link from 'next/link';
 import { useAccount, useUpdateAccount, type AddressValue } from '../lib/accounts';
 import { DEFAULT_PREFERENCES, formatDateTime } from '../lib/format';
 import { t, type TranslationKey } from '../lib/i18n';
+import { useRecordView } from '../lib/activities';
 import { AppShell } from './app-shell';
+import { ActivityPanel } from './activity-panel';
 import { InlineField } from './inline-field';
 import { InlineMoneyField } from './inline-money-field';
 
@@ -95,6 +99,18 @@ function ParentAccountLink({ id }: { id: string }) {
 }
 
 export function AccountDetail({ id }: { id: string }) {
+  /*
+   * Tell the server this record was opened, for My Day's "recently viewed"
+   * (MVP_SPEC M6). A write the client makes rather than something the GET
+   * does for it, so a read stays a read. Failures are ignored: the list is a
+   * convenience, and nobody should see an error because the bookkeeping
+   * behind it did not land.
+   */
+  const { mutate: recordView } = useRecordView();
+  useEffect(() => {
+    recordView({ objectType: 'account', recordId: id });
+  }, [id, recordView]);
+
   const query = useAccount(id);
   const update = useUpdateAccount();
 
@@ -264,6 +280,8 @@ export function AccountDetail({ id }: { id: string }) {
           </CardBody>
         </Card>
       ) : null}
+
+      <ActivityPanel objectType="account" recordId={id} />
     </AppShell>
   );
 }

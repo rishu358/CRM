@@ -12,11 +12,13 @@ import {
   Skeleton,
 } from '@crm/ui';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { DEFAULT_PREFERENCES, formatDate, formatDateTime, formatName } from '../lib/format';
 import { t, type TranslationKey } from '../lib/i18n';
 import { OPEN_LEAD_STATUSES, useLead, useUpdateLead } from '../lib/leads';
+import { useRecordView } from '../lib/activities';
 import { AppShell } from './app-shell';
+import { ActivityPanel } from './activity-panel';
 import { ConvertLeadDialog } from './convert-lead-dialog';
 import { InlineField } from './inline-field';
 
@@ -43,6 +45,18 @@ const EDITABLE_FIELDS = [
 ] as const;
 
 export function LeadDetail({ id }: { id: string }) {
+  /*
+   * Tell the server this record was opened, for My Day's "recently viewed"
+   * (MVP_SPEC M6). A write the client makes rather than something the GET
+   * does for it, so a read stays a read. Failures are ignored: the list is a
+   * convenience, and nobody should see an error because the bookkeeping
+   * behind it did not land.
+   */
+  const { mutate: recordView } = useRecordView();
+  useEffect(() => {
+    recordView({ objectType: 'lead', recordId: id });
+  }, [id, recordView]);
+
   const query = useLead(id);
   const update = useUpdateLead();
   const [converting, setConverting] = useState(false);
@@ -249,6 +263,8 @@ export function LeadDetail({ id }: { id: string }) {
       </Card>
 
       {converting ? <ConvertLeadDialog lead={lead} onClose={() => setConverting(false)} /> : null}
+
+      <ActivityPanel objectType="lead" recordId={id} />
     </AppShell>
   );
 }

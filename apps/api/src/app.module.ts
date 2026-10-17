@@ -5,10 +5,12 @@ import { AuthModule } from './auth/auth.module.js';
 import { DatabaseModule } from './database/database.module.js';
 import { HealthController } from './health.controller.js';
 import { AccountsModule } from './modules/accounts/accounts.module.js';
+import { ActivitiesModule } from './modules/activities/activities.module.js';
 import { ContactsModule } from './modules/contacts/contacts.module.js';
 import { DealsModule } from './modules/deals/deals.module.js';
 import { InvitationsModule } from './modules/invitations/invitations.module.js';
 import { LeadsModule } from './modules/leads/leads.module.js';
+import { NotificationsModule } from './modules/notifications/notifications.module.js';
 import { PipelinesModule } from './modules/pipelines/pipelines.module.js';
 import { PlatformModule } from './platform/platform.module.js';
 import type { ApiEnv } from './config/env.js';
@@ -35,6 +37,8 @@ export class AppModule {
         PipelinesModule,
         DealsModule,
         LeadsModule,
+        ActivitiesModule,
+        NotificationsModule,
         InvitationsModule,
       ],
       controllers: [HealthController],

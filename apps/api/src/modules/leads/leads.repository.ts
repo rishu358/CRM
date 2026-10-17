@@ -10,6 +10,7 @@ import {
   desc,
   eq,
   getTableColumns,
+  inArray,
   not,
   or,
   sql,
@@ -109,6 +110,35 @@ export class LeadsRepository {
           ? encodeCursor({ value: last.cursorValue, id: last.id })
           : null,
     };
+  }
+
+  /**
+   * The rows among `ids` this reader may see.
+   *
+   * `constraint` is the reader's record scope, applied here in SQL rather
+   * than by filtering afterwards: a record outside their scope is never
+   * fetched, so it cannot be named, counted or hinted at. Batched because an
+   * activity list resolves every link on the page at once, and one query per
+   * link would be fifty queries per page.
+   */
+  async findReadableMany(
+    tx: Tx,
+    tenantId: string,
+    ids: readonly string[],
+    constraint: RecordConstraint,
+  ): Promise<Lead[]> {
+    if (ids.length === 0) return [];
+    const predicates: SQL[] = [
+      eq(leads.tenantId, tenantId),
+      inArray(leads.id, [...ids]),
+      notDeleted(),
+    ];
+    const scope = constraintToSql(constraint);
+    if (scope !== undefined) predicates.push(scope);
+    return tx
+      .select()
+      .from(leads)
+      .where(and(...predicates));
   }
 
   async findById(tx: Tx, tenantId: string, id: string): Promise<Lead | null> {

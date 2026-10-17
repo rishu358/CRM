@@ -1,6 +1,9 @@
 import { createDbClient } from '@crm/db';
 import { pino } from 'pino';
 import { loadWorkerEnv } from './env.js';
+import { createEmailProvider } from './email/provider.js';
+import { pruneActivityLinks } from './handlers/activities.js';
+import { notifyAssignment, notifyReminder, sendDigest } from './handlers/notifications.js';
 import { projectTimeline } from './handlers/timeline.js';
 import { OutboxRelay } from './relay.js';
 
@@ -38,6 +41,37 @@ relay.on('lead.deleted.v1', projectTimeline);
 relay.on('lead.converted.v1', projectTimeline);
 relay.on('contact.linked_from_lead.v1', projectTimeline);
 relay.on('account.linked_from_lead.v1', projectTimeline);
+relay.on('activity.linked.v1', projectTimeline);
+relay.on('activity.completed.v1', projectTimeline);
+
+/**
+ * Notifications and the digest (MVP_SPEC M6, ADR-0025).
+ *
+ * The reminder handler is subscribed to an event the API dated to the
+ * future; the relay will not pick it up until then, which is the whole
+ * scheduler.
+ */
+const notificationOptions = {
+  email: createEmailProvider(env.EMAIL_PROVIDER, env.NODE_ENV, logger),
+  emailFrom: env.EMAIL_FROM,
+  webUrl: env.WEB_URL,
+  digestWindowMinutes: env.DIGEST_WINDOW_MINUTES,
+};
+
+relay.on('activity.assigned.v1', notifyAssignment(notificationOptions));
+relay.on('activity.reminder_due.v1', notifyReminder());
+relay.on('notification.digest_due.v1', sendDigest(notificationOptions));
+
+/**
+ * Orphan cleanup for polymorphic links (ADR-0005).
+ *
+ * The delete events of every linkable object, because the link table has no
+ * foreign key to tell it when a target disappears.
+ */
+relay.on('contact.deleted.v1', pruneActivityLinks);
+relay.on('account.deleted.v1', pruneActivityLinks);
+relay.on('lead.deleted.v1', pruneActivityLinks);
+relay.on('deal.deleted.v1', pruneActivityLinks);
 
 let running = true;
 

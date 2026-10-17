@@ -31,3 +31,6 @@ supersedes the old one and update the old one's **Status** to
 | [0021](0021-currency-conversion-seam.md)                | Currency conversion behind an exchange-rate source              | Accepted |
 | [0022](0022-lead-conversion.md)                         | A lead converts once, in one transaction, onto records it names | Accepted |
 | [0023](0023-duplicate-detection.md)                     | What "duplicate" means, and who is allowed to be told           | Accepted |
+| [0024](0024-rich-text-sanitization.md)                  | Rich text: an allow-list, applied on write and on read          | Accepted |
+| [0025](0025-reminder-and-digest-scheduling.md)          | Reminders and digests are scheduled by the outbox               | Accepted |
+| [0026](0026-activity-ownership-is-the-assignee.md)      | An activity's owner is its assignee                             | Accepted |

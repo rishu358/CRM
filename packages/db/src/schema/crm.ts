@@ -346,6 +346,103 @@ export const dealContacts = pgTable(
 );
 
 /**
+ * Activities — tasks, calls, meetings and notes (MVP_SPEC §6.2, §M6).
+ *
+ * Two things here are deliberately unlike the other business objects.
+ *
+ * **There is no `owner_id`.** `assigned_to` is the ownership column: it is
+ * what record scope is applied to, what My Day filters on, and what `can()`
+ * judges as the record's owner. A second "owner" beside the assignee would be
+ * two answers to "whose task is this?", and the first time they disagreed the
+ * person who had to do the work would be the one who could not see it
+ * (ADR-0026).
+ *
+ * **The body is sanitized HTML.** It is written through
+ * `sanitizeRichText` and read back through it as well, so a row that arrived
+ * from an import or a restore is still safe to render (ADR-0024).
+ */
+export const activities = pgTable(
+  'activities',
+  {
+    ...baseColumns,
+    /** Who has to do it. Plays the role `owner_id` plays elsewhere. */
+    assignedTo: uuid('assigned_to'),
+    type: text('type').$type<'task' | 'call' | 'meeting' | 'note'>().notNull(),
+    subject: text('subject').notNull(),
+    /** Sanitized HTML, never raw user markup (ADR-0024). */
+    body: text('body'),
+    dueAt: timestamptz('due_at'),
+    completedAt: timestamptz('completed_at'),
+    priority: text('priority').$type<'low' | 'normal' | 'high'>().notNull().default('normal'),
+    status: text('status').$type<'open' | 'completed' | 'cancelled'>().notNull().default('open'),
+    /**
+     * When the assignee should be reminded. Derived from `due_at` on write;
+     * the scheduling itself is an outbox row timed to this instant, not a
+     * column anything polls (ADR-0025).
+     */
+    reminderAt: timestamptz('reminder_at'),
+    deletedAt: timestamptz('deleted_at'),
+    version: integer('version').notNull().default(1),
+    customFields: jsonb('custom_fields')
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default(sql`'{}'::jsonb`),
+  },
+  (table) => [
+    index('activities_tenant_created_idx')
+      .on(table.tenantId, table.createdAt, table.id)
+      .where(sql`${table.deletedAt} is null`),
+    // My Day: "my open tasks, by when they are due" (MVP_SPEC M6).
+    index('activities_tenant_assignee_due_idx')
+      .on(table.tenantId, table.assignedTo, table.dueAt, table.id)
+      .where(sql`${table.deletedAt} is null and ${table.status} = 'open'`),
+    index('activities_tenant_due_idx')
+      .on(table.tenantId, table.dueAt, table.id)
+      .where(sql`${table.deletedAt} is null`),
+    index('activities_custom_fields_idx').using('gin', table.customFields),
+  ],
+);
+
+/**
+ * What an activity is about (ADR-0005).
+ *
+ * One activity can hang off several records — a meeting with a contact about
+ * a deal — so this is a table rather than a column. The target side is the
+ * polymorphic pair `(object_type, record_id)` and therefore has **no foreign
+ * key**: keeping targets honest is the service's job on write, and clearing
+ * links to records that are really gone is a worker's job on delete
+ * (ADR-0005, and `pruneActivityLinks` in the worker).
+ *
+ * The *activity* side is a real composite foreign key, because nothing about
+ * ADR-0005 asks us to give that one up: deleting an activity takes its links
+ * with it, inside the same tenant.
+ */
+export const activityLinks = pgTable(
+  'activity_links',
+  {
+    ...baseColumns,
+    activityId: uuid('activity_id').notNull(),
+    objectType: text('object_type').notNull(),
+    recordId: uuid('record_id').notNull(),
+  },
+  (table) => [
+    uniqueIndex('activity_links_unique').on(
+      table.tenantId,
+      table.activityId,
+      table.objectType,
+      table.recordId,
+    ),
+    // "The activities on this record", which is how a record page reads them.
+    index('activity_links_target_idx').on(
+      table.tenantId,
+      table.objectType,
+      table.recordId,
+      table.activityId,
+    ),
+  ],
+);
+
+/**
  * Manual exchange rates (MVP_SPEC M5). Major unit to major unit, held as an
  * exact decimal: `numeric` comes back as a string, so it never becomes a float.
  */
@@ -376,3 +473,7 @@ export type Deal = typeof deals.$inferSelect;
 export type NewDeal = typeof deals.$inferInsert;
 export type DealContact = typeof dealContacts.$inferSelect;
 export type ExchangeRate = typeof exchangeRates.$inferSelect;
+export type Activity = typeof activities.$inferSelect;
+export type NewActivity = typeof activities.$inferInsert;
+export type ActivityLink = typeof activityLinks.$inferSelect;
+export type NewActivityLink = typeof activityLinks.$inferInsert;

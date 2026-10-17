@@ -566,6 +566,40 @@ export class LeadsService {
   // internals
   // -------------------------------------------------------------------------
 
+  /**
+   * What to call these leads, for the ones this actor may read (ADR-0005).
+   *
+   * See `ContactsService.linkLabels`: record scope in SQL, label built only
+   * from readable fields, absent rather than refused when either says no.
+   */
+  async linkLabels(tx: Tx, actor: Actor, ids: readonly string[]): Promise<Map<string, string>> {
+    const decision = can(actor, 'read', { objectType: 'lead' });
+    if (!decision.allowed) return new Map();
+
+    const rows = await this.repository.findReadableMany(
+      tx,
+      actor.tenantId,
+      ids,
+      decision.constraint,
+    );
+
+    return new Map(
+      rows.map((row) => {
+        const name = [
+          canReadField(actor, 'lead', 'first_name') ? row.firstName : null,
+          canReadField(actor, 'lead', 'last_name') ? row.lastName : null,
+        ]
+          .filter((part): part is string => part !== null && part.length > 0)
+          .join(' ');
+        const company = canReadField(actor, 'lead', 'company') ? row.company : null;
+        const label = [name, company]
+          .filter((part) => part !== null && part.length > 0)
+          .join(' — ');
+        return [row.id, label.length > 0 ? label : 'Lead'];
+      }),
+    );
+  }
+
   private inTenant<T>(actor: Actor, work: (tx: Tx) => Promise<T>): Promise<T> {
     return this.database.runInTenant({ tenantId: actor.tenantId, userId: actor.userId }, work);
   }

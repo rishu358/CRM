@@ -1,5 +1,7 @@
 'use client';
 
+import { useEffect } from 'react';
+
 import {
   Button,
   Card,
@@ -13,7 +15,9 @@ import Link from 'next/link';
 import { useContact, useUpdateContact } from '../lib/contacts';
 import { DEFAULT_PREFERENCES, formatDateTime, formatName } from '../lib/format';
 import { t } from '../lib/i18n';
+import { useRecordView } from '../lib/activities';
 import { AppShell } from './app-shell';
+import { ActivityPanel } from './activity-panel';
 import { InlineField } from './inline-field';
 
 /**
@@ -36,6 +40,18 @@ const EDITABLE_FIELDS = [
 ] as const;
 
 export function ContactDetail({ id }: { id: string }) {
+  /*
+   * Tell the server this record was opened, for My Day's "recently viewed"
+   * (MVP_SPEC M6). A write the client makes rather than something the GET
+   * does for it, so a read stays a read. Failures are ignored: the list is a
+   * convenience, and nobody should see an error because the bookkeeping
+   * behind it did not land.
+   */
+  const { mutate: recordView } = useRecordView();
+  useEffect(() => {
+    recordView({ objectType: 'contact', recordId: id });
+  }, [id, recordView]);
+
   const query = useContact(id);
   const update = useUpdateContact();
 
@@ -149,6 +165,8 @@ export function ContactDetail({ id }: { id: string }) {
           </div>
         </CardBody>
       </Card>
+
+      <ActivityPanel objectType="contact" recordId={id} />
     </AppShell>
   );
 }

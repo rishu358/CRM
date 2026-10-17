@@ -32,6 +32,12 @@ const SUMMARIES: Readonly<Record<string, string>> = {
   // lead it now carries (ADR-0022).
   'contact.linked_from_lead.v1': 'Lead converted onto this contact',
   'account.linked_from_lead.v1': 'Lead converted onto this account',
+  // Activities are projected onto the record they are *about*, not onto the
+  // activity: one event per link, carrying the target's object type and id,
+  // so a meeting about a contact and a deal appears on both timelines
+  // (ADR-0005). Worded per event by `describeChange`.
+  'activity.linked.v1': 'Activity added',
+  'activity.completed.v1': 'Activity completed',
 };
 
 export async function projectTimeline(tx: Tx, event: OutboxRow): Promise<void> {
@@ -85,12 +91,26 @@ function describeChange(event: OutboxRow, fallback: string): string {
       : `Converted${linked}`;
   }
 
+  if (event.event_type === 'activity.linked.v1' || event.event_type === 'activity.completed.v1') {
+    const subject = event.payload['subject'];
+    const kind = event.payload['activityType'];
+    const noun = typeof kind === 'string' && kind.length > 0 ? titleCase(kind) : 'Activity';
+    const verb = event.event_type === 'activity.completed.v1' ? 'completed' : 'added';
+    return typeof subject === 'string' && subject.length > 0
+      ? `${noun} ${verb}: ${subject}`
+      : `${noun} ${verb}`;
+  }
+
   const changed = event.payload['changedFields'];
   if (Array.isArray(changed) && changed.length > 0) {
     const names = changed.filter((value): value is string => typeof value === 'string');
     if (names.length > 0) return `${fallback}: ${names.join(', ')}`;
   }
   return fallback;
+}
+
+function titleCase(value: string): string {
+  return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
 /** Remove timeline entries for a record that was hard-deleted. */

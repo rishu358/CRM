@@ -12,13 +12,15 @@ import {
   Skeleton,
 } from '@crm/ui';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAccount } from '../lib/accounts';
 import { useContact } from '../lib/contacts';
 import { useDeal, useMoveDeal, usePipelines, useUpdateDeal, type StageRecord } from '../lib/deals';
 import { DEFAULT_PREFERENCES, formatDateTime, formatName } from '../lib/format';
 import { t } from '../lib/i18n';
+import { useRecordView } from '../lib/activities';
 import { AppShell } from './app-shell';
+import { ActivityPanel } from './activity-panel';
 import { InlineField } from './inline-field';
 import { InlineMoneyField } from './inline-money-field';
 import { LostReasonDialog } from './lost-reason-dialog';
@@ -72,6 +74,18 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
 }
 
 export function DealDetail({ id }: { id: string }) {
+  /*
+   * Tell the server this record was opened, for My Day's "recently viewed"
+   * (MVP_SPEC M6). A write the client makes rather than something the GET
+   * does for it, so a read stays a read. Failures are ignored: the list is a
+   * convenience, and nobody should see an error because the bookkeeping
+   * behind it did not land.
+   */
+  const { mutate: recordView } = useRecordView();
+  useEffect(() => {
+    recordView({ objectType: 'deal', recordId: id });
+  }, [id, recordView]);
+
   const query = useDeal(id);
   const update = useUpdateDeal();
   const move = useMoveDeal();
@@ -340,6 +354,8 @@ export function DealDetail({ id }: { id: string }) {
           }}
         />
       )}
+
+      <ActivityPanel objectType="deal" recordId={id} />
     </AppShell>
   );
 }

@@ -42,6 +42,27 @@ export function toObjectType(value: unknown): ObjectType {
   return value;
 }
 
+/**
+ * Object types an activity, tag or attachment may be attached to (ADR-0005).
+ *
+ * Narrower than `OBJECT_TYPES` on purpose, exactly as ADR-0005 anticipated:
+ * `invitation` is administrative and nothing links to it, and an activity
+ * linked to another activity is not a thing the product has. This is the
+ * closed set a polymorphic `object_type` arriving from a client is validated
+ * against before it is anywhere near SQL, and the set the `activity_links`
+ * CHECK constraint repeats in the database.
+ *
+ * P2 custom objects widen this list; the validation boundary stays here.
+ */
+export const LINK_TARGET_TYPES = ['account', 'contact', 'lead', 'deal'] as const;
+export type LinkTargetType = (typeof LINK_TARGET_TYPES)[number];
+
+const LINK_TARGET_TYPE_SET: ReadonlySet<string> = new Set(LINK_TARGET_TYPES);
+
+export function isLinkTargetType(value: unknown): value is LinkTargetType {
+  return typeof value === 'string' && LINK_TARGET_TYPE_SET.has(value);
+}
+
 /** Object types that hold business records with owners and soft deletes. */
 export const BUSINESS_OBJECT_TYPES = ['account', 'contact', 'lead', 'deal'] as const;
 export type BusinessObjectType = (typeof BUSINESS_OBJECT_TYPES)[number];

@@ -23,9 +23,27 @@ export interface DomainEvent {
   readonly payload?: Record<string, unknown>;
 }
 
+export interface PublishOptions {
+  /**
+   * The earliest the relay may deliver this event. Defaults to now.
+   *
+   * This is what makes the outbox a scheduler as well as a queue: a reminder
+   * is an event dated to when it is due, and the relay's existing
+   * `available_at <= now()` claim query is the thing that holds it back
+   * (ADR-0025). No timer, no cron, no cross-tenant sweep, and it survives a
+   * restart because it is a committed row rather than a process's memory.
+   */
+  readonly availableAt?: Date;
+}
+
 @Injectable()
 export class OutboxService {
-  async publish(tx: Tx, actor: Actor | WriterIdentity, event: DomainEvent): Promise<void> {
+  async publish(
+    tx: Tx,
+    actor: Actor | WriterIdentity,
+    event: DomainEvent,
+    options: PublishOptions = {},
+  ): Promise<void> {
     const context = currentRequestContext();
     await tx.insert(outboxEvents).values({
       id: newId(),
@@ -36,6 +54,7 @@ export class OutboxService {
       payload: event.payload ?? {},
       actorId: actor.userId,
       requestId: context?.requestId ?? null,
+      ...(options.availableAt === undefined ? {} : { availableAt: options.availableAt }),
     });
   }
 }

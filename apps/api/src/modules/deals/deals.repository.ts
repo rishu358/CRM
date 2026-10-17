@@ -120,6 +120,35 @@ export class DealsRepository {
     };
   }
 
+  /**
+   * The rows among `ids` this reader may see.
+   *
+   * `constraint` is the reader's record scope, applied here in SQL rather
+   * than by filtering afterwards: a record outside their scope is never
+   * fetched, so it cannot be named, counted or hinted at. Batched because an
+   * activity list resolves every link on the page at once, and one query per
+   * link would be fifty queries per page.
+   */
+  async findReadableMany(
+    tx: Tx,
+    tenantId: string,
+    ids: readonly string[],
+    constraint: RecordConstraint,
+  ): Promise<Deal[]> {
+    if (ids.length === 0) return [];
+    const predicates: SQL[] = [
+      eq(deals.tenantId, tenantId),
+      inArray(deals.id, [...ids]),
+      notDeleted(),
+    ];
+    const scope = constraintToSql(constraint);
+    if (scope !== undefined) predicates.push(scope);
+    return tx
+      .select()
+      .from(deals)
+      .where(and(...predicates));
+  }
+
   async findById(tx: Tx, tenantId: string, id: string): Promise<Deal | null> {
     const rows = await tx
       .select()

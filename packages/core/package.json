@@ -22,6 +22,18 @@
       "types": "./dist/dates/index.d.ts",
       "default": "./dist/dates/index.js"
     },
+    "./activities": {
+      "types": "./dist/activities/index.d.ts",
+      "default": "./dist/activities/index.js"
+    },
+    "./html": {
+      "types": "./dist/html/index.d.ts",
+      "default": "./dist/html/index.js"
+    },
+    "./email": {
+      "types": "./dist/email/index.d.ts",
+      "default": "./dist/email/index.js"
+    },
     "./errors": {
       "types": "./dist/errors/index.d.ts",
       "default": "./dist/errors/index.js"
@@ -55,12 +67,14 @@
     "build": "tsc -p tsconfig.build.json"
   },
   "dependencies": {
+    "sanitize-html": "^2.18.1",
     "uuid": "^14.0.3",
     "zod": "^4.6.7"
   },
   "devDependencies": {
     "@crm/config": "workspace:^",
     "@types/node": "^26.6.5",
+    "@types/sanitize-html": "^2.16.2",
     "typescript": "5.9.3",
     "vitest": "^5.0.5"
   }
