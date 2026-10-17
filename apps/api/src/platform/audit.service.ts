@@ -82,6 +82,30 @@ export class AuditService {
  */
 const INTERNAL_COLUMNS = new Set(['createdAt', 'updatedAt', 'createdBy', 'updatedBy', 'version']);
 
+/**
+ * JSON, with a decision about `bigint`.
+ *
+ * `JSON.stringify` throws on a BigInt rather than rendering it, so a single
+ * bigint column anywhere in a record turns every audit entry for that object
+ * into an unhandled 500 — including the one for a change that had nothing to
+ * do with it. Money is stored as minor units in a bigint (CLAUDE.md §7), so
+ * this is not a corner case; it is the first object with an amount on it.
+ *
+ * Rendered as a **decimal string**, for the reason the API does the same on
+ * the wire: a number past 2^53 would be rounded, and an audit log that
+ * disagrees with the record by a rupee is worse than no audit log, because it
+ * will be believed.
+ */
+function toJsonValue(value: unknown): unknown {
+  return JSON.parse(stableJson(value)) as unknown;
+}
+
+function stableJson(value: unknown): string {
+  return JSON.stringify(value ?? null, (_key, inner) =>
+    typeof inner === 'bigint' ? inner.toString() : (inner as unknown),
+  );
+}
+
 export function diffChanges(
   before: Record<string, unknown>,
   after: Record<string, unknown>,
@@ -91,8 +115,8 @@ export function diffChanges(
     if (INTERNAL_COLUMNS.has(key)) continue;
     const oldValue = before[key];
     const newValue = after[key];
-    if (JSON.stringify(oldValue ?? null) !== JSON.stringify(newValue ?? null)) {
-      changes[key] = { old: oldValue ?? null, new: newValue ?? null };
+    if (stableJson(oldValue) !== stableJson(newValue)) {
+      changes[key] = { old: toJsonValue(oldValue), new: toJsonValue(newValue) };
     }
   }
   return changes;

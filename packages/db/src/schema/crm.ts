@@ -13,8 +13,12 @@ import { baseColumns, citext, recordColumns } from './columns.js';
 /**
  * Accounts — the companies contacts belong to.
  *
- * The table and its RLS policy ship now because `contacts.account_id`
- * references it. Its module arrives with the sales-core slice.
+ * `parentAccountId` is self-referencing, which makes two things the database
+ * has to guarantee rather than the service: the parent belongs to the same
+ * tenant (a composite foreign key on `(tenant_id, parent_account_id)`), and the
+ * chain contains no cycle (a BEFORE trigger). Both live in
+ * `0007_accounts_module.sql`; see ADR-0018 for why neither is left to
+ * application code.
  */
 export const accounts = pgTable(
   'accounts',
@@ -44,6 +48,18 @@ export const accounts = pgTable(
       .where(sql`${table.deletedAt} is null`),
     index('accounts_tenant_owner_idx').on(table.tenantId, table.ownerId),
     index('accounts_tenant_name_idx').on(table.tenantId, table.name),
+    // Sort by company name is the common list ordering; id keeps the keyset total.
+    index('accounts_tenant_name_id_idx')
+      .on(table.tenantId, table.name, table.id)
+      .where(sql`${table.deletedAt} is null`),
+    // "The children of this account", and the ancestor walk the cycle trigger runs.
+    index('accounts_tenant_parent_idx')
+      .on(table.tenantId, table.parentAccountId)
+      .where(sql`${table.parentAccountId} is not null`),
+    // Duplicate detection by domain on create and import (MVP_SPEC M4).
+    index('accounts_tenant_domain_idx')
+      .on(table.tenantId, table.domain)
+      .where(sql`${table.deletedAt} is null`),
     index('accounts_custom_fields_idx').using('gin', table.customFields),
   ],
 );
@@ -155,6 +171,7 @@ export const timelineEvents = pgTable(
 );
 
 export type Account = typeof accounts.$inferSelect;
+export type NewAccount = typeof accounts.$inferInsert;
 export type Contact = typeof contacts.$inferSelect;
 export type NewContact = typeof contacts.$inferInsert;
 export type Tag = typeof tags.$inferSelect;

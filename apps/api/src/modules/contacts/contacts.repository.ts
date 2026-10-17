@@ -13,7 +13,8 @@ import {
   sql,
   type SQL,
 } from '@crm/db';
-import { decodeCursor, encodeCursor, type Cursor } from './cursor.js';
+import { decodeCursor, encodeCursor } from '../../common/cursor.js';
+import { keysetPredicate } from '../../common/keyset.js';
 import {
   constraintToSql,
   expressionForField,
@@ -71,7 +72,7 @@ export class ContactsRepository {
 
     const cursor = options.cursor === undefined ? null : decodeCursor(options.cursor);
     if (cursor !== null) {
-      predicates.push(keysetPredicate(sortExpression, direction, cursor));
+      predicates.push(keysetPredicate(sortExpression, sql`${contacts.id}`, direction, cursor));
     }
 
     // One row more than asked for, so "is there another page" needs no count.
@@ -184,22 +185,4 @@ export class ContactsRepository {
       .where(and(eq(contacts.tenantId, tenantId), eq(contacts.email, email), notDeleted()))
       .limit(5);
   }
-}
-
-/**
- * The keyset predicate: "strictly after this (sortValue, id)".
- *
- * Written as the row-comparison form so Postgres can use the composite index
- * directly. NULLs need care: a plain comparison against NULL is NULL, which
- * would drop rows, so a null cursor value falls back to the id alone.
- */
-function keysetPredicate(sortExpression: SQL, direction: SortDirection, cursor: Cursor): SQL {
-  const comparison = direction === 'asc' ? sql`>` : sql`<`;
-
-  if (cursor.value === null) {
-    return sql`(${sortExpression} is null and ${contacts.id} ${comparison} ${cursor.id}::uuid)
-               or ${sortExpression} is not null`;
-  }
-
-  return sql`(${sortExpression}, ${contacts.id}) ${comparison} (${cursor.value}, ${cursor.id}::uuid)`;
 }

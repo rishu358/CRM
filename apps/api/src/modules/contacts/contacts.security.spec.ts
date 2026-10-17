@@ -229,6 +229,61 @@ describe('(b) a user with own scope cannot see other people records', () => {
     expect(ids).not.toContain(adminContactA);
   });
 
+  it('keeps the scope on every page, including a nullable sort column', async () => {
+    // Regression. The keyset predicate contains an `or`, and Drizzle's `and()`
+    // parenthesises only its result, not its operands — so an unbracketed
+    // fragment detached the scope filter and the WHERE clause became
+    // `(tenant and owner and keyset…) or title is not null`. RLS still held
+    // the tenant line, but from page two onward this rep saw every colleague's
+    // contacts. Sorting by a column that is mostly null is what reaches the
+    // branch, which is why nothing noticed: every test sorted by a NOT NULL
+    // column.
+    // The colleague's records carry a value in the sorted column and this
+    // rep's do not. That asymmetry is the whole point: the faulty clause was
+    // `or email is not null`, which is inert when every row is null and hands
+    // over the colleague's book when they are not.
+    for (let index = 0; index < 8; index += 1) {
+      await harness.fixtures.createContact(tenantA, {
+        ownerId: adminA.userId,
+        lastName: `AdminOwned${index}`,
+        email: `admin-owned-${index}@acme.example`,
+      });
+      await harness.fixtures.createContact(tenantA, {
+        ownerId: repA.userId,
+        lastName: `RepOwned${index}`,
+        email: null,
+      });
+    }
+
+    for (const sort of ['email', '-email']) {
+      let cursor: string | null = null;
+      let pages = 0;
+      const seen: string[] = [];
+
+      do {
+        const query = new URLSearchParams({ limit: '3', sort });
+        if (cursor !== null) query.set('cursor', cursor);
+        const response = await request(harness, {
+          method: 'GET',
+          url: `/api/v1/contacts?${query.toString()}`,
+          token: repA.token,
+        });
+        expect(response.status, sort).toBe(200);
+
+        for (const row of response.body['data'] as { id: string; ownerId?: string }[]) {
+          seen.push(row.id);
+          expect(row.ownerId, `${sort}: a record owned by someone else`).toBe(repA.userId);
+        }
+        cursor = (response.body['meta'] as { nextCursor: string | null }).nextCursor;
+        pages += 1;
+      } while (cursor !== null && pages < 30);
+
+      // And paging terminated rather than serving the first page forever.
+      expect(cursor, `${sort}: paging never ended`).toBeNull();
+      expect(new Set(seen).size, `${sort}: a row came back twice`).toBe(seen.length);
+    }
+  });
+
   it('returns 404 when the rep reads a colleague record by id', async () => {
     const response = await request(harness, {
       method: 'GET',

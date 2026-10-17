@@ -2,6 +2,7 @@ import { ValidationError, type FieldDefinition, type RecordConstraint } from '@c
 import { sortableFieldKeys } from '@crm/core';
 import type { FilterOperator, ParsedFilter } from '@crm/contracts';
 import { contacts, and, eq, inArray, isNull, or, sql, type SQL } from '@crm/db';
+import { constraintToSql as scopeToSql } from '../../common/record-scope.js';
 
 /**
  * SQL fragments for the contacts repository.
@@ -76,34 +77,13 @@ export function allowedSortKeys(fields: readonly FieldDefinition[]): string[] {
 }
 
 /**
- * Translate the actor's record scope into a WHERE clause (ADR-0008).
+ * The actor's record scope as a WHERE clause (ADR-0008).
  *
- * Applied in SQL rather than by filtering fetched rows: filtering afterwards
- * would page over records the actor cannot see, so a page of 50 could come back
- * with 3 rows and the cursor would land in the wrong place.
+ * The rule itself is shared (`common/record-scope.ts`); this only says which
+ * column holds the owner on this table.
  */
 export function constraintToSql(constraint: RecordConstraint): SQL | undefined {
-  switch (constraint.kind) {
-    case 'all':
-      return undefined;
-    case 'own':
-      return eq(contacts.ownerId, constraint.userId);
-    case 'team': {
-      // Team membership of a record is derived from its owner's teams, so this
-      // reads through team_members rather than a column on the record.
-      const ownTeams = sql`
-        ${contacts.ownerId} in (
-          select tm.user_id from team_members tm
-          where tm.team_id in (${sql.join(
-            constraint.teamIds.map((id) => sql`${id}::uuid`),
-            sql`, `,
-          )})
-        )
-      `;
-      const mine = eq(contacts.ownerId, constraint.userId);
-      return constraint.teamIds.length === 0 ? mine : or(mine, ownTeams);
-    }
-  }
+  return scopeToSql(constraint, sql`${contacts.ownerId}`);
 }
 
 /** Build one filter predicate. The operator is whitelisted by the contracts layer. */
