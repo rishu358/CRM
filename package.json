@@ -17,6 +17,8 @@
     "db:generate": "pnpm --filter @crm/db db:generate",
     "db:migrate": "pnpm --filter @crm/db db:migrate",
     "db:seed": "pnpm --filter @crm/db db:seed",
+    "openapi:generate": "tsx packages/contracts/scripts/write-openapi.mts",
+    "openapi:check": "tsx packages/contracts/scripts/write-openapi.mts --check",
     "infra:up": "docker compose up -d",
     "infra:down": "docker compose down",
     "format": "prettier --write \"**/*.{ts,tsx,js,json,md,yaml,yml}\"",

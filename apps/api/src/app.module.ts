@@ -12,6 +12,7 @@ import { InvitationsModule } from './modules/invitations/invitations.module.js';
 import { LeadsModule } from './modules/leads/leads.module.js';
 import { NotificationsModule } from './modules/notifications/notifications.module.js';
 import { PipelinesModule } from './modules/pipelines/pipelines.module.js';
+import { OpenApiController } from './openapi/openapi.controller.js';
 import { PlatformModule } from './platform/platform.module.js';
 import type { ApiEnv } from './config/env.js';
 
@@ -41,7 +42,7 @@ export class AppModule {
         NotificationsModule,
         InvitationsModule,
       ],
-      controllers: [HealthController],
+      controllers: [HealthController, OpenApiController],
       providers: [{ provide: APP_GUARD, useExisting: AuthGuard }],
     };
   }

@@ -13,18 +13,18 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import {
+  invitationAcceptQuerySchema,
   invitationAcceptSchema,
   invitationCreateSchema,
   invitationListQuerySchema,
   invitationParamsSchema,
-  invitationTokenSchema,
   type InvitationAcceptInput,
+  type InvitationAcceptQuery,
   type InvitationCreateInput,
   type InvitationListQuery,
 } from '@crm/contracts';
 import type { Actor } from '@crm/core';
 import type { FastifyReply, FastifyRequest } from 'fastify';
-import { z } from 'zod';
 import { API_ENV_TOKEN, type ApiEnv } from '../../config/env.js';
 import { zodPipe } from '../../common/zod-validation.pipe.js';
 import { AuthRateLimitGuard } from '../../auth/auth-rate-limit.guard.js';
@@ -52,8 +52,6 @@ import { InvitationsService } from './invitations.service.js';
  * and these two are the only routes in the module with no user to key a limit
  * on.
  */
-const acceptQuerySchema = z.object({ token: invitationTokenSchema }).strict();
-
 @Controller('invitations')
 @UseGuards(AuthRateLimitGuard)
 export class InvitationsController {
@@ -72,7 +70,7 @@ export class InvitationsController {
   @Public()
   async preview(
     @Req() request: FastifyRequest,
-    @Query(zodPipe(acceptQuerySchema)) query: { token: string },
+    @Query(zodPipe(invitationAcceptQuerySchema)) query: InvitationAcceptQuery,
   ) {
     const session = await this.currentSession(request);
     return { data: await this.invitations.preview(query.token, session?.userId ?? null) };

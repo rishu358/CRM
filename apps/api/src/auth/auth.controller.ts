@@ -13,11 +13,13 @@ import {
 import {
   changePasswordSchema,
   forgotPasswordSchema,
+  googleCallbackQuerySchema,
   mfaActivateSchema,
   mfaDisableSchema,
   mfaVerifySchema,
   resendVerificationSchema,
   resetPasswordSchema,
+  sessionRevokeQuerySchema,
   signInSchema,
   signUpSchema,
   verifyEmailSchema,
@@ -25,16 +27,17 @@ import {
   type ForgotPasswordInput,
   type MfaActivateInput,
   type MfaDisableInput,
+  type GoogleCallbackQuery,
   type MfaVerifyInput,
   type ResendVerificationInput,
   type ResetPasswordInput,
+  type SessionRevokeQuery,
   type SignInInput,
   type SignUpInput,
   type VerifyEmailInput,
 } from '@crm/contracts';
 import { InvalidCredentialsError, NotFoundError, type Actor } from '@crm/core';
 import type { FastifyReply } from 'fastify';
-import { z } from 'zod';
 import { API_ENV_TOKEN, type ApiEnv } from '../config/env.js';
 import { zodPipe } from '../common/zod-validation.pipe.js';
 import { currentRequestContext } from '../common/request-context.js';
@@ -74,11 +77,6 @@ import { AuthRepository } from './auth.repository.js';
  * that exemption, turning on the requirement would lock out everyone who had
  * not already enrolled, with no way back in.
  */
-const sessionQuerySchema = z.object({ id: z.uuid() }).strict();
-const googleCallbackSchema = z
-  .object({ code: z.string().min(1).max(2048), state: z.string().min(1).max(512) })
-  .strict();
-
 @Controller('auth')
 @UseGuards(AuthRateLimitGuard)
 export class AuthController {
@@ -228,7 +226,7 @@ export class AuthController {
   @HttpCode(204)
   async revokeSession(
     @CurrentActor() actor: Actor,
-    @Query(zodPipe(sessionQuerySchema)) query: { id: string },
+    @Query(zodPipe(sessionRevokeQuerySchema)) query: SessionRevokeQuery,
   ): Promise<void> {
     // 404 rather than 403 for a session that is not theirs: a 403 would
     // confirm the id names a real session belonging to somebody else
@@ -317,7 +315,7 @@ export class AuthController {
   @Get('google/callback')
   @Public()
   async googleCallback(
-    @Query(zodPipe(googleCallbackSchema)) query: { code: string; state: string },
+    @Query(zodPipe(googleCallbackQuerySchema)) query: GoogleCallbackQuery,
     @Res({ passthrough: true }) reply: FastifyReply,
   ): Promise<void> {
     const cookies = (reply.request as { cookies?: Record<string, string | undefined> }).cookies;

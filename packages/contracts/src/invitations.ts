@@ -140,3 +140,7 @@ export const invitationAcceptResultSchema = z.object({
 });
 
 export type InvitationAcceptResult = z.infer<typeof invitationAcceptResultSchema>;
+
+/** `GET /invitations/accept?token=…` — read the invitation without consuming it. */
+export const invitationAcceptQuerySchema = z.object({ token: invitationTokenSchema }).strict();
+export type InvitationAcceptQuery = z.infer<typeof invitationAcceptQuerySchema>;

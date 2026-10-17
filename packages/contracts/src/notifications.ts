@@ -54,3 +54,7 @@ export const notificationParamsSchema = z.object({ id: z.uuid() }).strict();
 
 export const unreadCountSchema = z.object({ unread: z.number().int().nonnegative() });
 export type UnreadCount = z.infer<typeof unreadCountSchema>;
+
+/** How many rows "mark all read" touched. */
+export const markAllReadSchema = z.object({ updated: z.number().int().nonnegative() });
+export type MarkAllRead = z.infer<typeof markAllReadSchema>;

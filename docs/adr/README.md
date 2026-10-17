@@ -34,3 +34,4 @@ supersedes the old one and update the old one's **Status** to
 | [0024](0024-rich-text-sanitization.md)                  | Rich text: an allow-list, applied on write and on read          | Accepted |
 | [0025](0025-reminder-and-digest-scheduling.md)          | Reminders and digests are scheduled by the outbox               | Accepted |
 | [0026](0026-activity-ownership-is-the-assignee.md)      | An activity's owner is its assignee                             | Accepted |
+| [0027](0027-openapi-generated-from-contracts.md)        | OpenAPI generated from the Zod contracts, with a drift test     | Accepted |

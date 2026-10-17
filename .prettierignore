@@ -14,3 +14,8 @@ apps/web/next-env.d.ts
 # Sibling checkouts the desktop app creates for parallel sessions.
 # They are whole copies of this repo, not source to format from here.
 .claude/worktrees/
+
+# Generated from the Zod contracts by `pnpm openapi:generate` (ADR-0027).
+# Prettier collapses short arrays and the generator does not, so formatting it
+# here would put `format:check` and `openapi:check` in a loop neither can win.
+docs/openapi.json

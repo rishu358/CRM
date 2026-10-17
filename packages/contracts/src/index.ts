@@ -8,3 +8,5 @@ export * from './activities.js';
 export * from './notifications.js';
 export * from './auth.js';
 export * from './invitations.js';
+export * from './routes.js';
+export * from './openapi.js';

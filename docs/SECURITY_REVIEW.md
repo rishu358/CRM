@@ -4,9 +4,9 @@ Required by CLAUDE.md §11.5 after each module. This covers the foundation plus
 the Contacts, Auth, Accounts, Invitations, Deals, Leads and Activities modules,
 reviewed against §5 rule by rule.
 
-Reviewed: 2026-10-17 · Scope: `packages/core`, `packages/db`, `apps/api`,
+Reviewed: 2026-10-18 · Scope: `packages/core`, `packages/db`, `apps/api`,
 `apps/worker`, `apps/web` (Accounts, Contacts, Auth, Invitations, Deals, Leads,
-Activities/My Day/Notifications).
+Activities/My Day/Notifications, and the generated OpenAPI document).
 
 ## §5 rule by rule
 
@@ -258,6 +258,54 @@ Decisions recorded rather than fixed:
 - **Recently-viewed is written by the client.** A GET that writes would make
   every record page a write transaction and rule out a read replica later. The
   server still checks the caller may read what they claim to have opened.
+
+## The OpenAPI document (ADR-0027), reviewed
+
+Generated from the Zod contracts and served at `GET /api/v1/openapi.json`. It
+adds no database access, no input and no state change, so §5 rules 1, 2, 4–7
+and 10–13 are untouched by it. Two rules are:
+
+**§5.3, default deny.** It is one more route reachable without a session,
+bringing the total to fourteen, so it is listed here rather than left to be
+discovered. The other thirteen — liveness, readiness, the sign-up and sign-in
+pair, the MFA second step, email verification, the password-reset pair, the two
+Google routes and the two invitation-acceptance routes — are unchanged.
+
+### What is deliberately public, and why this one is
+
+`GET /api/v1/openapi.json` is `@Public()`. An integrator reads the spec before
+they have credentials, which is the whole premise of ADR-0007, and the document
+is built from `packages/contracts` — a package that holds no secret, no
+configuration and no tenant data. It describes the shape of a surface the web
+bundle already names.
+
+It is not left to good intentions:
+
+- `packages/contracts/src/openapi.spec.ts` asserts the serialised document
+  contains no `AUTH_SECRET`, no `DATABASE_URL`, and no `postgres://` or
+  `redis://` string.
+- `apps/api/src/openapi/route-drift.spec.ts` asserts the endpoint answers 200
+  without a session **and** that its body carries none of those, so a change
+  that put real configuration into the document, or quietly moved the route
+  behind the guard, is a failing test rather than a surprise.
+- The document itself states that every endpoint except health requires a
+  session, and marks each of the fourteen public operations `security: []`.
+  `openapi.spec.ts` pins that list by name: a new public route changes a test,
+  which is the point at which somebody has to agree it should be public.
+
+**§5.14, rate limiting.** The route sits behind the global `@fastify/rate-limit`
+registered in `bootstrap.ts`, keyed by IP for a caller with no session, like
+every other public route. It does no work per request — the document is built
+once at module construction — so it is cheaper to serve than liveness.
+
+### What it does not become
+
+The document is generated from contracts that already exist and is **never read
+at request time**. Authentication, tenancy and permissions are enforced exactly
+where they were before: the guards, the services and the serializers. The route
+registry describes the API; it does not decide anything about it, and the drift
+test enforces that direction by reading Fastify's real routing table and holding
+the registry to it rather than the reverse (ADR-0027).
 
 ## The M1 acceptance criteria, and where each is proved
 
