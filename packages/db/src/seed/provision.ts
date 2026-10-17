@@ -122,4 +122,9 @@ export async function provisionTenantDefaults(
 }
 
 export { SYSTEM_ROLES, FOUNDING_ROLE_NAME, DEFAULT_INVITE_ROLE_NAME } from './roles.js';
-export { SYSTEM_FIELDS_BY_OBJECT, CONTACT_SYSTEM_FIELDS, ACCOUNT_SYSTEM_FIELDS } from './fields.js';
+export {
+  SYSTEM_FIELDS_BY_OBJECT,
+  CONTACT_SYSTEM_FIELDS,
+  ACCOUNT_SYSTEM_FIELDS,
+  LEAD_SYSTEM_FIELDS,
+} from './fields.js';

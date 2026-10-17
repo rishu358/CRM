@@ -32,6 +32,12 @@ relay.on('deal.created.v1', projectTimeline);
 relay.on('deal.updated.v1', projectTimeline);
 relay.on('deal.deleted.v1', projectTimeline);
 relay.on('deal.stage_changed.v1', projectTimeline);
+relay.on('lead.created.v1', projectTimeline);
+relay.on('lead.updated.v1', projectTimeline);
+relay.on('lead.deleted.v1', projectTimeline);
+relay.on('lead.converted.v1', projectTimeline);
+relay.on('contact.linked_from_lead.v1', projectTimeline);
+relay.on('account.linked_from_lead.v1', projectTimeline);
 
 let running = true;
 

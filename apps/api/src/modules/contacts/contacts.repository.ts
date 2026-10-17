@@ -11,6 +11,7 @@ import {
   eq,
   getTableColumns,
   inArray,
+  or,
   sql,
   type SQL,
 } from '@crm/db';
@@ -195,5 +196,55 @@ export class ContactsRepository {
       .from(contacts)
       .where(and(eq(contacts.tenantId, tenantId), eq(contacts.email, email), notDeleted()))
       .limit(5);
+  }
+
+  /**
+   * Live contacts a person could be mistaken for, by exact email or phone
+   * (ADR-0023).
+   *
+   * `constraint` is the **reader's** record scope, applied here in SQL: a match
+   * the actor may not read is never fetched, so it cannot be named, counted or
+   * hinted at. Only the fields the caller was allowed to match on are passed in.
+   */
+  async findDuplicates(
+    tx: Tx,
+    tenantId: string,
+    criteria: { readonly email?: string | undefined; readonly phone?: string | undefined },
+    constraint: RecordConstraint,
+    limit: number,
+  ): Promise<Contact[]> {
+    const matches: SQL[] = [];
+    if (criteria.email !== undefined) matches.push(eq(contacts.email, criteria.email));
+    if (criteria.phone !== undefined) matches.push(eq(contacts.phone, criteria.phone));
+    if (matches.length === 0) return [];
+
+    const predicates: SQL[] = [eq(contacts.tenantId, tenantId), notDeleted(), or(...matches)!];
+    const scope = constraintToSql(constraint);
+    if (scope !== undefined) predicates.push(scope);
+
+    return tx
+      .select()
+      .from(contacts)
+      .where(and(...predicates))
+      .orderBy(asc(contacts.createdAt), asc(contacts.id))
+      .limit(limit);
+  }
+
+  /** A live contact in this tenant, within the reader's scope, or null. */
+  async findReadable(
+    tx: Tx,
+    tenantId: string,
+    id: string,
+    constraint: RecordConstraint,
+  ): Promise<Contact | null> {
+    const predicates: SQL[] = [eq(contacts.tenantId, tenantId), eq(contacts.id, id), notDeleted()];
+    const scope = constraintToSql(constraint);
+    if (scope !== undefined) predicates.push(scope);
+    const rows = await tx
+      .select()
+      .from(contacts)
+      .where(and(...predicates))
+      .limit(1);
+    return rows[0] ?? null;
   }
 }

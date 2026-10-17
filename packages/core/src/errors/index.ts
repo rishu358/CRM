@@ -55,6 +55,15 @@ export const ErrorCode = {
   INVITATION_SIGN_IN_REQUIRED: 'INVITATION_SIGN_IN_REQUIRED',
   /** Somebody other than the invited address tried to accept (ADR-0019). */
   INVITATION_RECIPIENT_MISMATCH: 'INVITATION_RECIPIENT_MISMATCH',
+  /**
+   * The write would create a record that looks like one already there, and
+   * the caller has not said that is intended (ADR-0023).
+   *
+   * Distinct from `CONFLICT`: nothing is wrong with the request, so the client
+   * reacts by showing the matches and offering "link to existing", not by
+   * reporting an error.
+   */
+  DUPLICATE_RECORDS: 'DUPLICATE_RECORDS',
   /** Unexpected failure. Details are logged, never returned. */
   INTERNAL: 'INTERNAL',
 } as const;
@@ -128,6 +137,17 @@ export class VersionConflictError extends DomainError {
 export class ConflictError extends DomainError {
   constructor(message: string, details: readonly ErrorDetail[] = []) {
     super(ErrorCode.CONFLICT, message, 409, details);
+  }
+}
+
+export class DuplicateRecordsError extends DomainError {
+  constructor(details: readonly ErrorDetail[]) {
+    super(
+      ErrorCode.DUPLICATE_RECORDS,
+      'This looks like a record that already exists. Link to it, or confirm you want a new one.',
+      409,
+      details,
+    );
   }
 }
 

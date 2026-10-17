@@ -122,6 +122,64 @@ export const contacts = pgTable(
   ],
 );
 
+/**
+ * Leads — people who have shown interest but are not customers yet
+ * (MVP_SPEC §6.2).
+ *
+ * The three `converted*` columns are the history the spec asks conversion to
+ * keep: which contact, account and deal this lead became. They are written
+ * once, by `LeadsService.convert`, and frozen after that by a trigger in
+ * `0009_leads_module.sql` — see ADR-0022 for why re-conversion is refused
+ * rather than allowed to re-point the links.
+ *
+ * Lead scoring is P2 and deliberately absent.
+ */
+export const leads = pgTable(
+  'leads',
+  {
+    ...baseColumns,
+    ...recordColumns,
+    firstName: text('first_name'),
+    lastName: text('last_name').notNull(),
+    company: text('company'),
+    email: citext('email'),
+    /** E.164, validated in @crm/core before it reaches here. */
+    phone: text('phone'),
+    source: text('source'),
+    status: text('status')
+      .$type<'new' | 'contacted' | 'qualified' | 'unqualified' | 'converted'>()
+      .notNull()
+      .default('new'),
+    convertedAt: timestamptz('converted_at'),
+    convertedContactId: uuid('converted_contact_id'),
+    convertedAccountId: uuid('converted_account_id'),
+    convertedDealId: uuid('converted_deal_id'),
+  },
+  (table) => [
+    index('leads_tenant_created_idx')
+      .on(table.tenantId, table.createdAt, table.id)
+      .where(sql`${table.deletedAt} is null`),
+    index('leads_tenant_owner_idx').on(table.tenantId, table.ownerId),
+    index('leads_tenant_status_created_idx')
+      .on(table.tenantId, table.status, table.createdAt, table.id)
+      .where(sql`${table.deletedAt} is null`),
+    index('leads_tenant_last_name_idx')
+      .on(table.tenantId, table.lastName, table.id)
+      .where(sql`${table.deletedAt} is null`),
+    index('leads_custom_fields_idx').using('gin', table.customFields),
+    index('leads_tenant_converted_contact_idx')
+      .on(table.tenantId, table.convertedContactId)
+      .where(sql`${table.convertedContactId} is not null`),
+    // Duplicate detection on create and on conversion (MVP_SPEC M4, ADR-0023).
+    index('leads_tenant_email_idx')
+      .on(table.tenantId, table.email)
+      .where(sql`${table.deletedAt} is null`),
+    index('leads_tenant_phone_idx')
+      .on(table.tenantId, table.phone)
+      .where(sql`${table.deletedAt} is null`),
+  ],
+);
+
 /** Tags, attached polymorphically (ADR-0005). */
 export const tags = pgTable(
   'tags',
@@ -308,6 +366,8 @@ export type Account = typeof accounts.$inferSelect;
 export type NewAccount = typeof accounts.$inferInsert;
 export type Contact = typeof contacts.$inferSelect;
 export type NewContact = typeof contacts.$inferInsert;
+export type Lead = typeof leads.$inferSelect;
+export type NewLead = typeof leads.$inferInsert;
 export type Tag = typeof tags.$inferSelect;
 export type TimelineEvent = typeof timelineEvents.$inferSelect;
 export type Pipeline = typeof pipelines.$inferSelect;

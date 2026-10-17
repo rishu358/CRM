@@ -10,6 +10,7 @@ import {
   desc,
   eq,
   getTableColumns,
+  or,
   sql,
   type SQL,
 } from '@crm/db';
@@ -242,5 +243,67 @@ export class AccountsRepository {
       .from(accounts)
       .where(and(eq(accounts.tenantId, tenantId), eq(accounts.domain, domain), notDeleted()))
       .limit(5);
+  }
+
+  /**
+   * Live accounts that look like the same company (ADR-0023): an exact domain,
+   * or a name close enough under pg_trgm.
+   *
+   * `%` is the index-assisted prefilter (it uses the GIN trigram index from
+   * 0002 at the default 0.3 threshold) and the explicit `similarity()` is the
+   * real cut, so the threshold lives in one named constant instead of a
+   * session setting. `constraint` is the reader's record scope, applied in SQL.
+   */
+  async findDuplicates(
+    tx: Tx,
+    tenantId: string,
+    criteria: { readonly domain?: string | undefined; readonly name?: string | undefined },
+    constraint: RecordConstraint,
+    minimumSimilarity: number,
+    limit: number,
+  ): Promise<(Account & { nameScore: number | null })[]> {
+    const matches: SQL[] = [];
+    if (criteria.domain !== undefined) {
+      matches.push(sql`lower(${accounts.domain}) = ${criteria.domain.toLowerCase()}`);
+    }
+    const score =
+      criteria.name === undefined
+        ? sql<number | null>`null::float4`
+        : sql<number | null>`similarity(${accounts.name}, ${criteria.name})`;
+    if (criteria.name !== undefined) {
+      matches.push(
+        sql`(${accounts.name} % ${criteria.name} and similarity(${accounts.name}, ${criteria.name}) >= ${minimumSimilarity})`,
+      );
+    }
+    if (matches.length === 0) return [];
+
+    const predicates: SQL[] = [eq(accounts.tenantId, tenantId), notDeleted(), or(...matches)!];
+    const scope = constraintToSql(constraint);
+    if (scope !== undefined) predicates.push(scope);
+
+    return tx
+      .select({ ...getTableColumns(accounts), nameScore: score })
+      .from(accounts)
+      .where(and(...predicates))
+      .orderBy(desc(score), asc(accounts.createdAt), asc(accounts.id))
+      .limit(limit);
+  }
+
+  /** A live account in this tenant, within the reader's scope, or null. */
+  async findReadable(
+    tx: Tx,
+    tenantId: string,
+    id: string,
+    constraint: RecordConstraint,
+  ): Promise<Account | null> {
+    const predicates: SQL[] = [eq(accounts.tenantId, tenantId), eq(accounts.id, id), notDeleted()];
+    const scope = constraintToSql(constraint);
+    if (scope !== undefined) predicates.push(scope);
+    const rows = await tx
+      .select()
+      .from(accounts)
+      .where(and(...predicates))
+      .limit(1);
+    return rows[0] ?? null;
   }
 }

@@ -1,30 +1,30 @@
 # Security self-review
 
 Required by CLAUDE.md §11.5 after each module. This covers the foundation plus
-the Contacts, Auth, Accounts, Invitations and Deals modules, reviewed against §5 rule by rule.
+the Contacts, Auth, Accounts, Invitations, Deals and Leads modules, reviewed against §5 rule by rule.
 
 Reviewed: 2026-10-17 · Scope: `packages/core`, `packages/db`, `apps/api`,
-`apps/worker`, `apps/web` (Accounts, Contacts, Auth, Invitations, Deals).
+`apps/worker`, `apps/web` (Accounts, Contacts, Auth, Invitations, Deals, Leads).
 
 ## §5 rule by rule
 
-| #   | Rule                                                             | State         | Evidence                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| --- | ---------------------------------------------------------------- | ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | Tenant isolation: `tenant_id` + RLS, `SET LOCAL`, no `BYPASSRLS` | **Met**       | `0004_rls_policies.sql`; 28 tests in `rls.security.spec.ts`, including a meta test that fails if any table with `tenant_id` lacks `ENABLE`+`FORCE`                                                                                                                                                                                                                                                                                     |
-| 2   | Never trust the client for tenant, user, role, ownership         | **Met**       | Actor built only in `ActorService` from session + memberships; `X-Tenant-Id` is re-checked against membership; `resolveOwner` refuses reassignment without `all` scope                                                                                                                                                                                                                                                                 |
-| 3   | Every endpoint authorized via `can()`, default deny              | **Met**       | `AuthGuard` is global; routes are protected unless `@Public()`. A lint rule rejects inline role comparisons                                                                                                                                                                                                                                                                                                                            |
-| 4   | Field-level permissions applied in the serializer                | **Met**       | `contacts.serializer.ts`, `accounts.serializer.ts`, `deals.serializer.ts`; hidden fields omitted (not nulled) and rejected on write. Sorting and filtering are checked too (`common/field-queries.ts`): a column the caller cannot read cannot be ordered by or compared against either                                                                                                                                                |
-| 5   | No IDOR; 404 not 403 outside scope                               | **Met**       | `assertCan` maps out-of-scope to 404; a test asserts the 404 for a foreign record is byte-identical to one for an id that does not exist                                                                                                                                                                                                                                                                                               |
-| 6   | Zod validation at the boundary, unknown keys rejected            | **Met**       | `.strict()` contracts; a body carrying `tenantId` is a 422                                                                                                                                                                                                                                                                                                                                                                             |
-| 7   | No SQL string concatenation; whitelisted sort/filter             | **Met**       | `contacts.sql-helpers.ts`, `accounts.sql-helpers.ts` and `deals.sql-helpers.ts` resolve every client-supplied key against field metadata; accounts also checks the filter **value** against the column type, so a bad one is a 422 rather than a driver error surfacing as a 500. Injection attempts through `sort` and `filter` are tested in both modules                                                                            |
-| 8   | Secrets from the environment; never logged                       | **Met**       | Validated env modules are the only readers; pino redaction list; `.env` is git-ignored                                                                                                                                                                                                                                                                                                                                                 |
-| 9   | Secure cookies, CSRF, MFA, rate-limited auth, revocation         | **Met**       | Cookie is httpOnly/SameSite=Lax/Secure-in-prod, set server-side and never readable by page script (an E2E test asserts `document.cookie` and both web storages); CSRF origin checks on both cookie-authenticated routes; TOTP + backup codes with tenant-level enforcement in `AuthGuard`; progressive delay in `AuthThrottleService` plus a per-IP ceiling in `AuthRateLimitGuard`; revocation via `sessions_valid_from` in one write |
-| 10  | Audit create/update/delete, logins, exports, role changes        | **Partial**   | Accounts, Contacts and Deals CRUD (a stage move included, with both stages in the diff), login, logout, password changes, **plus every invitation, acceptance and revocation**, each audited in the same transaction and append-only by withheld grants. A password change is audited in every workspace the user belongs to, because it affects access to all of them. Permission-change auditing arrives with M3                     |
-| 11  | CSV export with formula-injection escaping                       | **Not built** | Export is not implemented yet                                                                                                                                                                                                                                                                                                                                                                                                          |
-| 12  | File type by magic bytes, presigned URLs                         | **Not built** | Attachments are not implemented yet                                                                                                                                                                                                                                                                                                                                                                                                    |
-| 13  | SSRF protection on outbound requests                             | **Not built** | No outbound requests exist yet                                                                                                                                                                                                                                                                                                                                                                                                         |
-| 14  | Rate limit per tenant **and** per user                           | **Met**       | Per-user/IP at the edge via `@fastify/rate-limit`; per-tenant in `TenantRateLimitService`, keyed on the membership-proven tenant so it cannot be spoofed                                                                                                                                                                                                                                                                               |
-| 15  | Say so when unsure                                               | —             | This document                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| #   | Rule                                                             | State         | Evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| --- | ---------------------------------------------------------------- | ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Tenant isolation: `tenant_id` + RLS, `SET LOCAL`, no `BYPASSRLS` | **Met**       | `0004_rls_policies.sql`; 28 tests in `rls.security.spec.ts`, including a meta test that fails if any table with `tenant_id` lacks `ENABLE`+`FORCE`                                                                                                                                                                                                                                                                                                                                                  |
+| 2   | Never trust the client for tenant, user, role, ownership         | **Met**       | Actor built only in `ActorService` from session + memberships; `X-Tenant-Id` is re-checked against membership; `resolveOwner` refuses reassignment without `all` scope                                                                                                                                                                                                                                                                                                                              |
+| 3   | Every endpoint authorized via `can()`, default deny              | **Met**       | `AuthGuard` is global; routes are protected unless `@Public()`. A lint rule rejects inline role comparisons                                                                                                                                                                                                                                                                                                                                                                                         |
+| 4   | Field-level permissions applied in the serializer                | **Met**       | `contacts.serializer.ts`, `accounts.serializer.ts`, `deals.serializer.ts`, `leads.serializer.ts`; hidden fields omitted (not nulled) and rejected on write. Sorting and filtering are checked too (`common/field-queries.ts`): a column the caller cannot read cannot be ordered by or compared against either                                                                                                                                                                                      |
+| 5   | No IDOR; 404 not 403 outside scope                               | **Met**       | `assertCan` maps out-of-scope to 404; a test asserts the 404 for a foreign record is byte-identical to one for an id that does not exist                                                                                                                                                                                                                                                                                                                                                            |
+| 6   | Zod validation at the boundary, unknown keys rejected            | **Met**       | `.strict()` contracts; a body carrying `tenantId` is a 422                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| 7   | No SQL string concatenation; whitelisted sort/filter             | **Met**       | `contacts.sql-helpers.ts`, `accounts.sql-helpers.ts`, `deals.sql-helpers.ts` and `leads.sql-helpers.ts` resolve every client-supplied key against field metadata; accounts also checks the filter **value** against the column type, so a bad one is a 422 rather than a driver error surfacing as a 500. Injection attempts through `sort` and `filter` are tested in both modules                                                                                                                 |
+| 8   | Secrets from the environment; never logged                       | **Met**       | Validated env modules are the only readers; pino redaction list; `.env` is git-ignored                                                                                                                                                                                                                                                                                                                                                                                                              |
+| 9   | Secure cookies, CSRF, MFA, rate-limited auth, revocation         | **Met**       | Cookie is httpOnly/SameSite=Lax/Secure-in-prod, set server-side and never readable by page script (an E2E test asserts `document.cookie` and both web storages); CSRF origin checks on both cookie-authenticated routes; TOTP + backup codes with tenant-level enforcement in `AuthGuard`; progressive delay in `AuthThrottleService` plus a per-IP ceiling in `AuthRateLimitGuard`; revocation via `sessions_valid_from` in one write                                                              |
+| 10  | Audit create/update/delete, logins, exports, role changes        | **Partial**   | Accounts, Contacts, Deals and Leads CRUD (a stage move included, with both stages in the diff; a lead conversion audited on the lead **and** on every record it creates), login, logout, password changes, **plus every invitation, acceptance and revocation**, each audited in the same transaction and append-only by withheld grants. A password change is audited in every workspace the user belongs to, because it affects access to all of them. Permission-change auditing arrives with M3 |
+| 11  | CSV export with formula-injection escaping                       | **Not built** | Export is not implemented yet                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| 12  | File type by magic bytes, presigned URLs                         | **Not built** | Attachments are not implemented yet                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| 13  | SSRF protection on outbound requests                             | **Not built** | No outbound requests exist yet                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| 14  | Rate limit per tenant **and** per user                           | **Met**       | Per-user/IP at the edge via `@fastify/rate-limit`; per-tenant in `TenantRateLimitService`, keyed on the membership-proven tenant so it cannot be spoofed                                                                                                                                                                                                                                                                                                                                            |
+| 15  | Say so when unsure                                               | —             | This document                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 
 ## Invitations (MVP_SPEC M2), reviewed
 
@@ -121,6 +121,71 @@ Decisions recorded rather than fixed:
   needing its own permission object (pipelines are configuration, not records),
   which is a decision for M3 and M9 and not one to make as a side door through
   the `deal` grants.
+
+## Leads (MVP_SPEC M4), reviewed
+
+The first object whose main operation **writes to three other modules'
+tables**, and the first feature that **searches other people's records on a
+value the caller typed** — conversion and duplicate detection. Both are ways to
+cross a boundary a plain record does not have: conversion can move a value into
+a field the caller may not write, and duplicate detection can answer "does a
+record with this email exist" for a record the caller may not read. Two
+decisions are written down in
+[ADR-0022](adr/0022-lead-conversion.md) and
+[ADR-0023](adr/0023-duplicate-detection.md).
+
+| Question                                                                | Answer, and where it is proved                                                                                                                                                                                                                                                                                                                                      |
+| ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Can a duplicate match surface another tenant's record?                  | No. RLS applies to each owning module's query. Tenant B holds a lead, contact and account with the caller's exact email, phone and company; the check returns nothing and the response contains none of their ids or names. `leads.security.spec.ts` "never offers another tenant record as a duplicate, on any field", and the same on create                      |
+| …or a colleague's record outside the caller's scope?                    | No. The reader's `own`/`team`/`all` constraint is a `WHERE` clause in the lead, contact and account queries, not a filter on fetched rows. The colleague, who may read them, is offered all three; the `own` rep is offered none, and the answer equals the one for an email nobody holds. "duplicate detection respects the actor record scope" (7 tests)          |
+| Can a match probe a field the caller may not read?                      | No. A hidden `contact.phone` is not matched on, a hidden lead value is not used to look, and the label is built from readable fields only. "does not match on a hidden field…", "does not use a hidden lead value…", "builds match labels only from fields the caller may read"                                                                                     |
+| Can a conversion link to another tenant's, or an out-of-scope, record?  | No. Composite foreign keys on `(tenant_id, …)` make a cross-tenant link structural, and the service additionally requires the target to be in the caller's record scope. Another tenant's id, a colleague's and a nonexistent one give the same 422. "cannot link a conversion to another tenant contact or account"; "refuses to link … colleague out-of-scope …"  |
+| Can a conversion be half done?                                          | No. One transaction; the lead is updated last under a version-and-status guard. A failure at the deal step leaves no contact, account, audit row or event; a role that may not create deals gets a 403 and a clean rollback; two simultaneous conversions produce one 200, one 409 and one contact. `leads.spec.ts` "is one transaction…" (×2), "lets exactly one…" |
+| Can a conversion move a value into a field the caller may not write?    | No. A value is copied only if the caller may read it on the lead and write it on the target; otherwise it is left behind and reported in `skippedFields`. "reports fields it could not copy instead of dropping them silently"                                                                                                                                      |
+| Can a converted lead be changed, re-converted or re-pointed?            | No, by any writer. The service answers 409; `status` cannot be sent as `converted`; and the database refuses it with a `CHECK` and a trigger, so an import or a seed meets the same wall. `packages/db` `leads.security.spec.ts` "a conversion is permanent"; `leads.spec.ts` "refuses to convert or edit a lead that is already converted"                         |
+| Can the "create anyway" acknowledgement be skipped by a non-web client? | No. The API refuses to create a matching contact or account without `acknowledgeDuplicates: true` (409 `DUPLICATE_RECORDS`). The M4 acceptance criterion has its own named test: "converting a lead whose email matches an existing contact offers "link to existing" rather than silently creating a duplicate"                                                    |
+
+The four mandatory suites from CLAUDE.md §10 are in
+`apps/api/src/modules/leads/leads.security.spec.ts` (34 tests) and, at the
+database, `packages/db/src/leads.security.spec.ts` (15 tests): tenant A cannot
+list, read, update, delete, convert or read conversion matches for tenant B's
+leads; a user with `own` scope sees only their own leads on every page of a
+nullable sort and cannot convert a colleague's; a hidden `phone` is absent from
+the record and the list, rejected on write (create and update), and cannot be
+sorted or filtered on; and unauthenticated requests get 401 on every route,
+including the duplicate check and conversion.
+
+### What building Leads changed
+
+- **`create` in contacts, accounts and deals became `create` + `createInTx`.**
+  Conversion needs the same checks, audit entry and outbox event as a normal
+  create, inside its own transaction. The bodies were moved, not copied, and
+  the existing suites for all three modules pass unchanged.
+- **The duplicate matchers live in the contacts and accounts modules**
+  (`findDuplicates`, `assertReadableForLinking`), not in leads, because only the
+  owning module may query its table (ADR-0001) and only it can apply its own
+  scope and field rules.
+- **`Sales Rep`, `Manager`, `Admin`, `Owner` and `Read-only` gained lead
+  grants** at the same scopes they hold for the other business objects
+  (`BUSINESS_OBJECTS` in `seed/roles.ts`), and `lead` field metadata was added to
+  provisioning. Tenants created earlier have neither; see the first gap below.
+- **A new error code**, `DUPLICATE_RECORDS` (409), added to `ErrorCode`.
+  Additive, so within the v1 compatibility rule.
+- **The worker now projects lead events**, and `contact.linked_from_lead.v1`
+  and `account.linked_from_lead.v1`, onto record timelines. Account _created_
+  events are still not projected (pre-existing, below).
+
+Decisions recorded rather than fixed:
+
+- **A rep with `own` scope is not warned about a colleague's matching contact.**
+  The price of not building a tenant-wide directory (ADR-0023 §3). A manager-run
+  duplicate report is the remedy, and is P1.
+- **A `team`-scope manager converting a rep's lead owns the new records.**
+  `team` scope cannot reassign (§5.2), and conversion is not allowed to launder a
+  reassignment (ADR-0022 §5).
+- **Linking requires record scope, where the deal module's linking requires only
+  the tenant.** Deliberate: a deal pointing at a colleague's account reveals
+  nothing, whereas adopting a contact as the person a lead became does.
 
 ## The M1 acceptance criteria, and where each is proved
 
@@ -322,6 +387,24 @@ These are not oversights; they belong to modules that have not been built.
 - **A deal's `amount` sorts by minor units**, so a sort across currencies orders
   ¥1,000 above ₹1,000. Meaningful only within one currency; sorting by converted
   value is a P1 reporting problem (ADR-0021).
+- **Existing tenants have no lead grants and no lead field metadata.** The same
+  situation as deals: roles and field definitions are provisioned at tenant
+  creation, so a workspace that predates migration `0009` is refused every lead
+  route (default deny, and nothing to read) until it is given them. No tenant
+  exists outside development; re-seeding is the fix today and a real deployment
+  needs a one-off per-tenant script.
+- **Duplicate detection at import is not built**, because import is not
+  (MVP_SPEC M8). The create and convert paths are covered; the import module
+  should call `LeadsService.checkDuplicates` per row rather than grow its own
+  matching.
+- **Duplicate matching is exact on email and phone and has no merge.** Plus-
+  addressing and dotted Gmail variants are false negatives; merge is P1.
+  Short-prefix company names ("Acme" against "Acme Trading") are a measured
+  false negative (ADR-0023 §1).
+- **Two simultaneous creates of the same lead both succeed**, by design: there is
+  no uniqueness constraint, because legitimate duplicates exist (ADR-0023 §2).
+- **Lead events reach the timeline but no record page renders a timeline yet**,
+  the same gap contacts, accounts and deals have.
 - **Export, attachments and outbound requests** (§5.11–13) have nothing to
   protect yet. Their rules must be satisfied as part of building them, not
   retrofitted.

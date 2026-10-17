@@ -4,6 +4,8 @@ import {
   buildCustomFieldsPatchSchema,
   buildCustomFieldsSchema,
   can,
+  canReadField,
+  MAX_DUPLICATE_MATCHES,
   newId,
   NotFoundError,
   ValidationError,
@@ -18,6 +20,7 @@ import {
   type ContactCreateInput,
   type ContactListQuery,
   type ContactUpdateInput,
+  type DuplicateMatch,
 } from '@crm/contracts';
 import type { Contact as ContactRow, Tx } from '@crm/db';
 import { assertFiltersReadable, assertSortable } from '../../common/field-queries.js';
@@ -114,52 +117,59 @@ export class ContactsService {
   }
 
   async create(actor: Actor, input: ContactCreateInput): Promise<SerializedContact> {
+    return this.inTenant(actor, (tx) => this.createInTx(actor, tx, input));
+  }
+
+  /**
+   * Create a contact inside a transaction somebody else owns.
+   *
+   * Lead conversion creates several records and must be all-or-nothing, so it
+   * needs the very same checks, audit entry and outbox event `create` performs,
+   * without opening a second transaction. Every guarantee `create` gives holds
+   * here too: it is the same code, not a copy of it.
+   */
+  async createInTx(actor: Actor, tx: Tx, input: ContactCreateInput): Promise<SerializedContact> {
     assertCan(actor, 'create', { objectType: 'contact' });
 
-    return this.inTenant(actor, async (tx) => {
-      const fields = await this.fieldMetadata.forObject(tx, actor.tenantId, 'contact');
-      assertWritableContactFields(actor, input, fields);
+    const fields = await this.fieldMetadata.forObject(tx, actor.tenantId, 'contact');
+    assertWritableContactFields(actor, input, fields);
 
-      const customFields = this.validateCustomFields(input.customFields ?? {}, fields, false);
-      const ownerId = this.resolveOwner(actor, input.ownerId ?? undefined);
+    const customFields = this.validateCustomFields(input.customFields ?? {}, fields, false);
+    const ownerId = this.resolveOwner(actor, input.ownerId ?? undefined);
 
-      const row = await this.repository.insert(tx, {
-        id: newId(),
-        tenantId: actor.tenantId,
-        ownerId,
-        firstName: input.firstName ?? null,
-        lastName: input.lastName,
-        email: input.email ?? null,
-        phone: input.phone ?? null,
-        whatsapp: input.whatsapp ?? null,
-        title: input.title ?? null,
-        accountId: input.accountId ?? null,
-        leadSource: input.leadSource ?? null,
-        customFields,
-        createdBy: actor.userId,
-        updatedBy: actor.userId,
-      });
-
-      // Same transaction as the insert: the audit entry and the event exist if
-      // and only if the contact does (CLAUDE.md §5.10, ADR-0006).
-      await this.audit.record(tx, actor, {
-        action: 'create',
-        objectType: 'contact',
-        recordId: row.id,
-        changes: diffChanges(
-          {},
-          { lastName: row.lastName, email: row.email, ownerId: row.ownerId },
-        ),
-      });
-      await this.outbox.publish(tx, actor, {
-        eventType: 'contact.created.v1',
-        objectType: 'contact',
-        recordId: row.id,
-        payload: { ownerId: row.ownerId },
-      });
-
-      return serializeContact(actor, row, fields);
+    const row = await this.repository.insert(tx, {
+      id: newId(),
+      tenantId: actor.tenantId,
+      ownerId,
+      firstName: input.firstName ?? null,
+      lastName: input.lastName,
+      email: input.email ?? null,
+      phone: input.phone ?? null,
+      whatsapp: input.whatsapp ?? null,
+      title: input.title ?? null,
+      accountId: input.accountId ?? null,
+      leadSource: input.leadSource ?? null,
+      customFields,
+      createdBy: actor.userId,
+      updatedBy: actor.userId,
     });
+
+    // Same transaction as the insert: the audit entry and the event exist if
+    // and only if the contact does (CLAUDE.md §5.10, ADR-0006).
+    await this.audit.record(tx, actor, {
+      action: 'create',
+      objectType: 'contact',
+      recordId: row.id,
+      changes: diffChanges({}, { lastName: row.lastName, email: row.email, ownerId: row.ownerId }),
+    });
+    await this.outbox.publish(tx, actor, {
+      eventType: 'contact.created.v1',
+      objectType: 'contact',
+      recordId: row.id,
+      payload: { ownerId: row.ownerId },
+    });
+
+    return serializeContact(actor, row, fields);
   }
 
   async update(actor: Actor, id: string, input: ContactUpdateInput): Promise<SerializedContact> {
@@ -255,6 +265,98 @@ export class ContactsService {
     ids: readonly string[],
   ): Promise<Set<string>> {
     return this.repository.existingIds(tx, tenantId, ids);
+  }
+
+  /**
+   * Contacts this email or phone might already belong to (ADR-0023).
+   *
+   * Public so the leads module can ask without reaching into this module's
+   * tables (ADR-0001). Three things keep it from being a side door around the
+   * permission model, each of which is tested:
+   *
+   *   - it matches only on fields the **actor** may read: a caller who cannot
+   *     see `phone` could otherwise probe for numbers one guess at a time;
+   *   - it only returns contacts inside the actor's record scope, so an `own`
+   *     rep is never told a colleague's contact exists;
+   *   - the label shows only fields the actor may read.
+   *
+   * No permission on contacts at all is an empty answer, not an error: the
+   * caller is creating a lead, which is not a reason to learn they lack access
+   * to contacts.
+   */
+  async findDuplicates(
+    tx: Tx,
+    actor: Actor,
+    criteria: {
+      readonly email?: string | null | undefined;
+      readonly phone?: string | null | undefined;
+    },
+  ): Promise<DuplicateMatch[]> {
+    const decision = can(actor, 'read', { objectType: 'contact' });
+    if (!decision.allowed) return [];
+
+    const email =
+      criteria.email != null && canReadField(actor, 'contact', 'email')
+        ? criteria.email
+        : undefined;
+    const phone =
+      criteria.phone != null && canReadField(actor, 'contact', 'phone')
+        ? criteria.phone
+        : undefined;
+
+    const rows = await this.repository.findDuplicates(
+      tx,
+      actor.tenantId,
+      { email, phone },
+      decision.constraint,
+      MAX_DUPLICATE_MATCHES,
+    );
+
+    return rows.map((row) => {
+      const matchedOn: DuplicateMatch['matchedOn'] = [];
+      if (email !== undefined && row.email === email) matchedOn.push('email');
+      if (phone !== undefined && row.phone === phone) matchedOn.push('phone');
+
+      const name = [
+        canReadField(actor, 'contact', 'first_name') ? row.firstName : null,
+        canReadField(actor, 'contact', 'last_name') ? row.lastName : null,
+      ]
+        .filter((part): part is string => part !== null && part.length > 0)
+        .join(' ');
+
+      return {
+        objectType: 'contact',
+        id: row.id,
+        label: name.length > 0 ? name : 'Contact',
+        matchedOn,
+      };
+    });
+  }
+
+  /**
+   * A contact the caller may attach something to, or a 422.
+   *
+   * Narrower than `existingIdsForLinking`, on purpose. A deal may point at any
+   * contact in the workspace; a lead conversion *adopts* the contact as the
+   * person this lead became, which is a statement about a record the caller
+   * should be able to see. The same message covers another tenant's id, a
+   * deleted contact and a colleague's out-of-scope one, so the error cannot be
+   * used to find out which ids exist.
+   */
+  async assertReadableForLinking(
+    tx: Tx,
+    actor: Actor,
+    id: string,
+    path: string,
+  ): Promise<{ id: string; accountId: string | null }> {
+    const decision = can(actor, 'read', { objectType: 'contact' });
+    const row = decision.allowed
+      ? await this.repository.findReadable(tx, actor.tenantId, id, decision.constraint)
+      : null;
+    if (row === null) {
+      throw new ValidationError([{ path, message: 'That contact does not exist' }]);
+    }
+    return { id: row.id, accountId: row.accountId };
   }
 
   private inTenant<T>(actor: Actor, work: (tx: Tx) => Promise<T>): Promise<T> {

@@ -8,6 +8,7 @@ import { AccountsModule } from './modules/accounts/accounts.module.js';
 import { ContactsModule } from './modules/contacts/contacts.module.js';
 import { DealsModule } from './modules/deals/deals.module.js';
 import { InvitationsModule } from './modules/invitations/invitations.module.js';
+import { LeadsModule } from './modules/leads/leads.module.js';
 import { PipelinesModule } from './modules/pipelines/pipelines.module.js';
 import { PlatformModule } from './platform/platform.module.js';
 import type { ApiEnv } from './config/env.js';
@@ -33,6 +34,7 @@ export class AppModule {
         ContactsModule,
         PipelinesModule,
         DealsModule,
+        LeadsModule,
         InvitationsModule,
       ],
       controllers: [HealthController],

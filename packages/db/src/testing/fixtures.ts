@@ -540,24 +540,138 @@ export class Fixtures {
     tenantId: string,
     options: {
       ownerId?: string | null;
+      firstName?: string | null;
       lastName?: string;
       email?: string | null;
+      phone?: string | null;
+      accountId?: string | null;
       customFields?: Record<string, unknown>;
     } = {},
   ): Promise<string> {
     const contactId = newId();
     await this.pool.query(
-      `INSERT INTO contacts (id, tenant_id, owner_id, last_name, email, custom_fields)
-       VALUES ($1, $2, $3, $4, $5, $6)`,
+      `INSERT INTO contacts (id, tenant_id, owner_id, first_name, last_name, email, phone,
+                             account_id, custom_fields)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
       [
         contactId,
         tenantId,
         options.ownerId ?? null,
+        options.firstName ?? null,
         options.lastName ?? 'Sharma',
         options.email ?? null,
+        options.phone ?? null,
+        options.accountId ?? null,
         JSON.stringify(options.customFields ?? {}),
       ],
     );
     return contactId;
+  }
+
+  /**
+   * Insert a lead directly, through the same constraints and triggers the API
+   * meets — fixtures bypass RLS, not integrity. Conversion columns are not
+   * defaulted from the status, so a test can hand the database an inconsistent
+   * row and watch it refuse.
+   */
+  async createLead(
+    tenantId: string,
+    options: {
+      ownerId?: string | null;
+      firstName?: string | null;
+      lastName?: string;
+      company?: string | null;
+      email?: string | null;
+      phone?: string | null;
+      source?: string | null;
+      status?: 'new' | 'contacted' | 'qualified' | 'unqualified' | 'converted';
+      convertedAt?: Date | null;
+      convertedContactId?: string | null;
+      convertedAccountId?: string | null;
+      convertedDealId?: string | null;
+      customFields?: Record<string, unknown>;
+    } = {},
+  ): Promise<string> {
+    const leadId = newId();
+    await this.pool.query(
+      `INSERT INTO leads (
+         id, tenant_id, owner_id, first_name, last_name, company, email, phone, source,
+         status, converted_at, converted_contact_id, converted_account_id,
+         converted_deal_id, custom_fields
+       )
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
+      [
+        leadId,
+        tenantId,
+        options.ownerId ?? null,
+        options.firstName ?? null,
+        options.lastName ?? 'Verma',
+        options.company ?? null,
+        options.email ?? null,
+        options.phone ?? null,
+        options.source ?? null,
+        options.status ?? 'new',
+        options.convertedAt ?? null,
+        options.convertedContactId ?? null,
+        options.convertedAccountId ?? null,
+        options.convertedDealId ?? null,
+        JSON.stringify(options.customFields ?? {}),
+      ],
+    );
+    return leadId;
+  }
+
+  /** The lead row as stored, for assertions the API's serializer would filter. */
+  async leadRow(id: string): Promise<{
+    status: string;
+    version: number;
+    converted_at: Date | null;
+    converted_contact_id: string | null;
+    converted_account_id: string | null;
+    converted_deal_id: string | null;
+    deleted_at: Date | null;
+  } | null> {
+    const result = await this.pool.query<{
+      status: string;
+      version: number;
+      converted_at: Date | null;
+      converted_contact_id: string | null;
+      converted_account_id: string | null;
+      converted_deal_id: string | null;
+      deleted_at: Date | null;
+    }>(
+      `SELECT status, version, converted_at, converted_contact_id, converted_account_id,
+              converted_deal_id, deleted_at
+       FROM leads WHERE id = $1`,
+      [id],
+    );
+    return result.rows[0] ?? null;
+  }
+
+  /** How many live rows a tenant holds in a table. Table name is a fixture constant. */
+  async countRows(
+    table: 'contacts' | 'accounts' | 'deals' | 'leads',
+    tenantId: string,
+  ): Promise<number> {
+    const result = await this.pool.query<{ count: string }>(
+      `SELECT count(*)::text AS count FROM ${table} WHERE tenant_id = $1`,
+      [tenantId],
+    );
+    return Number(result.rows[0]?.count ?? '0');
+  }
+
+  /** A tenant-defined (non-system) custom field, as an admin would add one. */
+  async createCustomField(
+    tenantId: string,
+    objectType: string,
+    key: string,
+    type: 'text' | 'number' | 'date' | 'boolean' | 'email' | 'phone' | 'url',
+    label = key,
+  ): Promise<void> {
+    await this.pool.query(
+      `INSERT INTO field_definitions (id, tenant_id, object_type, key, label, type, position)
+       VALUES ($1, $2, $3, $4, $5, $6, 1000)`,
+      [newId(), tenantId, objectType, key, label, type],
+    );
   }
 }

@@ -14,6 +14,7 @@ import { signOut } from '../lib/session';
  * visible without pretending a link works.
  */
 const NAV: readonly { href: string; label: TranslationKey; ready: boolean }[] = [
+  { href: '/leads', label: 'nav.leads', ready: true },
   { href: '/contacts', label: 'nav.contacts', ready: true },
   { href: '/accounts', label: 'nav.accounts', ready: true },
   { href: '/deals', label: 'nav.deals', ready: true },
