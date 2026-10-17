@@ -4,5 +4,7 @@ export * from './accounts.js';
 export * from './contacts.js';
 export * from './deals.js';
 export * from './leads.js';
+export * from './activities.js';
+export * from './notifications.js';
 export * from './auth.js';
 export * from './invitations.js';

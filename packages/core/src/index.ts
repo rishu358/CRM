@@ -7,5 +7,7 @@ export * from './permissions/index.js';
 export * from './fields/index.js';
 export * from './deals/index.js';
 export * from './leads/index.js';
+export * from './activities/index.js';
+export * from './email/index.js';
 export * from './sessions/index.js';
 export * from './auth/index.js';

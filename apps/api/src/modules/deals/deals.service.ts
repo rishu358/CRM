@@ -427,6 +427,31 @@ export class DealsService {
     });
   }
 
+  /**
+   * What to call these deals, for the ones this actor may read (ADR-0005).
+   *
+   * See `ContactsService.linkLabels`: record scope in SQL, label built only
+   * from readable fields, absent rather than refused when either says no.
+   */
+  async linkLabels(tx: Tx, actor: Actor, ids: readonly string[]): Promise<Map<string, string>> {
+    const decision = can(actor, 'read', { objectType: 'deal' });
+    if (!decision.allowed) return new Map();
+
+    const rows = await this.repository.findReadableMany(
+      tx,
+      actor.tenantId,
+      ids,
+      decision.constraint,
+    );
+
+    return new Map(
+      rows.map((row) => [
+        row.id,
+        canReadField(actor, 'deal', 'name') && row.name.length > 0 ? row.name : 'Deal',
+      ]),
+    );
+  }
+
   private inTenant<T>(actor: Actor, work: (tx: Tx) => Promise<T>): Promise<T> {
     return this.database.runInTenant({ tenantId: actor.tenantId, userId: actor.userId }, work);
   }

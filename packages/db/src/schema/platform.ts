@@ -7,6 +7,7 @@ import {
   primaryKey,
   text,
   timestamp,
+  uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
 import { baseColumns, timestamptz } from './columns.js';
@@ -103,7 +104,18 @@ export const outboxEvents = pgTable(
   ],
 );
 
-/** In-app notifications. Email digests are produced from the same events. */
+/**
+ * In-app notifications (MVP_SPEC M6).
+ *
+ * Written by the worker from outbox events, never inline by a service
+ * (ADR-0006). A notification is addressed to one person, so there is no role
+ * grant for it: the only rule is that you read your own, which the service
+ * applies as `user_id = <session user>` on top of RLS.
+ *
+ * `digestedAt` is how the email digest avoids sending the same item twice.
+ * It is set when a digest including this row is sent, so a later digest skips
+ * it even though it may still be unread (ADR-0025).
+ */
 export const notifications = pgTable(
   'notifications',
   {
@@ -115,9 +127,50 @@ export const notifications = pgTable(
       .notNull()
       .default(sql`'{}'::jsonb`),
     readAt: timestamptz('read_at'),
+    digestedAt: timestamptz('digested_at'),
+    /**
+     * The outbox event this came from. Unique per tenant, which is what makes
+     * the notification handler idempotent under at-least-once delivery.
+     */
+    sourceEventId: uuid('source_event_id'),
   },
   (table) => [
     index('notifications_tenant_user_idx').on(table.tenantId, table.userId, table.createdAt),
+  ],
+);
+
+/**
+ * Which records a person opened, and when (MVP_SPEC M6, "recently viewed").
+ *
+ * One row per person per record, moved forward on each view rather than
+ * appended, so this stays small and "recent" is a cheap indexed read instead
+ * of a scan over a log. Polymorphic, like every other cross-object table
+ * (ADR-0005).
+ *
+ * Deliberately not written by the read path itself: a GET that writes turns
+ * every record page into a write transaction, and makes a read-only replica
+ * impossible later. The client says "I opened this" instead, and the server
+ * still checks the caller may read what they claim to have viewed.
+ */
+export const recordViews = pgTable(
+  'record_views',
+  {
+    ...baseColumns,
+    userId: uuid('user_id').notNull(),
+    objectType: text('object_type').notNull(),
+    recordId: uuid('record_id').notNull(),
+    viewedAt: timestamptz('viewed_at')
+      .notNull()
+      .default(sql`now()`),
+  },
+  (table) => [
+    uniqueIndex('record_views_unique').on(
+      table.tenantId,
+      table.userId,
+      table.objectType,
+      table.recordId,
+    ),
+    index('record_views_recent_idx').on(table.tenantId, table.userId, table.viewedAt),
   ],
 );
 
@@ -126,3 +179,5 @@ export type NewAuditLog = typeof auditLogs.$inferInsert;
 export type OutboxEvent = typeof outboxEvents.$inferSelect;
 export type NewOutboxEvent = typeof outboxEvents.$inferInsert;
 export type Notification = typeof notifications.$inferSelect;
+export type NewNotification = typeof notifications.$inferInsert;
+export type RecordView = typeof recordViews.$inferSelect;

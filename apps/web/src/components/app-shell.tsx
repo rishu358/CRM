@@ -6,6 +6,7 @@ import type { ReactNode } from 'react';
 import { Button, cn } from '@crm/ui';
 import { t, type TranslationKey } from '../lib/i18n';
 import { signOut } from '../lib/session';
+import { NotificationBell } from './notification-bell';
 
 /**
  * The application frame: sidebar, header, content.
@@ -14,6 +15,7 @@ import { signOut } from '../lib/session';
  * visible without pretending a link works.
  */
 const NAV: readonly { href: string; label: TranslationKey; ready: boolean }[] = [
+  { href: '/my-day', label: 'nav.myDay', ready: true },
   { href: '/leads', label: 'nav.leads', ready: true },
   { href: '/contacts', label: 'nav.contacts', ready: true },
   { href: '/accounts', label: 'nav.accounts', ready: true },
@@ -84,7 +86,17 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
       </nav>
 
-      <main className="min-w-0 flex-1 p-4 md:p-8">{children}</main>
+      <div className="flex min-w-0 flex-1 flex-col">
+        {/*
+          The bell lives in the frame rather than on a page, because a
+          notification is about work somewhere else in the app — the point of
+          it is to be visible while you are looking at something unrelated.
+        */}
+        <header className="flex justify-end border-b border-border px-4 py-2">
+          <NotificationBell />
+        </header>
+        <main className="min-w-0 flex-1 p-4 md:p-8">{children}</main>
+      </div>
     </div>
   );
 }

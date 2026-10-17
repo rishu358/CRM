@@ -21,8 +21,16 @@ export interface SystemRoleDefinition {
   readonly grants: readonly SystemRoleGrant[];
 }
 
-/** The business objects a role can be granted on. */
-const BUSINESS_OBJECTS = ['account', 'contact', 'lead', 'deal'] as const;
+/**
+ * The business objects a role can be granted on.
+ *
+ * `activity` is one of them: tasks, calls, meetings and notes are records
+ * with an owner and a scope like any other, so a Sales Rep sees the ones
+ * assigned to them and a Manager sees the team's (MVP_SPEC M6). Tenants that
+ * already existed when activities shipped are given the same grants by the
+ * backfill in `0010_activities_module.sql`.
+ */
+const BUSINESS_OBJECTS = ['account', 'contact', 'lead', 'deal', 'activity'] as const;
 
 const ALL_ACTIONS: readonly Action[] = [
   'read',

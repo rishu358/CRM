@@ -147,9 +147,56 @@ export const LEAD_SYSTEM_FIELDS: readonly SystemField[] = [
   systemField('owner_id', 'Owner', 'user_lookup', 80),
 ];
 
+/**
+ * Activity fields (MVP_SPEC §6.2, §M6).
+ *
+ * `assigned_to` is the ownership field here, which is why there is no
+ * `owner_id` in the list — activities have one and only one person attached
+ * to them (ADR-0026).
+ *
+ * `completed_at` and `reminder_at` are absent: neither is set directly. A
+ * task is completed by `PATCH { status: 'completed' }` and the timestamp
+ * follows, and a reminder is derived from the due date (ADR-0025). Offering
+ * them as fields an admin could mark writable would be offering a permission
+ * nothing honours.
+ *
+ * The picklist values here are repeated as CHECK constraints in
+ * `0010_activities_module.sql`; both lists are short, closed, and must agree.
+ */
+export const ACTIVITY_SYSTEM_FIELDS: readonly SystemField[] = [
+  systemField('type', 'Type', 'picklist', 10, {
+    required: true,
+    options: [
+      { value: 'task', label: 'Task' },
+      { value: 'call', label: 'Call' },
+      { value: 'meeting', label: 'Meeting' },
+      { value: 'note', label: 'Note' },
+    ],
+  }),
+  systemField('subject', 'Subject', 'text', 20, { required: true }),
+  systemField('body', 'Notes', 'long_text', 30),
+  systemField('due_at', 'Due', 'datetime', 40),
+  systemField('priority', 'Priority', 'picklist', 50, {
+    options: [
+      { value: 'low', label: 'Low' },
+      { value: 'normal', label: 'Normal' },
+      { value: 'high', label: 'High' },
+    ],
+  }),
+  systemField('status', 'Status', 'picklist', 60, {
+    options: [
+      { value: 'open', label: 'Open' },
+      { value: 'completed', label: 'Completed' },
+      { value: 'cancelled', label: 'Cancelled' },
+    ],
+  }),
+  systemField('assigned_to', 'Assigned to', 'user_lookup', 70),
+];
+
 export const SYSTEM_FIELDS_BY_OBJECT: Readonly<Record<string, readonly SystemField[]>> = {
   contact: CONTACT_SYSTEM_FIELDS,
   account: ACCOUNT_SYSTEM_FIELDS,
   deal: DEAL_SYSTEM_FIELDS,
   lead: LEAD_SYSTEM_FIELDS,
+  activity: ACTIVITY_SYSTEM_FIELDS,
 };

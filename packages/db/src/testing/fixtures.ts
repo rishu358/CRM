@@ -648,9 +648,229 @@ export class Fixtures {
     return result.rows[0] ?? null;
   }
 
+  /**
+   * Insert an activity directly, through the same constraints the API meets —
+   * fixtures bypass RLS, not integrity. The completed state is not derived
+   * from the status here, so a test can hand the database an inconsistent row
+   * and watch it refuse.
+   */
+  async createActivity(
+    tenantId: string,
+    options: {
+      assignedTo?: string | null;
+      type?: 'task' | 'call' | 'meeting' | 'note';
+      subject?: string;
+      body?: string | null;
+      dueAt?: Date | null;
+      completedAt?: Date | null;
+      priority?: 'low' | 'normal' | 'high';
+      status?: 'open' | 'completed' | 'cancelled';
+      reminderAt?: Date | null;
+      customFields?: Record<string, unknown>;
+    } = {},
+  ): Promise<string> {
+    const activityId = newId();
+    await this.pool.query(
+      `INSERT INTO activities (
+         id, tenant_id, assigned_to, type, subject, body, due_at, completed_at,
+         priority, status, reminder_at, custom_fields
+       )
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+      [
+        activityId,
+        tenantId,
+        options.assignedTo ?? null,
+        options.type ?? 'task',
+        options.subject ?? 'Follow up',
+        options.body ?? null,
+        options.dueAt ?? null,
+        options.completedAt ?? null,
+        options.priority ?? 'normal',
+        options.status ?? 'open',
+        options.reminderAt ?? null,
+        JSON.stringify(options.customFields ?? {}),
+      ],
+    );
+    return activityId;
+  }
+
+  /** Attach an activity to a record, polymorphically (ADR-0005). */
+  async linkActivity(
+    tenantId: string,
+    activityId: string,
+    objectType: 'account' | 'contact' | 'lead' | 'deal',
+    recordId: string,
+  ): Promise<string> {
+    const id = newId();
+    await this.pool.query(
+      `INSERT INTO activity_links (id, tenant_id, activity_id, object_type, record_id)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [id, tenantId, activityId, objectType, recordId],
+    );
+    return id;
+  }
+
+  /** The activity row as stored, for assertions the serializer would filter. */
+  async activityRow(id: string): Promise<{
+    assigned_to: string | null;
+    type: string;
+    subject: string;
+    body: string | null;
+    due_at: Date | null;
+    completed_at: Date | null;
+    reminder_at: Date | null;
+    status: string;
+    version: number;
+    deleted_at: Date | null;
+  } | null> {
+    const result = await this.pool.query<{
+      assigned_to: string | null;
+      type: string;
+      subject: string;
+      body: string | null;
+      due_at: Date | null;
+      completed_at: Date | null;
+      reminder_at: Date | null;
+      status: string;
+      version: number;
+      deleted_at: Date | null;
+    }>(
+      `SELECT assigned_to, type, subject, body, due_at, completed_at, reminder_at,
+              status, version, deleted_at
+       FROM activities WHERE id = $1`,
+      [id],
+    );
+    return result.rows[0] ?? null;
+  }
+
+  /** The polymorphic links an activity carries. */
+  async activityLinks(activityId: string): Promise<{ objectType: string; recordId: string }[]> {
+    const result = await this.pool.query<{ object_type: string; record_id: string }>(
+      `SELECT object_type, record_id FROM activity_links
+       WHERE activity_id = $1 ORDER BY object_type, record_id`,
+      [activityId],
+    );
+    return result.rows.map((row) => ({ objectType: row.object_type, recordId: row.record_id }));
+  }
+
+  /**
+   * Hard-delete a record.
+   *
+   * Nothing in the product does this yet — deletes are soft — but it is what
+   * orphan cleanup exists for (ADR-0005), so the test that proves the worker
+   * clears dangling links has to produce one.
+   */
+  async hardDeleteRecord(
+    table: 'contacts' | 'accounts' | 'deals' | 'leads',
+    id: string,
+  ): Promise<void> {
+    // The table name is one of four literals chosen here, never caller text.
+    await this.pool.query(`DELETE FROM ${table} WHERE id = $1`, [id]);
+  }
+
+  /** A person's notifications, newest first. */
+  async notificationsFor(
+    tenantId: string,
+    userId: string,
+  ): Promise<
+    {
+      id: string;
+      type: string;
+      payload: Record<string, unknown>;
+      readAt: Date | null;
+      digestedAt: Date | null;
+    }[]
+  > {
+    const result = await this.pool.query<{
+      id: string;
+      type: string;
+      payload: Record<string, unknown>;
+      read_at: Date | null;
+      digested_at: Date | null;
+    }>(
+      `SELECT id, type, payload, read_at, digested_at FROM notifications
+       WHERE tenant_id = $1 AND user_id = $2 ORDER BY created_at DESC, id DESC`,
+      [tenantId, userId],
+    );
+    return result.rows.map((row) => ({
+      id: row.id,
+      type: row.type,
+      payload: row.payload,
+      readAt: row.read_at,
+      digestedAt: row.digested_at,
+    }));
+  }
+
+  /** Insert a notification directly, for tests about reading them back. */
+  async createNotification(
+    tenantId: string,
+    userId: string,
+    options: { type?: string; payload?: Record<string, unknown>; readAt?: Date | null } = {},
+  ): Promise<string> {
+    const id = newId();
+    await this.pool.query(
+      `INSERT INTO notifications (id, tenant_id, user_id, type, payload, read_at)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [
+        id,
+        tenantId,
+        userId,
+        options.type ?? 'activity.assigned',
+        JSON.stringify(options.payload ?? {}),
+        options.readAt ?? null,
+      ],
+    );
+    return id;
+  }
+
+  /** Every outbox row of one type, with the instant it becomes deliverable. */
+  async outboxSchedule(
+    tenantId: string,
+    eventType: string,
+  ): Promise<{ availableAt: Date; payload: Record<string, unknown>; recordId: string | null }[]> {
+    const result = await this.pool.query<{
+      available_at: Date;
+      payload: Record<string, unknown>;
+      record_id: string | null;
+    }>(
+      `SELECT available_at, payload, record_id FROM outbox_events
+       WHERE tenant_id = $1 AND event_type = $2 ORDER BY created_at, id`,
+      [tenantId, eventType],
+    );
+    return result.rows.map((row) => ({
+      availableAt: row.available_at,
+      payload: row.payload,
+      recordId: row.record_id,
+    }));
+  }
+
+  /** Make pending outbox rows deliverable now, instead of waiting for their time. */
+  async makeOutboxDue(tenantId: string, eventType: string): Promise<void> {
+    await this.pool.query(
+      `UPDATE outbox_events SET available_at = now() - interval '1 minute'
+       WHERE tenant_id = $1 AND event_type = $2 AND status = 'pending'`,
+      [tenantId, eventType],
+    );
+  }
+
+  /** Timeline entries written for one record, oldest first. */
+  async timelineFor(
+    tenantId: string,
+    objectType: string,
+    recordId: string,
+  ): Promise<{ eventType: string; summary: string }[]> {
+    const result = await this.pool.query<{ event_type: string; summary: string }>(
+      `SELECT event_type, summary FROM timeline_events
+       WHERE tenant_id = $1 AND object_type = $2 AND record_id = $3
+       ORDER BY created_at, id`,
+      [tenantId, objectType, recordId],
+    );
+    return result.rows.map((row) => ({ eventType: row.event_type, summary: row.summary }));
+  }
+
   /** How many live rows a tenant holds in a table. Table name is a fixture constant. */
   async countRows(
-    table: 'contacts' | 'accounts' | 'deals' | 'leads',
+    table: 'contacts' | 'accounts' | 'deals' | 'leads' | 'activities' | 'activity_links',
     tenantId: string,
   ): Promise<number> {
     const result = await this.pool.query<{ count: string }>(

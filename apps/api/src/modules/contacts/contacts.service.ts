@@ -359,6 +359,44 @@ export class ContactsService {
     return { id: row.id, accountId: row.accountId };
   }
 
+  /**
+   * What to call these contacts, for the ones this actor may read (ADR-0005).
+   *
+   * The public way for the activities module to resolve a polymorphic link
+   * without touching this module's tables (ADR-0001). Two rules make it safe
+   * to call with ids that came from a link row:
+   *
+   *   - the reader's record scope is applied in SQL, so an id they may not
+   *     see is simply absent from the answer — which is how an activity
+   *     linked to a colleague's contact stops being a way to learn the
+   *     contact exists;
+   *   - the label is built only from fields the actor may read, so a link is
+   *     not a side door around field permissions.
+   */
+  async linkLabels(tx: Tx, actor: Actor, ids: readonly string[]): Promise<Map<string, string>> {
+    const decision = can(actor, 'read', { objectType: 'contact' });
+    if (!decision.allowed) return new Map();
+
+    const rows = await this.repository.findReadableMany(
+      tx,
+      actor.tenantId,
+      ids,
+      decision.constraint,
+    );
+
+    return new Map(
+      rows.map((row) => {
+        const name = [
+          canReadField(actor, 'contact', 'first_name') ? row.firstName : null,
+          canReadField(actor, 'contact', 'last_name') ? row.lastName : null,
+        ]
+          .filter((part): part is string => part !== null && part.length > 0)
+          .join(' ');
+        return [row.id, name.length > 0 ? name : 'Contact'];
+      }),
+    );
+  }
+
   private inTenant<T>(actor: Actor, work: (tx: Tx) => Promise<T>): Promise<T> {
     return this.database.runInTenant({ tenantId: actor.tenantId, userId: actor.userId }, work);
   }
