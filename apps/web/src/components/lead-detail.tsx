@@ -1,0 +1,254 @@
+'use client';
+
+import {
+  Badge,
+  Button,
+  Card,
+  CardBody,
+  CardHeader,
+  ErrorState,
+  NoPermissionState,
+  Select,
+  Skeleton,
+} from '@crm/ui';
+import Link from 'next/link';
+import { useState } from 'react';
+import { DEFAULT_PREFERENCES, formatDate, formatDateTime, formatName } from '../lib/format';
+import { t, type TranslationKey } from '../lib/i18n';
+import { OPEN_LEAD_STATUSES, useLead, useUpdateLead } from '../lib/leads';
+import { AppShell } from './app-shell';
+import { ConvertLeadDialog } from './convert-lead-dialog';
+import { InlineField } from './inline-field';
+
+/**
+ * One lead, edited in place.
+ *
+ * Which fields appear is decided by what the API returned: a field the caller
+ * may not read is absent from the payload entirely (CLAUDE.md §5.4), so the
+ * form is built from the response rather than from a fixed list. A field
+ * hidden by configuration simply does not render — no empty row hinting that
+ * something is being withheld.
+ *
+ * A converted lead is read-only here, as it is at the API (ADR-0022): it is
+ * the record of what a person became, and editing it would let it drift from
+ * the contact it created.
+ */
+const EDITABLE_FIELDS = [
+  { key: 'firstName', label: 'lead.firstName', type: 'text' },
+  { key: 'lastName', label: 'lead.lastName', type: 'text' },
+  { key: 'company', label: 'lead.company', type: 'text' },
+  { key: 'email', label: 'lead.email', type: 'email' },
+  { key: 'phone', label: 'lead.phone', type: 'tel' },
+  { key: 'source', label: 'lead.source', type: 'text' },
+] as const;
+
+export function LeadDetail({ id }: { id: string }) {
+  const query = useLead(id);
+  const update = useUpdateLead();
+  const [converting, setConverting] = useState(false);
+
+  if (query.isPending) {
+    return (
+      <AppShell>
+        <div className="space-y-4">
+          <Skeleton className="h-8 w-64" />
+          <Skeleton className="h-64 w-full" />
+        </div>
+      </AppShell>
+    );
+  }
+
+  if (query.isError) {
+    const status = query.error.status;
+    return (
+      <AppShell>
+        {status === 403 ? (
+          <NoPermissionState
+            title={t('leads.forbidden.title')}
+            description={t('leads.forbidden.description')}
+          />
+        ) : (
+          <ErrorState
+            title={status === 404 ? t('lead.notFound.title') : t('leads.error.title')}
+            description={
+              status === 404 ? t('lead.notFound.description') : t('leads.error.description')
+            }
+            action={
+              <Link href="/leads">
+                <Button variant="outline">{t('lead.backToList')}</Button>
+              </Link>
+            }
+          />
+        )}
+      </AppShell>
+    );
+  }
+
+  const lead = query.data.data;
+  const record = lead as unknown as Record<string, unknown>;
+  const converted = lead.status === 'converted';
+
+  // A 409 means a colleague saved while this user was editing. Offering a
+  // reload is the honest response: we will not guess whose version wins.
+  const conflicted = update.error?.code === 'VERSION_CONFLICT';
+
+  return (
+    <AppShell>
+      <nav className="mb-4">
+        <Link
+          href="/leads"
+          className="text-sm text-muted-foreground underline-offset-4 hover:underline"
+        >
+          {t('lead.backToList')}
+        </Link>
+      </nav>
+
+      <header className="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <h1 className="text-xl font-semibold tracking-tight">
+            {formatName(lead) || t('field.empty')}
+          </h1>
+          {lead.status !== undefined ? (
+            <Badge tone={converted ? 'success' : 'neutral'}>
+              {t(`lead.status.${lead.status}` as TranslationKey)}
+            </Badge>
+          ) : null}
+        </div>
+        {!converted ? (
+          <Button onClick={() => setConverting(true)}>{t('lead.convert')}</Button>
+        ) : null}
+      </header>
+
+      {conflicted ? (
+        <div
+          role="alert"
+          className="mb-4 flex items-center justify-between gap-4 rounded-md border border-warning/40 bg-warning/10 p-3"
+        >
+          <div>
+            <p className="text-sm font-medium">{t('conflict.title')}</p>
+            <p className="text-sm text-muted-foreground">{t('conflict.description.lead')}</p>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              update.reset();
+              void query.refetch();
+            }}
+          >
+            {t('conflict.reload')}
+          </Button>
+        </div>
+      ) : null}
+
+      {converted ? (
+        <Card className="mb-4">
+          <CardHeader
+            title={t('lead.converted.title')}
+            description={
+              lead.convertedAt
+                ? t('lead.converted.on', {
+                    date: formatDate(lead.convertedAt, DEFAULT_PREFERENCES),
+                  })
+                : undefined
+            }
+          />
+          <CardBody className="space-y-2 text-sm" data-testid="converted-links">
+            <p className="text-muted-foreground">{t('lead.converted.locked')}</p>
+            <ul className="flex flex-wrap gap-4">
+              {lead.convertedContactId ? (
+                <li>
+                  <Link
+                    href={`/contacts/${lead.convertedContactId}`}
+                    className="font-medium text-primary underline-offset-4 hover:underline"
+                  >
+                    {t('lead.converted.contact')}
+                  </Link>
+                </li>
+              ) : null}
+              {lead.convertedAccountId ? (
+                <li>
+                  <Link
+                    href={`/accounts/${lead.convertedAccountId}`}
+                    className="font-medium text-primary underline-offset-4 hover:underline"
+                  >
+                    {t('lead.converted.account')}
+                  </Link>
+                </li>
+              ) : null}
+              {lead.convertedDealId ? (
+                <li>
+                  <Link
+                    href={`/deals/${lead.convertedDealId}`}
+                    className="font-medium text-primary underline-offset-4 hover:underline"
+                  >
+                    {t('lead.converted.deal')}
+                  </Link>
+                </li>
+              ) : null}
+            </ul>
+          </CardBody>
+        </Card>
+      ) : null}
+
+      <Card>
+        <CardHeader title={t('lead.details')} />
+        <CardBody className="divide-y divide-border">
+          {EDITABLE_FIELDS.filter((field) => field.key in record).map((field) => (
+            <InlineField
+              key={field.key}
+              label={t(field.label)}
+              type={field.type}
+              readOnly={converted}
+              value={record[field.key] as string | null | undefined}
+              onSave={(next) => {
+                update.mutate({
+                  id: lead.id,
+                  version: lead.version,
+                  patch: { [field.key]: next },
+                });
+              }}
+            />
+          ))}
+
+          {lead.status !== undefined && !converted ? (
+            <div className="grid grid-cols-[10rem_1fr] items-center gap-3 py-2">
+              <span className="text-sm text-muted-foreground">{t('lead.status')}</span>
+              <div className="max-w-sm">
+                <Select
+                  label={t('lead.status')}
+                  labelHidden
+                  value={lead.status}
+                  onChange={(event) => {
+                    update.mutate({
+                      id: lead.id,
+                      version: lead.version,
+                      patch: { status: event.target.value },
+                    });
+                  }}
+                >
+                  {OPEN_LEAD_STATUSES.map((status) => (
+                    <option key={status} value={status}>
+                      {t(`lead.status.${status}` as TranslationKey)}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+            </div>
+          ) : null}
+
+          <div className="grid grid-cols-[10rem_1fr] gap-3 py-2 text-sm">
+            <span className="text-muted-foreground">{t('lead.created')}</span>
+            <span>{formatDateTime(lead.createdAt, DEFAULT_PREFERENCES)}</span>
+          </div>
+          <div className="grid grid-cols-[10rem_1fr] gap-3 py-2 text-sm">
+            <span className="text-muted-foreground">{t('lead.updated')}</span>
+            <span>{formatDateTime(lead.updatedAt, DEFAULT_PREFERENCES)}</span>
+          </div>
+        </CardBody>
+      </Card>
+
+      {converting ? <ConvertLeadDialog lead={lead} onClose={() => setConverting(false)} /> : null}
+    </AppShell>
+  );
+}

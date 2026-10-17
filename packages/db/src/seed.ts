@@ -14,6 +14,7 @@ import {
   dealContacts,
   deals,
   exchangeRates,
+  leads,
   pipelineStages,
   pipelines,
 } from './schema/index.js';
@@ -345,6 +346,66 @@ try {
         dealId: showroomDealId,
         contactId: contactIds[1]!,
         role: 'Influencer',
+        createdBy: ownerId,
+        updatedBy: ownerId,
+      },
+    ]);
+
+    // Leads (MVP_SPEC M4). Four, chosen so each demo path has something to use:
+    //   * Neha converts cleanly: a new company and a new person.
+    //   * Anjali Sharma is already a contact (same email), so converting her
+    //     is offered "link to existing" rather than a duplicate (ADR-0023).
+    //   * Two belong to the rep, so `own` scope is visible on this list too.
+    await tx.insert(leads).values([
+      {
+        id: newId(),
+        tenantId,
+        ownerId,
+        firstName: 'Neha',
+        lastName: 'Kulkarni',
+        company: 'Kulkarni Silks',
+        email: 'neha@kulkarnisilks.example',
+        phone: '+919822011001',
+        source: 'exhibition',
+        status: 'qualified',
+        createdBy: ownerId,
+        updatedBy: ownerId,
+      },
+      {
+        id: newId(),
+        tenantId,
+        ownerId,
+        firstName: 'Anjali',
+        lastName: 'Sharma',
+        company: 'Rajesh Gold House',
+        email: 'anjali.sharma@example.com',
+        source: 'referral',
+        status: 'contacted',
+        createdBy: ownerId,
+        updatedBy: ownerId,
+      },
+      {
+        id: newId(),
+        tenantId,
+        ownerId: repId,
+        firstName: 'Imran',
+        lastName: 'Qureshi',
+        company: 'Qureshi Leather Works',
+        email: 'imran@qureshileather.example',
+        source: 'website',
+        status: 'new',
+        createdBy: ownerId,
+        updatedBy: ownerId,
+      },
+      {
+        id: newId(),
+        tenantId,
+        ownerId: repId,
+        firstName: 'Divya',
+        lastName: 'Pillai',
+        email: 'divya.pillai@example.com',
+        source: 'walk_in',
+        status: 'new',
         createdBy: ownerId,
         updatedBy: ownerId,
       },

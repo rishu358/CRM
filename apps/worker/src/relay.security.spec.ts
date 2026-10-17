@@ -204,3 +204,61 @@ describe('deal events reach the record timeline (MVP_SPEC M5)', () => {
     expect(inB.rows).toHaveLength(0);
   });
 });
+
+describe('lead events reach the record timeline (MVP_SPEC M4)', () => {
+  async function project(eventType: string, objectType: string, payload: object) {
+    const recordId = newId();
+    const eventId = newId();
+    await withoutTenant(worker.db, (tx) =>
+      tx.execute(sql`
+        insert into outbox_events (id, tenant_id, event_type, object_type, record_id, payload)
+        values (${eventId}, ${tenantA}, ${eventType}, ${objectType}, ${recordId},
+                ${JSON.stringify(payload)}::jsonb)
+      `),
+    );
+    await new OutboxRelay(worker.db, { logger, batchSize: 100 })
+      .on(eventType, projectTimeline)
+      .tick();
+
+    const rows = await withTenant(appClient.db, { tenantId: tenantA, userId: null }, (tx) =>
+      tx.execute(
+        sql`select summary, object_type, record_id from timeline_events where source_event_id = ${eventId}`,
+      ),
+    );
+    return { recordId, row: rows.rows[0] as Record<string, string> | undefined };
+  }
+
+  it('says what a conversion created, on the lead', async () => {
+    const { recordId, row } = await project('lead.converted.v1', 'lead', {
+      contactId: newId(),
+      accountId: newId(),
+      dealId: newId(),
+      contactCreated: true,
+      accountCreated: true,
+    });
+    expect(row).toMatchObject({
+      summary: 'Converted: created contact, account, deal',
+      object_type: 'lead',
+      record_id: recordId,
+    });
+  });
+
+  it('says when a conversion linked to an existing contact', async () => {
+    const { row } = await project('lead.converted.v1', 'lead', {
+      contactId: newId(),
+      accountId: null,
+      dealId: null,
+      contactCreated: false,
+      accountCreated: false,
+    });
+    expect(row?.['summary']).toBe('Converted and linked to an existing contact');
+  });
+
+  it('puts a "linked from lead" entry on a contact that was only linked', async () => {
+    const { row } = await project('contact.linked_from_lead.v1', 'contact', { leadId: newId() });
+    expect(row).toMatchObject({
+      summary: 'Lead converted onto this contact',
+      object_type: 'contact',
+    });
+  });
+});

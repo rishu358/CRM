@@ -4,6 +4,9 @@ import {
   buildCustomFieldsPatchSchema,
   buildCustomFieldsSchema,
   can,
+  canReadField,
+  COMPANY_NAME_SIMILARITY_THRESHOLD,
+  MAX_DUPLICATE_MATCHES,
   money,
   newId,
   NotFoundError,
@@ -19,6 +22,7 @@ import {
   type AccountCreateInput,
   type AccountListQuery,
   type AccountUpdateInput,
+  type DuplicateMatch,
   type MoneyInput,
 } from '@crm/contracts';
 import type { Account as AccountRow, Tx } from '@crm/db';
@@ -128,69 +132,79 @@ export class AccountsService {
   }
 
   async create(actor: Actor, input: AccountCreateInput): Promise<SerializedAccount> {
+    return this.inTenant(actor, (tx) => this.createInTx(actor, tx, input));
+  }
+
+  /**
+   * Create a account inside a transaction somebody else owns.
+   *
+   * Lead conversion creates several records and must be all-or-nothing, so it
+   * needs the very same checks, audit entry and outbox event `create` performs,
+   * without opening a second transaction. Every guarantee `create` gives holds
+   * here too: it is the same code, not a copy of it.
+   */
+  async createInTx(actor: Actor, tx: Tx, input: AccountCreateInput): Promise<SerializedAccount> {
     assertCan(actor, 'create', { objectType: 'account' });
 
-    return this.inTenant(actor, async (tx) => {
-      const fields = await this.fieldMetadata.forObject(tx, actor.tenantId, 'account');
-      assertWritableAccountFields(actor, input, fields);
+    const fields = await this.fieldMetadata.forObject(tx, actor.tenantId, 'account');
+    assertWritableAccountFields(actor, input, fields);
 
-      const customFields = this.validateCustomFields(input.customFields ?? {}, fields, false);
-      const ownerId = this.resolveOwner(actor, input.ownerId ?? undefined);
-      const revenue = toRevenueColumns(input.annualRevenue ?? null);
+    const customFields = this.validateCustomFields(input.customFields ?? {}, fields, false);
+    const ownerId = this.resolveOwner(actor, input.ownerId ?? undefined);
+    const revenue = toRevenueColumns(input.annualRevenue ?? null);
 
-      const id = newId();
-      if (input.parentAccountId != null) {
-        await this.assertParentIsUsable(tx, actor, id, input.parentAccountId);
-      }
+    const id = newId();
+    if (input.parentAccountId != null) {
+      await this.assertParentIsUsable(tx, actor, id, input.parentAccountId);
+    }
 
-      const row = await this.withCycleTranslated(() =>
-        this.repository.insert(tx, {
-          id,
-          tenantId: actor.tenantId,
-          ownerId,
-          name: input.name,
-          domain: input.domain ?? null,
-          industry: input.industry ?? null,
-          phone: input.phone ?? null,
-          email: input.email ?? null,
-          website: input.website ?? null,
-          gstin: input.gstin ?? null,
-          billingAddress: input.billingAddress ?? null,
-          shippingAddress: input.shippingAddress ?? null,
-          ...revenue,
-          employeeCount: input.employeeCount ?? null,
-          parentAccountId: input.parentAccountId ?? null,
-          customFields,
-          createdBy: actor.userId,
-          updatedBy: actor.userId,
-        }),
-      );
+    const row = await this.withCycleTranslated(() =>
+      this.repository.insert(tx, {
+        id,
+        tenantId: actor.tenantId,
+        ownerId,
+        name: input.name,
+        domain: input.domain ?? null,
+        industry: input.industry ?? null,
+        phone: input.phone ?? null,
+        email: input.email ?? null,
+        website: input.website ?? null,
+        gstin: input.gstin ?? null,
+        billingAddress: input.billingAddress ?? null,
+        shippingAddress: input.shippingAddress ?? null,
+        ...revenue,
+        employeeCount: input.employeeCount ?? null,
+        parentAccountId: input.parentAccountId ?? null,
+        customFields,
+        createdBy: actor.userId,
+        updatedBy: actor.userId,
+      }),
+    );
 
-      // Same transaction as the insert: the audit entry and the event exist if
-      // and only if the account does (CLAUDE.md §5.10, ADR-0006).
-      await this.audit.record(tx, actor, {
-        action: 'create',
-        objectType: 'account',
-        recordId: row.id,
-        changes: diffChanges(
-          {},
-          {
-            name: row.name,
-            domain: row.domain,
-            ownerId: row.ownerId,
-            parentAccountId: row.parentAccountId,
-          },
-        ),
-      });
-      await this.outbox.publish(tx, actor, {
-        eventType: 'account.created.v1',
-        objectType: 'account',
-        recordId: row.id,
-        payload: { ownerId: row.ownerId, parentAccountId: row.parentAccountId },
-      });
-
-      return serializeAccount(actor, row, fields);
+    // Same transaction as the insert: the audit entry and the event exist if
+    // and only if the account does (CLAUDE.md §5.10, ADR-0006).
+    await this.audit.record(tx, actor, {
+      action: 'create',
+      objectType: 'account',
+      recordId: row.id,
+      changes: diffChanges(
+        {},
+        {
+          name: row.name,
+          domain: row.domain,
+          ownerId: row.ownerId,
+          parentAccountId: row.parentAccountId,
+        },
+      ),
     });
+    await this.outbox.publish(tx, actor, {
+      eventType: 'account.created.v1',
+      objectType: 'account',
+      recordId: row.id,
+      payload: { ownerId: row.ownerId, parentAccountId: row.parentAccountId },
+    });
+
+    return serializeAccount(actor, row, fields);
   }
 
   async update(actor: Actor, id: string, input: AccountUpdateInput): Promise<SerializedAccount> {
@@ -289,6 +303,84 @@ export class AccountsService {
    */
   async existsForLinking(tx: Tx, tenantId: string, accountId: string): Promise<boolean> {
     return this.repository.existsLive(tx, tenantId, accountId);
+  }
+
+  /**
+   * Accounts this company might already be (ADR-0023): the same domain, or a
+   * name that is close under pg_trgm.
+   *
+   * The same three guarantees as `ContactsService.findDuplicates`, for the same
+   * reasons: only fields the actor may read are matched on, only accounts in
+   * the actor's record scope are returned, and the label shows nothing the
+   * actor could not read. No permission on accounts is an empty answer.
+   */
+  async findDuplicates(
+    tx: Tx,
+    actor: Actor,
+    criteria: {
+      readonly domain?: string | null | undefined;
+      readonly name?: string | null | undefined;
+    },
+  ): Promise<DuplicateMatch[]> {
+    const decision = can(actor, 'read', { objectType: 'account' });
+    if (!decision.allowed) return [];
+
+    const domain =
+      criteria.domain != null && canReadField(actor, 'account', 'domain')
+        ? criteria.domain
+        : undefined;
+    const name =
+      criteria.name != null && canReadField(actor, 'account', 'name') ? criteria.name : undefined;
+
+    const rows = await this.repository.findDuplicates(
+      tx,
+      actor.tenantId,
+      { domain, name },
+      decision.constraint,
+      COMPANY_NAME_SIMILARITY_THRESHOLD,
+      MAX_DUPLICATE_MATCHES,
+    );
+
+    return rows.map((row) => {
+      const matchedOn: DuplicateMatch['matchedOn'] = [];
+      if (domain !== undefined && row.domain?.toLowerCase() === domain.toLowerCase()) {
+        matchedOn.push('domain');
+      }
+      if (
+        name !== undefined &&
+        row.nameScore !== null &&
+        row.nameScore >= COMPANY_NAME_SIMILARITY_THRESHOLD
+      ) {
+        matchedOn.push('name');
+      }
+      return {
+        objectType: 'account',
+        id: row.id,
+        label: canReadField(actor, 'account', 'name') ? row.name : 'Account',
+        matchedOn,
+      };
+    });
+  }
+
+  /**
+   * An account the caller may attach something to, or a 422. Narrower than
+   * `existsForLinking` for the reason given on
+   * `ContactsService.assertReadableForLinking`.
+   */
+  async assertReadableForLinking(
+    tx: Tx,
+    actor: Actor,
+    id: string,
+    path: string,
+  ): Promise<{ id: string }> {
+    const decision = can(actor, 'read', { objectType: 'account' });
+    const row = decision.allowed
+      ? await this.repository.findReadable(tx, actor.tenantId, id, decision.constraint)
+      : null;
+    if (row === null) {
+      throw new ValidationError([{ path, message: 'That account does not exist' }]);
+    }
+    return { id: row.id };
   }
 
   private inTenant<T>(actor: Actor, work: (tx: Tx) => Promise<T>): Promise<T> {

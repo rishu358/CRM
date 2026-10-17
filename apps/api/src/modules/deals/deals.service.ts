@@ -231,75 +231,85 @@ export class DealsService {
   }
 
   async create(actor: Actor, input: DealCreateInput): Promise<SerializedDeal> {
+    return this.inTenant(actor, (tx) => this.createInTx(actor, tx, input));
+  }
+
+  /**
+   * Create a deal inside a transaction somebody else owns.
+   *
+   * Lead conversion creates several records and must be all-or-nothing, so it
+   * needs the very same checks, audit entry and outbox event `create` performs,
+   * without opening a second transaction. Every guarantee `create` gives holds
+   * here too: it is the same code, not a copy of it.
+   */
+  async createInTx(actor: Actor, tx: Tx, input: DealCreateInput): Promise<SerializedDeal> {
     assertCan(actor, 'create', { objectType: 'deal' });
 
-    return this.inTenant(actor, async (tx) => {
-      const fields = await this.fieldMetadata.forObject(tx, actor.tenantId, 'deal');
-      assertWritableDealFields(actor, input, fields);
+    const fields = await this.fieldMetadata.forObject(tx, actor.tenantId, 'deal');
+    assertWritableDealFields(actor, input, fields);
 
-      const customFields = this.validateCustomFields(input.customFields ?? {}, fields, false);
-      const ownerId = this.resolveOwner(actor, input.ownerId ?? undefined);
-      const amount = toAmountColumns(input.amount ?? null);
+    const customFields = this.validateCustomFields(input.customFields ?? {}, fields, false);
+    const ownerId = this.resolveOwner(actor, input.ownerId ?? undefined);
+    const amount = toAmountColumns(input.amount ?? null);
 
-      await this.assertLinks(tx, actor, input.accountId, input.primaryContactId, input.contacts);
+    await this.assertLinks(tx, actor, input.accountId, input.primaryContactId, input.contacts);
 
-      const stage = await this.placementForCreate(tx, actor, input.pipelineId, input.stageId);
-      const state = this.stageState(stage, undefined, input.probability, input.lostReason);
+    const stage = await this.placementForCreate(tx, actor, input.pipelineId, input.stageId);
+    const state = this.stageState(stage, undefined, input.probability, input.lostReason);
 
-      const id = newId();
-      const row = await this.translateStageState(() =>
-        this.repository.insert(tx, {
-          id,
-          tenantId: actor.tenantId,
-          ownerId,
-          name: input.name,
-          accountId: input.accountId ?? null,
-          primaryContactId: input.primaryContactId ?? null,
-          pipelineId: stage.pipelineId,
-          stageId: stage.id,
-          ...amount,
-          ...state,
-          expectedCloseDate: input.expectedCloseDate ?? null,
-          customFields,
-          createdBy: actor.userId,
-          updatedBy: actor.userId,
-        }),
-      );
+    const id = newId();
+    const row = await this.translateStageState(() =>
+      this.repository.insert(tx, {
+        id,
+        tenantId: actor.tenantId,
+        ownerId,
+        name: input.name,
+        accountId: input.accountId ?? null,
+        primaryContactId: input.primaryContactId ?? null,
+        pipelineId: stage.pipelineId,
+        stageId: stage.id,
+        ...amount,
+        ...state,
+        expectedCloseDate: input.expectedCloseDate ?? null,
+        customFields,
+        createdBy: actor.userId,
+        updatedBy: actor.userId,
+      }),
+    );
 
-      const people = await this.writePeople(tx, actor, row.id, input.contacts);
+    const people = await this.writePeople(tx, actor, row.id, input.contacts);
 
-      // Same transaction as the insert: the audit entry and the event exist if
-      // and only if the deal does (CLAUDE.md §5.10, ADR-0006).
-      await this.audit.record(tx, actor, {
-        action: 'create',
-        objectType: 'deal',
-        recordId: row.id,
-        changes: diffChanges(
-          {},
-          {
-            name: row.name,
-            stageId: row.stageId,
-            pipelineId: row.pipelineId,
-            amountMinor: row.amountMinor,
-            currency: row.currency,
-            ownerId: row.ownerId,
-          },
-        ),
-      });
-      await this.outbox.publish(tx, actor, {
-        eventType: 'deal.created.v1',
-        objectType: 'deal',
-        recordId: row.id,
-        payload: {
-          ownerId: row.ownerId,
-          pipelineId: row.pipelineId,
+    // Same transaction as the insert: the audit entry and the event exist if
+    // and only if the deal does (CLAUDE.md §5.10, ADR-0006).
+    await this.audit.record(tx, actor, {
+      action: 'create',
+      objectType: 'deal',
+      recordId: row.id,
+      changes: diffChanges(
+        {},
+        {
+          name: row.name,
           stageId: row.stageId,
-          stageName: stage.name,
+          pipelineId: row.pipelineId,
+          amountMinor: row.amountMinor,
+          currency: row.currency,
+          ownerId: row.ownerId,
         },
-      });
-
-      return serializeDeal(actor, row, fields, people);
+      ),
     });
+    await this.outbox.publish(tx, actor, {
+      eventType: 'deal.created.v1',
+      objectType: 'deal',
+      recordId: row.id,
+      payload: {
+        ownerId: row.ownerId,
+        pipelineId: row.pipelineId,
+        stageId: row.stageId,
+        stageName: stage.name,
+      },
+    });
+
+    return serializeDeal(actor, row, fields, people);
   }
 
   async update(actor: Actor, id: string, input: DealUpdateInput): Promise<SerializedDeal> {

@@ -105,8 +105,51 @@ export const DEAL_SYSTEM_FIELDS: readonly SystemField[] = [
   systemField('owner_id', 'Owner', 'user_lookup', 60),
 ];
 
+/**
+ * Lead fields (MVP_SPEC §6.2).
+ *
+ * `status` is a picklist whose values are fixed by a CHECK constraint, so the
+ * options here and the constraint in `0009_leads_module.sql` must agree; the
+ * list is short and closed, and a tenant adding its own stage of interest
+ * should add a custom field rather than widen this one.
+ *
+ * `converted_at`, `converted_contact_id`, `converted_account_id` and
+ * `converted_deal_id` are absent, for the reason given above about references
+ * and for one more: they are not editable at all. Conversion writes them once
+ * (ADR-0022), so offering them as fields an admin can mark writable would be
+ * offering a permission that nothing honours.
+ */
+export const LEAD_SYSTEM_FIELDS: readonly SystemField[] = [
+  systemField('first_name', 'First name', 'text', 10),
+  systemField('last_name', 'Last name', 'text', 20, { required: true }),
+  systemField('company', 'Company', 'text', 30),
+  systemField('email', 'Email', 'email', 40),
+  systemField('phone', 'Phone', 'phone', 50),
+  systemField('source', 'Source', 'picklist', 60, {
+    options: [
+      { value: 'referral', label: 'Referral' },
+      { value: 'website', label: 'Website' },
+      { value: 'walk_in', label: 'Walk-in' },
+      { value: 'exhibition', label: 'Exhibition' },
+      { value: 'social', label: 'Social media' },
+      { value: 'other', label: 'Other' },
+    ],
+  }),
+  systemField('status', 'Status', 'picklist', 70, {
+    options: [
+      { value: 'new', label: 'New' },
+      { value: 'contacted', label: 'Contacted' },
+      { value: 'qualified', label: 'Qualified' },
+      { value: 'unqualified', label: 'Unqualified' },
+      { value: 'converted', label: 'Converted' },
+    ],
+  }),
+  systemField('owner_id', 'Owner', 'user_lookup', 80),
+];
+
 export const SYSTEM_FIELDS_BY_OBJECT: Readonly<Record<string, readonly SystemField[]>> = {
   contact: CONTACT_SYSTEM_FIELDS,
   account: ACCOUNT_SYSTEM_FIELDS,
   deal: DEAL_SYSTEM_FIELDS,
+  lead: LEAD_SYSTEM_FIELDS,
 };
