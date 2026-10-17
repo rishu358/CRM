@@ -24,7 +24,7 @@ export function InlineField({
   label: string;
   value: string | null | undefined;
   readOnly?: boolean;
-  type?: 'text' | 'email' | 'tel' | 'url' | 'number';
+  type?: 'text' | 'email' | 'tel' | 'url' | 'number' | 'date';
   onSave: (next: string | null) => void;
 }) {
   const [editing, setEditing] = useState(false);

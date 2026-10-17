@@ -84,7 +84,29 @@ export const ACCOUNT_SYSTEM_FIELDS: readonly SystemField[] = [
  * one until the types exist.
  */
 
+/**
+ * `amount` is one field over `amount_minor` + `currency`, as `annual_revenue`
+ * is on accounts: a permission that hid one half would hide nothing.
+ *
+ * `stage_id`, `pipeline_id`, `account_id`, `primary_contact_id`, `closed_at`
+ * and `contacts` are absent for the reason given above — there is no type that
+ * describes a reference — but the serializer checks `canReadField` and
+ * `canWriteField` for them by key, so a permission row written for one is
+ * honoured.
+ */
+export const DEAL_SYSTEM_FIELDS: readonly SystemField[] = [
+  systemField('name', 'Deal name', 'text', 10, { required: true }),
+  systemField('amount', 'Amount', 'currency', 20),
+  systemField('probability', 'Probability', 'percent', 30, {
+    validation: { min: '0', max: '100' },
+  }),
+  systemField('expected_close_date', 'Expected close date', 'date', 40),
+  systemField('lost_reason', 'Lost reason', 'text', 50),
+  systemField('owner_id', 'Owner', 'user_lookup', 60),
+];
+
 export const SYSTEM_FIELDS_BY_OBJECT: Readonly<Record<string, readonly SystemField[]>> = {
   contact: CONTACT_SYSTEM_FIELDS,
   account: ACCOUNT_SYSTEM_FIELDS,
+  deal: DEAL_SYSTEM_FIELDS,
 };

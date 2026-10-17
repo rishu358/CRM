@@ -192,3 +192,48 @@ export function fromMajorString(input: string, currency: string): Money {
   const minor = BigInt(whole) * BigInt(10 ** exponent) + BigInt(padded === '' ? '0' : padded);
   return { amountMinor: sign === '-' ? -minor : minor, currency: code };
 }
+
+/**
+ * An exchange rate as an exact ratio.
+ *
+ * A rate such as 83.25 arrives from storage as the string "83.250000000000".
+ * Turning that into a float and multiplying would reintroduce exactly the
+ * error the rest of this file exists to keep out, so it is held as
+ * `numerator / denominator` in bigint and applied by `convert`.
+ */
+export interface DecimalRate {
+  readonly numerator: bigint;
+  readonly denominator: bigint;
+}
+
+/** Parse a positive decimal string ("83.25", "0.012") into an exact ratio. */
+export function parseDecimalRate(input: string): DecimalRate {
+  const match = /^(\d+)(?:\.(\d+))?$/.exec(input.trim());
+  if (!match) throw new TypeError(`Not a valid exchange rate: ${input}`);
+
+  const [, whole = '0', fraction = ''] = match;
+  const numerator = BigInt(`${whole}${fraction}`);
+  if (numerator === 0n) throw new RangeError('An exchange rate must be greater than zero');
+  return { numerator, denominator: 10n ** BigInt(fraction.length) };
+}
+
+/**
+ * Convert an amount into another currency at a major-unit rate.
+ *
+ * `rate` is "1 unit of `value.currency` = rate units of `to`" in **major**
+ * units, which is how a person states one. The two currencies may have
+ * different minor-unit exponents (INR has 2, JPY has 0), so the minor-unit
+ * amounts are scaled by the difference rather than assumed to line up.
+ * Rounded half-up once, at the end.
+ */
+export function convert(value: Money, to: string, rate: DecimalRate): Money {
+  const target = toCurrency(to);
+  const exponentFrom = minorUnitExponent(value.currency);
+  const exponentTo = minorUnitExponent(target);
+
+  const scaledUp = exponentTo >= exponentFrom ? 10n ** BigInt(exponentTo - exponentFrom) : 1n;
+  const scaledDown = exponentFrom > exponentTo ? 10n ** BigInt(exponentFrom - exponentTo) : 1n;
+
+  const result = multiply(value, rate.numerator * scaledUp, rate.denominator * scaledDown);
+  return { amountMinor: result.amountMinor, currency: target };
+}

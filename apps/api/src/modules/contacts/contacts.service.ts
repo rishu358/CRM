@@ -239,6 +239,24 @@ export class ContactsService {
     });
   }
 
+  /**
+   * Which of these ids name contacts another module may link to.
+   *
+   * The public way in, as `AccountsService.existsForLinking` is for accounts:
+   * deals hold a `primary_contact_id` and a set of `deal_contacts`, and check
+   * them through here rather than by querying the contacts table
+   * (ADR-0001, CLAUDE.md §3). Tenant-scoped, not record-scoped, for the
+   * reason given on the accounts version: attaching a person to a deal reveals
+   * nothing about them, and reading them still goes through `getById`.
+   */
+  async existingIdsForLinking(
+    tx: Tx,
+    tenantId: string,
+    ids: readonly string[],
+  ): Promise<Set<string>> {
+    return this.repository.existingIds(tx, tenantId, ids);
+  }
+
   private inTenant<T>(actor: Actor, work: (tx: Tx) => Promise<T>): Promise<T> {
     return this.database.runInTenant({ tenantId: actor.tenantId, userId: actor.userId }, work);
   }

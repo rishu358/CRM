@@ -171,3 +171,36 @@ describe('failures back off instead of spinning', () => {
     expect((row.rows[0] as { status: string }).status).toBe('relayed');
   });
 });
+
+describe('deal events reach the record timeline (MVP_SPEC M5)', () => {
+  it('words a stage move as "Moved from X to Y", in the deal own tenant', async () => {
+    const dealId = newId();
+    const eventId = newId();
+    await withoutTenant(worker.db, (tx) =>
+      tx.execute(sql`
+        insert into outbox_events (id, tenant_id, event_type, object_type, record_id, payload)
+        values (${eventId}, ${tenantA}, 'deal.stage_changed.v1', 'deal', ${dealId},
+                ${JSON.stringify({ fromStageName: 'Qualified', toStageName: 'Proposal' })}::jsonb)
+      `),
+    );
+
+    await new OutboxRelay(worker.db, { logger, batchSize: 100 })
+      .on('deal.stage_changed.v1', projectTimeline)
+      .tick();
+
+    const inA = await withTenant(appClient.db, { tenantId: tenantA, userId: null }, (tx) =>
+      tx.execute(
+        sql`select summary, object_type from timeline_events where source_event_id = ${eventId}`,
+      ),
+    );
+    expect(inA.rows[0]).toMatchObject({
+      summary: 'Moved from Qualified to Proposal',
+      object_type: 'deal',
+    });
+
+    const inB = await withTenant(appClient.db, { tenantId: tenantB, userId: null }, (tx) =>
+      tx.execute(sql`select 1 from timeline_events where source_event_id = ${eventId}`),
+    );
+    expect(inB.rows).toHaveLength(0);
+  });
+});

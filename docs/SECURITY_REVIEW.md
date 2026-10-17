@@ -1,10 +1,10 @@
 # Security self-review
 
 Required by CLAUDE.md §11.5 after each module. This covers the foundation plus
-the Contacts, Auth, Accounts and Invitations modules, reviewed against §5 rule by rule.
+the Contacts, Auth, Accounts, Invitations and Deals modules, reviewed against §5 rule by rule.
 
 Reviewed: 2026-10-17 · Scope: `packages/core`, `packages/db`, `apps/api`,
-`apps/worker`, `apps/web` (Accounts, Contacts, Auth, Invitations).
+`apps/worker`, `apps/web` (Accounts, Contacts, Auth, Invitations, Deals).
 
 ## §5 rule by rule
 
@@ -13,13 +13,13 @@ Reviewed: 2026-10-17 · Scope: `packages/core`, `packages/db`, `apps/api`,
 | 1   | Tenant isolation: `tenant_id` + RLS, `SET LOCAL`, no `BYPASSRLS` | **Met**       | `0004_rls_policies.sql`; 28 tests in `rls.security.spec.ts`, including a meta test that fails if any table with `tenant_id` lacks `ENABLE`+`FORCE`                                                                                                                                                                                                                                                                                     |
 | 2   | Never trust the client for tenant, user, role, ownership         | **Met**       | Actor built only in `ActorService` from session + memberships; `X-Tenant-Id` is re-checked against membership; `resolveOwner` refuses reassignment without `all` scope                                                                                                                                                                                                                                                                 |
 | 3   | Every endpoint authorized via `can()`, default deny              | **Met**       | `AuthGuard` is global; routes are protected unless `@Public()`. A lint rule rejects inline role comparisons                                                                                                                                                                                                                                                                                                                            |
-| 4   | Field-level permissions applied in the serializer                | **Met**       | `contacts.serializer.ts`, `accounts.serializer.ts`; hidden fields omitted (not nulled) and rejected on write. Sorting and filtering are checked too (`common/field-queries.ts`): a column the caller cannot read cannot be ordered by or compared against either                                                                                                                                                                       |
+| 4   | Field-level permissions applied in the serializer                | **Met**       | `contacts.serializer.ts`, `accounts.serializer.ts`, `deals.serializer.ts`; hidden fields omitted (not nulled) and rejected on write. Sorting and filtering are checked too (`common/field-queries.ts`): a column the caller cannot read cannot be ordered by or compared against either                                                                                                                                                |
 | 5   | No IDOR; 404 not 403 outside scope                               | **Met**       | `assertCan` maps out-of-scope to 404; a test asserts the 404 for a foreign record is byte-identical to one for an id that does not exist                                                                                                                                                                                                                                                                                               |
 | 6   | Zod validation at the boundary, unknown keys rejected            | **Met**       | `.strict()` contracts; a body carrying `tenantId` is a 422                                                                                                                                                                                                                                                                                                                                                                             |
-| 7   | No SQL string concatenation; whitelisted sort/filter             | **Met**       | `contacts.sql-helpers.ts` and `accounts.sql-helpers.ts` resolve every client-supplied key against field metadata; accounts also checks the filter **value** against the column type, so a bad one is a 422 rather than a driver error surfacing as a 500. Injection attempts through `sort` and `filter` are tested in both modules                                                                                                    |
+| 7   | No SQL string concatenation; whitelisted sort/filter             | **Met**       | `contacts.sql-helpers.ts`, `accounts.sql-helpers.ts` and `deals.sql-helpers.ts` resolve every client-supplied key against field metadata; accounts also checks the filter **value** against the column type, so a bad one is a 422 rather than a driver error surfacing as a 500. Injection attempts through `sort` and `filter` are tested in both modules                                                                            |
 | 8   | Secrets from the environment; never logged                       | **Met**       | Validated env modules are the only readers; pino redaction list; `.env` is git-ignored                                                                                                                                                                                                                                                                                                                                                 |
 | 9   | Secure cookies, CSRF, MFA, rate-limited auth, revocation         | **Met**       | Cookie is httpOnly/SameSite=Lax/Secure-in-prod, set server-side and never readable by page script (an E2E test asserts `document.cookie` and both web storages); CSRF origin checks on both cookie-authenticated routes; TOTP + backup codes with tenant-level enforcement in `AuthGuard`; progressive delay in `AuthThrottleService` plus a per-IP ceiling in `AuthRateLimitGuard`; revocation via `sessions_valid_from` in one write |
-| 10  | Audit create/update/delete, logins, exports, role changes        | **Partial**   | Accounts and Contacts CRUD, login, logout, password changes, **plus every invitation, acceptance and revocation**, each audited in the same transaction and append-only by withheld grants. A password change is audited in every workspace the user belongs to, because it affects access to all of them. Permission-change auditing arrives with M3                                                                                  |
+| 10  | Audit create/update/delete, logins, exports, role changes        | **Partial**   | Accounts, Contacts and Deals CRUD (a stage move included, with both stages in the diff), login, logout, password changes, **plus every invitation, acceptance and revocation**, each audited in the same transaction and append-only by withheld grants. A password change is audited in every workspace the user belongs to, because it affects access to all of them. Permission-change auditing arrives with M3                     |
 | 11  | CSV export with formula-injection escaping                       | **Not built** | Export is not implemented yet                                                                                                                                                                                                                                                                                                                                                                                                          |
 | 12  | File type by magic bytes, presigned URLs                         | **Not built** | Attachments are not implemented yet                                                                                                                                                                                                                                                                                                                                                                                                    |
 | 13  | SSRF protection on outbound requests                             | **Not built** | No outbound requests exist yet                                                                                                                                                                                                                                                                                                                                                                                                         |
@@ -60,6 +60,67 @@ recipient may have no account yet. They are not unauthenticated — the token in
 the link is the credential — and they carry `AuthRateLimitGuard`, the same
 per-source ceiling sign-in has, because a link with a secret in it is worth
 guessing at.
+
+## Deals (MVP_SPEC M5), reviewed
+
+The first object with **configuration it depends on** (pipelines and stages),
+the first with **money that is aggregated** (the board's column totals), and the
+first with **several columns that take an id from the client** (`stageId`,
+`pipelineId`, `accountId`, `primaryContactId`, and a set of contacts). Each of
+those is a way to cross a boundary that a plain record does not have. Two
+decisions are written down in
+[ADR-0020](adr/0020-deal-stage-transitions.md) and
+[ADR-0021](adr/0021-currency-conversion-seam.md).
+
+| Question                                                                       | Answer, and where it is proved                                                                                                                                                                                                                                                                                                                                                |
+| ------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Can a deal be pointed at another tenant's stage, pipeline, account or contact? | No. Every reference is a composite key on `(tenant_id, …)`, and the stage key also carries the pipeline, so "stage belongs to this deal's pipeline" is structural. The service answers a foreign id and a missing one with the same bytes. `deals.security.spec.ts` "cannot plant another tenant stage or pipeline", "…account or contact", and the two "says the same" tests |
+| Can the closed state be set without moving the deal?                           | No. `closedAt` is not in the contract (a 422), and the stage decides it (ADR-0020). A trigger refuses any row — from an import, a seed, anything — that disagrees with its stage. `deals.spec.ts` "the database refuses what the service would"; `stage-rules.spec.ts`                                                                                                        |
+| Does the board's total reveal a hidden amount?                                 | No. A caller who cannot read `amount` gets counts and no totals; `currency` is not sortable or filterable either, since it is half of `amount`. "gives no board totals to a caller who cannot read the amount"; "does not offer currency as a way round the amount permission"                                                                                                |
+| Does the board's total reveal a colleague's deals?                             | No. The aggregate carries the record-scope predicate in its WHERE clause, as the list does. "keeps a colleague deals out of the board totals and counts" asserts the board count equals the rep's own list                                                                                                                                                                    |
+| Is a drag a write that field permissions apply to?                             | Yes. A move writes `stageId`, so a `read`-only permission on `stage_id` refuses it with 403 and leaves the deal where it was. "refuses a move by a caller who can read the stage but not write it"                                                                                                                                                                            |
+| Can a rep drag a colleague's card?                                             | No. The PATCH is a 404, and the stage is unchanged in the database. "returns 404 when the rep reads, moves or deletes a colleague deal"                                                                                                                                                                                                                                       |
+| Can two drags of one card both win?                                            | No. The update carries the version the card was read at; two simultaneous drags produce exactly one 200 and one 409. "serialises two simultaneous drags". The web app queues moves so a second drag carries the version the first produced                                                                                                                                    |
+| Can money lose precision on the way?                                           | No. Amounts are bigint minor units and travel as strings; rates are `numeric` read as strings and applied in bigint. A value past 2^53 round-trips exactly; one past the bigint range is a 422 rather than a 500                                                                                                                                                              |
+
+The four mandatory suites from CLAUDE.md §10 are in `deals.security.spec.ts`:
+tenant A cannot list, read, move or delete tenant B's deals, and cannot read
+its board or pipelines; a user with `own` scope sees only their own deals, on
+every page of a nullable sort and in the board counts; a hidden `amount` and
+`lost_reason` are absent from the record, the list and the board, rejected on
+write (create and update), and cannot be sorted or filtered on; and
+unauthenticated requests get 401 on every route including the board.
+
+### What building Deals changed
+
+- **The Contacts template's soft delete did not touch `updated_at`.** A deleted
+  record's `updated_at` therefore still says when it was last _edited_, which is
+  the wrong answer for a Recycle Bin sorted by "deleted". Deals sets it;
+  `contacts.repository.ts` and `accounts.repository.ts` still do not. It is a
+  one-line change in each, left alone here because it is outside this module,
+  and worth taking before the Recycle Bin is built.
+- **A cache lookup that assumed every `deals` query held a list.** Found by the
+  Playwright suite, not by review: the optimistic move read "the newest copy of
+  this deal" from every cached query under the `deals` key, and the board's
+  totals live under the same key with a different shape, so the first drag
+  threw. Narrowed to the paged queries; the suite's refused-move test covers it.
+- **Playwright's drag scrolls the board while the button is held.** With a drop
+  target off screen it picked up one card and dropped another. A browser
+  auto-scrolls during a real drag; the suite uses a viewport wide enough to show
+  every column, so it tests the board rather than the difference. Recorded
+  because the next person to write a drag test will meet it.
+
+Decisions recorded rather than fixed:
+
+- **Linking an account or a contact is tenant-scoped, not record-scoped.** The
+  same call accounts made for a parent (above): a rep with `own` scope must be
+  able to put their deal under an account a colleague owns, and attaching an id
+  reveals nothing, since reading it still goes through its own module.
+- **Pipelines are read-only in this module.** Tenants get a seeded default and
+  the demo tenant gets a second; creating or reshaping one is an admin feature
+  needing its own permission object (pipelines are configuration, not records),
+  which is a decision for M3 and M9 and not one to make as a side door through
+  the `deal` grants.
 
 ## The M1 acceptance criteria, and where each is proved
 
@@ -235,6 +296,32 @@ These are not oversights; they belong to modules that have not been built.
   is a deliberate trade: the role split (ADR-0002) is worth more than the
   atomicity here, because the failure is self-correcting and the alternative
   would mean granting `crm_auth` write access to business tables.
+- **Existing tenants have no deal grants and no pipeline.** Roles and the default
+  pipeline are provisioned when a tenant is created, so a workspace that
+  predates migration `0008` can sign in and be refused every deal route until it
+  is given them. There is no backfill in the migration, and cannot be: the
+  migration role is subject to the same forced row security as everyone else
+  and has no policy on tenant tables. No tenant exists outside development, so
+  re-seeding is the fix today; a real deployment would need a one-off script
+  that runs the same inserts per tenant.
+- **Exchange rates and pipelines have no admin screen or write endpoint.** Both
+  tables, the read paths and the conversion are built and tested (ADR-0021);
+  rates are entered by seed or SQL. Both need a permission object of their own,
+  which belongs with M3 and M9.
+- **The deal timeline is projected but not shown.** `deal.created`, `.updated`,
+  `.deleted` and `.stage_changed` reach `timeline_events` through the worker
+  (tested against the real relay), but no record page renders a timeline yet —
+  contacts and accounts have the same gap. The acceptance criterion's "timeline
+  entry" is therefore proved at the projection, not in the browser.
+- **Account events are not projected to the timeline.** `apps/worker/src/main.ts`
+  subscribes to contact and deal events only. Pre-existing, noticed while adding
+  the deal handlers.
+- **Board totals cost one rate query per column.** Six columns, six tiny reads
+  inside one transaction. Fine at this size; if pipelines grow wide, fetch the
+  rates once and pass them to the converter.
+- **A deal's `amount` sorts by minor units**, so a sort across currencies orders
+  ¥1,000 above ₹1,000. Meaningful only within one currency; sorting by converted
+  value is a P1 reporting problem (ADR-0021).
 - **Export, attachments and outbound requests** (§5.11–13) have nothing to
   protect yet. Their rules must be satisfied as part of building them, not
   retrofitted.

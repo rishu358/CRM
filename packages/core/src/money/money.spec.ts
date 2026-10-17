@@ -4,11 +4,13 @@ import {
   add,
   allocate,
   compare,
+  convert,
   format,
   fromMajorString,
   minorUnitExponent,
   money,
   multiply,
+  parseDecimalRate,
   subtract,
   sum,
   toCurrency,
@@ -135,5 +137,51 @@ describe('format', () => {
 
   it('uses Western grouping for en-US', () => {
     expect(format(money(1234567890n, 'USD'), 'en-US')).toContain('12,345,678');
+  });
+});
+
+describe('currency conversion (ADR-0021)', () => {
+  it('parses a rate into an exact ratio', () => {
+    expect(parseDecimalRate('83.25')).toEqual({ numerator: 8325n, denominator: 100n });
+    expect(parseDecimalRate('83.250000000000')).toEqual({
+      numerator: 83250000000000n,
+      denominator: 10n ** 12n,
+    });
+    expect(parseDecimalRate('2')).toEqual({ numerator: 2n, denominator: 1n });
+  });
+
+  it('rejects a zero, negative or malformed rate', () => {
+    for (const bad of ['0', '0.000', '-1', 'abc', '1e3', '']) {
+      expect(() => parseDecimalRate(bad), bad).toThrow();
+    }
+  });
+
+  it('converts USD to INR without a float', () => {
+    // $1,500.75 at 83.25 = ₹124,937.4375 -> ₹124,937.44, in paise.
+    const result = convert(money(150075n, 'USD'), 'INR', parseDecimalRate('83.25'));
+    expect(result).toEqual({ amountMinor: 12493744n, currency: 'INR' });
+  });
+
+  it('accounts for currencies with different minor-unit exponents', () => {
+    // ¥1,000 (0 decimals) at 0.55 INR/JPY = ₹550.00 = 55,000 paise.
+    expect(convert(money(1000n, 'JPY'), 'INR', parseDecimalRate('0.55'))).toEqual({
+      amountMinor: 55000n,
+      currency: 'INR',
+    });
+    // ₹550.00 back to JPY at 1.818181...: ¥1,000 to the nearest yen.
+    expect(
+      convert(money(55000n, 'INR'), 'JPY', parseDecimalRate('1.818181818182')).amountMinor,
+    ).toBe(1000n);
+  });
+
+  it('stays exact past 2^53', () => {
+    const big = money(9_007_199_254_740_993n, 'USD');
+    const result = convert(big, 'EUR', parseDecimalRate('1'));
+    expect(result.amountMinor).toBe(9_007_199_254_740_993n);
+  });
+
+  it('rounds half up, symmetrically for negatives', () => {
+    expect(convert(money(1n, 'USD'), 'EUR', parseDecimalRate('0.5')).amountMinor).toBe(1n);
+    expect(convert(money(-1n, 'USD'), 'EUR', parseDecimalRate('0.5')).amountMinor).toBe(-1n);
   });
 });

@@ -27,3 +27,5 @@ supersedes the old one and update the old one's **Status** to
 | [0017](0017-better-auth-as-primitives-not-framework.md) | Better Auth as primitives, not as the session framework       | Accepted |
 | [0018](0018-account-hierarchy-integrity.md)             | Account hierarchy integrity enforced in the database          | Accepted |
 | [0019](0019-invitation-acceptance-identity.md)          | Invitation acceptance identity, and where its token lives     | Accepted |
+| [0020](0020-deal-stage-transitions.md)                  | The stage decides whether a deal is closed                    | Accepted |
+| [0021](0021-currency-conversion-seam.md)                | Currency conversion behind an exchange-rate source            | Accepted |

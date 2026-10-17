@@ -4,11 +4,19 @@ import { generateInvitationToken, hashOneTimeToken, newId, TOKEN_TTL_SECONDS } f
 // drizzle-orm peer, which would give this workspace a second copy of Drizzle
 // and a wall of SQL<unknown> type errors.
 import { hashPassword } from '@better-auth/utils/password';
-import { sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { createDbClient, withTenant } from './client.js';
 import { loadDbEnv } from './env.js';
 import { loadRootEnvFile } from './load-env.js';
-import { accounts, contacts } from './schema/index.js';
+import {
+  accounts,
+  contacts,
+  dealContacts,
+  deals,
+  exchangeRates,
+  pipelineStages,
+  pipelines,
+} from './schema/index.js';
 import { FOUNDING_ROLE_NAME, provisionTenantDefaults } from './seed/index.js';
 
 /**
@@ -163,9 +171,11 @@ try {
       ['Joseph', 'DSouza', 'joseph.dsouza@example.com', '+919765432100', repId, null],
     ] as const;
 
+    const contactIds = samples.map(() => newId());
+
     await tx.insert(contacts).values(
-      samples.map(([firstName, lastName, email, phone, owner, accountId]) => ({
-        id: newId(),
+      samples.map(([firstName, lastName, email, phone, owner, accountId], index) => ({
+        id: contactIds[index]!,
         tenantId,
         ownerId: owner,
         firstName,
@@ -178,6 +188,190 @@ try {
         updatedBy: ownerId,
       })),
     );
+
+    // Deals (MVP_SPEC M5): the default pipeline provisioning created, plus a
+    // second one, so the pipeline switcher has something to switch between.
+    const stageRows = await tx
+      .select()
+      .from(pipelineStages)
+      .where(eq(pipelineStages.pipelineId, roleIds.defaultPipelineId));
+    const stageByName = (name: string): string => {
+      const stage = stageRows.find((row) => row.name === name);
+      if (!stage) throw new Error(`Seed could not find the "${name}" stage`);
+      return stage.id;
+    };
+
+    const wholesaleId = newId();
+    await tx.insert(pipelines).values({
+      id: wholesaleId,
+      tenantId,
+      name: 'Wholesale',
+      position: 10,
+      createdBy: ownerId,
+      updatedBy: ownerId,
+    });
+    const wholesaleStages = [
+      ['Enquiry', 20, 'open'],
+      ['Sampling', 50, 'open'],
+      ['Order confirmed', 80, 'open'],
+      ['Delivered', 100, 'won'],
+      ['Cancelled', 0, 'lost'],
+    ] as const;
+    const wholesaleStageIds = wholesaleStages.map(() => newId());
+    await tx.insert(pipelineStages).values(
+      wholesaleStages.map(([name, probability, stageType], index) => ({
+        id: wholesaleStageIds[index]!,
+        tenantId,
+        pipelineId: wholesaleId,
+        name,
+        position: (index + 1) * 10,
+        probability,
+        stageType,
+        createdBy: ownerId,
+        updatedBy: ownerId,
+      })),
+    );
+
+    const dealId = (): string => newId();
+    const showroomDealId = dealId();
+    const now = new Date();
+    await tx.insert(deals).values([
+      {
+        id: showroomDealId,
+        tenantId,
+        ownerId,
+        name: 'Showroom fit-out',
+        accountId: parentAccountId,
+        primaryContactId: contactIds[0]!,
+        pipelineId: roleIds.defaultPipelineId,
+        stageId: stageByName('New'),
+        // ₹8,50,000.00 in paise. Minor units, never a float (ADR-0011).
+        amountMinor: 85_000_000n,
+        currency: 'INR',
+        probability: 10,
+        expectedCloseDate: '2026-12-15',
+        createdBy: ownerId,
+        updatedBy: ownerId,
+      },
+      {
+        id: dealId(),
+        tenantId,
+        ownerId,
+        name: 'Festival collection order',
+        accountId: branchAccountId,
+        primaryContactId: contactIds[1]!,
+        pipelineId: roleIds.defaultPipelineId,
+        stageId: stageByName('Qualified'),
+        amountMinor: 2_40_00_000_00n,
+        currency: 'INR',
+        probability: 25,
+        expectedCloseDate: '2026-11-20',
+        createdBy: ownerId,
+        updatedBy: ownerId,
+      },
+      {
+        id: dealId(),
+        tenantId,
+        ownerId: repId,
+        name: 'Studio lighting supply',
+        accountId: studioAccountId,
+        primaryContactId: contactIds[2]!,
+        pipelineId: roleIds.defaultPipelineId,
+        stageId: stageByName('Proposal'),
+        // A dollar deal, so the board total shows a conversion at work.
+        amountMinor: 1_850_000n,
+        currency: 'USD',
+        probability: 50,
+        expectedCloseDate: '2026-11-30',
+        createdBy: ownerId,
+        updatedBy: ownerId,
+      },
+      {
+        id: dealId(),
+        tenantId,
+        ownerId: repId,
+        name: 'Boutique opening stock',
+        pipelineId: roleIds.defaultPipelineId,
+        stageId: stageByName('Negotiation'),
+        amountMinor: 12_50_000_00n,
+        currency: 'INR',
+        probability: 75,
+        createdBy: ownerId,
+        updatedBy: ownerId,
+      },
+      {
+        id: dealId(),
+        tenantId,
+        ownerId,
+        name: 'Anniversary gifting',
+        accountId: parentAccountId,
+        pipelineId: roleIds.defaultPipelineId,
+        stageId: stageByName('Won'),
+        amountMinor: 4_00_000_00n,
+        currency: 'INR',
+        probability: 100,
+        closedAt: now,
+        createdBy: ownerId,
+        updatedBy: ownerId,
+      },
+      {
+        id: dealId(),
+        tenantId,
+        ownerId,
+        name: 'Export sample run',
+        pipelineId: wholesaleId,
+        stageId: wholesaleStageIds[0]!,
+        amountMinor: 3_20_000_00n,
+        currency: 'INR',
+        probability: 20,
+        createdBy: ownerId,
+        updatedBy: ownerId,
+      },
+    ]);
+
+    await tx.insert(dealContacts).values([
+      {
+        id: newId(),
+        tenantId,
+        dealId: showroomDealId,
+        contactId: contactIds[0]!,
+        role: 'Decision maker',
+        createdBy: ownerId,
+        updatedBy: ownerId,
+      },
+      {
+        id: newId(),
+        tenantId,
+        dealId: showroomDealId,
+        contactId: contactIds[1]!,
+        role: 'Influencer',
+        createdBy: ownerId,
+        updatedBy: ownerId,
+      },
+    ]);
+
+    // Manual exchange rates into the tenant currency (ADR-0021). Live rates
+    // are P1; until then these are what a person would type in.
+    await tx.insert(exchangeRates).values([
+      {
+        id: newId(),
+        tenantId,
+        fromCurrency: 'USD',
+        toCurrency: 'INR',
+        rate: '83.250000000000',
+        createdBy: ownerId,
+        updatedBy: ownerId,
+      },
+      {
+        id: newId(),
+        tenantId,
+        fromCurrency: 'AED',
+        toCurrency: 'INR',
+        rate: '22.670000000000',
+        createdBy: ownerId,
+        updatedBy: ownerId,
+      },
+    ]);
   });
 
   // 5. One pending invitation, so the invite flow has something to accept
@@ -215,7 +409,7 @@ try {
   console.warn(`  Invited    ${inviteEmail}`);
   console.warn(`  Invite     ${inviteToken}`);
   console.warn('');
-  console.warn(`  Owner sees every contact and account; the sales rep sees only their own.`);
+  console.warn(`  Owner sees every contact, account and deal; the sales rep sees only their own.`);
 } finally {
   await Promise.all([app.close(), auth.close()]);
 }
