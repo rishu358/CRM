@@ -48,6 +48,13 @@ export const ErrorCode = {
   MFA_ENROLMENT_REQUIRED: 'MFA_ENROLMENT_REQUIRED',
   /** The submitted second factor was wrong. */
   MFA_INVALID: 'MFA_INVALID',
+  /**
+   * The invited address already has an account, so the recipient must sign in
+   * before the invitation can be accepted (ADR-0019).
+   */
+  INVITATION_SIGN_IN_REQUIRED: 'INVITATION_SIGN_IN_REQUIRED',
+  /** Somebody other than the invited address tried to accept (ADR-0019). */
+  INVITATION_RECIPIENT_MISMATCH: 'INVITATION_RECIPIENT_MISMATCH',
   /** Unexpected failure. Details are logged, never returned. */
   INTERNAL: 'INTERNAL',
 } as const;
@@ -197,6 +204,40 @@ export class MfaEnrolmentRequiredError extends DomainError {
 export class MfaInvalidError extends DomainError {
   constructor() {
     super(ErrorCode.MFA_INVALID, 'That code is not valid', 401);
+  }
+}
+
+/**
+ * The invited address already has an account (ADR-0019).
+ *
+ * An emailed link never issues a session for an account that already exists:
+ * doing so would walk straight past a second factor the owner deliberately
+ * enrolled. The recipient signs in — through MFA, if their account has it —
+ * and the still-unconsumed invitation is accepted from that session.
+ */
+export class InvitationSignInRequiredError extends DomainError {
+  constructor() {
+    super(
+      ErrorCode.INVITATION_SIGN_IN_REQUIRED,
+      'This invitation was sent to an address that already has an account. Sign in to accept it.',
+      401,
+    );
+  }
+}
+
+/**
+ * Someone other than the invited address tried to accept (ADR-0019).
+ *
+ * The invitation is left untouched — not consumed, not transferred — so the
+ * real recipient can still use it after signing in as themselves.
+ */
+export class InvitationRecipientMismatchError extends DomainError {
+  constructor() {
+    super(
+      ErrorCode.INVITATION_RECIPIENT_MISMATCH,
+      'This invitation was sent to a different address. Sign in as that person to accept it.',
+      403,
+    );
   }
 }
 

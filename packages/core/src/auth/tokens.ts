@@ -1,4 +1,5 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
+import { isUuid, type Uuid } from '../ids/index.js';
 
 /**
  * One-time tokens for email verification, password reset and the MFA hand-off.
@@ -28,9 +29,51 @@ export const TOKEN_TTL_SECONDS = {
   password_reset: 60 * 60,
   /** Only has to survive typing six digits off a phone. */
   mfa_challenge: 5 * 60,
+  /** Seven days, fixed by MVP_SPEC M2. Long enough to survive a holiday. */
+  team_invite: 7 * 24 * 60 * 60,
 } as const;
 
 export type TokenPurpose = keyof typeof TOKEN_TTL_SECONDS;
+
+/**
+ * Invitation tokens: a workspace id, a dot, and an ordinary one-time secret.
+ *
+ * The prefix is a **routing hint, never an authorization**. An invitation is
+ * tenant-owned data behind RLS, so redeeming one means opening a transaction
+ * for some tenant — and the tenant cannot be known until the token has been
+ * looked up, which is the same chicken-and-egg a password reset never has.
+ * Carrying the workspace id in the link breaks it without widening any
+ * database role's reach.
+ *
+ * Nothing is trusted from the prefix. The row is still found by the digest of
+ * the **whole** token, inside that tenant's RLS context, so a caller who edits
+ * the prefix simply selects a context in which their secret matches nothing.
+ * A caller who guesses a workspace id gains exactly nothing without a secret.
+ */
+const INVITATION_TOKEN_SEPARATOR = '.';
+
+export function generateInvitationToken(tenantId: string): string {
+  return `${tenantId}${INVITATION_TOKEN_SEPARATOR}${generateOneTimeToken()}`;
+}
+
+/**
+ * Pull the workspace id out of an invitation token.
+ *
+ * Returns null for anything malformed so the caller answers "this link is
+ * invalid" rather than passing a bad value towards `SET LOCAL app.tenant_id`.
+ */
+export function parseInvitationToken(token: string): { tenantId: Uuid; secret: string } | null {
+  const separator = token.indexOf(INVITATION_TOKEN_SEPARATOR);
+  if (separator <= 0) return null;
+
+  const tenantId = token.slice(0, separator);
+  const secret = token.slice(separator + 1);
+  if (!isUuid(tenantId)) return null;
+  // 32 bytes of base64url is 43 characters; anything shorter is not ours.
+  if (secret.length < 43) return null;
+
+  return { tenantId, secret };
+}
 
 /**
  * Compare two secrets without leaking where they differ.

@@ -37,16 +37,36 @@ function grantsFor(actions: readonly Action[], scope: Scope): SystemRoleGrant[] 
   return BUSINESS_OBJECTS.map((objectType) => ({ objectType, actions, scope }));
 }
 
+/**
+ * Who may invite people into the workspace (MVP_SPEC M2).
+ *
+ * An invitation has no owner, so `own` and `team` would deny everything and
+ * `all` is the only scope that means anything on it. Granted to Owner and
+ * Admin alone — the two personas MVP_SPEC §4 describes as inviting the team
+ * and managing users. Everyone else is denied by the absence of a row, which
+ * is how every other denial in this engine works.
+ *
+ * `delete` is revocation. An invitation row is never actually deleted; the
+ * action name is the one the permission model already has for "take this
+ * away", and inventing a `revoke` action would mean every role editor,
+ * permission matrix and API contract had to learn a verb used by one object.
+ */
+const INVITATION_GRANT: SystemRoleGrant = {
+  objectType: 'invitation',
+  actions: ['read', 'create', 'delete'],
+  scope: 'all',
+};
+
 export const SYSTEM_ROLES: readonly SystemRoleDefinition[] = [
   {
     name: 'Owner',
     description: 'Full control of the company account, including billing and security settings.',
-    grants: grantsFor(ALL_ACTIONS, 'all'),
+    grants: [...grantsFor(ALL_ACTIONS, 'all'), INVITATION_GRANT],
   },
   {
     name: 'Admin',
     description: 'Manages users, roles and customization. Sees all records.',
-    grants: grantsFor(ALL_ACTIONS, 'all'),
+    grants: [...grantsFor(ALL_ACTIONS, 'all'), INVITATION_GRANT],
   },
   {
     name: 'Manager',

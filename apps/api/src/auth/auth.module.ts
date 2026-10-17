@@ -59,6 +59,7 @@ import type { ApiEnv } from '../config/env.js';
     },
   ],
   exports: [
+    AuthRateLimitGuard,
     SessionService,
     ActorService,
     AuthGuard,

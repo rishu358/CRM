@@ -6,6 +6,7 @@ import { DatabaseModule } from './database/database.module.js';
 import { HealthController } from './health.controller.js';
 import { AccountsModule } from './modules/accounts/accounts.module.js';
 import { ContactsModule } from './modules/contacts/contacts.module.js';
+import { InvitationsModule } from './modules/invitations/invitations.module.js';
 import { PlatformModule } from './platform/platform.module.js';
 import type { ApiEnv } from './config/env.js';
 
@@ -28,6 +29,7 @@ export class AppModule {
         PlatformModule,
         AccountsModule,
         ContactsModule,
+        InvitationsModule,
       ],
       controllers: [HealthController],
       providers: [{ provide: APP_GUARD, useExisting: AuthGuard }],

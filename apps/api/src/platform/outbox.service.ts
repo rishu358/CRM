@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { newId, type Actor } from '@crm/core';
 import { outboxEvents, type Tx } from '@crm/db';
 import { currentRequestContext } from '../common/request-context.js';
+import type { WriterIdentity } from './audit.service.js';
 
 /**
  * Transactional outbox writer (ADR-0006).
@@ -24,7 +25,7 @@ export interface DomainEvent {
 
 @Injectable()
 export class OutboxService {
-  async publish(tx: Tx, actor: Actor, event: DomainEvent): Promise<void> {
+  async publish(tx: Tx, actor: Actor | WriterIdentity, event: DomainEvent): Promise<void> {
     const context = currentRequestContext();
     await tx.insert(outboxEvents).values({
       id: newId(),

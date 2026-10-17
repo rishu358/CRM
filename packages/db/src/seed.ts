@@ -1,4 +1,4 @@
-import { newId } from '@crm/core';
+import { generateInvitationToken, hashOneTimeToken, newId, TOKEN_TTL_SECONDS } from '@crm/core';
 // From `@better-auth/utils`, not `better-auth`: it is the same scrypt
 // implementation the API uses (ADR-0017) without the full package's
 // drizzle-orm peer, which would give this workspace a second copy of Drizzle
@@ -180,7 +180,28 @@ try {
     );
   });
 
-  // 5. Nothing mints a session any more: the demo users have passwords and
+  // 5. One pending invitation, so the invite flow has something to accept
+  //    without a developer having to dig a token out of a log (MVP_SPEC M2).
+  //
+  //    The token is generated here and printed, never stored: the row holds
+  //    only its SHA-256, exactly as in production. That it has to be printed
+  //    to be usable is the property working, not a shortcut around it.
+  const inviteEmail = `invitee-${suffix}@example.com`;
+  const inviteToken = generateInvitationToken(tenantId);
+
+  await withTenant(app.db, { tenantId, userId: ownerId }, (tx) =>
+    tx.execute(
+      sql`insert into invitations
+            (id, tenant_id, email, role_id, token_hash, expires_at, created_by, updated_by)
+          values
+            (${newId()}, ${tenantId}, ${inviteEmail}, ${repRoleId},
+             ${hashOneTimeToken(inviteToken)},
+             now() + make_interval(secs => ${TOKEN_TTL_SECONDS.team_invite}),
+             ${ownerId}, ${ownerId})`,
+    ),
+  );
+
+  // 6. Nothing mints a session any more: the demo users have passwords and
   //    sign in at /sign-in like anyone else (MVP_SPEC M1).
   console.warn(`Seeded demo tenant ${tenantId} (slug demo-${suffix})`);
   console.warn('');
@@ -189,6 +210,10 @@ try {
   console.warn(`  Sales rep  rep-${suffix}@example.com`);
   console.warn(`  MFA demo   mfa-${suffix}@example.com`);
   console.warn(`  Password   ${DEMO_PASSWORD}`);
+  console.warn('');
+  console.warn('A pending invitation is waiting at http://localhost:3000/accept-invite:');
+  console.warn(`  Invited    ${inviteEmail}`);
+  console.warn(`  Invite     ${inviteToken}`);
   console.warn('');
   console.warn(`  Owner sees every contact and account; the sales rep sees only their own.`);
 } finally {

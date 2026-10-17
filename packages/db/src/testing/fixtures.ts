@@ -162,6 +162,81 @@ export class Fixtures {
     return email;
   }
 
+  /**
+   * Put a membership into any of its three states.
+   *
+   * Invitations are the first thing in the product that can leave a membership
+   * at something other than `active`, so the tests that prove an inactive
+   * member is locked out need a way to produce one.
+   */
+  async setMembershipStatus(tenantId: string, userId: string, status: string): Promise<void> {
+    await this.pool.query(
+      `UPDATE memberships SET status = $3 WHERE tenant_id = $1 AND user_id = $2`,
+      [tenantId, userId, status],
+    );
+  }
+
+  /** Audit rows for one object type, newest first. */
+  async auditEntries(
+    tenantId: string,
+    objectType: string,
+  ): Promise<{ action: string; recordId: string | null; changes: unknown }[]> {
+    const result = await this.pool.query<{
+      action: string;
+      record_id: string | null;
+      changes: unknown;
+    }>(
+      `SELECT action, record_id, changes FROM audit_logs
+       WHERE tenant_id = $1 AND object_type = $2
+       ORDER BY occurred_at DESC`,
+      [tenantId, objectType],
+    );
+    return result.rows.map((row) => ({
+      action: row.action,
+      recordId: row.record_id,
+      changes: row.changes,
+    }));
+  }
+
+  /** Every event type the outbox holds for a tenant. */
+  async outboxEventTypes(tenantId: string): Promise<string[]> {
+    const result = await this.pool.query<{ event_type: string }>(
+      `SELECT event_type FROM outbox_events WHERE tenant_id = $1`,
+      [tenantId],
+    );
+    return result.rows.map((row) => row.event_type);
+  }
+
+  /** A pending invitation's row, for assertions nothing in the API exposes. */
+  async invitationRow(id: string): Promise<{
+    email: string;
+    role_id: string;
+    accepted_at: Date | null;
+    revoked_at: Date | null;
+    revoked_reason: string | null;
+  } | null> {
+    const result = await this.pool.query<{
+      email: string;
+      role_id: string;
+      accepted_at: Date | null;
+      revoked_at: Date | null;
+      revoked_reason: string | null;
+    }>(
+      `SELECT email::text AS email, role_id, accepted_at, revoked_at, revoked_reason
+       FROM invitations WHERE id = $1`,
+      [id],
+    );
+    return result.rows[0] ?? null;
+  }
+
+  /** Push an invitation's expiry into the past, to test what an old link does. */
+  async expireInvitation(id: string): Promise<void> {
+    await this.pool.query(
+      `UPDATE invitations SET expires_at = now() - interval '1 day' WHERE id = $1`,
+      [id],
+    );
+  }
+
   /** Merge a key into `tenants.settings`, e.g. `{ mfaRequired: true }`. */
   async setTenantSettings(tenantId: string, settings: Record<string, unknown>): Promise<void> {
     await this.pool.query(`UPDATE tenants SET settings = settings || $2::jsonb WHERE id = $1`, [
