@@ -1,7 +1,14 @@
 import { newId } from '@crm/core';
 import type { Tx } from '../client.js';
-import { fieldDefinitions, rolePermissions, roles } from '../schema/index.js';
+import {
+  fieldDefinitions,
+  pipelineStages,
+  pipelines,
+  rolePermissions,
+  roles,
+} from '../schema/index.js';
 import { SYSTEM_FIELDS_BY_OBJECT } from './fields.js';
+import { DEFAULT_PIPELINE } from './pipelines.js';
 import { SYSTEM_ROLES } from './roles.js';
 
 /**
@@ -17,6 +24,8 @@ import { SYSTEM_ROLES } from './roles.js';
  */
 export interface ProvisionResult {
   readonly roleIdsByName: ReadonlyMap<string, string>;
+  /** The pipeline a new deal lands in when none is named. */
+  readonly defaultPipelineId: string;
 }
 
 export async function provisionTenantDefaults(
@@ -83,7 +92,33 @@ export async function provisionTenantDefaults(
     await tx.insert(fieldDefinitions).values(fieldRows);
   }
 
-  return { roleIdsByName };
+  // A tenant with no pipeline cannot create a single deal, so this belongs with
+  // the roles rather than being something an admin has to remember to add.
+  const defaultPipelineId = newId();
+  await tx.insert(pipelines).values({
+    id: defaultPipelineId,
+    tenantId,
+    name: DEFAULT_PIPELINE.name,
+    position: 0,
+    isDefault: true,
+    createdBy: actorId,
+    updatedBy: actorId,
+  });
+  await tx.insert(pipelineStages).values(
+    DEFAULT_PIPELINE.stages.map((stage, index) => ({
+      id: newId(),
+      tenantId,
+      pipelineId: defaultPipelineId,
+      name: stage.name,
+      position: (index + 1) * 10,
+      probability: stage.probability,
+      stageType: stage.stageType,
+      createdBy: actorId,
+      updatedBy: actorId,
+    })),
+  );
+
+  return { roleIdsByName, defaultPipelineId };
 }
 
 export { SYSTEM_ROLES, FOUNDING_ROLE_NAME, DEFAULT_INVITE_ROLE_NAME } from './roles.js';

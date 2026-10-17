@@ -195,8 +195,8 @@ P1: `record_lookup, formula, rollup, file`. Values are validated in `packages/co
 
 **Acceptance**
 
-- [ ] Dragging a deal updates the stage instantly (optimistic) and writes a timeline + audit entry.
-- [ ] Moving a deal to a "won" stage sets `closed_at` and probability 100.
+- [x] Dragging a deal updates the stage instantly (optimistic) and writes a timeline + audit entry.
+- [x] Moving a deal to a "won" stage sets `closed_at` and probability 100.
 
 ### M6. Activities, Tasks & Notifications (P0)
 

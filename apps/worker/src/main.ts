@@ -28,6 +28,10 @@ const relay = new OutboxRelay(client.db, {
 relay.on('contact.created.v1', projectTimeline);
 relay.on('contact.updated.v1', projectTimeline);
 relay.on('contact.deleted.v1', projectTimeline);
+relay.on('deal.created.v1', projectTimeline);
+relay.on('deal.updated.v1', projectTimeline);
+relay.on('deal.deleted.v1', projectTimeline);
+relay.on('deal.stage_changed.v1', projectTimeline);
 
 let running = true;
 

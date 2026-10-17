@@ -422,3 +422,109 @@ describe('the outbox is tenant-scoped for the API and global for the relay', () 
     expect(rows.rows).toHaveLength(0);
   });
 });
+
+describe('the deals tables are isolated too (migration 0008)', () => {
+  let stagesA: string[];
+  let stageB: string;
+  let pipelineB: string;
+  let dealA: string;
+  let dealB: string;
+
+  beforeAll(async () => {
+    const a = await db.fixtures.createPipeline(tenantA.tenantId, 'Retail', [
+      { name: 'Open', stageType: 'open', probability: 10 },
+      { name: 'Won', stageType: 'won', probability: 100 },
+    ]);
+    const b = await db.fixtures.createPipeline(tenantB.tenantId, 'Wholesale', [
+      { name: 'Open', stageType: 'open', probability: 10 },
+    ]);
+    stagesA = a.stageIds;
+    stageB = b.stageIds[0]!;
+    pipelineB = b.pipelineId;
+
+    dealA = await db.fixtures.createDeal(tenantA.tenantId, {
+      pipelineId: a.pipelineId,
+      stageId: stagesA[0]!,
+      ownerId: userA.userId,
+      name: 'A deal',
+    });
+    dealB = await db.fixtures.createDeal(tenantB.tenantId, {
+      pipelineId: pipelineB,
+      stageId: stageB,
+      ownerId: userB.userId,
+      name: 'B deal',
+    });
+    await db.fixtures.linkDealContact(tenantB.tenantId, dealB, contactB, 'Buyer');
+    await db.fixtures.setExchangeRate(tenantB.tenantId, 'USD', 'INR', '83.25');
+  });
+
+  async function countFromA(table: string): Promise<number> {
+    const result = await withTenant(
+      db.app.db,
+      { tenantId: tenantA.tenantId, userId: userA.userId },
+      (tx) => tx.execute(sql.raw(`select count(*)::int as total from ${table}`)),
+    );
+    return (result.rows[0] as { total: number }).total;
+  }
+
+  it('shows tenant A none of tenant B rows in any of the five tables', async () => {
+    // Tenant A holds two stages, one pipeline and one deal of its own; none of
+    // tenant B is among them, and nothing is returned for the tables where A
+    // holds no row of its own.
+    expect(await countFromA('pipelines')).toBe(1);
+    expect(await countFromA('pipeline_stages')).toBe(2);
+    expect(await countFromA('deals')).toBe(1);
+    expect(await countFromA('deal_contacts')).toBe(0);
+    expect(await countFromA('exchange_rates')).toBe(0);
+  });
+
+  it('cannot read, move or delete a deal of another tenant, knowing its id', async () => {
+    const context = { tenantId: tenantA.tenantId, userId: userA.userId };
+    const read = await withTenant(db.app.db, context, (tx) =>
+      tx.execute(sql`select id from deals where id = ${dealB}`),
+    );
+    expect(read.rows).toHaveLength(0);
+
+    const moved = await withTenant(db.app.db, context, (tx) =>
+      tx.execute(sql`update deals set stage_id = ${stagesA[1]!} where id = ${dealB}`),
+    );
+    expect(moved.rowCount).toBe(0);
+
+    const removed = await withTenant(db.app.db, context, (tx) =>
+      tx.execute(sql`delete from deals where id = ${dealB}`),
+    );
+    expect(removed.rowCount).toBe(0);
+  });
+
+  it('cannot insert a deal carrying another tenant id', async () => {
+    const error = await captureDbError(() =>
+      withTenant(db.app.db, { tenantId: tenantA.tenantId, userId: userA.userId }, (tx) =>
+        tx.execute(
+          sql`insert into deals (id, tenant_id, name, pipeline_id, stage_id)
+              values (gen_random_uuid(), ${tenantB.tenantId}, 'Smuggled', ${pipelineB}, ${stageB})`,
+        ),
+      ),
+    );
+    expect(error.code).toBe(INSUFFICIENT_PRIVILEGE);
+  });
+
+  it('cannot store a reference to another tenant stage, even where RLS is not asked', async () => {
+    // Referential checks run with row security off, so this is the composite
+    // key doing the work, and it is proved with the fixtures' superuser
+    // connection to show it holds when RLS has nothing to say.
+    await expect(
+      db.fixtures.createDeal(tenantA.tenantId, {
+        pipelineId: pipelineB,
+        stageId: stageB,
+        name: 'Borrowed stage',
+      }),
+    ).rejects.toThrow(/foreign key/i);
+    expect(dealA).toBeDefined();
+  });
+
+  it('cannot put another tenant contact on a deal', async () => {
+    await expect(db.fixtures.linkDealContact(tenantA.tenantId, dealA, contactB)).rejects.toThrow(
+      /foreign key/i,
+    );
+  });
+});

@@ -18,6 +18,11 @@ const SUMMARIES: Readonly<Record<string, string>> = {
   'contact.created.v1': 'Contact created',
   'contact.updated.v1': 'Contact updated',
   'contact.deleted.v1': 'Contact deleted',
+  'deal.created.v1': 'Deal created',
+  'deal.updated.v1': 'Deal updated',
+  'deal.deleted.v1': 'Deal deleted',
+  // Worded per event by `describeChange`: "Moved from Qualified to Proposal".
+  'deal.stage_changed.v1': 'Deal moved',
 };
 
 export async function projectTimeline(tx: Tx, event: OutboxRow): Promise<void> {
@@ -48,6 +53,16 @@ export async function projectTimeline(tx: Tx, event: OutboxRow): Promise<void> {
 
 /** "Contact updated" is less useful than naming what changed. */
 function describeChange(event: OutboxRow, fallback: string): string {
+  if (event.event_type === 'deal.stage_changed.v1') {
+    const from = event.payload['fromStageName'];
+    const to = event.payload['toStageName'];
+    if (typeof to === 'string' && to.length > 0) {
+      return typeof from === 'string' && from.length > 0
+        ? `Moved from ${from} to ${to}`
+        : `Moved to ${to}`;
+    }
+  }
+
   const changed = event.payload['changedFields'];
   if (Array.isArray(changed) && changed.length > 0) {
     const names = changed.filter((value): value is string => typeof value === 'string');

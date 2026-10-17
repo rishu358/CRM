@@ -10,6 +10,7 @@ import {
   desc,
   eq,
   getTableColumns,
+  inArray,
   sql,
   type SQL,
 } from '@crm/db';
@@ -175,6 +176,16 @@ export class ContactsRepository {
       )
       .returning();
     return rows[0] ?? null;
+  }
+
+  /** Which of these ids are live contacts in this tenant. */
+  async existingIds(tx: Tx, tenantId: string, ids: readonly string[]): Promise<Set<string>> {
+    if (ids.length === 0) return new Set();
+    const rows = await tx
+      .select({ id: contacts.id })
+      .from(contacts)
+      .where(and(eq(contacts.tenantId, tenantId), inArray(contacts.id, [...ids]), notDeleted()));
+    return new Set(rows.map((row) => row.id));
   }
 
   /** Live contacts in this tenant with the same email, for duplicate detection. */

@@ -1,6 +1,19 @@
 import { sql } from 'drizzle-orm';
-import { bigint, index, jsonb, pgTable, text, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
-import { baseColumns, citext, recordColumns } from './columns.js';
+import {
+  bigint,
+  boolean,
+  char,
+  date,
+  index,
+  integer,
+  jsonb,
+  numeric,
+  pgTable,
+  text,
+  uniqueIndex,
+  uuid,
+} from 'drizzle-orm/pg-core';
+import { baseColumns, citext, recordColumns, timestamptz } from './columns.js';
 
 /**
  * CRM business objects (MVP_SPEC §6.2).
@@ -170,9 +183,136 @@ export const timelineEvents = pgTable(
   ],
 );
 
+/**
+ * Pipelines and their stages (MVP_SPEC M5).
+ *
+ * Configuration rather than records: no owner, no soft delete, no custom
+ * fields. `0008_deals_module.sql` holds the integrity the schema cannot
+ * express here — composite tenant keys, the stage-in-pipeline reference and
+ * the triggers behind ADR-0020.
+ */
+export const pipelines = pgTable(
+  'pipelines',
+  {
+    ...baseColumns,
+    name: text('name').notNull(),
+    position: integer('position').notNull().default(0),
+    isDefault: boolean('is_default').notNull().default(false),
+    isActive: boolean('is_active').notNull().default(true),
+  },
+  (table) => [
+    uniqueIndex('pipelines_tenant_name_key').on(table.tenantId, sql`lower(${table.name})`),
+    index('pipelines_tenant_position_idx').on(table.tenantId, table.position, table.id),
+  ],
+);
+
+export const pipelineStages = pgTable(
+  'pipeline_stages',
+  {
+    ...baseColumns,
+    pipelineId: uuid('pipeline_id').notNull(),
+    name: text('name').notNull(),
+    position: integer('position').notNull().default(0),
+    /** Whole percent. Fixed at 100 for won and 0 for lost. */
+    probability: integer('probability').notNull().default(0),
+    stageType: text('stage_type').$type<'open' | 'won' | 'lost'>().notNull().default('open'),
+  },
+  (table) => [
+    index('pipeline_stages_pipeline_position_idx').on(
+      table.tenantId,
+      table.pipelineId,
+      table.position,
+      table.id,
+    ),
+  ],
+);
+
+/**
+ * Deals (MVP_SPEC §6.2).
+ *
+ * `amountMinor` + `currency` are one value (ADR-0011). `closedAt`,
+ * `probability` and `lostReason` are *derived from the stage* by the service
+ * and checked by a trigger (ADR-0020); a client never sets them directly.
+ */
+export const deals = pgTable(
+  'deals',
+  {
+    ...baseColumns,
+    ...recordColumns,
+    name: text('name').notNull(),
+    accountId: uuid('account_id'),
+    primaryContactId: uuid('primary_contact_id'),
+    pipelineId: uuid('pipeline_id').notNull(),
+    stageId: uuid('stage_id').notNull(),
+    amountMinor: bigint('amount_minor', { mode: 'bigint' }),
+    currency: char('currency', { length: 3 }),
+    probability: integer('probability').notNull().default(0),
+    /** A calendar date, not an instant: "closes on the 14th" has no time zone. */
+    expectedCloseDate: date('expected_close_date', { mode: 'string' }),
+    closedAt: timestamptz('closed_at'),
+    lostReason: text('lost_reason'),
+  },
+  (table) => [
+    index('deals_tenant_created_idx')
+      .on(table.tenantId, table.createdAt, table.id)
+      .where(sql`${table.deletedAt} is null`),
+    index('deals_tenant_stage_created_idx')
+      .on(table.tenantId, table.stageId, table.createdAt, table.id)
+      .where(sql`${table.deletedAt} is null`),
+    index('deals_tenant_pipeline_idx').on(table.tenantId, table.pipelineId),
+    index('deals_tenant_owner_idx').on(table.tenantId, table.ownerId),
+    index('deals_tenant_account_idx').on(table.tenantId, table.accountId),
+    index('deals_tenant_primary_contact_idx').on(table.tenantId, table.primaryContactId),
+    index('deals_tenant_name_id_idx')
+      .on(table.tenantId, table.name, table.id)
+      .where(sql`${table.deletedAt} is null`),
+    index('deals_tenant_close_date_idx')
+      .on(table.tenantId, table.expectedCloseDate, table.id)
+      .where(sql`${table.deletedAt} is null`),
+    index('deals_custom_fields_idx').using('gin', table.customFields),
+  ],
+);
+
+export const dealContacts = pgTable(
+  'deal_contacts',
+  {
+    ...baseColumns,
+    dealId: uuid('deal_id').notNull(),
+    contactId: uuid('contact_id').notNull(),
+    role: text('role'),
+  },
+  (table) => [
+    uniqueIndex('deal_contacts_unique').on(table.tenantId, table.dealId, table.contactId),
+    index('deal_contacts_contact_idx').on(table.tenantId, table.contactId),
+  ],
+);
+
+/**
+ * Manual exchange rates (MVP_SPEC M5). Major unit to major unit, held as an
+ * exact decimal: `numeric` comes back as a string, so it never becomes a float.
+ */
+export const exchangeRates = pgTable(
+  'exchange_rates',
+  {
+    ...baseColumns,
+    fromCurrency: char('from_currency', { length: 3 }).notNull(),
+    toCurrency: char('to_currency', { length: 3 }).notNull(),
+    rate: numeric('rate', { precision: 24, scale: 12 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('exchange_rates_pair_key').on(table.tenantId, table.fromCurrency, table.toCurrency),
+  ],
+);
+
 export type Account = typeof accounts.$inferSelect;
 export type NewAccount = typeof accounts.$inferInsert;
 export type Contact = typeof contacts.$inferSelect;
 export type NewContact = typeof contacts.$inferInsert;
 export type Tag = typeof tags.$inferSelect;
 export type TimelineEvent = typeof timelineEvents.$inferSelect;
+export type Pipeline = typeof pipelines.$inferSelect;
+export type PipelineStage = typeof pipelineStages.$inferSelect;
+export type Deal = typeof deals.$inferSelect;
+export type NewDeal = typeof deals.$inferInsert;
+export type DealContact = typeof dealContacts.$inferSelect;
+export type ExchangeRate = typeof exchangeRates.$inferSelect;

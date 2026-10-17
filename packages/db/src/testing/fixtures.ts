@@ -346,6 +346,196 @@ export class Fixtures {
     ]);
   }
 
+  /** A tenant's pipelines with their stages, as provisioning created them. */
+  async pipelinesFor(tenantId: string): Promise<
+    {
+      id: string;
+      name: string;
+      isDefault: boolean;
+      stages: { id: string; name: string; stageType: 'open' | 'won' | 'lost' }[];
+    }[]
+  > {
+    const pipelines = await this.pool.query<{ id: string; name: string; is_default: boolean }>(
+      `SELECT id, name, is_default FROM pipelines WHERE tenant_id = $1 ORDER BY position, id`,
+      [tenantId],
+    );
+    const stages = await this.pool.query<{
+      id: string;
+      pipeline_id: string;
+      name: string;
+      stage_type: 'open' | 'won' | 'lost';
+    }>(
+      `SELECT id, pipeline_id, name, stage_type FROM pipeline_stages
+       WHERE tenant_id = $1 ORDER BY position, id`,
+      [tenantId],
+    );
+    return pipelines.rows.map((pipeline) => ({
+      id: pipeline.id,
+      name: pipeline.name,
+      isDefault: pipeline.is_default,
+      stages: stages.rows
+        .filter((stage) => stage.pipeline_id === pipeline.id)
+        .map((stage) => ({ id: stage.id, name: stage.name, stageType: stage.stage_type })),
+    }));
+  }
+
+  /**
+   * Insert a deal directly, through the same constraints and triggers the API
+   * meets — fixtures bypass RLS, not integrity. Closed-state columns are not
+   * defaulted from the stage, so a test can hand the database an inconsistent
+   * row and watch it refuse.
+   */
+  async createDeal(
+    tenantId: string,
+    options: {
+      pipelineId: string;
+      stageId: string;
+      ownerId?: string | null;
+      name?: string;
+      amountMinor?: bigint | null;
+      currency?: string | null;
+      probability?: number;
+      closedAt?: Date | null;
+      lostReason?: string | null;
+      accountId?: string | null;
+      primaryContactId?: string | null;
+      customFields?: Record<string, unknown>;
+    },
+  ): Promise<string> {
+    const dealId = newId();
+    await this.pool.query(
+      `INSERT INTO deals (
+         id, tenant_id, owner_id, name, pipeline_id, stage_id, amount_minor, currency,
+         probability, closed_at, lost_reason, account_id, primary_contact_id, custom_fields
+       )
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
+      [
+        dealId,
+        tenantId,
+        options.ownerId ?? null,
+        options.name ?? 'Sample deal',
+        options.pipelineId,
+        options.stageId,
+        options.amountMinor === undefined || options.amountMinor === null
+          ? null
+          : options.amountMinor.toString(),
+        options.currency ?? null,
+        options.probability ?? 0,
+        options.closedAt ?? null,
+        options.lostReason ?? null,
+        options.accountId ?? null,
+        options.primaryContactId ?? null,
+        JSON.stringify(options.customFields ?? {}),
+      ],
+    );
+    return dealId;
+  }
+
+  /** A further pipeline, to prove that stages cannot be borrowed across pipelines. */
+  async createPipeline(
+    tenantId: string,
+    name: string,
+    stages: readonly { name: string; stageType: 'open' | 'won' | 'lost'; probability: number }[],
+  ): Promise<{ pipelineId: string; stageIds: string[] }> {
+    const pipelineId = newId();
+    await this.pool.query(
+      `INSERT INTO pipelines (id, tenant_id, name, position) VALUES ($1, $2, $3, 100)`,
+      [pipelineId, tenantId, name],
+    );
+    const stageIds: string[] = [];
+    for (const [index, stage] of stages.entries()) {
+      const stageId = newId();
+      stageIds.push(stageId);
+      await this.pool.query(
+        `INSERT INTO pipeline_stages
+           (id, tenant_id, pipeline_id, name, position, probability, stage_type)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [
+          stageId,
+          tenantId,
+          pipelineId,
+          stage.name,
+          (index + 1) * 10,
+          stage.probability,
+          stage.stageType,
+        ],
+      );
+    }
+    return { pipelineId, stageIds };
+  }
+
+  /** Retype a stage directly, to reach the trigger that protects stages holding deals. */
+  async setStageType(stageId: string, stageType: 'open' | 'won' | 'lost'): Promise<void> {
+    await this.pool.query(`UPDATE pipeline_stages SET stage_type = $2 WHERE id = $1`, [
+      stageId,
+      stageType,
+    ]);
+  }
+
+  /** Put a person on a deal. */
+  async linkDealContact(
+    tenantId: string,
+    dealId: string,
+    contactId: string,
+    role: string | null = null,
+  ): Promise<void> {
+    await this.pool.query(
+      `INSERT INTO deal_contacts (id, tenant_id, deal_id, contact_id, role)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [newId(), tenantId, dealId, contactId, role],
+    );
+  }
+
+  /** A manual exchange rate, major unit to major unit: 1 `from` = `rate` `to`. */
+  async setExchangeRate(tenantId: string, from: string, to: string, rate: string): Promise<void> {
+    await this.pool.query(
+      `INSERT INTO exchange_rates (id, tenant_id, from_currency, to_currency, rate)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (tenant_id, from_currency, to_currency) DO UPDATE SET rate = EXCLUDED.rate`,
+      [newId(), tenantId, from, to, rate],
+    );
+  }
+
+  /** The deal row as stored, for assertions the API's serializer would filter. */
+  async dealRow(id: string): Promise<{
+    stage_id: string;
+    probability: number;
+    closed_at: Date | null;
+    lost_reason: string | null;
+    version: number;
+    deleted_at: Date | null;
+  } | null> {
+    const result = await this.pool.query<{
+      stage_id: string;
+      probability: number;
+      closed_at: Date | null;
+      lost_reason: string | null;
+      version: number;
+      deleted_at: Date | null;
+    }>(
+      `SELECT stage_id, probability, closed_at, lost_reason, version, deleted_at
+       FROM deals WHERE id = $1`,
+      [id],
+    );
+    return result.rows[0] ?? null;
+  }
+
+  /** Outbox events of one type, oldest first, with their payloads. */
+  async outboxEvents(
+    tenantId: string,
+    eventType: string,
+  ): Promise<{ recordId: string | null; payload: Record<string, unknown> }[]> {
+    const result = await this.pool.query<{
+      record_id: string | null;
+      payload: Record<string, unknown>;
+    }>(
+      `SELECT record_id, payload FROM outbox_events
+       WHERE tenant_id = $1 AND event_type = $2 ORDER BY created_at, id`,
+      [tenantId, eventType],
+    );
+    return result.rows.map((row) => ({ recordId: row.record_id, payload: row.payload }));
+  }
+
   async createContact(
     tenantId: string,
     options: {

@@ -21,8 +21,8 @@ export interface SystemRoleDefinition {
   readonly grants: readonly SystemRoleGrant[];
 }
 
-/** The business objects a role can be granted on. Leads and deals follow. */
-const BUSINESS_OBJECTS = ['account', 'contact'] as const;
+/** The business objects a role can be granted on. Leads follow. */
+const BUSINESS_OBJECTS = ['account', 'contact', 'deal'] as const;
 
 const ALL_ACTIONS: readonly Action[] = [
   'read',
