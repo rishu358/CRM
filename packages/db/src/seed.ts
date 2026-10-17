@@ -8,7 +8,7 @@ import { sql } from 'drizzle-orm';
 import { createDbClient, withTenant } from './client.js';
 import { loadDbEnv } from './env.js';
 import { loadRootEnvFile } from './load-env.js';
-import { contacts } from './schema/index.js';
+import { accounts, contacts } from './schema/index.js';
 import { FOUNDING_ROLE_NAME, provisionTenantDefaults } from './seed/index.js';
 
 /**
@@ -94,15 +94,77 @@ try {
   // 4. Sample records, split between the two owners so that `own` scope is
   //    visibly different from `all` the moment you sign in as each.
   await withTenant(app.db, { tenantId, userId: ownerId }, async (tx) => {
+    // Accounts first: contacts point at them, and one account points at
+    // another, so the parent/child hierarchy is visible on the first run.
+    const parentAccountId = newId();
+    const branchAccountId = newId();
+    const studioAccountId = newId();
+
+    await tx.insert(accounts).values([
+      {
+        id: parentAccountId,
+        tenantId,
+        ownerId,
+        name: 'Rajesh Gold House',
+        domain: 'rajeshgold.example',
+        industry: 'Jewellery retail',
+        phone: '+914442220000',
+        email: 'hello@rajeshgold.example',
+        website: 'https://rajeshgold.example',
+        gstin: '29ABCDE1234F1Z5',
+        billingAddress: {
+          line1: '14 Ranganathan Street',
+          city: 'Chennai',
+          state: 'Tamil Nadu',
+          postalCode: '600017',
+          country: 'IN',
+        },
+        // ₹12,00,00,000 in paise. Minor units, never a float (ADR-0011).
+        annualRevenueMinor: 1_200_000_000_00n,
+        annualRevenueCurrency: 'INR',
+        employeeCount: 48,
+        createdBy: ownerId,
+        updatedBy: ownerId,
+      },
+      {
+        id: branchAccountId,
+        tenantId,
+        ownerId,
+        name: 'Rajesh Gold House — Kochi',
+        domain: 'kochi.rajeshgold.example',
+        industry: 'Jewellery retail',
+        parentAccountId,
+        annualRevenueMinor: 3_40_00_000_00n,
+        annualRevenueCurrency: 'INR',
+        employeeCount: 11,
+        createdBy: ownerId,
+        updatedBy: ownerId,
+      },
+      {
+        id: studioAccountId,
+        tenantId,
+        ownerId: repId,
+        name: 'Lotus Design Studio',
+        domain: 'lotusdesign.example',
+        industry: 'Interior design',
+        phone: '+912233445566',
+        annualRevenueMinor: 85_00_000_00n,
+        annualRevenueCurrency: 'INR',
+        employeeCount: 6,
+        createdBy: ownerId,
+        updatedBy: ownerId,
+      },
+    ]);
+
     const samples = [
-      ['Anjali', 'Sharma', 'anjali.sharma@example.com', '+919876543210', ownerId],
-      ['Vikram', 'Reddy', 'vikram.reddy@example.com', '+919812345678', ownerId],
-      ['Fatima', 'Khan', 'fatima.khan@example.com', '+919900112233', repId],
-      ['Joseph', 'DSouza', 'joseph.dsouza@example.com', '+919765432100', repId],
+      ['Anjali', 'Sharma', 'anjali.sharma@example.com', '+919876543210', ownerId, parentAccountId],
+      ['Vikram', 'Reddy', 'vikram.reddy@example.com', '+919812345678', ownerId, branchAccountId],
+      ['Fatima', 'Khan', 'fatima.khan@example.com', '+919900112233', repId, studioAccountId],
+      ['Joseph', 'DSouza', 'joseph.dsouza@example.com', '+919765432100', repId, null],
     ] as const;
 
     await tx.insert(contacts).values(
-      samples.map(([firstName, lastName, email, phone, owner]) => ({
+      samples.map(([firstName, lastName, email, phone, owner, accountId]) => ({
         id: newId(),
         tenantId,
         ownerId: owner,
@@ -110,6 +172,7 @@ try {
         lastName,
         email,
         phone,
+        accountId,
         leadSource: 'referral',
         createdBy: ownerId,
         updatedBy: ownerId,
@@ -127,7 +190,7 @@ try {
   console.warn(`  MFA demo   mfa-${suffix}@example.com`);
   console.warn(`  Password   ${DEMO_PASSWORD}`);
   console.warn('');
-  console.warn(`  Owner sees every contact; the sales rep sees only their own.`);
+  console.warn(`  Owner sees every contact and account; the sales rep sees only their own.`);
 } finally {
   await Promise.all([app.close(), auth.close()]);
 }

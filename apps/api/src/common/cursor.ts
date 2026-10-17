@@ -3,6 +3,11 @@ import { isUuid } from '@crm/core';
 /**
  * Keyset cursors (ADR-0012).
  *
+ * Shared by every list endpoint rather than living in one module: a second
+ * copy of a cursor encoding is a second thing to keep in step, and the first
+ * time they disagree a client's saved cursor decodes into the wrong position
+ * on one object and not the other.
+ *
  * Opaque by contract: clients pass back what they were given and never build
  * one. Encoding it keeps the sort key out of client code, so changing the
  * ordering later is not a breaking API change.

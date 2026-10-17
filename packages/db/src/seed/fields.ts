@@ -65,8 +65,24 @@ export const ACCOUNT_SYSTEM_FIELDS: readonly SystemField[] = [
     validation: { pattern: '[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}' },
   }),
   systemField('employee_count', 'Employees', 'number', 80, { validation: { min: '0' } }),
+  systemField('annual_revenue', 'Annual revenue', 'currency', 85),
   systemField('owner_id', 'Owner', 'user_lookup', 90),
 ];
+/*
+ * `billing_address`, `shipping_address` and `parent_account_id` are deliberately
+ * absent, and so are `address`, `account_id` and `consent` on contacts.
+ *
+ * There is no field type that describes them: a structured address and a
+ * reference to another record would need an `address` type and `record_lookup`,
+ * and `record_lookup` is P1 (MVP_SPEC §6.3). Inventing a type here would put a
+ * second, informal type system next to the real one.
+ *
+ * The practical cost is that an admin cannot set a field permission on an
+ * address, because field permissions are keyed by field key and nothing lists
+ * these keys. The serializer still checks `canReadField` for them by key, so a
+ * permission row written by hand is honoured — but the admin UI will not offer
+ * one until the types exist.
+ */
 
 export const SYSTEM_FIELDS_BY_OBJECT: Readonly<Record<string, readonly SystemField[]>> = {
   contact: CONTACT_SYSTEM_FIELDS,

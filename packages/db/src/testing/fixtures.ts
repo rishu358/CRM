@@ -209,6 +209,68 @@ export class Fixtures {
     return teamId;
   }
 
+  /**
+   * Insert an account directly.
+   *
+   * `parentAccountId` goes through the same trigger and foreign key the API
+   * does — fixtures bypass RLS, not integrity — so a test can use this to
+   * prove the database refuses a cycle even when the service is not involved.
+   */
+  async createAccount(
+    tenantId: string,
+    options: {
+      ownerId?: string | null;
+      name?: string;
+      domain?: string | null;
+      industry?: string | null;
+      email?: string | null;
+      phone?: string | null;
+      gstin?: string | null;
+      annualRevenueMinor?: bigint | null;
+      annualRevenueCurrency?: string | null;
+      employeeCount?: number | null;
+      parentAccountId?: string | null;
+      customFields?: Record<string, unknown>;
+    } = {},
+  ): Promise<string> {
+    const accountId = newId();
+    await this.pool.query(
+      `INSERT INTO accounts (
+         id, tenant_id, owner_id, name, domain, industry, email, phone, gstin,
+         annual_revenue_minor, annual_revenue_currency, employee_count,
+         parent_account_id, custom_fields
+       )
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
+      [
+        accountId,
+        tenantId,
+        options.ownerId ?? null,
+        options.name ?? 'Acme Trading',
+        options.domain ?? null,
+        options.industry ?? null,
+        options.email ?? null,
+        options.phone ?? null,
+        options.gstin ?? null,
+        options.annualRevenueMinor === undefined || options.annualRevenueMinor === null
+          ? null
+          : options.annualRevenueMinor.toString(),
+        options.annualRevenueCurrency ?? null,
+        options.employeeCount ?? null,
+        options.parentAccountId ?? null,
+        JSON.stringify(options.customFields ?? {}),
+      ],
+    );
+    return accountId;
+  }
+
+  /** Set a parent directly, for tests that must reach the trigger, not the API. */
+  async setAccountParent(accountId: string, parentAccountId: string | null): Promise<void> {
+    await this.pool.query(`UPDATE accounts SET parent_account_id = $2 WHERE id = $1`, [
+      accountId,
+      parentAccountId,
+    ]);
+  }
+
   async createContact(
     tenantId: string,
     options: {

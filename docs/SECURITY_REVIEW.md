@@ -1,10 +1,10 @@
 # Security self-review
 
 Required by CLAUDE.md §11.5 after each module. This covers the foundation plus
-the Contacts module, reviewed against §5 rule by rule.
+the Contacts, Auth and Accounts modules, reviewed against §5 rule by rule.
 
-Reviewed: 2026-10-16 · Scope: `packages/core`, `packages/db`, `apps/api`,
-`apps/worker`, `apps/web` (Contacts, Auth).
+Reviewed: 2026-10-17 · Scope: `packages/core`, `packages/db`, `apps/api`,
+`apps/worker`, `apps/web` (Accounts, Contacts, Auth).
 
 ## §5 rule by rule
 
@@ -13,13 +13,13 @@ Reviewed: 2026-10-16 · Scope: `packages/core`, `packages/db`, `apps/api`,
 | 1   | Tenant isolation: `tenant_id` + RLS, `SET LOCAL`, no `BYPASSRLS` | **Met**       | `0004_rls_policies.sql`; 28 tests in `rls.security.spec.ts`, including a meta test that fails if any table with `tenant_id` lacks `ENABLE`+`FORCE`                                                                                                                                                                                                                                                                                     |
 | 2   | Never trust the client for tenant, user, role, ownership         | **Met**       | Actor built only in `ActorService` from session + memberships; `X-Tenant-Id` is re-checked against membership; `resolveOwner` refuses reassignment without `all` scope                                                                                                                                                                                                                                                                 |
 | 3   | Every endpoint authorized via `can()`, default deny              | **Met**       | `AuthGuard` is global; routes are protected unless `@Public()`. A lint rule rejects inline role comparisons                                                                                                                                                                                                                                                                                                                            |
-| 4   | Field-level permissions applied in the serializer                | **Met**       | `contacts.serializer.ts`; hidden fields omitted (not nulled) and rejected on write                                                                                                                                                                                                                                                                                                                                                     |
+| 4   | Field-level permissions applied in the serializer                | **Met**       | `contacts.serializer.ts`, `accounts.serializer.ts`; hidden fields omitted (not nulled) and rejected on write. Sorting and filtering are checked too (`common/field-queries.ts`): a column the caller cannot read cannot be ordered by or compared against either                                                                                                                                                                       |
 | 5   | No IDOR; 404 not 403 outside scope                               | **Met**       | `assertCan` maps out-of-scope to 404; a test asserts the 404 for a foreign record is byte-identical to one for an id that does not exist                                                                                                                                                                                                                                                                                               |
 | 6   | Zod validation at the boundary, unknown keys rejected            | **Met**       | `.strict()` contracts; a body carrying `tenantId` is a 422                                                                                                                                                                                                                                                                                                                                                                             |
-| 7   | No SQL string concatenation; whitelisted sort/filter             | **Met**       | `contacts.sql-helpers.ts` resolves every client-supplied key against field metadata; injection attempts through `sort` and `filter` are tested                                                                                                                                                                                                                                                                                         |
+| 7   | No SQL string concatenation; whitelisted sort/filter             | **Met**       | `contacts.sql-helpers.ts` and `accounts.sql-helpers.ts` resolve every client-supplied key against field metadata; accounts also checks the filter **value** against the column type, so a bad one is a 422 rather than a driver error surfacing as a 500. Injection attempts through `sort` and `filter` are tested in both modules                                                                                                    |
 | 8   | Secrets from the environment; never logged                       | **Met**       | Validated env modules are the only readers; pino redaction list; `.env` is git-ignored                                                                                                                                                                                                                                                                                                                                                 |
 | 9   | Secure cookies, CSRF, MFA, rate-limited auth, revocation         | **Met**       | Cookie is httpOnly/SameSite=Lax/Secure-in-prod, set server-side and never readable by page script (an E2E test asserts `document.cookie` and both web storages); CSRF origin checks on both cookie-authenticated routes; TOTP + backup codes with tenant-level enforcement in `AuthGuard`; progressive delay in `AuthThrottleService` plus a per-IP ceiling in `AuthRateLimitGuard`; revocation via `sessions_valid_from` in one write |
-| 10  | Audit create/update/delete, logins, exports, role changes        | **Partial**   | Contacts CRUD, **plus login, logout and password changes**, audited in the same transaction and append-only by withheld grants. A password change is audited in every workspace the user belongs to, because it affects access to all of them. Permission-change auditing arrives with M3                                                                                                                                              |
+| 10  | Audit create/update/delete, logins, exports, role changes        | **Partial**   | Accounts and Contacts CRUD, **plus login, logout and password changes**, audited in the same transaction and append-only by withheld grants. A password change is audited in every workspace the user belongs to, because it affects access to all of them. Permission-change auditing arrives with M3                                                                                                                                 |
 | 11  | CSV export with formula-injection escaping                       | **Not built** | Export is not implemented yet                                                                                                                                                                                                                                                                                                                                                                                                          |
 | 12  | File type by magic bytes, presigned URLs                         | **Not built** | Attachments are not implemented yet                                                                                                                                                                                                                                                                                                                                                                                                    |
 | 13  | SSRF protection on outbound requests                             | **Not built** | No outbound requests exist yet                                                                                                                                                                                                                                                                                                                                                                                                         |
@@ -69,6 +69,72 @@ round and were fixed then; the last two came out of building M1:
    which is the worst shape a configuration bug can take. `next.config.ts` now
    loads the root file, without overriding anything already in the environment.
 
+## What building Accounts changed
+
+Four defects, found while copying the Contacts template onto a second object.
+Three were latent in the template itself, which is the most useful thing this
+module produced: Leads and Deals were about to inherit all three.
+
+1. **The keyset predicate detached the record-scope filter (§5.4, §5.5).** The
+   worst of the four. Drizzle's `and()` parenthesises its result but not its
+   operands, and the keyset fragment contains a bare `or`, so the WHERE clause
+   parsed as `(tenant and owner and keyset…) or <sort column> is not null`.
+   RLS still held the tenant line, so this was never a cross-tenant leak — but
+   **inside** a tenant, a rep on `own` scope saw every colleague's records from
+   page two onward, whenever the list was sorted by a nullable column and a
+   page boundary fell on a null. Every existing test sorted by a `NOT NULL`
+   column, which is why nothing noticed. The predicate now lives in
+   `apps/api/src/common/keyset.ts`, bracketed as a whole, and both modules have
+   a regression test that pages a rep through a nullable sort and asserts every
+   row returned is theirs. Both tests were confirmed to fail against the old
+   code before the fix was kept.
+
+2. **The same predicate dropped or repeated rows around NULLs.** Postgres
+   orders NULLs last for ASC and first for DESC, and `NULL > 'x'` is NULL, so
+   which half of the comparison must be stated explicitly depends on the
+   direction. The old form was right for DESC and wrong for ASC: sorted
+   ascending by a nullable column, paging either lost the null tail or served
+   the first page forever, so an infinite scroll never ended. Correctness
+   rather than security, but it is the same four lines.
+
+3. **A foreign key alone does not mean "in this tenant" (§5.1).**
+   `parent_account_id` is the first column that takes an id from the client and
+   stores it. Referential checks run with row security off, so a key to
+   `accounts (id)` would have accepted another tenant's row — no leak, since
+   reading the parent is still scope-checked, but a permanent cross-tenant
+   reference in a table we call isolated. It is now composite on
+   `(tenant_id, parent_account_id)`, which makes the rule structural
+   (ADR-0018). The error for a foreign parent is byte-identical to the one for
+   an id that exists nowhere, so the field is not an existence oracle; asserted.
+
+4. **The audit diff could not serialise a `bigint` (§5.10).** `diffChanges`
+   compared values with `JSON.stringify`, which **throws** on a BigInt rather
+   than rendering it. Accounts is the first object with money on it, so the
+   first `PATCH` touching revenue returned a 500 — and would have taken the
+   audit entry for the unrelated fields in the same request with it. Bigints
+   are now rendered as decimal strings, for the reason the API sends them that
+   way: a number past 2^53 would be rounded, and an audit log that disagrees
+   with the record is worse than none, because it will be believed.
+
+Two decisions recorded rather than fixed:
+
+- **The parent lookup is tenant-scoped, not record-scoped.** A rep with `own`
+  scope may file their account under a parent they cannot read. Deliberate: the
+  group company usually belongs to a manager, and requiring visibility would
+  make the hierarchy unmaintainable by the people who maintain it. Nothing of
+  the parent is returned — reading it still goes through `can()`, and the
+  record page falls back to a neutral label when the name is not readable. The
+  residual exposure is that a caller can learn whether an id they already hold
+  names an account in their own tenant. Ids are UUIDv7; that is not a space
+  anyone can walk.
+- **`billing_address`, `shipping_address` and `parent_account_id` have no
+  `field_definitions` row**, and neither do `address`, `account_id` or
+  `consent` on contacts. No field type describes them: `record_lookup` is P1
+  and there is no address type (MVP_SPEC §6.3). The serializer still checks
+  `canReadField` for them by key, so a permission row written by hand is
+  honoured, but the admin UI will have nothing to offer until those types
+  exist. Worth closing before M9 ships the customization screen.
+
 ## Known gaps, deliberately
 
 These are not oversights; they belong to modules that have not been built.
@@ -93,9 +159,28 @@ These are not oversights; they belong to modules that have not been built.
   memory adapter for tests, and both refuse to start in production — so a
   production deploy fails loudly rather than writing verification links into a
   log file. Resend or SES is still to be written.
-- **Audit coverage is partial.** Contacts and authentication. Every module
-  added must write its audit entry in the same transaction, as
+- **Audit coverage is partial.** Accounts, contacts and authentication. Every
+  module added must write its audit entry in the same transaction, as
   `contacts.service.ts` does.
+- **Accounts has no duplicate detection on create.** MVP_SPEC M4 asks for it on
+  domain and on name (fuzzy, via pg_trgm). The indexes and the repository
+  lookup (`findByDomain`) exist; the rule that uses them does not, and belongs
+  with import (M8), which is where duplicates actually arrive.
+- **Addresses cannot be edited from the UI.** The API accepts and validates
+  both and the record page renders them; a structured address needs a form
+  rather than an inline field, which belongs with the record-page layout work
+  in M9.
+- **The column chooser does not persist.** Saved views own that (MVP_SPEC M4);
+  writing it to browser storage first would only become something to migrate
+  away from.
+- **The E2E suite's sign-in budget is close to the per-IP auth limit.**
+  `AUTH_RATE_LIMIT_MAX_PER_IP` is 50 per 15 minutes and the whole Playwright
+  run comes from one address; adding a third object's tests took a clean run
+  within a few attempts of it, and two runs back to back trip it. The accounts
+  suite therefore shares one signed-in page per describe block instead of
+  signing in per test. The limit is correct and must not be raised to make the
+  suite fit — but Leads and Deals will each add to the same budget, so the
+  contacts and auth suites should be given the same treatment before then.
 - **Sign-up is not atomic across the role boundary.** Creating the identity and
   provisioning the workspace's roles happen as two different database roles,
   `crm_auth` and `crm_app`, so they cannot share a transaction. The tenant

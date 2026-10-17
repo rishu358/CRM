@@ -10,6 +10,10 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
+    "./accounts": {
+      "types": "./dist/accounts.d.ts",
+      "default": "./dist/accounts.js"
+    },
     "./contacts": {
       "types": "./dist/contacts.d.ts",
       "default": "./dist/contacts.js"

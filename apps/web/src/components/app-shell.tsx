@@ -15,7 +15,7 @@ import { signOut } from '../lib/session';
  */
 const NAV: readonly { href: string; label: TranslationKey; ready: boolean }[] = [
   { href: '/contacts', label: 'nav.contacts', ready: true },
-  { href: '/accounts', label: 'nav.accounts', ready: false },
+  { href: '/accounts', label: 'nav.accounts', ready: true },
   { href: '/deals', label: 'nav.deals', ready: false },
   { href: '/settings/security', label: 'nav.settings', ready: true },
 ];

@@ -20,6 +20,7 @@ import {
   type ContactUpdateInput,
 } from '@crm/contracts';
 import type { Contact as ContactRow, Tx } from '@crm/db';
+import { assertFiltersReadable, assertSortable } from '../../common/field-queries.js';
 import { DatabaseService } from '../../database/database.service.js';
 import { AuditService, diffChanges } from '../../platform/audit.service.js';
 import { FieldMetadataService } from '../../platform/field-metadata.service.js';
@@ -68,8 +69,8 @@ export class ContactsService {
       const fields = await this.fieldMetadata.forObject(tx, actor.tenantId, 'contact');
 
       const sort = query.sort === undefined ? undefined : parseSort(query.sort);
-      if (sort !== undefined && !allowedSortKeys(fields).includes(sort.field)) {
-        throw new ValidationError([{ path: 'sort', message: `Cannot sort by ${sort.field}` }]);
+      if (sort !== undefined) {
+        assertSortable(actor, 'contact', sort.field, allowedSortKeys(fields));
       }
 
       const filters = toFilterList(query.filter).map((raw) => {
@@ -79,6 +80,7 @@ export class ContactsService {
         }
         return parsed;
       });
+      assertFiltersReadable(actor, 'contact', filters);
 
       const result = await this.repository.list(tx, actor.tenantId, {
         constraint: decision.allowed ? decision.constraint : { kind: 'own', userId: actor.userId },
