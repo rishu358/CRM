@@ -161,3 +161,36 @@ export type CurrentUser = z.infer<typeof currentUserSchema>;
  */
 export const acceptedSchema = z.object({ accepted: z.literal(true) });
 export type Accepted = z.infer<typeof acceptedSchema>;
+
+/**
+ * Response shapes that exist only to be documented.
+ *
+ * Their handlers build these objects literally rather than parsing through a
+ * schema, so these are descriptions of what is already returned, not a second
+ * place where the shape is decided. `packages/contracts/src/openapi.spec.ts`
+ * holds them to the handlers by asserting the generated document against the
+ * committed one; a handler that changes shape without a schema change is
+ * caught in review as an un-regenerated diff.
+ */
+export const revokedSessionsSchema = z.object({ revoked: z.number().int().nonnegative() });
+export type RevokedSessions = z.infer<typeof revokedSessionsSchema>;
+
+export const mfaStatusSchema = z.object({
+  enrolled: z.boolean(),
+  backupCodesRemaining: z.number().int().nonnegative(),
+});
+export type MfaStatus = z.infer<typeof mfaStatusSchema>;
+
+/** Liveness and readiness. Deliberately carries nothing but the word. */
+export const healthStatusSchema = z.object({ status: z.string() });
+export type HealthStatus = z.infer<typeof healthStatusSchema>;
+
+/** `DELETE /auth/sessions?id=…` — revoke one device. */
+export const sessionRevokeQuerySchema = z.object({ id: z.uuid() }).strict();
+export type SessionRevokeQuery = z.infer<typeof sessionRevokeQuerySchema>;
+
+/** What Google hands back on the redirect. `state` is checked against a cookie. */
+export const googleCallbackQuerySchema = z
+  .object({ code: z.string().min(1).max(2048), state: z.string().min(1).max(512) })
+  .strict();
+export type GoogleCallbackQuery = z.infer<typeof googleCallbackQuerySchema>;
