@@ -6,6 +6,8 @@ import { flattenPages, useContactList, useCreateContact } from '../lib/contacts'
 import { t } from '../lib/i18n';
 import { AppShell } from './app-shell';
 import { ContactsTable } from './contacts-table';
+import { ExportButton } from './export-button';
+import { ImportLink } from './import-link';
 import { NewContactDialog } from './new-contact-dialog';
 
 /**
@@ -109,6 +111,8 @@ export function ContactsPage() {
             placeholder={t('contacts.searchPlaceholder')}
             className="h-9 w-56 rounded-md border border-input bg-background px-3 text-sm"
           />
+          <ImportLink objectType="contact" />
+          <ExportButton objectType="contact" q={search} sort="-created_at" />
           <Button onClick={() => setCreating(true)}>{t('contacts.new')}</Button>
         </div>
       </header>

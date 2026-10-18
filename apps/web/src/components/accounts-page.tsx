@@ -7,6 +7,8 @@ import { t } from '../lib/i18n';
 import { AppShell } from './app-shell';
 import { ACCOUNT_COLUMNS, AccountsTable, DEFAULT_ACCOUNT_COLUMNS } from './accounts-table';
 import { ColumnChooser } from './column-chooser';
+import { ExportButton } from './export-button';
+import { ImportLink } from './import-link';
 import { NewAccountDialog } from './new-account-dialog';
 
 /**
@@ -139,6 +141,8 @@ export function AccountsPage() {
               onChange={setVisibleColumns}
             />
           ) : null}
+          <ImportLink objectType="account" />
+          <ExportButton objectType="account" q={search} sort={sort} />
           <Button onClick={() => setCreating(true)}>{t('accounts.new')}</Button>
         </div>
       </header>

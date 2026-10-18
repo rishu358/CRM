@@ -14,7 +14,7 @@ import { webEnv } from '../../../../lib/env';
  * a client-supplied string, so it cannot be pointed at another host.
  */
 /** Headers worth passing through. Everything else is dropped deliberately. */
-const FORWARDED_REQUEST_HEADERS = ['content-type', 'x-tenant-id'];
+const FORWARDED_REQUEST_HEADERS = ['content-type', 'x-tenant-id', 'idempotency-key'];
 const FORWARDED_RESPONSE_HEADERS = ['content-type', 'x-request-id'];
 
 /** Methods that change state and therefore need CSRF defence. */

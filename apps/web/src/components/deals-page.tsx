@@ -14,6 +14,7 @@ import { consumeIntent, onIntent } from '../lib/palette-intent';
 import { AppShell } from './app-shell';
 import { DealsBoard } from './deals-board';
 import { DealsTable } from './deals-table';
+import { ExportButton } from './export-button';
 import { NewDealDialog } from './new-deal-dialog';
 
 type View = 'board' | 'list';
@@ -220,6 +221,13 @@ export function DealsPage() {
             onChange={(event) => setSearch(event.target.value)}
             placeholder={t('deals.searchPlaceholder')}
             className="h-9 w-48 rounded-md border border-input bg-background px-3 text-sm"
+          />
+          {/* Deals are exported, not imported: a row would have to name a pipeline and a stage. */}
+          <ExportButton
+            objectType="deal"
+            q={search}
+            sort={sort}
+            filter={pipeline === undefined ? undefined : [`pipeline_id:eq:${pipeline.id}`]}
           />
           <Button onClick={() => setCreating(true)} disabled={pipeline === undefined}>
             {t('deals.new')}

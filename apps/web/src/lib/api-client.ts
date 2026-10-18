@@ -74,8 +74,14 @@ async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
 
 export const api = {
   get: <T>(path: string) => call<T>(path, { method: 'GET' }),
-  post: <T>(path: string, body: unknown) =>
-    call<T>(path, { method: 'POST', body: JSON.stringify(body) }),
+  post: <T>(path: string, body?: unknown, headers?: Record<string, string>) =>
+    call<T>(path, {
+      method: 'POST',
+      // A POST with no body (confirm an upload, ask for a link) sends none, and
+      // therefore no content-type either.
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      ...(headers === undefined ? {} : { headers }),
+    }),
   patch: <T>(path: string, body: unknown) =>
     call<T>(path, { method: 'PATCH', body: JSON.stringify(body) }),
   delete: <T>(path: string) => call<T>(path, { method: 'DELETE' }),
