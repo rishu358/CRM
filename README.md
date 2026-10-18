@@ -12,7 +12,7 @@ Requires Node 24+, pnpm 9, and Docker.
 ```bash
 pnpm install
 cp .env.example .env
-pnpm infra:up          # Postgres on 15432, Redis on 16379
+pnpm infra:up          # Postgres on 15432, Redis on 16379, MinIO on 19000 (+ creates the bucket)
 pnpm db:migrate
 pnpm db:seed           # prints sign-in credentials for the demo users
 pnpm build             # shared packages compile to dist; apps resolve them from there
@@ -51,7 +51,7 @@ two listeners on one port and connections landing somewhere surprising.
 | `pnpm test:e2e`                     | Playwright, against a running stack                           |
 | `pnpm lint` / `pnpm typecheck`      | Static checks                                                 |
 | `pnpm db:migrate` / `pnpm db:seed`  | Schema and demo data                                          |
-| `pnpm infra:up` / `pnpm infra:down` | Local Postgres and Redis                                      |
+| `pnpm infra:up` / `pnpm infra:down` | Local Postgres, Redis and MinIO (S3-compatible file storage)  |
 
 ## How it fits together
 
