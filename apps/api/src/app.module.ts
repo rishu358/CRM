@@ -8,6 +8,8 @@ import { AccountsModule } from './modules/accounts/accounts.module.js';
 import { ActivitiesModule } from './modules/activities/activities.module.js';
 import { ContactsModule } from './modules/contacts/contacts.module.js';
 import { DealsModule } from './modules/deals/deals.module.js';
+import { ExportsModule } from './modules/exports/exports.module.js';
+import { ImportsModule } from './modules/imports/imports.module.js';
 import { InvitationsModule } from './modules/invitations/invitations.module.js';
 import { LeadsModule } from './modules/leads/leads.module.js';
 import { NotificationsModule } from './modules/notifications/notifications.module.js';
@@ -43,6 +45,8 @@ export class AppModule {
         SearchModule,
         NotificationsModule,
         InvitationsModule,
+        ImportsModule,
+        ExportsModule,
       ],
       controllers: [HealthController, OpenApiController],
       providers: [{ provide: APP_GUARD, useExisting: AuthGuard }],

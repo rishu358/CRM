@@ -1,4 +1,6 @@
 import { Global, Module } from '@nestjs/common';
+import { createStorageProvider } from '@crm/storage';
+import { API_ENV_TOKEN, type ApiEnv } from '../config/env.js';
 import { AuditService } from './audit.service.js';
 import { FieldMetadataService } from './field-metadata.service.js';
 import { CurrencyConverter } from './exchange-rates/currency-converter.service.js';
@@ -6,6 +8,7 @@ import { EXCHANGE_RATE_SOURCE } from './exchange-rates/exchange-rate.source.js';
 import { ManualExchangeRateSource } from './exchange-rates/manual-exchange-rate.source.js';
 import { OutboxService } from './outbox.service.js';
 import { TenantRateLimitService } from './rate-limit.service.js';
+import { STORAGE_PROVIDER } from './storage/storage.tokens.js';
 
 /**
  * Cross-cutting services every business module depends on.
@@ -23,6 +26,13 @@ import { TenantRateLimitService } from './rate-limit.service.js';
     CurrencyConverter,
     // The one line that changes when live rates arrive (ADR-0021, P1).
     { provide: EXCHANGE_RATE_SOURCE, useClass: ManualExchangeRateSource },
+    // One line decides the vendor (ADR-0009). The API only signs URLs and reads
+    // metadata through this; it never reads or writes a file's bytes (§5.12).
+    {
+      provide: STORAGE_PROVIDER,
+      inject: [API_ENV_TOKEN],
+      useFactory: (env: ApiEnv) => createStorageProvider(env, env.NODE_ENV),
+    },
   ],
   exports: [
     AuditService,
@@ -30,6 +40,7 @@ import { TenantRateLimitService } from './rate-limit.service.js';
     FieldMetadataService,
     TenantRateLimitService,
     CurrencyConverter,
+    STORAGE_PROVIDER,
   ],
 })
 export class PlatformModule {}

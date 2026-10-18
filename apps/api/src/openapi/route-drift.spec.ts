@@ -61,6 +61,8 @@ beforeAll(async () => {
     DATABASE_POOL_MAX: '2',
     AUTH_SECRET: 'test-only-secret-at-least-32-characters-long',
     LOG_LEVEL: 'error',
+    // The app signs URLs against an object store, which tests keep in memory.
+    STORAGE_PROVIDER: 'memory',
   });
 
   // `createApp` returns before Nest registers its routes, which is the only
