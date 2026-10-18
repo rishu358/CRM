@@ -1,4 +1,5 @@
 import { createDbClient, PostgresSearchProvider } from '@crm/db';
+import { createStorageProvider } from '@crm/storage';
 import { pino } from 'pino';
 import { loadWorkerEnv } from './env.js';
 import { createEmailProvider } from './email/provider.js';
@@ -6,7 +7,14 @@ import { pruneActivityLinks } from './handlers/activities.js';
 import { notifyAssignment, notifyReminder, sendDigest } from './handlers/notifications.js';
 import { indexSearchDocument, removeSearchDocument } from './handlers/search.js';
 import { projectTimeline } from './handlers/timeline.js';
-import { OutboxRelay } from './relay.js';
+import { failExportOnExhaustion, runExport } from './import-export/export-handler.js';
+import {
+  analyzeImport,
+  failImportOnExhaustion,
+  processImportChunk,
+  stageImport,
+} from './import-export/import-handlers.js';
+import { DEFAULT_MAX_ATTEMPTS, OutboxRelay } from './relay.js';
 
 /**
  * Worker entry point.
@@ -26,6 +34,7 @@ const client = createDbClient({
 
 const relay = new OutboxRelay(client.db, {
   batchSize: env.OUTBOX_BATCH_SIZE,
+  maxAttempts: DEFAULT_MAX_ATTEMPTS,
   logger,
 });
 
@@ -81,6 +90,33 @@ for (const objectType of ['account', 'contact', 'lead', 'deal', 'activity'] as c
   relay.on(`${objectType}.updated.v1`, indexSearchDocument(search));
   relay.on(`${objectType}.deleted.v1`, removeSearchDocument(search));
 }
+
+/**
+ * Import and export (MVP_SPEC M8, ADR-0029).
+ *
+ * The worker is the only process that reads the bytes of an uploaded file or
+ * writes a generated one (CLAUDE.md §5.12): the API only signs URLs. An import
+ * is a chain of events — uploaded, started, then one `import.chunk.v1` per 500
+ * rows, each queuing the next in the same transaction — so progress survives a
+ * crash and a redelivery is a no-op.
+ */
+const importExportDeps = {
+  db: client.db,
+  storage: createStorageProvider(env, env.NODE_ENV),
+  logger,
+};
+
+relay.on('import.uploaded.v1', analyzeImport(importExportDeps));
+relay.on('import.started.v1', stageImport(importExportDeps));
+relay.on('import.chunk.v1', processImportChunk(importExportDeps));
+relay.on('export.requested.v1', runExport(importExportDeps));
+
+// When the relay gives up on a step, the job must say so rather than stay
+// "in progress" forever (ADR-0029).
+for (const eventType of ['import.uploaded.v1', 'import.started.v1', 'import.chunk.v1']) {
+  relay.onExhausted(eventType, failImportOnExhaustion(importExportDeps));
+}
+relay.onExhausted('export.requested.v1', failExportOnExhaustion(importExportDeps));
 
 /**
  * Orphan cleanup for polymorphic links (ADR-0005).
