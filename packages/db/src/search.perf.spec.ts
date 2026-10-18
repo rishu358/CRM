@@ -152,7 +152,36 @@ function search(term: string, scopes: readonly SearchObjectScope[] = WIDE_OPEN) 
   );
 }
 
+/**
+ * The Postgres major version the LEAKPROOF reasoning in ADR-0028 §7 was done
+ * against (16.6, where neither operator is leakproof in core and neither has a
+ * data-dependent error path).
+ *
+ * §7 is an argument about the current implementation of two functions, and the
+ * assertion below only notices the marking being *removed* — it cannot notice
+ * an operator gaining an error path in a newer release, which is the case that
+ * would actually matter. This constant is how a major upgrade stops here.
+ * Change it only after re-checking both operators, in the same change as the
+ * new image in `docker-compose.yml` and the Testcontainers harness.
+ */
+const REVIEWED_POSTGRES_MAJOR = 16;
+
 describe('the two operators the plan depends on', () => {
+  it('runs on the Postgres major version the LEAKPROOF analysis covers', async () => {
+    const result = await superuserPool.query<{ major: number }>(
+      `select (current_setting('server_version_num')::int / 10000) as major`,
+    );
+    const actual = result.rows[0]?.major;
+    expect(
+      actual,
+      `Postgres is ${String(actual)}.x but ADR-0028 §7 marks ts_match_vq and ` +
+        `word_similarity_op LEAKPROOF on the strength of an analysis of ` +
+        `${String(REVIEWED_POSTGRES_MAJOR)}.x. Re-check both operators for ` +
+        `data-dependent error paths on ${String(actual)}.x, then update ` +
+        `REVIEWED_POSTGRES_MAJOR.`,
+    ).toBe(REVIEWED_POSTGRES_MAJOR);
+  });
+
   it('still has `@@` and `<%` marked LEAKPROOF', async () => {
     // Not a style assertion. A table with Row-Level Security is a security
     // barrier, and Postgres will not evaluate a qual that is not leakproof

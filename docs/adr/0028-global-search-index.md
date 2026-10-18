@@ -223,7 +223,28 @@ the line fails a test that names this section rather than producing a planner
 mystery three months later.
 
 **A development database created before this line existed does not have it.**
-Re-create the container, or apply the two statements once as a superuser.
+Re-create the container, or apply the two statements once as a superuser. (A
+database that has had the statements applied by hand will show both operators
+as leakproof while an older checkout's bootstrap does not mention them; that is
+harmless, and is why the test reads `pg_proc` rather than trusting the file.)
+
+**The analysis is tied to PostgreSQL 16.** It is a claim about the current
+implementation of two specific functions, checked against 16.6: stock 16.6
+marks neither operator leakproof, so the `ALTER` is a real change rather than a
+no-op, and an attempt to force a data-dependent error out of either — a 1 MB
+left argument to `<%`, empty strings, high-unicode input, a 50,000-term
+tsvector through `@@` — produced none. The only error reachable on that path
+comes from `to_tsvector()` building the value, which is outside the operator.
+
+Nothing about that survives a major upgrade by default. Postgres 17 or 18 may
+give either operator a data-dependent error path, and a leakproof function that
+raises one is precisely the leak the marking must never permit. **A major-version
+upgrade therefore requires re-checking both operators for new error paths before
+the marking is carried forward.** `search.perf.spec.ts` enforces that: it fails
+when the server's major version is not the one recorded in
+`REVIEWED_POSTGRES_MAJOR`, with a message pointing here. Updating that constant
+is the act of saying the re-check was done, and belongs in the same change as
+the new base image in `docker-compose.yml` and the Testcontainers harness.
 
 ### 8. What breaks the latency budget
 
