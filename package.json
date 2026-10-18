@@ -19,7 +19,8 @@
     "db:seed": "pnpm --filter @crm/db db:seed",
     "openapi:generate": "tsx packages/contracts/scripts/write-openapi.mts",
     "openapi:check": "tsx packages/contracts/scripts/write-openapi.mts --check",
-    "infra:up": "docker compose up -d",
+    "infra:up": "docker compose up -d && pnpm infra:bucket",
+    "infra:bucket": "tsx --env-file-if-exists=.env packages/storage/scripts/ensure-bucket.mts",
     "infra:down": "docker compose down",
     "format": "prettier --write \"**/*.{ts,tsx,js,json,md,yaml,yml}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,json,md,yaml,yml}\""
@@ -38,7 +39,8 @@
     "overrides": {
       "typescript": "5.9.3",
       "eslint": "9.39.5",
-      "fastify": "5.12.7"
+      "fastify": "5.12.7",
+      "exceljs>uuid": "11.1.1"
     }
   }
 }

@@ -17,6 +17,7 @@
     "@crm/contracts": "workspace:^",
     "@crm/core": "workspace:^",
     "@crm/db": "workspace:^",
+    "@crm/storage": "workspace:^",
     "@fastify/cookie": "^11.1.3",
     "@fastify/csrf-protection": "^8.0.2",
     "@fastify/helmet": "^13.2.0",
