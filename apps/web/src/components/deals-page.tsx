@@ -1,7 +1,7 @@
 'use client';
 
 import { Button, EmptyState, ErrorState, NoPermissionState, Select, TableSkeleton } from '@crm/ui';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   flattenDealPages,
   useCreateDeal,
@@ -10,6 +10,7 @@ import {
   usePipelines,
 } from '../lib/deals';
 import { t } from '../lib/i18n';
+import { consumeIntent, onIntent } from '../lib/palette-intent';
 import { AppShell } from './app-shell';
 import { DealsBoard } from './deals-board';
 import { DealsTable } from './deals-table';
@@ -33,6 +34,27 @@ export function DealsPage() {
 
   const pipelines = usePipelines();
   const create = useCreateDeal();
+
+  /**
+   * "New deal" from the command palette (MVP_SPEC M7).
+   *
+   * Two cases, and both have to work: the palette navigated here from
+   * somewhere else, so the intent was left before this component existed; or
+   * the user was already on this screen, so it arrives while it is mounted.
+   * The first is `consumeIntent` on mount, the second is the subscription.
+   */
+  useEffect(() => {
+    const unsubscribe = onIntent((intent) => {
+      if (intent === 'new-deal') setCreating(true);
+    });
+    // In a microtask rather than inline: setting state synchronously inside an
+    // effect makes React render twice before it paints, and the lint rule that
+    // says so is right — nothing here is urgent enough to be worth that.
+    queueMicrotask(() => {
+      if (consumeIntent('new-deal')) setCreating(true);
+    });
+    return unsubscribe;
+  }, []);
 
   const available = pipelines.data?.data ?? [];
   const pipeline =

@@ -18,6 +18,7 @@ import {
   pipelineStages,
   pipelines,
 } from './schema/index.js';
+import { PostgresSearchProvider, reindexTenant } from './search/index.js';
 import { FOUNDING_ROLE_NAME, provisionTenantDefaults } from './seed/index.js';
 
 /**
@@ -45,6 +46,18 @@ loadRootEnvFile();
 const env = loadDbEnv();
 const app = createDbClient({ connectionString: env.DATABASE_URL });
 const auth = createDbClient({ connectionString: env.DATABASE_AUTH_URL ?? env.DATABASE_URL });
+/**
+ * A third connection, as crm_worker.
+ *
+ * The seed inserts records straight into the tables, so none of them writes an
+ * outbox event and the relay never hears about them — which would leave the
+ * demo tenant with an empty search index and a command palette that finds
+ * nothing (ADR-0028). It indexes them itself at the end, and it has to do that
+ * as the worker role, because `crm_app` may only *read* `search_documents`
+ * (migration 0011). Using a different role here is the asymmetry working, not
+ * a workaround for it.
+ */
+const worker = createDbClient({ connectionString: env.DATABASE_WORKER_URL ?? env.DATABASE_URL });
 
 const tenantId = newId();
 const ownerId = newId();
@@ -456,7 +469,15 @@ try {
     ),
   );
 
-  // 6. Nothing mints a session any more: the demo users have passwords and
+  // 6. Index everything that was just inserted (MVP_SPEC M7, ADR-0028).
+  //    `reindexTenant` is the same projection the relay uses, so what the
+  //    palette finds here is exactly what it would find for a record created
+  //    through the API.
+  const indexed = await withTenant(worker.db, { tenantId, userId: null }, (tx) =>
+    reindexTenant(tx, tenantId, new PostgresSearchProvider()),
+  );
+
+  // 7. Nothing mints a session any more: the demo users have passwords and
   //    sign in at /sign-in like anyone else (MVP_SPEC M1).
   console.warn(`Seeded demo tenant ${tenantId} (slug demo-${suffix})`);
   console.warn('');
@@ -471,6 +492,7 @@ try {
   console.warn(`  Invite     ${inviteToken}`);
   console.warn('');
   console.warn(`  Owner sees every contact, account and deal; the sales rep sees only their own.`);
+  console.warn(`  ${indexed} records indexed for search — press Ctrl/Cmd + K and try "gold".`);
 } finally {
-  await Promise.all([app.close(), auth.close()]);
+  await Promise.all([app.close(), auth.close(), worker.close()]);
 }

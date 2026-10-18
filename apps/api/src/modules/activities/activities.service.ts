@@ -4,6 +4,7 @@ import {
   buildCustomFieldsPatchSchema,
   buildCustomFieldsSchema,
   can,
+  canReadField,
   isSchedulable,
   newId,
   NotFoundError,
@@ -405,6 +406,40 @@ export class ActivitiesService {
         changes: { links: { old: `${input.objectType}:${input.recordId}` } },
       });
     });
+  }
+
+  /**
+   * What to call these activities, for the ones this actor may read.
+   *
+   * The same contract `ContactsService.linkLabels` documents, and the way
+   * global search resolves an activity hit without touching this module's
+   * tables (ADR-0001, ADR-0028): the reader's record scope is applied in SQL,
+   * so an activity they may not see is simply absent from the answer, and the
+   * label is built only from a field they may read — so neither the list nor
+   * the label is a side door around a permission.
+   *
+   * Activities are not link *targets* (ADR-0005 keeps that set to the four
+   * record types), so unlike the other four this exists for search alone.
+   */
+  async linkLabels(tx: Tx, actor: Actor, ids: readonly string[]): Promise<Map<string, string>> {
+    const decision = can(actor, 'read', { objectType: 'activity' });
+    if (!decision.allowed) return new Map();
+
+    const rows = await this.repository.findReadableMany(
+      tx,
+      actor.tenantId,
+      ids,
+      decision.constraint,
+    );
+
+    return new Map(
+      rows.map((row) => [
+        row.id,
+        canReadField(actor, 'activity', 'subject') && row.subject.length > 0
+          ? row.subject
+          : 'Activity',
+      ]),
+    );
   }
 
   // -------------------------------------------------------------------------

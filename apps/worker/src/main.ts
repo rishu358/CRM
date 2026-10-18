@@ -1,9 +1,10 @@
-import { createDbClient } from '@crm/db';
+import { createDbClient, PostgresSearchProvider } from '@crm/db';
 import { pino } from 'pino';
 import { loadWorkerEnv } from './env.js';
 import { createEmailProvider } from './email/provider.js';
 import { pruneActivityLinks } from './handlers/activities.js';
 import { notifyAssignment, notifyReminder, sendDigest } from './handlers/notifications.js';
+import { indexSearchDocument, removeSearchDocument } from './handlers/search.js';
 import { projectTimeline } from './handlers/timeline.js';
 import { OutboxRelay } from './relay.js';
 
@@ -61,6 +62,25 @@ const notificationOptions = {
 relay.on('activity.assigned.v1', notifyAssignment(notificationOptions));
 relay.on('activity.reminder_due.v1', notifyReminder());
 relay.on('notification.digest_due.v1', sendDigest(notificationOptions));
+
+/**
+ * The search index (MVP_SPEC M7, ADR-0028).
+ *
+ * Every create and update of a searchable record re-projects it; every delete
+ * removes it. Driven by events rather than called inline, so a record is
+ * findable — or stops being findable — without any service remembering to say
+ * so. The index handler also removes a record whose row has gone by the time
+ * the event is relayed, so a delete cannot be lost by arriving out of order.
+ *
+ * One line decides the engine (CLAUDE.md §2, ADR-0009).
+ */
+const search = new PostgresSearchProvider();
+
+for (const objectType of ['account', 'contact', 'lead', 'deal', 'activity'] as const) {
+  relay.on(`${objectType}.created.v1`, indexSearchDocument(search));
+  relay.on(`${objectType}.updated.v1`, indexSearchDocument(search));
+  relay.on(`${objectType}.deleted.v1`, removeSearchDocument(search));
+}
 
 /**
  * Orphan cleanup for polymorphic links (ADR-0005).

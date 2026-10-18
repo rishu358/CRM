@@ -381,6 +381,7 @@ const TAG_DESCRIPTIONS: ReadonlyArray<{ name: string; description: string }> = [
   { name: 'Leads', description: 'Unqualified interest, and its conversion.' },
   { name: 'Deals', description: 'Opportunities, pipelines and the board.' },
   { name: 'Activities', description: 'Tasks, calls, meetings, notes and My Day.' },
+  { name: 'Search', description: 'One query across every object the caller may read.' },
   { name: 'Notifications', description: 'The bell.' },
 ];
 
