@@ -187,6 +187,35 @@ export class ActivitiesRepository {
     return rows[0] ?? null;
   }
 
+  /**
+   * The activities among `ids` this reader may see.
+   *
+   * `constraint` is the reader's record scope, applied here in SQL rather than
+   * by filtering afterwards: an activity outside their scope is never fetched,
+   * so it cannot be named, counted or hinted at. Batched because global search
+   * resolves a whole page of hits at once (ADR-0028), and one query per hit
+   * would be a query per keystroke per result.
+   */
+  async findReadableMany(
+    tx: Tx,
+    tenantId: string,
+    ids: readonly string[],
+    constraint: RecordConstraint,
+  ): Promise<Activity[]> {
+    if (ids.length === 0) return [];
+    const predicates: SQL[] = [
+      eq(activities.tenantId, tenantId),
+      inArray(activities.id, [...ids]),
+      notDeleted(),
+    ];
+    const scope = constraintToSql(constraint);
+    if (scope !== undefined) predicates.push(scope);
+    return tx
+      .select()
+      .from(activities)
+      .where(and(...predicates));
+  }
+
   async insert(tx: Tx, values: typeof activities.$inferInsert): Promise<Activity> {
     const rows = await tx.insert(activities).values(values).returning();
     const row = rows[0];

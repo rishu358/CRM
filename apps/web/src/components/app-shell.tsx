@@ -6,6 +6,7 @@ import type { ReactNode } from 'react';
 import { Button, cn } from '@crm/ui';
 import { t, type TranslationKey } from '../lib/i18n';
 import { signOut } from '../lib/session';
+import { CommandPalette } from './command-palette';
 import { NotificationBell } from './notification-bell';
 
 /**
@@ -92,7 +93,14 @@ export function AppShell({ children }: { children: ReactNode }) {
           notification is about work somewhere else in the app — the point of
           it is to be visible while you are looking at something unrelated.
         */}
-        <header className="flex justify-end border-b border-border px-4 py-2">
+        {/*
+          The palette lives in the frame for the same reason the bell does:
+          it is reached from wherever you happen to be, and `Ctrl`/`Cmd` + `K`
+          has to work on every screen rather than on the ones somebody
+          remembered to add it to (MVP_SPEC M7).
+        */}
+        <header className="flex items-center justify-between gap-2 border-b border-border px-4 py-2">
+          <CommandPalette />
           <NotificationBell />
         </header>
         <main className="min-w-0 flex-1 p-4 md:p-8">{children}</main>

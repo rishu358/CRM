@@ -1,4 +1,11 @@
-import { createDbClient, withTenant, type DbClient } from '@crm/db';
+import {
+  createDbClient,
+  PostgresSearchProvider,
+  reindexTenant,
+  withTenant,
+  type DbClient,
+} from '@crm/db';
+import type { Uuid } from '@crm/core';
 import { Fixtures, type TestDbUrls } from '@crm/db/testing';
 import { provisionTenantDefaults } from '@crm/db/seed';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
@@ -24,6 +31,15 @@ export interface ApiHarness {
   provision(tenantId: string): Promise<ReadonlyMap<string, string>>;
   /** Issue a real session and return its bearer token. */
   signIn(userId: string, tenantId: string): Promise<string>;
+  /**
+   * Rebuild a tenant's search index, as the relay would have (ADR-0028).
+   *
+   * The API role may only **read** `search_documents`, so this connects as
+   * `crm_worker` — the same asymmetry production has. It runs the real
+   * projection rather than inserting index rows by hand, so a search test is
+   * testing what the worker actually writes, not a convenient fiction.
+   */
+  indexForSearch(tenantId: string): Promise<number>;
   /**
    * The mail the app has sent.
    *
@@ -89,6 +105,11 @@ export async function startApiHarness(
 
   const superuserPool = new pg.Pool({ connectionString: urls.superuser, max: 4 });
   const appClient: DbClient = createDbClient({ connectionString: urls.app, maxConnections: 4 });
+  const workerClient: DbClient = createDbClient({
+    connectionString: urls.worker,
+    maxConnections: 2,
+  });
+  const searchProvider = new PostgresSearchProvider();
   const sessions = app.get(SessionService);
   const emails = app.get<MemoryEmailProvider>(EMAIL_PROVIDER);
 
@@ -107,9 +128,13 @@ export async function startApiHarness(
       const { token } = await sessions.issue(userId, { tenantId });
       return token;
     },
+    indexForSearch: (tenantId: string) =>
+      withTenant(workerClient.db, { tenantId, userId: null }, (tx) =>
+        reindexTenant(tx, tenantId as Uuid, searchProvider),
+      ),
     close: async () => {
       await app.close();
-      await Promise.all([superuserPool.end(), appClient.close()]);
+      await Promise.all([superuserPool.end(), appClient.close(), workerClient.close()]);
     },
   };
 }

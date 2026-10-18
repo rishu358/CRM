@@ -94,6 +94,7 @@ import {
   notificationSchema,
   unreadCountSchema,
 } from './notifications.js';
+import { searchQuerySchema, searchResultSchema } from './search.js';
 
 /**
  * The route registry: one entry per endpoint the API actually serves.
@@ -982,6 +983,33 @@ const myDayRoutes: RouteDefinition[] = [
   },
 ];
 
+const searchRoutes: RouteDefinition[] = [
+  {
+    method: 'GET',
+    path: '/search',
+    operationId: 'search',
+    tag: 'Search',
+    summary: 'Search across every object the caller may read',
+    description:
+      'Accounts, contacts, leads, deals and activities at once, over name, email, ' +
+      "phone and company. Results respect tenant isolation, the caller's record scope " +
+      'per object type, field-level permissions and soft deletes — all applied while the ' +
+      'index is being read, never by filtering the answer (ADR-0028). A caller who may ' +
+      'read nothing gets an empty list rather than a 403: search is a question about ' +
+      'their own workspace, and refusing it would say more than answering it.',
+    auth: 'session',
+    query: searchQuerySchema,
+    response: {
+      kind: 'object',
+      status: 200,
+      name: 'SearchResultListResponse',
+      description: 'The best matches, already ranked.',
+      data: searchResultSchema.array(),
+    },
+    errors: [],
+  },
+];
+
 const notificationRoutes: RouteDefinition[] = [
   {
     method: 'GET',
@@ -1131,6 +1159,7 @@ export const API_ROUTES: readonly RouteDefinition[] = [
     deleteQuery: activityDeleteQuerySchema,
   }),
   ...myDayRoutes,
+  ...searchRoutes,
   ...notificationRoutes,
   ...invitationRoutes,
 ];

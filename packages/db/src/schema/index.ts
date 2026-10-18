@@ -6,3 +6,4 @@ export * from './rbac.js';
 export * from './metadata.js';
 export * from './platform.js';
 export * from './crm.js';
+export * from './search.js';
