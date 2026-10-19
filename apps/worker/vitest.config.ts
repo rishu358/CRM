@@ -3,7 +3,10 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   test: {
     globalSetup: ['./src/testing/global-setup.ts'],
-    testTimeout: 30_000,
+    // Generous on purpose. These tests drive a real relay against a real database,
+    // and a CI runner is a loaded machine: a limit that is merely "usually enough"
+    // is how a suite learns to be re-run. A genuine hang still fails, only later.
+    testTimeout: 120_000,
     hookTimeout: 180_000,
     /**
      * One suite at a time.

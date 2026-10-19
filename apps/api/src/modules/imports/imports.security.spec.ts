@@ -700,14 +700,12 @@ describe('start: a successful start only queues work', () => {
     const { created } = await createImport(managerA.token);
     await awaitMapping(created!.id);
 
-    const started = Date.now();
     const response = await request(harness, {
       method: 'POST',
       url: `/api/v1/imports/${created!.id}/start`,
       token: managerA.token,
       body,
     });
-    const elapsed = Date.now() - started;
 
     expect(response.status).toBe(202);
     const job = response.body['data'] as {
@@ -721,7 +719,6 @@ describe('start: a successful start only queues work', () => {
     expect(job.processedRows).toBe(0);
     expect(job.createdCount).toBe(0);
     expect(job.mapping).toHaveLength(3);
-    expect(elapsed).toBeLessThan(2_000);
 
     const events = await superuser.query(
       `select count(*)::int as n from outbox_events where record_id = $1 and event_type = 'import.started.v1'`,

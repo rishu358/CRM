@@ -256,7 +256,7 @@ describe('XLSX', () => {
     expect(await rejectionOf(() => open(zip, 'xlsx'))).toMatch(/not an Excel workbook/);
   });
 
-  it('rejects a decompression bomb dressed as a workbook, fast', async () => {
+  it('rejects a decompression bomb dressed as a workbook, before inflating it', async () => {
     const bomb = buildZip([
       { name: '[Content_Types].xml', data: Buffer.from('<Types/>') },
       { name: 'xl/workbook.xml', data: Buffer.from('<workbook/>') },
@@ -264,10 +264,20 @@ describe('XLSX', () => {
       { name: 'xl/worksheets/sheet1.xml', data: Buffer.alloc(220 * 1024 * 1024) },
     ]);
     expect(bomb.length).toBeLessThan(2 * 1024 * 1024);
-    const started = Date.now();
-    expect(await rejectionOf(() => open(bomb, 'xlsx'))).toMatch(/more data than is allowed/);
-    expect(Date.now() - started).toBeLessThan(20_000);
-  });
+
+    const rejected = await open(bomb, 'xlsx').then(
+      () => null,
+      (caught: unknown) => caught,
+    );
+    expect(rejected).toBeInstanceOf(UploadRejected);
+    expect((rejected as UploadRejected).message).toMatch(/more data than is allowed/);
+
+    // Counted bytes, not elapsed seconds: the worker stopped at the ceiling and
+    // did not inflate all 220 MB, however loaded the machine running this is.
+    const cause = (rejected as UploadRejected).cause as { inflatedBytes?: number };
+    expect(cause.inflatedBytes).toBeGreaterThan(IMPORT_LIMITS.maxInflatedBytes);
+    expect(cause.inflatedBytes).toBeLessThan(IMPORT_LIMITS.maxInflatedBytes + 1024 * 1024);
+  }, 120_000);
 
   it('rejects a workbook whose header lies about its size', async () => {
     const lying = buildZip([

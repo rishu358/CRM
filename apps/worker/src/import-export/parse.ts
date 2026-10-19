@@ -280,7 +280,9 @@ async function openXlsx(
   try {
     await inspectXlsxArchive(buffer);
   } catch (error) {
-    if (error instanceof UnsafeArchiveError) throw new UploadRejected(error.message);
+    if (error instanceof UnsafeArchiveError) {
+      throw new UploadRejected(error.message, { cause: error });
+    }
     throw error;
   }
 

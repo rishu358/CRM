@@ -118,15 +118,28 @@ describe('inspectXlsxArchive: a zip is a decompression bomb until proven otherwi
   });
 
   it('rejects a bomb that exceeds the total inflated ceiling, without inflating all of it', async () => {
-    const huge = Buffer.alloc(IMPORT_LIMITS.maxInflatedBytes + 50 * 1024 * 1024);
-    const started = Date.now();
-    const message = await rejection(
-      buildZip([...workbookParts(), { name: 'xl/worksheets/sheet2.xml', data: huge }]),
+    const overshoot = 50 * 1024 * 1024;
+    const huge = Buffer.alloc(IMPORT_LIMITS.maxInflatedBytes + overshoot);
+    const archive = buildZip([
+      ...workbookParts(),
+      { name: 'xl/worksheets/sheet2.xml', data: huge },
+    ]);
+
+    const error = await inspectXlsxArchive(archive).then(
+      () => null,
+      (caught: unknown) => caught,
     );
-    expect(message).toMatch(/more data than is allowed/);
-    // It stops counting at the budget; it does not finish a 250 MB inflate first.
-    expect(Date.now() - started).toBeLessThan(20_000);
-  });
+    expect(error).toBeInstanceOf(UnsafeArchiveError);
+    const refused = error as UnsafeArchiveError;
+    expect(refused.message).toMatch(/more data than is allowed/);
+
+    // It stopped counting at the budget instead of finishing a 250 MB inflate.
+    // Asserted on bytes, not on seconds: a time bound measures the machine and
+    // fails under load, while this is true however slow the run is.
+    expect(refused.inflatedBytes).toBeGreaterThan(IMPORT_LIMITS.maxInflatedBytes);
+    expect(refused.inflatedBytes).toBeLessThan(IMPORT_LIMITS.maxInflatedBytes + 1024 * 1024);
+    expect(refused.inflatedBytes).toBeLessThan(huge.length);
+  }, 120_000);
 
   it('rejects an archive whose header lies about an entry’s size', async () => {
     // Declares 10 bytes, really inflates to 100,000. A parser trusting the

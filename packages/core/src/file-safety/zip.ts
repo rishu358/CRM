@@ -27,9 +27,21 @@ import { IMPORT_LIMITS } from '../import-export/limits.js';
  */
 
 export class UnsafeArchiveError extends Error {
-  constructor(message: string) {
+  /**
+   * How many bytes had actually been inflated when the archive was refused, when
+   * it was refused for expanding too far.
+   *
+   * It exists so that "stops at the budget instead of inflating the whole bomb"
+   * is something a test can assert directly. The alternative, asserting that it
+   * finished within some number of seconds, measures the machine rather than the
+   * code and fails on a loaded CI runner.
+   */
+  readonly inflatedBytes: number | undefined;
+
+  constructor(message: string, options: { inflatedBytes?: number } = {}) {
     super(message);
     this.name = 'UnsafeArchiveError';
+    this.inflatedBytes = options.inflatedBytes;
   }
 }
 
@@ -124,7 +136,7 @@ export function readCentralDirectory(buffer: Buffer): ArchiveEntry[] {
 }
 
 /** Inflate one entry's data, counting real output and stopping at `budget` bytes. */
-function countInflated(data: Buffer, budget: number): Promise<number> {
+function countInflated(data: Buffer, budget: number, alreadyInflated: number): Promise<number> {
   return new Promise((resolve, reject) => {
     const inflate = createInflateRaw();
     let total = 0;
@@ -133,7 +145,11 @@ function countInflated(data: Buffer, budget: number): Promise<number> {
       total += chunk.length;
       if (total > budget) {
         inflate.destroy();
-        reject(new UnsafeArchiveError('The workbook expands to more data than is allowed'));
+        reject(
+          new UnsafeArchiveError('The workbook expands to more data than is allowed', {
+            inflatedBytes: alreadyInflated + total,
+          }),
+        );
       }
     });
     inflate.on('end', () => resolve(total));
@@ -171,7 +187,10 @@ export async function inspectXlsxArchive(buffer: Buffer): Promise<ArchiveReport>
 
     const data = buffer.subarray(start, end);
     const budget = IMPORT_LIMITS.maxInflatedBytes - inflatedBytes;
-    const actual = entry.method === METHOD_STORED ? data.length : await countInflated(data, budget);
+    const actual =
+      entry.method === METHOD_STORED
+        ? data.length
+        : await countInflated(data, budget, inflatedBytes);
 
     if (actual !== entry.declaredSize) {
       // The header lied. Whichever way it lied, a parser that trusts the
