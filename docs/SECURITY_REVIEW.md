@@ -520,6 +520,35 @@ Two decisions recorded rather than fixed:
   honoured, but the admin UI will have nothing to offer until those types
   exist. Worth closing before M9 ships the customization screen.
 
+## Dependency audit, and the one accepted exception
+
+`pnpm audit --audit-level=high` runs in CI (MVP_SPEC §8). It was failing on
+`master` — and had been since the job was written, unnoticed only because there
+is no remote yet and CI has never run. Three findings, all in **build-time
+dependencies**, none reachable from the deployed API, worker or web runtime:
+
+| Advisory            | Severity | Package                         | Reached through                                          | Fix available                                                                                       |
+| ------------------- | -------- | ------------------------------- | -------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| GHSA-vfj7-8cjw-p6xm | **high** | `braces` 3.0.3                  | `tailwindcss` → chokidar / fast-glob / micromatch        | **None.** The advisory covers `<=3.0.3` and 3.0.3 is the latest release                             |
+| GHSA-67mh-4wv8-2f99 | moderate | `esbuild` 0.18.20               | `drizzle-kit` → the deprecated `@esbuild-kit/*` packages | Yes (`>=0.25.0`), but not at that depth without forcing a major bump on a package that is abandoned |
+| GHSA-rj75-hqrm-r3gf | moderate | `postcss-selector-parser` 6.1.4 | `tailwindcss`                                            | Yes (`>=7.1.6`), a major bump inside Tailwind's own tree                                            |
+
+Only the first fails the gate, because the other two are below the threshold.
+
+**The high one is ignored explicitly**, via `pnpm.auditConfig.ignoreGhsas` in
+the root `package.json`, because there is nothing to upgrade to. An ignore list
+was chosen over narrowing the job to `--prod`: scoping it away would also hide
+every future dev-dependency advisory, including ones that do have fixes, and
+build tooling is a real supply-chain target. `pnpm audit` still prints
+`1 high (1 ignored)`, so the exception is visible in the log rather than
+silent, and **any other high finding still fails CI**.
+
+Revisit when: `braces` publishes a fix, or Tailwind is upgraded to v4 (which
+drops this dependency chain and would also clear the `postcss-selector-parser`
+finding). The `esbuild` one goes away with `drizzle-kit`, which is only kept
+for `pnpm db:generate`; migrations here are hand-written SQL, so that command
+has never actually been used and the dependency is a candidate for removal.
+
 ## Known gaps, deliberately
 
 These are not oversights; they belong to modules that have not been built.

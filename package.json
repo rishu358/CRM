@@ -39,6 +39,11 @@
       "typescript": "5.9.3",
       "eslint": "9.39.5",
       "fastify": "5.12.7"
+    },
+    "auditConfig": {
+      "ignoreGhsas": [
+        "GHSA-vfj7-8cjw-p6xm"
+      ]
     }
   }
 }
