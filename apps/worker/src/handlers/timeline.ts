@@ -38,6 +38,14 @@ const SUMMARIES: Readonly<Record<string, string>> = {
   // (ADR-0005). Worded per event by `describeChange`.
   'activity.linked.v1': 'Activity added',
   'activity.completed.v1': 'Activity completed',
+  // Restored from the Recycle Bin (MVP_SPEC M4). The timeline rows survive a
+  // soft delete deliberately, so the history a restored record comes back with
+  // now ends with the fact that it came back.
+  'account.restored.v1': 'Account restored',
+  'contact.restored.v1': 'Contact restored',
+  'lead.restored.v1': 'Lead restored',
+  'deal.restored.v1': 'Deal restored',
+  'activity.restored.v1': 'Activity restored',
 };
 
 export async function projectTimeline(tx: Tx, event: OutboxRow): Promise<void> {

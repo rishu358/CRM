@@ -7,6 +7,16 @@ const envSchema = z
     NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
     /** Connects as crm_worker: tenant-scoped, plus cross-tenant outbox reads. */
     DATABASE_WORKER_URL: z.string().min(1).optional(),
+    /**
+     * Connects as crm_erasure: the narrow audit-redaction path (ADR-0032).
+     *
+     * Optional, and deliberately so. A deployment that has not provisioned the
+     * role simply cannot erase — the erasure job fails the request loudly and
+     * says why, rather than erasing the record and leaving its history intact
+     * while reporting success. Optional also means every other worker job runs
+     * without these credentials being present at all.
+     */
+    DATABASE_ERASURE_URL: z.string().min(1).optional(),
     DATABASE_URL: z.string().min(1),
     DATABASE_POOL_MAX: z.coerce.number().int().positive().max(100).default(5),
     OUTBOX_POLL_INTERVAL_MS: z.coerce.number().int().positive().default(1000),

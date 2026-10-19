@@ -1,14 +1,15 @@
 # Security self-review
 
 Required by CLAUDE.md §11.5 after each module. This covers the foundation plus
-the Contacts, Auth, Accounts, Invitations, Deals, Leads, Activities, Search and
-Import/Export modules, reviewed against §5 rule by rule.
+the Contacts, Auth, Accounts, Invitations, Deals, Leads, Activities, Search,
+Import/Export and Audit/Recycle Bin/Data Rights modules, reviewed against §5
+rule by rule.
 
-Reviewed: 2026-10-18 · Scope: `packages/core`, `packages/db`, `apps/api`,
+Reviewed: 2026-10-19 · Scope: `packages/core`, `packages/db`, `apps/api`,
 `apps/worker`, `apps/web` (Accounts, Contacts, Auth, Invitations, Deals, Leads,
 Activities/My Day/Notifications, global search and the command palette, import
-and export with the object-storage package, and the generated OpenAPI
-document).
+and export with the object-storage package, the audit viewer, the Recycle Bin,
+DPDP/GDPR data rights, and the generated OpenAPI document).
 
 ## §5 rule by rule
 
@@ -23,9 +24,9 @@ document).
 | 7   | No SQL string concatenation; whitelisted sort/filter             | **Met**       | `contacts.sql-helpers.ts`, `accounts.sql-helpers.ts`, `deals.sql-helpers.ts`, `leads.sql-helpers.ts` and `activities.sql-helpers.ts` resolve every client-supplied key against field metadata; accounts also checks the filter **value** against the column type, so a bad one is a 422 rather than a driver error surfacing as a 500. Injection attempts through `sort` and `filter` are tested in both modules. Global search tokenizes the caller's string to bare words in `@crm/core` before any query language sees it, so no `&`, `\|`, `!`, `:` or quote reaches `to_tsquery`                                                                                                                                                                                                               |
 | 8   | Secrets from the environment; never logged                       | **Met**       | Validated env modules are the only readers; pino redaction list; `.env` is git-ignored                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | 9   | Secure cookies, CSRF, MFA, rate-limited auth, revocation         | **Met**       | Cookie is httpOnly/SameSite=Lax/Secure-in-prod, set server-side and never readable by page script (an E2E test asserts `document.cookie` and both web storages); CSRF origin checks on both cookie-authenticated routes; TOTP + backup codes with tenant-level enforcement in `AuthGuard`; progressive delay in `AuthThrottleService` plus a per-IP ceiling in `AuthRateLimitGuard`; revocation via `sessions_valid_from` in one write                                                                                                                                                                                                                                                                                                                                                              |
-| 10  | Audit create/update/delete, logins, exports, role changes        | **Partial**   | Accounts, Contacts, Deals, Leads and Activities CRUD (including attaching and detaching a polymorphic link) (a stage move included, with both stages in the diff; a lead conversion audited on the lead **and** on every record it creates), login, logout, password changes, **plus every invitation, acceptance and revocation**, each audited in the same transaction and append-only by withheld grants. A password change is audited in every workspace the user belongs to, because it affects access to all of them. **Import jobs (created, started, completed with counts) and every imported record (tagged with its job id), and every export (requested, finished with the row count, each download link issued)** are audited the same way. Permission-change auditing arrives with M3 |
-| 11  | CSV export with formula-injection escaping                       | **Met**       | `toExportCell` is the only route to an output file: every cell of the CSV and XLSX writers, the header row, and the import error file (which echoes the uploader's own cells), with no list of "columns to escape". Decided on the first non-whitespace character, so a leading space, NBSP or zero-width space does not hide a payload. Each trigger (`=` `+` `-` `@` tab CR, and LF) and each whitespace character is its own test on a system column, a custom field, a header and **imported data** (`export.security.spec.ts`), then the whole file is scanned. `export` is its own action, scoped, field-filtered, audited. ADR-0030 §8                                                                                                                                                       |
-| 12  | File type by magic bytes, presigned URLs                         | **Met**       | For every file that exists (import uploads, generated exports, error files): magic bytes **and** claim-vs-bytes (`magic-bytes.ts`); size signed into the presigned PUT; zip bombs measured, not declared (`zip.ts`); random keys; 5/10-minute presigned URLs; the API never reads or writes bytes (counted in tests); tampered size, type, key and expiry refused by a real MinIO. **Record attachments are not built** and must reuse this. ADR-0030                                                                                                                                                                                                                                                                                                                                               |
+| 10  | Audit create/update/delete, logins, exports, role changes        | **Partial**   | Accounts, Contacts, Deals, Leads and Activities CRUD (including attaching and detaching a polymorphic link) (a stage move included, with both stages in the diff; a lead conversion audited on the lead **and** on every record it creates), login, logout, password changes, **plus every invitation, acceptance and revocation**, each audited in the same transaction and append-only by withheld grants. A password change is audited in every workspace the user belongs to, because it affects access to all of them. **Import jobs (created, started, completed with counts) and every imported record (tagged with its job id), and every export (requested, finished with the row count, each download link issued)** are audited the same way. **M11 adds the reading half: `GET /audit-logs` for roles holding `audit_log:read` at `all` scope, with each diff filtered through the same `canReadField` as every other read path (`visibleAuditChanges` in `@crm/core`, 11 tests in `audit-log.security.spec.ts` and 10 in `visibility.spec.ts`), plus `restore`, `purge`, `erase` and `redact` entries for the Recycle Bin and data rights, and three new archive kinds audited on request, on completion and on each link issued. The query shape is asserted against the planner in `audit-query.perf.spec.ts` (ADR-0031).** Permission-change auditing is the one piece still missing and arrives with M3 |
+| 11  | CSV export with formula-injection escaping                       | **Met**       | `toExportCell` is the only route to an output file: every cell of the CSV and XLSX writers, the header row, and the import error file (which echoes the uploader's own cells), with no list of "columns to escape". Decided on the first non-whitespace character, so a leading space, NBSP or zero-width space does not hide a payload. Each trigger (`=` `+` `-` `@` tab CR, and LF) and each whitespace character is its own test on a system column, a custom field, a header and **imported data** (`export.security.spec.ts`), then the whole file is scanned. `export` is its own action, scoped, field-filtered, audited. **The three M11 archives go through the same writer: an audit-log CSV escapes every cell including the rendered diff, which holds values a user typed (`archive.security.spec.ts`). The whole-tenant and one-person archives are JSON only — a multi-table archive flattened into one CSV loses the links that make it answerable, and a zip of one file per table is the right shape and is deliberately not built (the API returns 422 rather than producing a lossy file).** ADR-0030 §8                                                                                                                                                       |
+| 12  | File type by magic bytes, presigned URLs                         | **Met**       | For every file that exists (import uploads, generated exports, error files): magic bytes **and** claim-vs-bytes (`magic-bytes.ts`); size signed into the presigned PUT; zip bombs measured, not declared (`zip.ts`); random keys; 5/10-minute presigned URLs; the API never reads or writes bytes (counted in tests); tampered size, type, key and expiry refused by a real MinIO. **Record attachments are not built** and must reuse this; when they are, the purge and erasure paths need a `<object>.purged.v1` subscriber to delete their bytes (ADR-0031 §7). The M11 archives use the same signing path under a separate `data-exports` key prefix, so an operator can give them their own lifecycle rule. ADR-0030                                                                                                                                                                                                                                                                                                                                               |
 | 13  | SSRF protection on outbound requests                             | **Not built** | No outbound requests exist yet                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | 14  | Rate limit per tenant **and** per user                           | **Met**       | Per-user/IP at the edge via `@fastify/rate-limit`; per-tenant in `TenantRateLimitService`, keyed on the membership-proven tenant so it cannot be spoofed                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | 15  | Say so when unsure                                               | —             | This document                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
@@ -420,6 +421,115 @@ and the finding below about `team` scope.
 - **No eager sweep of expired export files**; the API refuses their links and the
   bucket's lifecycle rule removes them.
 
+## Audit viewer, Recycle Bin and data rights (MVP_SPEC M4, M11), reviewed
+
+Three features, one of which forced a decision that had to be written down
+rather than made in passing.
+
+### The decision: erasure against an append-only log (ADR-0032)
+
+CLAUDE.md §5.10 makes the audit log append-only by **withholding** `UPDATE` and
+`DELETE` from `crm_app`, not by policy. DPDP §12 and GDPR Art. 17 require
+personal values to stop being readable, and MVP_SPEC M11 says the audit row is
+kept with values replaced by `[erased]`. That is an `UPDATE` on a table whose
+whole integrity story is that nothing can perform one.
+
+The honest answer is that erasure needs a separate privileged path, and
+[ADR-0032](adr/0032-erasure-against-an-append-only-audit-log.md) builds it as
+narrowly as Postgres allows:
+
+- a fifth role, **`crm_erasure`**, whose credentials the API never holds — only
+  the worker's erasure handler connects as it;
+- `GRANT UPDATE (changes)`, a **column** grant, so `action`, `actor_id`,
+  `occurred_at`, `object_type`, `record_id` and `ip_address` are beyond its
+  reach: who did what, to which record, when and from where survives any
+  erasure;
+- no `INSERT` and no `DELETE`, so it can neither fabricate nor remove history;
+- a **policy** admitting a row only while an `erasure_requests` row for that
+  exact subject says `processing` — a window the worker opens and closes as
+  `crm_worker`. Outside it the role sees zero rows;
+- nothing at all on `contacts`, `leads`, `deals` or `users`.
+
+`packages/db/src/erasure.security.spec.ts` asserts every one of those against a
+real Postgres, including that `crm_app` and `crm_worker` are both refused
+outright. The residual — a compromised worker could blank one subject's diffs in
+one tenant during an erasure it already controls — is stated in the ADR rather
+than papered over.
+
+### The hard part: field permissions over a diff
+
+MVP_SPEC M3 requires a hidden field to be absent from "API responses, exports,
+search results **or audit diffs** shown to that role". An audit diff is the read
+path where that is easiest to miss: the field is stripped from the record
+everywhere, and its value quietly survives in the history of the change that set
+it.
+
+`visibleAuditChanges` in `@crm/core` is the only route from `audit_logs.changes`
+to a response or a file, and it calls the same `canReadField` as
+`contacts.serializer.ts`. Three rules, each tested directly:
+
+1. a top-level key is kept only if the actor may read the field it names —
+   converted camelCase→snake_case, because a *mapping* with a missing entry fails
+   open while a conversion cannot;
+2. `customFields`, which `diffChanges` records as one blob holding every custom
+   value, is **split per key** and each key checked on its own, so a hidden
+   custom field cannot ride along inside a visible entry;
+3. a row about an object type the reader has no `read` grant on yields nothing —
+   reading history does not recover access a role was deliberately not given.
+
+It lives in `@crm/core` rather than in the API because the worker writes the
+exported copy of the same log, and the file and the screen must agree. The
+export test asserts the same hidden value is absent from the file.
+
+`withheldFields` is reported rather than the diff silently shrinking: an audit
+log that shows a reader less than happened, without saying so, is the worst
+failure mode an audit log has.
+
+### The constraints the task set, and where each is proved
+
+| Constraint                                                     | Where                                                                |
+| -------------------------------------------------------------- | -------------------------------------------------------------------- |
+| Tenant A's administrator cannot see tenant B's audit rows       | `audit-log.security.spec.ts` "tenant isolation", both directions      |
+| A non-administrator cannot reach the viewer at all              | same file: Sales Rep, Manager, Read-only, and a narrower-scope grant  |
+| The Recycle Bin does not list records outside the actor's scope | `recycle-bin.security.spec.ts` "record scope"                         |
+| The tenant export contains only that tenant's data              | `archive.security.spec.ts`, against a neighbour with similar data     |
+| The four mandatory §10 suites, per module                       | each module's `*.security.spec.ts`                                    |
+
+### What building these changed
+
+- **Three capabilities became object types** — `audit_log`, `tenant_data`,
+  `data_subject` — so reaching any of them is a row in `role_permissions`, not an
+  `if (role === 'Owner')`. Kept apart rather than folded into one `data_rights`
+  type because a whole-workspace archive, one person's file and an irreversible
+  erasure are not the same decision; one type would make granting the mildest
+  grant the most dangerous one.
+- **The audit viewer requires `all` scope.** `own` and `team` have no meaning on
+  a log, and a half-working scope is worse than a refusal that says why
+  (ADR-0031 §3).
+- **Every audit query is bounded in time**, defaulting to 30 days, because
+  `occurred_at` is the partition key. `audit-query.perf.spec.ts` asserts a bounded
+  window opens at most two partitions and an unbounded one opens many — the
+  negative case included, so the default stays load-bearing.
+- **Restore re-checks permission at restore time** and carries a `version`. It
+  does not inherit the right from whoever deleted the record; a rep whose
+  ownership moved cannot pull a record back into view.
+- **The purge schedules itself** as one outbox row per tenant, with a partial
+  unique index guaranteeing exactly one pending sweep, and cleans up polymorphic
+  links, tags, timeline rows, recently-viewed entries and stale index rows in the
+  same transaction as the record (ADR-0031 §6–7).
+- **The erasure's own audit entry carries counts, not values.** Recording what
+  was erased would make that row the last place the erased data lives.
+
+### Deliberately out of scope, and said so
+
+- Redaction reaches the subject's **own** audit rows. Rows about related
+  records — an activity mentioning the person, a deal named after them — are not
+  scanned for values; widening that has a real cost and belongs in its own ADR.
+- Whole-tenant and one-person archives are JSON only. CSV is refused with a 422
+  rather than producing a file that silently loses the structure.
+- The Recycle Bin has no "delete permanently now" action. The retention job is
+  the only hard-delete path for records, which keeps one place to reason about.
+
 ## The OpenAPI document (ADR-0027), reviewed
 
 Generated from the Zod contracts and served at `GET /api/v1/openapi.json`. It
@@ -748,3 +858,14 @@ These are not oversights; they belong to modules that have not been built.
 - **Better Auth supplies primitives here, not sessions** (ADR-0017). Its
   session store keeps the token in plaintext; ours keeps a SHA-256 digest.
   Anyone tempted to adopt more of the library should read that ADR first.
+- **There is exactly one statement in this system that updates `audit_logs`**,
+  it runs on the `crm_erasure` connection, and it can only rewrite the `changes`
+  column of rows belonging to a subject with an in-flight erasure request. If
+  anybody is about to widen that — or to grant `crm_app` `UPDATE` on the table
+  "just for a migration" — read ADR-0032 first. The alternative it rejected is
+  the obvious one.
+- **An audit diff is not metadata.** It holds the old and new *values* of
+  fields, so every read of it goes through `visibleAuditChanges`. A new read
+  path over `audit_logs.changes` that does not call it is a field-permission
+  leak, and the field being stripped everywhere else is exactly why nobody would
+  notice.

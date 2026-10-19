@@ -62,3 +62,22 @@ export function diffChanges(
   }
   return changes;
 }
+
+export * from './visibility.js';
+
+/**
+ * How far back the audit viewer looks when the caller does not say
+ * (MVP_SPEC M11).
+ *
+ * `occurred_at` is the audit log's partition key, so the date range is the
+ * difference between reading one month and reading every month this tenant has
+ * ever had. An unbounded default would be a correct-looking endpoint that falls
+ * over on the first customer with four years of history, so the default is
+ * bounded and a caller who wants more asks for it explicitly.
+ *
+ * Here rather than in `@crm/contracts` because the worker applies the same
+ * default when it writes the exported copy of the log, and the file and the
+ * screen must cover the same window.
+ */
+export const AUDIT_DEFAULT_WINDOW_DAYS = 30;
+export const AUDIT_DEFAULT_WINDOW_MS = AUDIT_DEFAULT_WINDOW_DAYS * 24 * 60 * 60 * 1000;

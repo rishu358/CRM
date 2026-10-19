@@ -23,6 +23,9 @@ const NAV: readonly { href: string; label: TranslationKey; ready: boolean }[] = 
   { href: '/deals', label: 'nav.deals', ready: true },
   { href: '/import', label: 'nav.import', ready: true },
   { href: '/settings/team', label: 'nav.team', ready: true },
+  { href: '/settings/audit-log', label: 'nav.auditLog', ready: true },
+  { href: '/settings/recycle-bin', label: 'nav.recycleBin', ready: true },
+  { href: '/settings/data-rights', label: 'nav.dataRights', ready: true },
   { href: '/settings/security', label: 'nav.settings', ready: true },
 ];
 

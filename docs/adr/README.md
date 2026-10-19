@@ -38,3 +38,5 @@ supersedes the old one and update the old one's **Status** to
 | [0028](0028-global-search-index.md)                     | Global search: a per-field index behind a provider interface    | Accepted |
 | [0029](0029-import-export-pipeline.md)                  | Import and export run in the worker, in idempotent chunks       | Accepted |
 | [0030](0030-file-handling-and-spreadsheet-safety.md)    | Files are untrusted bytes in a private store; spreadsheets are  | Accepted |
+| [0031](0031-audit-viewer-and-recycle-bin-retention.md)  | Reading the audit log, and emptying the Recycle Bin             | Accepted |
+| [0032](0032-erasure-against-an-append-only-audit-log.md) | Erasure against an append-only audit log: a fifth role         | Accepted |

@@ -19,6 +19,11 @@ export type AuditAction =
   | 'update'
   | 'delete'
   | 'restore'
+  /** A Recycle Bin record removed for good by the retention job (MVP_SPEC M4). */
+  | 'purge'
+  /** A DPDP/GDPR erasure, and the audit redaction it performs (MVP_SPEC M11). */
+  | 'erase'
+  | 'redact'
   | 'export'
   | 'import'
   | 'login'
