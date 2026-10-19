@@ -64,6 +64,16 @@ import {
   dealUpdateSchema,
   pipelineSchema,
 } from './deals.js';
+import { exportCreateSchema, exportJobSchema, exportParamsSchema } from './exports.js';
+import {
+  downloadLinkSchema,
+  importCreateResultSchema,
+  importCreateSchema,
+  importJobSchema,
+  importListQuerySchema,
+  importParamsSchema,
+  importStartSchema,
+} from './imports.js';
 import {
   invitationAcceptQuerySchema,
   invitationAcceptResultSchema,
@@ -983,6 +993,201 @@ const myDayRoutes: RouteDefinition[] = [
   },
 ];
 
+const importRoutes: RouteDefinition[] = [
+  {
+    method: 'POST',
+    path: '/imports',
+    operationId: 'createImport',
+    tag: 'Import',
+    summary: 'Start an import: declare a file, get a place to upload it',
+    description:
+      'Creates the job and returns a **presigned upload URL**. The file goes from the ' +
+      'browser straight to object storage and never through this API (CLAUDE.md §5.12). ' +
+      'The declared `sizeBytes` is bound into the signature, the storage key is random, ' +
+      'and the type is checked again on the uploaded **bytes**, not the name. Accepts an ' +
+      '`Idempotency-Key` header: a retry returns the job it already made.',
+    auth: 'session',
+    body: { name: 'ImportCreate', schema: importCreateSchema },
+    response: {
+      kind: 'object',
+      status: 201,
+      name: 'ImportCreateResponse',
+      description: 'The new job and the URL to upload to.',
+      data: importCreateResultSchema,
+    },
+    errors: [],
+  },
+  {
+    method: 'GET',
+    path: '/imports',
+    operationId: 'listImports',
+    tag: 'Import',
+    summary: 'Your imports',
+    description: 'Only the caller own jobs, newest first. Keyset-paginated.',
+    auth: 'session',
+    query: importListQuerySchema,
+    response: {
+      kind: 'list',
+      status: 200,
+      name: 'ImportListResponse',
+      description: 'A page of import jobs.',
+      data: importJobSchema,
+    },
+    errors: [],
+  },
+  {
+    method: 'GET',
+    path: '/imports/{id}',
+    operationId: 'getImport',
+    tag: 'Import',
+    summary: 'One import: progress, counts, and the mapping screen data',
+    description:
+      'While the job awaits a mapping this carries the file columns, a preview, and ' +
+      '`targets`: the fields this caller may map a column to, from live field metadata ' +
+      'and their field permissions. 404 for another user job or another tenant.',
+    auth: 'session',
+    params: importParamsSchema,
+    response: {
+      kind: 'object',
+      status: 200,
+      name: 'ImportResponse',
+      description: 'The job.',
+      data: importJobSchema,
+    },
+    errors: RECORD,
+  },
+  {
+    method: 'POST',
+    path: '/imports/{id}/uploaded',
+    operationId: 'confirmImportUpload',
+    tag: 'Import',
+    summary: 'Say the upload finished; analysis begins',
+    description:
+      'Checks the object exists and is the size that was declared, then queues analysis ' +
+      'in the worker, which verifies the type by magic bytes and applies the size, ' +
+      'row, column and decompression limits. A file that fails ends the job as ' +
+      '`rejected` with a reason.',
+    auth: 'session',
+    params: importParamsSchema,
+    response: {
+      kind: 'object',
+      status: 202,
+      name: 'ImportAcceptedResponse',
+      description: 'The job, now analyzing.',
+      data: importJobSchema,
+    },
+    errors: [...RECORD, ErrorCode.CONFLICT],
+  },
+  {
+    method: 'POST',
+    path: '/imports/{id}/start',
+    operationId: 'startImport',
+    tag: 'Import',
+    summary: 'Map the columns, choose duplicate handling, and run',
+    description:
+      'The mapping is validated against field metadata and **field-level write ' +
+      'permissions** before anything is queued. `owner_id`, `tenant_id`, `version` and the ' +
+      'like are not importable, so a column cannot be mapped onto them; records are ' +
+      'owned by the importer. Processing happens in the background, in idempotent ' +
+      'chunks (ADR-0029).',
+    auth: 'session',
+    params: importParamsSchema,
+    body: { name: 'ImportStart', schema: importStartSchema },
+    response: {
+      kind: 'object',
+      status: 202,
+      name: 'ImportStartedResponse',
+      description: 'The job, now running.',
+      data: importJobSchema,
+    },
+    errors: [...RECORD, ErrorCode.CONFLICT],
+  },
+  {
+    method: 'POST',
+    path: '/imports/{id}/error-file',
+    operationId: 'importErrorFileLink',
+    tag: 'Import',
+    summary: 'A short-lived link to the error file',
+    description:
+      'One row per failure: the row number, the reason, and the original values. Every ' +
+      'cell is formula-escaped. A POST because issuing the link is audited.',
+    auth: 'session',
+    params: importParamsSchema,
+    response: {
+      kind: 'object',
+      status: 200,
+      name: 'ImportErrorFileResponse',
+      description: 'A presigned download URL.',
+      data: downloadLinkSchema,
+    },
+    errors: [...RECORD, ErrorCode.CONFLICT],
+  },
+];
+
+const exportRoutes: RouteDefinition[] = [
+  {
+    method: 'POST',
+    path: '/exports',
+    operationId: 'createExport',
+    tag: 'Export',
+    summary: 'Export a list view',
+    description:
+      'Takes the same `filter`, `sort` and `q` as the list endpoint and runs them to ' +
+      'completion in the background, under the caller record scope and field ' +
+      'permissions. Needs the `export` action, which is separate from `read`. Audited. ' +
+      'Every cell is escaped against spreadsheet formula injection (CLAUDE.md §5.11). ' +
+      'Accepts an `Idempotency-Key` header.',
+    auth: 'session',
+    body: { name: 'ExportCreate', schema: exportCreateSchema },
+    response: {
+      kind: 'object',
+      status: 202,
+      name: 'ExportAcceptedResponse',
+      description: 'The queued export.',
+      data: exportJobSchema,
+    },
+    errors: [],
+  },
+  {
+    method: 'GET',
+    path: '/exports/{id}',
+    operationId: 'getExport',
+    tag: 'Export',
+    summary: 'An export progress',
+    auth: 'session',
+    params: exportParamsSchema,
+    response: {
+      kind: 'object',
+      status: 200,
+      name: 'ExportResponse',
+      description: 'The job.',
+      data: exportJobSchema,
+    },
+    errors: RECORD,
+  },
+  {
+    method: 'POST',
+    path: '/exports/{id}/download',
+    operationId: 'exportDownloadLink',
+    tag: 'Export',
+    summary: 'A short-lived download link',
+    description:
+      'A presigned URL that expires in minutes; the file is never streamed through this ' +
+      'API. A POST because handing out the link is the moment the data leaves, and that ' +
+      'is audited. Refused after the export expires.',
+    auth: 'session',
+    params: exportParamsSchema,
+    response: {
+      kind: 'object',
+      status: 200,
+      name: 'ExportDownloadResponse',
+      description: 'A presigned download URL.',
+      data: downloadLinkSchema,
+    },
+    errors: [...RECORD, ErrorCode.CONFLICT],
+  },
+];
+
 const searchRoutes: RouteDefinition[] = [
   {
     method: 'GET',
@@ -1162,6 +1367,8 @@ export const API_ROUTES: readonly RouteDefinition[] = [
   ...searchRoutes,
   ...notificationRoutes,
   ...invitationRoutes,
+  ...importRoutes,
+  ...exportRoutes,
 ];
 
 /** `GET /contacts/{id}` — how the drift test and the generator name a route. */

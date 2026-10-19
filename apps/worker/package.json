@@ -13,10 +13,14 @@
     "test:security": "vitest run --project security"
   },
   "dependencies": {
+    "@crm/contracts": "workspace:^",
     "@crm/core": "workspace:^",
     "@crm/db": "workspace:^",
+    "@crm/storage": "workspace:^",
+    "csv-parse": "^7.0.3",
     "dotenv": "^18.0.8",
     "drizzle-orm": "^0.45.4",
+    "exceljs": "^4.4.0",
     "pg": "^8.23.1",
     "pino": "^10.4.0",
     "zod": "^4.6.7"

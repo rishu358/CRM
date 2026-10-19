@@ -8,12 +8,14 @@ import {
 import type { Uuid } from '@crm/core';
 import { Fixtures, type TestDbUrls } from '@crm/db/testing';
 import { provisionTenantDefaults } from '@crm/db/seed';
+import type { MemoryStorageProvider } from '@crm/storage';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import pg from 'pg';
 import { createApp } from '../bootstrap.js';
 import { loadApiEnv, type ApiEnv } from '../config/env.js';
 import { SessionService } from '../auth/session.service.js';
 import { EMAIL_PROVIDER, type MemoryEmailProvider } from '../platform/email/email.provider.js';
+import { STORAGE_PROVIDER } from '../platform/storage/storage.tokens.js';
 
 /**
  * Boots the real application against the test database.
@@ -48,6 +50,14 @@ export interface ApiHarness {
    * does, rather than asserting on our storage.
    */
   readonly emails: MemoryEmailProvider;
+  /**
+   * The object store the app signs URLs against.
+   *
+   * In-memory, so a test can play the browser's part (`simulateUpload`) and can
+   * assert what the API did *not* do: it never reads or writes a file's bytes
+   * (CLAUDE.md §5.12), which `storage.reads` and `storage.writes` make countable.
+   */
+  readonly storage: MemoryStorageProvider;
   close(): Promise<void>;
 }
 
@@ -92,6 +102,8 @@ export async function startApiHarness(
     // Mail is captured rather than printed, so a test can read the token out
     // of the message the same way a user reads it out of their inbox.
     EMAIL_PROVIDER: 'memory',
+    // Files never touch the network in tests (ADR-0009).
+    STORAGE_PROVIDER: 'memory',
     // The throttle still engages and is still asserted on; what is shortened
     // is only how long the suite waits for it. Setting it to zero would let a
     // regression that removed the delay entirely pass unnoticed.
@@ -112,6 +124,7 @@ export async function startApiHarness(
   const searchProvider = new PostgresSearchProvider();
   const sessions = app.get(SessionService);
   const emails = app.get<MemoryEmailProvider>(EMAIL_PROVIDER);
+  const storage = app.get<MemoryStorageProvider>(STORAGE_PROVIDER);
 
   return {
     app,
@@ -124,6 +137,7 @@ export async function startApiHarness(
       return result.roleIdsByName;
     },
     emails,
+    storage,
     signIn: async (userId: string, tenantId: string) => {
       const { token } = await sessions.issue(userId, { tenantId });
       return token;
@@ -148,9 +162,11 @@ export async function request(
     token?: string | undefined;
     tenantId?: string | undefined;
     body?: unknown;
+    /** Extra request headers, e.g. `Idempotency-Key`. */
+    headers?: Record<string, string> | undefined;
   },
 ): Promise<{ status: number; body: Record<string, unknown> }> {
-  const headers: Record<string, string> = {};
+  const headers: Record<string, string> = { ...(options.headers ?? {}) };
   // Only declare a JSON body when there is one: Fastify rejects a request that
   // announces application/json and then sends nothing, which would turn every
   // bodyless DELETE into a 400 before the guard ever runs.

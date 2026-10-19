@@ -5,6 +5,8 @@ import { Fixtures } from './fixtures.js';
 export { captureDbError, INSUFFICIENT_PRIVILEGE } from './errors.js';
 export type { CapturedDbError } from './errors.js';
 export { Fixtures } from './fixtures.js';
+export { typedPool } from './typed-pool.js';
+export type { TestRow, TypedPool } from './typed-pool.js';
 export type { SeededTenant, SeededUser } from './fixtures.js';
 export type { TestDbUrls } from './global-setup.js';
 

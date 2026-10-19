@@ -218,7 +218,7 @@ P1: `record_lookup, formula, rollup, file`. Values are validated in `packages/co
 
 **Acceptance**
 
-- [ ] Importing 50,000 contacts completes without blocking the UI and reports created/updated/skipped/failed counts.
+- [x] Importing 50,000 contacts completes without blocking the UI and reports created/updated/skipped/failed counts. (`apps/worker/src/import-export/import.perf.spec.ts`; ADR-0029)
 
 ### M9. Customization (P0)
 

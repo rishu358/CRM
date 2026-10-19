@@ -6,6 +6,8 @@ import { flattenLeadPages, useCreateLead, useLeadList } from '../lib/leads';
 import { t } from '../lib/i18n';
 import { AppShell } from './app-shell';
 import { LeadsTable } from './leads-table';
+import { ExportButton } from './export-button';
+import { ImportLink } from './import-link';
 import { NewLeadDialog } from './new-lead-dialog';
 
 /**
@@ -109,6 +111,8 @@ export function LeadsPage() {
             placeholder={t('leads.searchPlaceholder')}
             className="h-9 w-56 rounded-md border border-input bg-background px-3 text-sm"
           />
+          <ImportLink objectType="lead" />
+          <ExportButton objectType="lead" q={search} sort="-created_at" />
           <Button onClick={() => setCreating(true)}>{t('leads.new')}</Button>
         </div>
       </header>

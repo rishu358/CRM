@@ -36,3 +36,5 @@ supersedes the old one and update the old one's **Status** to
 | [0026](0026-activity-ownership-is-the-assignee.md)      | An activity's owner is its assignee                             | Accepted |
 | [0027](0027-openapi-generated-from-contracts.md)        | OpenAPI generated from the Zod contracts, with a drift test     | Accepted |
 | [0028](0028-global-search-index.md)                     | Global search: a per-field index behind a provider interface    | Accepted |
+| [0029](0029-import-export-pipeline.md)                  | Import and export run in the worker, in idempotent chunks       | Accepted |
+| [0030](0030-file-handling-and-spreadsheet-safety.md)    | Files are untrusted bytes in a private store; spreadsheets are  | Accepted |

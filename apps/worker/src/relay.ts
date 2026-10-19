@@ -28,6 +28,20 @@ export interface OutboxRow {
 /** A handler runs inside a transaction already scoped to the event's tenant. */
 export type EventHandler = (tx: Tx, event: OutboxRow) => Promise<void>;
 
+/**
+ * Runs when an event has used up its attempts and will never be retried.
+ *
+ * It runs **after** the failing attempt's transaction has rolled back and after
+ * the event has been marked failed, in no transaction at all: the handler opens
+ * its own. That ordering is the point. A handler cannot record its own final
+ * failure from inside the attempt — the row it would write is locked by the
+ * very transaction that is about to be abandoned, so a second connection would
+ * wait on it forever — and an event that is silently given up on leaves
+ * whatever it was *about* stuck in an in-progress state with nobody told
+ * (ADR-0029: an import that never finishes and never fails).
+ */
+export type ExhaustedHandler = (event: OutboxRow, error: unknown) => Promise<void>;
+
 export interface RelayOptions {
   readonly batchSize?: number;
   readonly maxAttempts?: number;
@@ -35,7 +49,8 @@ export interface RelayOptions {
 }
 
 const DEFAULT_BATCH_SIZE = 50;
-const DEFAULT_MAX_ATTEMPTS = 8;
+/** Exported so a long-running handler can tell when this is its last try (ADR-0029). */
+export const DEFAULT_MAX_ATTEMPTS = 8;
 
 /**
  * Claim a batch of due events.
@@ -80,6 +95,7 @@ function backoffSeconds(attempts: number): number {
 
 export class OutboxRelay {
   private readonly handlers = new Map<string, EventHandler[]>();
+  private readonly exhaustedHandlers = new Map<string, ExhaustedHandler[]>();
 
   constructor(
     private readonly db: Database,
@@ -91,6 +107,14 @@ export class OutboxRelay {
     const existing = this.handlers.get(eventType) ?? [];
     existing.push(handler);
     this.handlers.set(eventType, existing);
+    return this;
+  }
+
+  /** Subscribe to the permanent failure of an event type. See `ExhaustedHandler`. */
+  onExhausted(eventType: string, handler: ExhaustedHandler): this {
+    const existing = this.exhaustedHandlers.get(eventType) ?? [];
+    existing.push(handler);
+    this.exhaustedHandlers.set(eventType, existing);
     return this;
   }
 
@@ -163,5 +187,19 @@ export class OutboxRelay {
                 where id = ${event.id}`,
       ),
     );
+
+    if (!exhausted) return;
+    for (const handler of this.exhaustedHandlers.get(event.event_type) ?? []) {
+      try {
+        await handler(event, error);
+      } catch (hookError) {
+        // The event is already marked failed; a broken hook must not take the
+        // relay down with it, but it must not vanish either.
+        this.options.logger.error(
+          { eventId: event.id, eventType: event.event_type },
+          `Exhaustion hook failed: ${hookError instanceof Error ? hookError.message : String(hookError)}`,
+        );
+      }
+    }
   }
 }

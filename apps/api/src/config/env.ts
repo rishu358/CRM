@@ -1,3 +1,4 @@
+import { storageEnvShape } from '@crm/storage';
 import { z } from 'zod';
 
 /**
@@ -42,6 +43,9 @@ const envSchema = z
     AUTH_THROTTLE_MAX_DELAY_MS: z.coerce.number().int().nonnegative().max(60_000).default(8000),
 
     EMAIL_PROVIDER: z.enum(['console', 'memory']).default('console'),
+
+    // Object storage for import files and generated exports (CLAUDE.md §5.12).
+    ...storageEnvShape,
     EMAIL_FROM: z.string().default('no-reply@localhost'),
 
     // Google sign-in is optional: the endpoints return 404 when it is not

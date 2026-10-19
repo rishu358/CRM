@@ -1,8 +1,10 @@
 export * from './client.js';
+export * from './actor.js';
 export * from './env.js';
 export * from './migrator.js';
 export * from './record-scope.js';
 export * from './search/index.js';
+export * from './import-export/index.js';
 export * as schema from './schema/index.js';
 export * from './schema/index.js';
 

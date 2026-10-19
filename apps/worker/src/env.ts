@@ -1,3 +1,4 @@
+import { storageEnvShape } from '@crm/storage';
 import { z } from 'zod';
 
 /** The only module in the worker that reads process.env (CLAUDE.md §5.8). */
@@ -22,6 +23,8 @@ const envSchema = z
      * differs between a demo and a live tenant.
      */
     DIGEST_WINDOW_MINUTES: z.coerce.number().int().positive().max(1440).default(15),
+    // Object storage for import files and generated exports (CLAUDE.md §5.12).
+    ...storageEnvShape,
     LOG_LEVEL: z.enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal']).default('info'),
   })
   .passthrough();
