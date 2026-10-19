@@ -18,9 +18,25 @@
  *   - `-` and `+` are there because `-1+1` is arithmetic, and because
  *     `-2+3+cmd|' /c calc'!A0` is the classic DDE payload.
  *   - tab and carriage return are there because Excel strips leading
- *     whitespace before deciding, so `\t=1+1` is a formula. `\n` is added
- *     here for the same reason: it costs an apostrophe on a value that began
- *     with a blank line, and it closes the identical hole.
+ *     whitespace before deciding, so `\t=1+1` is a formula.
+ *
+ * That reason is not specific to tab and carriage return. If whitespace is
+ * stripped before the decision, then `" =1+1"`, a non-breaking space, an em
+ * space and a zero-width space in front of `=` are the same formula, and a list
+ * of whitespace characters is a list with a member somebody forgot. So the rule
+ * is two-part and closes the class rather than its three listed members:
+ *
+ *   1. a cell whose **first character** is on the policy list is escaped,
+ *      whatever follows (CLAUDE.md §5.11 verbatim, plus `\n`); and
+ *   2. a cell whose **first non-whitespace character** is `=`, `+`, `-` or `@`
+ *      is escaped, where "whitespace" is every Unicode space (`\s`: NBSP, the
+ *      en/em/thin spaces, ideographic space, line and paragraph separators) and
+ *      the invisible characters that are not spaces but are not seen either
+ *      (zero-width space, joiner, non-joiner, word joiner, BOM).
+ *
+ * The apostrophe still goes at position 0, so the escape itself is unchanged.
+ * Over-escaping costs an apostrophe on a value that began with a dash after
+ * some spaces; under-escaping costs code execution on somebody's machine.
  *
  * ## Where it is applied
  *
@@ -38,12 +54,23 @@ export const FORMULA_TRIGGER_CHARACTERS: readonly string[] = ['=', '+', '-', '@'
 
 const TRIGGERS: ReadonlySet<string> = new Set(FORMULA_TRIGGER_CHARACTERS);
 
+/** What starts a formula once leading whitespace has been stripped. */
+const CODE_STARTERS: ReadonlySet<string> = new Set(['=', '+', '-', '@']);
+
+/** Whitespace, plus the invisible characters a spreadsheet may skip as well. */
+const LEADING_IGNORABLE = /^[\s\u200B-\u200D\u2060\uFEFF]*/u;
+
 /** The prefix that forces a cell to be read as text. */
 export const FORMULA_ESCAPE_PREFIX = "'";
 
 export function startsFormula(value: string): boolean {
   const first = value.charAt(0);
-  return first !== '' && TRIGGERS.has(first);
+  if (first === '') return false;
+  if (TRIGGERS.has(first)) return true;
+
+  const skipped = LEADING_IGNORABLE.exec(value)?.[0].length ?? 0;
+  const next = value.charAt(skipped);
+  return next !== '' && CODE_STARTERS.has(next);
 }
 
 /**
@@ -97,11 +124,7 @@ export function plainText(value: unknown): string {
  * undoing it opens nothing.
  */
 export function unescapeSpreadsheetCell(value: string): string {
-  if (
-    value.length > 1 &&
-    value.startsWith(FORMULA_ESCAPE_PREFIX) &&
-    TRIGGERS.has(value.charAt(1))
-  ) {
+  if (value.startsWith(FORMULA_ESCAPE_PREFIX) && startsFormula(value.slice(1))) {
     return value.slice(1);
   }
   return value;

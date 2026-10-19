@@ -70,6 +70,77 @@ describe('formula injection escaping (§5.11)', () => {
   });
 });
 
+/**
+ * The premise of escaping a leading tab, CR or LF is that Excel strips leading
+ * whitespace before deciding whether a cell is a formula. That premise covers
+ * every whitespace character, so each is its own case. Written out, not looped
+ * from the implementation's own character class: a loop would still pass if a
+ * character were removed from the class and from the test together.
+ */
+describe('leading whitespace does not hide a formula (§5.11)', () => {
+  const WHITESPACE: readonly [string, string][] = [
+    ['a space', ' '],
+    ['two spaces', '  '],
+    ['a non-breaking space', '\u00A0'],
+    ['a vertical tab', '\u000B'],
+    ['a form feed', '\u000C'],
+    ['an en space', '\u2002'],
+    ['an em space', '\u2003'],
+    ['a thin space', '\u2009'],
+    ['an ideographic space', '\u3000'],
+    ['a line separator', '\u2028'],
+    ['a paragraph separator', '\u2029'],
+    ['a zero-width space', '\u200B'],
+    ['a zero-width non-joiner', '\u200C'],
+    ['a zero-width joiner', '\u200D'],
+    ['a word joiner', '\u2060'],
+    ['a byte-order mark', '\uFEFF'],
+    ['a mix of them', ' \t\u00A0\u200B'],
+  ];
+
+  describe.each(WHITESPACE)('%s before the payload', (_name, space) => {
+    it.each(['=', '+', '-', '@'])('is escaped when the payload starts with %s', (starter) => {
+      const value = `${space}${starter}SUM(1:9)`;
+      expect(startsFormula(value)).toBe(true);
+      expect(escapeSpreadsheetCell(value)).toBe(`'${value}`);
+      expect(toExportCell(value)).toBe(`'${value}`);
+    });
+  });
+
+  it('escapes the cases in the review that found this', () => {
+    expect(escapeSpreadsheetCell(' =1+1')).toBe("' =1+1");
+    expect(escapeSpreadsheetCell('  =1+1')).toBe("'  =1+1");
+    expect(escapeSpreadsheetCell(' @SUM(1:9)')).toBe("' @SUM(1:9)");
+    expect(escapeSpreadsheetCell('\u00A0=1+1')).toBe("'\u00A0=1+1");
+  });
+
+  it('leaves whitespace before ordinary text, numbers and nothing at all alone', () => {
+    for (const value of [' hello', '\u00A0Acme', '  42', ' a=b', '   ', '\u200B', ' ']) {
+      expect(escapeSpreadsheetCell(value), JSON.stringify(value)).toBe(value);
+    }
+  });
+
+  it('still escapes a leading tab, CR or LF whatever follows (the policy, verbatim)', () => {
+    for (const value of ['\tplain', '\rplain', '\nplain']) {
+      expect(escapeSpreadsheetCell(value), JSON.stringify(value)).toBe(`'${value}`);
+    }
+  });
+
+  it('is not defeated by an apostrophe that is not ours', () => {
+    // After an apostrophe the cell is text in a spreadsheet; nothing to escape.
+    expect(escapeSpreadsheetCell("' =1+1")).toBe("' =1+1");
+  });
+
+  it('round-trips through unescape for each whitespace character', () => {
+    for (const [, space] of WHITESPACE) {
+      const original = `${space}=1+1`;
+      expect(unescapeSpreadsheetCell(escapeSpreadsheetCell(original))).toBe(original);
+    }
+    // And does not eat an apostrophe that was data.
+    expect(unescapeSpreadsheetCell("' hello")).toBe("' hello");
+  });
+});
+
 describe('toExportCell: the writer applies it to every value type', () => {
   it('escapes strings', () => {
     expect(toExportCell('=cmd')).toBe("'=cmd");

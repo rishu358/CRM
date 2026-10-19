@@ -135,7 +135,10 @@ test.describe('import', () => {
       page.getByRole('button', { name: 'Download the error file' }).click(),
     ]);
     const body = readFileSync(await download.path(), 'utf8');
-    const lines = body.replace(/^﻿/, '').trim().split('\r\n');
+    const lines = body
+      .replace(/^\uFEFF/, '')
+      .trim()
+      .split('\r\n');
     expect(lines[0]).toBe('Row,Field,Error,First name,Last name,Email');
     // Row 3 of *their* spreadsheet, the reason, and the original values.
     expect(lines[1]).toMatch(/^3,email,Email: /);
@@ -234,7 +237,7 @@ test.describe('export', () => {
     const raw = readFileSync(await download.path(), 'utf8');
 
     // Excel needs the byte-order mark to read UTF-8 correctly.
-    expect(raw.startsWith('﻿')).toBe(true);
+    expect(raw.startsWith('\uFEFF')).toBe(true);
     expect(raw).toContain('Last name');
 
     // Every payload is there, apostrophe-prefixed...
@@ -243,11 +246,12 @@ test.describe('export', () => {
     }
     // ...and no cell anywhere begins with a formula character.
     const cells = raw
-      .replace(/^﻿/, '')
+      .replace(/^\uFEFF/, '')
       .split('\r\n')
       .flatMap((line) => line.split(','));
     for (const cell of cells) {
-      expect(cell.replace(/^"/, '')).not.toMatch(/^[=+\-@\t\r]/);
+      // Looks past leading whitespace, as Excel does.
+      expect(cell.replace(/^"/, '')).not.toMatch(/^[\s\u200B-\u200D\u2060\uFEFF]*[=+\-@]/u);
     }
     expect(raw).toContain(`Plain-${id}`);
   });
