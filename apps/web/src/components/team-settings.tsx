@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  Avatar,
   Button,
   Card,
   CardBody,
@@ -9,8 +10,10 @@ import {
   ErrorState,
   Input,
   NoPermissionState,
+  PageHeader,
   Select,
   Skeleton,
+  TeamIcon,
 } from '@crm/ui';
 import { useState, type FormEvent } from 'react';
 import { FormError, FormNotice } from './auth-shell';
@@ -83,11 +86,8 @@ export function TeamSettings() {
   };
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6 p-4">
-      <header>
-        <h1 className="text-xl font-semibold tracking-tight">{t('team.title')}</h1>
-        <p className="mt-1 text-sm text-muted-foreground">{t('team.description')}</p>
-      </header>
+    <div className="max-w-2xl space-y-6">
+      <PageHeader className="mb-0" title={t('team.title')} description={t('team.description')} />
 
       {forbidden ? (
         <NoPermissionState
@@ -173,6 +173,7 @@ function PendingList({
   if (invitations.isError) {
     return (
       <ErrorState
+        compact
         title={t('team.error.title')}
         description={t('team.error.description')}
         action={
@@ -186,7 +187,14 @@ function PendingList({
 
   const rows = invitations.data.data;
   if (rows.length === 0) {
-    return <EmptyState title={t('team.empty.title')} description={t('team.empty.description')} />;
+    return (
+      <EmptyState
+        compact
+        icon={<TeamIcon className="h-5 w-5" />}
+        title={t('team.empty.title')}
+        description={t('team.empty.description')}
+      />
+    );
   }
 
   return (
@@ -194,7 +202,8 @@ function PendingList({
       <ul className="divide-y divide-border">
         {rows.map((invitation) => (
           <li key={invitation.id} className="flex items-center justify-between gap-4 py-3">
-            <div className="min-w-0">
+            <Avatar name={invitation.email} />
+            <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium">{invitation.email}</p>
               <p className="text-xs text-muted-foreground">
                 {invitation.roleName} ·{' '}

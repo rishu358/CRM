@@ -1,10 +1,11 @@
 'use client';
 
 import { flexRender, getCoreRowModel, useReactTable, type ColumnDef } from '@tanstack/react-table';
-import Link from 'next/link';
 import { useMemo } from 'react';
 import type { AccountRecord } from '../lib/accounts';
+import { SortableTh, Table, TableCard, THead, Td, Th, Tr } from '@crm/ui';
 import { DEFAULT_PREFERENCES, formatDate, formatMoney } from '../lib/format';
+import { EmptyCell, RecordLink } from './table-parts';
 import { t, type TranslationKey } from '../lib/i18n';
 
 /**
@@ -27,6 +28,9 @@ export interface AccountColumn {
   readonly label: TranslationKey;
   readonly sortKey: string;
 }
+
+/** Columns whose values are figures: right-aligned, tabular. */
+const NUMERIC_COLUMNS: ReadonlySet<string> = new Set(['annualRevenue', 'employeeCount']);
 
 export const ACCOUNT_COLUMNS: readonly AccountColumn[] = [
   { key: 'name', label: 'account.name', sortKey: 'name' },
@@ -111,19 +115,12 @@ export function AccountsTable({
         // clear, keyboard-reachable target rather than a click handler on <tr>.
         if (index === 0) {
           return (
-            <Link
-              href={`/accounts/${info.row.original.id}`}
-              className="font-medium text-primary underline-offset-4 hover:underline"
-            >
+            <RecordLink href={`/accounts/${info.row.original.id}`}>
               {text.length > 0 ? text : t('field.empty')}
-            </Link>
+            </RecordLink>
           );
         }
-        return text.length > 0 ? (
-          text
-        ) : (
-          <span className="text-muted-foreground">{t('field.empty')}</span>
-        );
+        return text.length > 0 ? text : <EmptyCell />;
       },
     }));
   }, [accounts, visibleColumns]);
@@ -140,65 +137,54 @@ export function AccountsTable({
   };
 
   return (
-    <div className="overflow-x-auto rounded-lg border border-border">
-      <table className="w-full border-collapse text-sm">
-        <thead className="bg-muted/50">
+    <TableCard>
+      <Table>
+        <THead>
           {table.getHeaderGroups().map((headerGroup) => (
-            <tr key={headerGroup.id}>
+            <Tr key={headerGroup.id} className="hover:bg-transparent">
               {headerGroup.headers.map((header) => {
                 const column = ACCOUNT_COLUMNS.find((candidate) => candidate.key === header.id);
-                const sorted = column !== undefined && active.field === column.sortKey;
+                const numeric = NUMERIC_COLUMNS.has(header.id);
+                if (column === undefined) {
+                  return (
+                    <Th key={header.id} numeric={numeric}>
+                      {flexRender(header.column.columnDef.header, header.getContext())}
+                    </Th>
+                  );
+                }
+                const sorted = active.field === column.sortKey;
                 return (
-                  <th
+                  <SortableTh
                     key={header.id}
-                    scope="col"
+                    numeric={numeric}
                     // Announced, not only drawn: a screen-reader user needs to
                     // know which column the list is ordered by (WCAG AA).
-                    aria-sort={
-                      sorted ? (active.descending ? 'descending' : 'ascending') : undefined
-                    }
-                    className="px-0 py-0 text-left font-medium text-muted-foreground"
+                    sorted={sorted ? (active.descending ? 'descending' : 'ascending') : undefined}
+                    onSort={() => toggleSort(column.sortKey)}
                   >
-                    {column === undefined ? (
-                      <span className="block px-4 py-2.5">
-                        {flexRender(header.column.columnDef.header, header.getContext())}
-                      </span>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => toggleSort(column.sortKey)}
-                        className="flex w-full items-center gap-1 px-4 py-2.5 text-left hover:text-foreground"
-                      >
-                        {flexRender(header.column.columnDef.header, header.getContext())}
-                        <span aria-hidden="true" className="text-xs">
-                          {sorted ? (active.descending ? '▾' : '▴') : ''}
-                        </span>
-                      </button>
-                    )}
-                  </th>
+                    {flexRender(header.column.columnDef.header, header.getContext())}
+                  </SortableTh>
                 );
               })}
-              <th scope="col" className="px-4 py-2.5 text-left font-medium text-muted-foreground">
-                {t('account.created')}
-              </th>
-            </tr>
+              <Th>{t('account.created')}</Th>
+            </Tr>
           ))}
-        </thead>
+        </THead>
         <tbody>
           {table.getRowModel().rows.map((row) => (
-            <tr key={row.id} className="border-t border-border hover:bg-accent/40">
+            <Tr key={row.id}>
               {row.getVisibleCells().map((cell) => (
-                <td key={cell.id} className="px-4 py-2.5">
+                <Td key={cell.id} numeric={NUMERIC_COLUMNS.has(cell.column.id)}>
                   {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                </td>
+                </Td>
               ))}
-              <td className="px-4 py-2.5 text-muted-foreground">
+              <Td className="figures whitespace-nowrap text-muted-foreground">
                 {formatDate(row.original.createdAt, DEFAULT_PREFERENCES)}
-              </td>
-            </tr>
+              </Td>
+            </Tr>
           ))}
         </tbody>
-      </table>
-    </div>
+      </Table>
+    </TableCard>
   );
 }

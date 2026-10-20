@@ -5,7 +5,9 @@ import { t } from '../lib/i18n';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: t('app.name'),
+  // WCAG 2.4.2: every page has a title that says what it is. Pages set their
+  // own and this appends the product name: "Deals · CRM".
+  title: { default: t('app.name'), template: `%s · ${t('app.name')}` },
   description: 'Multi-tenant CRM',
 };
 

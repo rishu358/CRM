@@ -1,7 +1,7 @@
 'use client';
 
 import { passwordProblems } from '@crm/core/auth';
-import { Badge, Button, Card, CardBody, CardHeader, Input, Skeleton } from '@crm/ui';
+import { Badge, Button, Card, CardBody, CardHeader, Input, PageHeader, Skeleton } from '@crm/ui';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, type FormEvent } from 'react';
 import { FormError, FormNotice } from './auth-shell';
@@ -33,11 +33,12 @@ import {
  */
 export function SecuritySettings() {
   return (
-    <div className="mx-auto max-w-2xl space-y-6 p-4">
-      <header>
-        <h1 className="text-xl font-semibold tracking-tight">{t('security.title')}</h1>
-        <p className="mt-1 text-sm text-muted-foreground">{t('security.description')}</p>
-      </header>
+    <div className="max-w-2xl space-y-6">
+      <PageHeader
+        className="mb-0"
+        title={t('security.title')}
+        description={t('security.description')}
+      />
       <PasswordCard />
       <MfaCard />
       <SessionsCard />

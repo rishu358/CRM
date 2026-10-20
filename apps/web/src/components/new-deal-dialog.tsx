@@ -1,7 +1,7 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Button, Input } from '@crm/ui';
+import { Button, Dialog, Input, Select } from '@crm/ui';
 import { dealCreateSchema } from '@crm/contracts';
 import { fromMajorString } from '@crm/core';
 import { z } from 'zod';
@@ -68,14 +68,6 @@ export function NewDealDialog({
     setFocus('name');
   }, [setFocus]);
 
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
-    };
-    document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
-  }, [onClose]);
-
   const submit = handleSubmit((values) => {
     const payload: Record<string, unknown> = { name: values.name, pipelineId };
 
@@ -99,75 +91,55 @@ export function NewDealDialog({
   });
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/30 p-4">
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="new-deal-title"
-        className="w-full max-w-md rounded-lg border border-border bg-card p-6 shadow-lg"
-      >
-        <h2 id="new-deal-title" className="mb-4 text-base font-semibold">
-          {t('deals.new')}
-        </h2>
+    <Dialog title={t('deals.new')} closeLabel={t('common.close')} onClose={onClose}>
+      {/* noValidate: Zod owns validation, and its messages render as role="alert". */}
+      <form onSubmit={(event) => void submit(event)} noValidate className="space-y-4">
+        <Input
+          label={t('deal.name')}
+          aria-required="true"
+          error={errors.name === undefined ? undefined : t('error.required')}
+          {...register('name')}
+        />
 
-        {/* noValidate: Zod owns validation, and its messages render as role="alert". */}
-        <form onSubmit={(event) => void submit(event)} noValidate className="space-y-4">
+        <div className="grid grid-cols-[1fr_6rem] gap-3">
           <Input
-            label={t('deal.name')}
-            aria-required="true"
-            error={errors.name === undefined ? undefined : t('error.required')}
-            {...register('name')}
+            label={t('deal.amount')}
+            inputMode="decimal"
+            hint="1500.75"
+            error={errors.amountText?.message}
+            {...register('amountText')}
           />
+          <Select id="new-deal-currency" label={t('deal.currency')} {...register('currency')}>
+            {[...new Set([defaultCurrency, ...CURRENCIES])].map((code) => (
+              <option key={code} value={code}>
+                {code}
+              </option>
+            ))}
+          </Select>
+        </div>
 
-          <div className="grid grid-cols-[1fr_6rem] gap-3">
-            <Input
-              label={t('deal.amount')}
-              inputMode="decimal"
-              hint="1500.75"
-              error={errors.amountText?.message}
-              {...register('amountText')}
-            />
-            <div className="flex flex-col gap-1.5">
-              <label htmlFor="new-deal-currency" className="text-sm font-medium">
-                {t('deal.currency')}
-              </label>
-              <select
-                id="new-deal-currency"
-                className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
-                {...register('currency')}
-              >
-                {[...new Set([defaultCurrency, ...CURRENCIES])].map((code) => (
-                  <option key={code} value={code}>
-                    {code}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
+        <Input
+          label={t('deal.expectedCloseDate')}
+          type="date"
+          error={errors.expectedCloseDate === undefined ? undefined : t('deal.error.date')}
+          {...register('expectedCloseDate', { setValueAs: blankToUndefined })}
+        />
 
-          <Input
-            label={t('deal.expectedCloseDate')}
-            type="date"
-            error={errors.expectedCloseDate === undefined ? undefined : t('deal.error.date')}
-            {...register('expectedCloseDate', { setValueAs: blankToUndefined })}
-          />
+        {error !== null ? (
+          <p role="alert" className="text-sm text-destructive">
+            {error.message}
+          </p>
+        ) : null}
 
-          {error !== null ? (
-            <p role="alert" className="text-sm text-destructive">
-              {error.message}
-            </p>
-          ) : null}
-
-          <div className="flex justify-end gap-2 pt-2">
-            <Button type="button" variant="ghost" onClick={onClose}>
-              {t('field.cancel')}
-            </Button>
-            <Button type="submit" loading={pending}>
-              {t('field.save')}
-            </Button>
-          </div>
-        </form>
-      </div>
-    </div>
+        <div className="flex justify-end gap-2 pt-2">
+          <Button type="button" variant="ghost" onClick={onClose}>
+            {t('field.cancel')}
+          </Button>
+          <Button type="submit" loading={pending}>
+            {t('field.save')}
+          </Button>
+        </div>
+      </form>
+    </Dialog>
   );
 }

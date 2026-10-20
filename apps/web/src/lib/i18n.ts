@@ -372,6 +372,7 @@ const en = {
   'deals.column.unconverted': 'Not in total: no exchange rate for {currencies}',
   'deals.card.move': 'Move {name} to',
   'deals.card.moveLabel': 'Stage',
+  'deals.board.showStage': 'Show stage',
   'deals.card.dragHint': 'Drag to another column, or use the stage menu',
   'deals.move.failed': 'Could not move that deal. It has been put back.',
   'deals.move.conflict': 'Someone else changed this deal first. The board has been refreshed.',
@@ -490,6 +491,11 @@ const en = {
   'palette.action.goToTeam': 'Go to team',
 
   'nav.import': 'Import',
+  'import.steps': 'Import progress',
+  'import.step.file': 'Choose file',
+  'import.step.map': 'Match columns',
+  'import.step.import': 'Import',
+  'import.step.done': 'Done',
   'import.title': 'Import records',
   'import.subtitle':
     'Upload a CSV or Excel file, match its columns to fields, and the records are added in the background.',
@@ -579,6 +585,35 @@ const en = {
 
   'common.loading': 'Loading',
   'common.retry': 'Try again',
+  'common.close': 'Close',
+  'common.openMenu': 'Open menu',
+  'common.skipToContent': 'Skip to content',
+  'common.search': 'Search',
+  'common.clearSearch': 'Clear search',
+
+  'nav.primary': 'Main navigation',
+  'nav.collapse': 'Collapse sidebar',
+  'nav.expand': 'Expand sidebar',
+
+  'shortcuts.title': 'Keyboard shortcuts',
+  'shortcuts.open': 'Keyboard shortcuts',
+  'shortcuts.hint': 'Press ? for shortcuts',
+  'shortcuts.description':
+    'Single keys work anywhere you are not typing in a field. Nothing here does more than the buttons do.',
+  'shortcuts.group.anywhere': 'Anywhere',
+  'shortcuts.group.lists': 'On a list',
+  'shortcuts.group.goTo': 'Go to',
+  'shortcuts.palette': 'Search records and run commands',
+  'shortcuts.search': 'Search from anywhere',
+  'shortcuts.help': 'Show this list',
+  'shortcuts.create': 'Create a record on this screen',
+  'shortcuts.close': 'Close a dialog or menu',
+  'shortcuts.then': 'then',
+  'shortcuts.goToPending': 'Go to…',
+  'shortcuts.singleKey': 'Single-key shortcuts',
+  'shortcuts.singleKey.hint':
+    'Turn this off if letter keys trigger things while you use voice control or an assistive keyboard. Ctrl or ⌘ + K always works.',
+  'invite.pageTitle': 'Accept invitation',
 } as const;
 
 export type TranslationKey = keyof typeof en;

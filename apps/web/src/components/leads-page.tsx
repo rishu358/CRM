@@ -1,9 +1,23 @@
 'use client';
 
-import { Button, EmptyState, ErrorState, NoPermissionState, TableSkeleton } from '@crm/ui';
+import {
+  Button,
+  EmptyState,
+  ErrorState,
+  LeadsIcon,
+  NoResultsIcon,
+  ListFooter,
+  NoPermissionState,
+  PageHeader,
+  PlusIcon,
+  SearchField,
+  TableSkeleton,
+  Toolbar,
+} from '@crm/ui';
 import { useState } from 'react';
 import { flattenLeadPages, useCreateLead, useLeadList } from '../lib/leads';
 import { t } from '../lib/i18n';
+import { useCreateShortcut } from '../lib/shortcuts';
 import { AppShell } from './app-shell';
 import { LeadsTable } from './leads-table';
 import { ExportButton } from './export-button';
@@ -21,12 +35,15 @@ export function LeadsPage() {
   const [search, setSearch] = useState('');
   const [creating, setCreating] = useState(false);
 
+  // `C` does what the New button does, on whichever list is on screen.
+  useCreateShortcut(() => setCreating(true));
+
   const query = useLeadList(search);
   const create = useCreateLead();
   const leads = flattenLeadPages(query.data);
 
   const content = () => {
-    if (query.isPending) return <TableSkeleton rows={8} columns={5} />;
+    if (query.isPending) return <TableSkeleton rows={8} columns={5} label={t('common.loading')} />;
 
     if (query.isError) {
       if (query.error.status === 403) {
@@ -56,11 +73,12 @@ export function LeadsPage() {
       // name would be unhelpful.
       return search.length > 0 ? (
         <EmptyState
+          icon={<NoResultsIcon className="h-5 w-5" />}
           title={t('leads.noResults.title')}
           description={t('leads.noResults.description')}
           action={
             <Button variant="outline" onClick={() => setSearch('')}>
-              {t('field.cancel')}
+              {t('common.clearSearch')}
             </Button>
           }
         />
@@ -68,7 +86,16 @@ export function LeadsPage() {
         <EmptyState
           title={t('leads.empty.title')}
           description={t('leads.empty.description')}
-          action={<Button onClick={() => setCreating(true)}>{t('leads.empty.action')}</Button>}
+          icon={<LeadsIcon className="h-5 w-5" />}
+          action={
+            <>
+              <Button onClick={() => setCreating(true)}>
+                <PlusIcon className="h-4 w-4" />
+                {t('leads.empty.action')}
+              </Button>
+              <ImportLink objectType="lead" />
+            </>
+          }
         />
       );
     }
@@ -76,46 +103,56 @@ export function LeadsPage() {
     return (
       <div className="space-y-4">
         <LeadsTable leads={leads} />
-        <div className="flex items-center justify-between text-sm text-muted-foreground">
-          <span aria-live="polite">
-            {leads.length} {t('leads.count')}
-          </span>
-          {query.hasNextPage ? (
-            <Button
-              variant="outline"
-              size="sm"
-              loading={query.isFetchingNextPage}
-              onClick={() => void query.fetchNextPage()}
-            >
-              {t('leads.loadMore')}
-            </Button>
-          ) : null}
-        </div>
+        <ListFooter
+          end={
+            query.hasNextPage ? (
+              <Button
+                variant="outline"
+                size="sm"
+                loading={query.isFetchingNextPage}
+                onClick={() => void query.fetchNextPage()}
+              >
+                {t('leads.loadMore')}
+              </Button>
+            ) : undefined
+          }
+        >
+          {leads.length} {t('leads.count')}
+        </ListFooter>
       </div>
     );
   };
 
   return (
     <AppShell>
-      <header className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-xl font-semibold tracking-tight">{t('leads.title')}</h1>
-        <div className="flex items-center gap-2">
-          <label className="sr-only" htmlFor="lead-search">
-            {t('leads.search')}
-          </label>
-          <input
+      <PageHeader
+        title={t('leads.title')}
+        actions={
+          <Button onClick={() => setCreating(true)} aria-keyshortcuts="C">
+            <PlusIcon className="h-4 w-4" />
+            {t('leads.new')}
+          </Button>
+        }
+      />
+
+      <Toolbar
+        start={
+          <SearchField
             id="lead-search"
-            type="search"
+            label={t('leads.search')}
             value={search}
             onChange={(event) => setSearch(event.target.value)}
             placeholder={t('leads.searchPlaceholder')}
-            className="h-9 w-56 rounded-md border border-input bg-background px-3 text-sm"
+            wrapperClassName="w-full sm:w-72"
           />
-          <ImportLink objectType="lead" />
-          <ExportButton objectType="lead" q={search} sort="-created_at" />
-          <Button onClick={() => setCreating(true)}>{t('leads.new')}</Button>
-        </div>
-      </header>
+        }
+        end={
+          <>
+            <ImportLink objectType="lead" />
+            <ExportButton objectType="lead" q={search} sort="-created_at" />
+          </>
+        }
+      />
 
       {content()}
 

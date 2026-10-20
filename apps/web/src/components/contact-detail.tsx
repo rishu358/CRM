@@ -7,8 +7,10 @@ import {
   Card,
   CardBody,
   CardHeader,
+  CardSkeleton,
   ErrorState,
   NoPermissionState,
+  PageHeader,
   Skeleton,
 } from '@crm/ui';
 import Link from 'next/link';
@@ -17,6 +19,7 @@ import { DEFAULT_PREFERENCES, formatDateTime, formatName } from '../lib/format';
 import { t } from '../lib/i18n';
 import { useRecordView } from '../lib/activities';
 import { AppShell } from './app-shell';
+import { BackLink } from './back-link';
 import { ActivityPanel } from './activity-panel';
 import { InlineField } from './inline-field';
 
@@ -58,9 +61,10 @@ export function ContactDetail({ id }: { id: string }) {
   if (query.isPending) {
     return (
       <AppShell>
-        <div className="space-y-4">
+        <div className="space-y-5">
+          <Skeleton className="h-4 w-28" />
           <Skeleton className="h-8 w-64" />
-          <Skeleton className="h-64 w-full" />
+          <CardSkeleton rows={7} label={t('common.loading')} />
         </div>
       </AppShell>
     );
@@ -101,18 +105,10 @@ export function ContactDetail({ id }: { id: string }) {
 
   return (
     <AppShell>
-      <nav className="mb-4">
-        <Link
-          href="/contacts"
-          className="text-sm text-muted-foreground underline-offset-4 hover:underline"
-        >
-          {t('contact.backToList')}
-        </Link>
-      </nav>
-
-      <h1 className="mb-6 text-xl font-semibold tracking-tight">
-        {formatName(contact) || t('field.empty')}
-      </h1>
+      <PageHeader
+        back={<BackLink href="/contacts">{t('contact.backToList')}</BackLink>}
+        title={formatName(contact) || t('field.empty')}
+      />
 
       {conflicted ? (
         <div
@@ -136,37 +132,49 @@ export function ContactDetail({ id }: { id: string }) {
         </div>
       ) : null}
 
-      <Card>
-        <CardHeader title={t('contact.details')} />
-        <CardBody className="divide-y divide-border">
-          {EDITABLE_FIELDS.filter((field) => field.key in record).map((field) => (
-            <InlineField
-              key={field.key}
-              label={t(field.label)}
-              type={field.type}
-              value={record[field.key] as string | null | undefined}
-              onSave={(next) => {
-                update.mutate({
-                  id: contact.id,
-                  version: contact.version,
-                  patch: { [field.key]: next },
-                });
-              }}
-            />
-          ))}
+      {/*
+        Details beside the timeline from `xl`, stacked below it. The timeline is
+        "one timeline per record" (UX §5): it should be on screen with the
+        fields, not a scroll away from them.
+      */}
+      <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_26rem]">
+        <div className="min-w-0 space-y-6">
+          <Card>
+            <CardHeader title={t('contact.details')} />
+            <CardBody className="divide-y divide-border px-5 py-1">
+              {EDITABLE_FIELDS.filter((field) => field.key in record).map((field) => (
+                <InlineField
+                  key={field.key}
+                  label={t(field.label)}
+                  type={field.type}
+                  value={record[field.key] as string | null | undefined}
+                  onSave={(next) => {
+                    update.mutate({
+                      id: contact.id,
+                      version: contact.version,
+                      patch: { [field.key]: next },
+                    });
+                  }}
+                />
+              ))}
 
-          <div className="grid grid-cols-[10rem_1fr] gap-3 py-2 text-sm">
-            <span className="text-muted-foreground">{t('contact.created')}</span>
-            <span>{formatDateTime(contact.createdAt, DEFAULT_PREFERENCES)}</span>
-          </div>
-          <div className="grid grid-cols-[10rem_1fr] gap-3 py-2 text-sm">
-            <span className="text-muted-foreground">{t('contact.updated')}</span>
-            <span>{formatDateTime(contact.updatedAt, DEFAULT_PREFERENCES)}</span>
-          </div>
-        </CardBody>
-      </Card>
-
-      <ActivityPanel objectType="contact" recordId={id} />
+              <div className="grid grid-cols-[10rem_1fr] items-start gap-3 py-1 text-sm">
+                <span className="pt-1.5 text-muted-foreground">{t('contact.created')}</span>
+                <span className="px-2 pt-1.5">
+                  {formatDateTime(contact.createdAt, DEFAULT_PREFERENCES)}
+                </span>
+              </div>
+              <div className="grid grid-cols-[10rem_1fr] items-start gap-3 py-1 text-sm">
+                <span className="pt-1.5 text-muted-foreground">{t('contact.updated')}</span>
+                <span className="px-2 pt-1.5">
+                  {formatDateTime(contact.updatedAt, DEFAULT_PREFERENCES)}
+                </span>
+              </div>
+            </CardBody>
+          </Card>
+        </div>
+        <ActivityPanel objectType="contact" recordId={id} />
+      </div>
     </AppShell>
   );
 }

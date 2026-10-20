@@ -1,6 +1,23 @@
 'use client';
 
-import { Button, EmptyState, ErrorState, NoPermissionState, Select, TableSkeleton } from '@crm/ui';
+import {
+  BoardViewIcon,
+  Button,
+  DealsIcon,
+  EmptyState,
+  ErrorState,
+  ListFooter,
+  ListViewIcon,
+  NoPermissionState,
+  NoResultsIcon,
+  PageHeader,
+  PlusIcon,
+  SearchField,
+  SegmentedControl,
+  Select,
+  TableSkeleton,
+  Toolbar,
+} from '@crm/ui';
 import { useEffect, useState } from 'react';
 import {
   flattenDealPages,
@@ -11,6 +28,7 @@ import {
 } from '../lib/deals';
 import { t } from '../lib/i18n';
 import { consumeIntent, onIntent } from '../lib/palette-intent';
+import { useCreateShortcut } from '../lib/shortcuts';
 import { AppShell } from './app-shell';
 import { DealsBoard } from './deals-board';
 import { DealsTable } from './deals-table';
@@ -32,6 +50,9 @@ export function DealsPage() {
   const [sort, setSort] = useState('-created_at');
   const [chosenPipelineId, setChosenPipelineId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+
+  // `C` does what the New button does, on whichever list is on screen.
+  useCreateShortcut(() => setCreating(true));
 
   const pipelines = usePipelines();
   const create = useCreateDeal();
@@ -71,7 +92,8 @@ export function DealsPage() {
     board.data !== undefined && board.data.data.columns.every((column) => column.count === 0);
 
   const content = () => {
-    if (pipelines.isPending) return <TableSkeleton rows={6} columns={4} />;
+    if (pipelines.isPending)
+      return <TableSkeleton rows={6} columns={4} label={t('common.loading')} />;
 
     if (pipelines.isError) {
       if (pipelines.error.status === 403) {
@@ -97,7 +119,11 @@ export function DealsPage() {
 
     if (pipeline === undefined) {
       return (
-        <EmptyState title={t('deals.empty.title')} description={t('deals.empty.description')} />
+        <EmptyState
+          icon={<DealsIcon className="h-5 w-5" />}
+          title={t('deals.empty.title')}
+          description={t('deals.empty.description')}
+        />
       );
     }
 
@@ -108,16 +134,22 @@ export function DealsPage() {
     if (boardIsEmpty && search.length === 0) {
       return (
         <EmptyState
+          icon={<DealsIcon className="h-5 w-5" />}
           title={t('deals.empty.title')}
           description={t('deals.empty.description')}
-          action={<Button onClick={() => setCreating(true)}>{t('deals.empty.action')}</Button>}
+          action={
+            <Button onClick={() => setCreating(true)}>
+              <PlusIcon className="h-4 w-4" />
+              {t('deals.empty.action')}
+            </Button>
+          }
         />
       );
     }
 
     if (view === 'board') return <DealsBoard pipeline={pipeline} search={search} />;
 
-    if (list.isPending) return <TableSkeleton rows={8} columns={5} />;
+    if (list.isPending) return <TableSkeleton rows={8} columns={5} label={t('common.loading')} />;
 
     if (list.isError) {
       return (
@@ -136,11 +168,12 @@ export function DealsPage() {
     if (listed.length === 0) {
       return (
         <EmptyState
+          icon={<NoResultsIcon className="h-5 w-5" />}
           title={t('deals.noResults.title')}
           description={t('deals.noResults.description')}
           action={
             <Button variant="outline" onClick={() => setSearch('')}>
-              {t('field.cancel')}
+              {t('common.clearSearch')}
             </Button>
           }
         />
@@ -150,90 +183,98 @@ export function DealsPage() {
     return (
       <div className="space-y-4">
         <DealsTable deals={listed} stages={pipeline.stages} sort={sort} onSortChange={setSort} />
-        <div className="flex items-center justify-between text-sm text-muted-foreground">
-          <span aria-live="polite">
-            {listed.length} {t('deals.count')}
-          </span>
-          {list.hasNextPage ? (
-            <Button
-              variant="outline"
-              size="sm"
-              loading={list.isFetchingNextPage}
-              onClick={() => void list.fetchNextPage()}
-            >
-              {t('deals.loadMore')}
-            </Button>
-          ) : null}
-        </div>
+        <ListFooter
+          end={
+            list.hasNextPage ? (
+              <Button
+                variant="outline"
+                size="sm"
+                loading={list.isFetchingNextPage}
+                onClick={() => void list.fetchNextPage()}
+              >
+                {t('deals.loadMore')}
+              </Button>
+            ) : undefined
+          }
+        >
+          {listed.length} {t('deals.count')}
+        </ListFooter>
       </div>
     );
   };
 
   return (
     <AppShell>
-      <header className="mb-6 flex flex-wrap items-end justify-between gap-3">
-        <h1 className="text-xl font-semibold tracking-tight">{t('deals.title')}</h1>
-        <div className="flex flex-wrap items-end gap-2">
-          {available.length > 1 && pipeline !== undefined ? (
-            <Select
-              label={t('deals.pipeline')}
-              value={pipeline.id}
-              onChange={(event) => setChosenPipelineId(event.target.value)}
-              className="w-44"
-            >
-              {available.map((candidate) => (
-                <option key={candidate.id} value={candidate.id}>
-                  {candidate.name}
-                </option>
-              ))}
-            </Select>
-          ) : null}
-
-          <div
-            role="group"
-            aria-label={t('deals.view')}
-            className="flex rounded-md border border-input"
+      <PageHeader
+        title={t('deals.title')}
+        actions={
+          <Button
+            onClick={() => setCreating(true)}
+            disabled={pipeline === undefined}
+            aria-keyshortcuts="C"
           >
-            {(['board', 'list'] as const).map((option) => (
-              <button
-                key={option}
-                type="button"
-                aria-pressed={view === option}
-                onClick={() => setView(option)}
-                className={
-                  view === option
-                    ? 'h-9 bg-accent px-3 text-sm font-medium text-accent-foreground'
-                    : 'h-9 px-3 text-sm text-muted-foreground hover:bg-accent'
-                }
-              >
-                {option === 'board' ? t('deals.view.board') : t('deals.view.list')}
-              </button>
-            ))}
-          </div>
-
-          <label className="sr-only" htmlFor="deal-search">
-            {t('deals.search')}
-          </label>
-          <input
-            id="deal-search"
-            type="search"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder={t('deals.searchPlaceholder')}
-            className="h-9 w-48 rounded-md border border-input bg-background px-3 text-sm"
-          />
-          {/* Deals are exported, not imported: a row would have to name a pipeline and a stage. */}
-          <ExportButton
-            objectType="deal"
-            q={search}
-            sort={sort}
-            filter={pipeline === undefined ? undefined : [`pipeline_id:eq:${pipeline.id}`]}
-          />
-          <Button onClick={() => setCreating(true)} disabled={pipeline === undefined}>
+            <PlusIcon className="h-4 w-4" />
             {t('deals.new')}
           </Button>
-        </div>
-      </header>
+        }
+      />
+
+      <Toolbar
+        start={
+          <>
+            {available.length > 1 && pipeline !== undefined ? (
+              <Select
+                label={t('deals.pipeline')}
+                value={pipeline.id}
+                onChange={(event) => setChosenPipelineId(event.target.value)}
+                className="w-48"
+              >
+                {available.map((candidate) => (
+                  <option key={candidate.id} value={candidate.id}>
+                    {candidate.name}
+                  </option>
+                ))}
+              </Select>
+            ) : null}
+            <SearchField
+              id="deal-search"
+              label={t('deals.search')}
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder={t('deals.searchPlaceholder')}
+              wrapperClassName="w-full sm:w-64"
+            />
+          </>
+        }
+        end={
+          <>
+            <SegmentedControl<View>
+              label={t('deals.view')}
+              value={view}
+              onChange={setView}
+              options={[
+                {
+                  value: 'board',
+                  label: t('deals.view.board'),
+                  icon: <BoardViewIcon className="h-4 w-4" />,
+                },
+                {
+                  value: 'list',
+                  label: t('deals.view.list'),
+                  icon: <ListViewIcon className="h-4 w-4" />,
+                },
+              ]}
+            />
+            {/* Deals are exported, not imported: a row would have to name a pipeline and a stage. */}
+            <ExportButton
+              objectType="deal"
+              q={search}
+              sort={sort}
+              filter={pipeline === undefined ? undefined : [`pipeline_id:eq:${pipeline.id}`]}
+            />
+          </>
+        }
+      />
 
       {content()}
 

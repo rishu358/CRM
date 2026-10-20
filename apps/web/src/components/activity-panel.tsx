@@ -8,7 +8,12 @@ import {
   CardHeader,
   EmptyState,
   ErrorState,
+  MeetingIcon,
+  NoteIcon,
+  PhoneIcon,
+  PlusIcon,
   Skeleton,
+  TaskIcon,
 } from '@crm/ui';
 import { useEffect, useState } from 'react';
 import {
@@ -54,11 +59,12 @@ export function ActivityPanel({
   const activities = query.data?.data ?? [];
 
   return (
-    <Card className="mt-6">
+    <Card>
       <CardHeader
         title={t('activities.title')}
         actions={
           <Button size="sm" onClick={() => setComposing(true)}>
+            <PlusIcon className="h-4 w-4" />
             {t('activities.new')}
           </Button>
         }
@@ -71,6 +77,7 @@ export function ActivityPanel({
           </div>
         ) : query.isError ? (
           <ErrorState
+            compact
             title={t('activities.error.title')}
             description={t('activities.error.description')}
             action={
@@ -81,6 +88,8 @@ export function ActivityPanel({
           />
         ) : activities.length === 0 ? (
           <EmptyState
+            compact
+            icon={<TaskIcon className="h-5 w-5" />}
             title={t('activities.empty.title')}
             description={t('activities.empty.description')}
             action={
@@ -184,7 +193,7 @@ function ActivityRow({
       {activity.type !== 'note' ? (
         <input
           type="checkbox"
-          className="mt-1 h-4 w-4 shrink-0 rounded border-border"
+          className="mt-1 h-4 w-4 shrink-0 cursor-pointer"
           checked={checked}
           aria-label={t('activities.complete', { subject: activity.subject ?? '' })}
           onChange={(event) => {
@@ -201,7 +210,10 @@ function ActivityRow({
           <span className={checked ? 'text-muted-foreground line-through' : 'font-medium'}>
             {activity.subject}
           </span>
-          <Badge tone="neutral">{t(typeLabelKey(activity.type))}</Badge>
+          <Badge tone="neutral">
+            {typeIcon(activity.type)}
+            {t(typeLabelKey(activity.type))}
+          </Badge>
           {activity.priority === 'high' ? (
             <Badge tone="warning">{t('activities.priority.high')}</Badge>
           ) : null}
@@ -239,6 +251,21 @@ function ActivityRow({
       </div>
     </li>
   );
+}
+
+function typeIcon(type: ActivityRecord['type']) {
+  const className = 'h-3 w-3';
+  switch (type) {
+    case 'call':
+      return <PhoneIcon aria-hidden="true" className={className} />;
+    case 'meeting':
+      return <MeetingIcon aria-hidden="true" className={className} />;
+    case 'note':
+      return <NoteIcon aria-hidden="true" className={className} />;
+    case 'task':
+    case undefined:
+      return <TaskIcon aria-hidden="true" className={className} />;
+  }
 }
 
 function typeLabelKey(type: ActivityRecord['type']) {

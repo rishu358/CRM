@@ -1,7 +1,7 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Button, Input, Select } from '@crm/ui';
+import { Button, Dialog, Input, Select } from '@crm/ui';
 import { leadCreateSchema } from '@crm/contracts';
 import { type z } from 'zod';
 import { useEffect, useState } from 'react';
@@ -76,14 +76,6 @@ export function NewLeadDialog({
     setFocus('lastName');
   }, [setFocus]);
 
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
-    };
-    document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
-  }, [onClose]);
-
   const submit = handleSubmit(async (values) => {
     const body: Record<string, unknown> = { lastName: values.lastName };
     for (const key of ['firstName', 'company', 'email', 'phone', 'source'] as const) {
@@ -113,20 +105,77 @@ export function NewLeadDialog({
   });
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/30 p-4">
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="new-lead-title"
-        className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-lg border border-border bg-card p-6 shadow-lg"
-      >
-        {matches !== null && payload !== null ? (
-          <div className="space-y-4" data-testid="duplicate-prompt">
-            <h2 id="new-lead-title" className="text-base font-semibold">
-              {t('duplicate.title')}
-            </h2>
-            <p className="text-sm text-muted-foreground">{t('duplicate.description')}</p>
-            <DuplicateMatches matches={matches} />
+    <Dialog
+      title={matches !== null && payload !== null ? t('duplicate.title') : t('leads.new')}
+      description={matches !== null && payload !== null ? t('duplicate.description') : undefined}
+      closeLabel={t('common.close')}
+      onClose={onClose}
+    >
+      {matches !== null && payload !== null ? (
+        <div className="space-y-4" data-testid="duplicate-prompt">
+          <DuplicateMatches matches={matches} />
+
+          {error !== null ? (
+            <p role="alert" className="text-sm text-destructive">
+              {error.message}
+            </p>
+          ) : null}
+
+          <div className="flex justify-end gap-2 pt-2">
+            <Button type="button" variant="ghost" onClick={() => setMatches(null)}>
+              {t('duplicate.back')}
+            </Button>
+            <Button type="button" loading={pending} onClick={() => onSubmit(payload)}>
+              {t('duplicate.createAnyway')}
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <>
+          {/*
+              noValidate: the browser's own validation bubble would pre-empt ours,
+              and it cannot be styled, translated, or announced consistently. Zod
+              owns validation here, and the messages render as role="alert".
+            */}
+          <form onSubmit={(event) => void submit(event)} noValidate className="space-y-4">
+            <Input
+              label={t('lead.firstName')}
+              {...register('firstName', { setValueAs: blankToUndefined })}
+            />
+            <Input
+              label={t('lead.lastName')}
+              aria-required="true"
+              error={errors.lastName === undefined ? undefined : t('error.required')}
+              {...register('lastName')}
+            />
+            <Input
+              label={t('lead.company')}
+              {...register('company', { setValueAs: blankToUndefined })}
+            />
+            <Input
+              label={t('lead.email')}
+              type="email"
+              error={errors.email?.message}
+              {...register('email', { setValueAs: blankToUndefined })}
+            />
+            <Input
+              label={t('lead.phone')}
+              hint="+919876543210"
+              error={errors.phone?.message}
+              {...register('phone', { setValueAs: blankToUndefined })}
+            />
+            <Select
+              label={t('lead.source')}
+              defaultValue=""
+              {...register('source', { setValueAs: blankToUndefined })}
+            >
+              <option value="">{t('field.empty')}</option>
+              {SOURCES.map((source) => (
+                <option key={source} value={source}>
+                  {source.replace('_', ' ')}
+                </option>
+              ))}
+            </Select>
 
             {error !== null ? (
               <p role="alert" className="text-sm text-destructive">
@@ -135,83 +184,16 @@ export function NewLeadDialog({
             ) : null}
 
             <div className="flex justify-end gap-2 pt-2">
-              <Button type="button" variant="ghost" onClick={() => setMatches(null)}>
-                {t('duplicate.back')}
+              <Button type="button" variant="ghost" onClick={onClose}>
+                {t('field.cancel')}
               </Button>
-              <Button type="button" loading={pending} onClick={() => onSubmit(payload)}>
-                {t('duplicate.createAnyway')}
+              <Button type="submit" loading={pending || check.isPending}>
+                {t('field.save')}
               </Button>
             </div>
-          </div>
-        ) : (
-          <>
-            <h2 id="new-lead-title" className="mb-4 text-base font-semibold">
-              {t('leads.new')}
-            </h2>
-
-            {/*
-              noValidate: the browser's own validation bubble would pre-empt ours,
-              and it cannot be styled, translated, or announced consistently. Zod
-              owns validation here, and the messages render as role="alert".
-            */}
-            <form onSubmit={(event) => void submit(event)} noValidate className="space-y-4">
-              <Input
-                label={t('lead.firstName')}
-                {...register('firstName', { setValueAs: blankToUndefined })}
-              />
-              <Input
-                label={t('lead.lastName')}
-                aria-required="true"
-                error={errors.lastName === undefined ? undefined : t('error.required')}
-                {...register('lastName')}
-              />
-              <Input
-                label={t('lead.company')}
-                {...register('company', { setValueAs: blankToUndefined })}
-              />
-              <Input
-                label={t('lead.email')}
-                type="email"
-                error={errors.email?.message}
-                {...register('email', { setValueAs: blankToUndefined })}
-              />
-              <Input
-                label={t('lead.phone')}
-                hint="+919876543210"
-                error={errors.phone?.message}
-                {...register('phone', { setValueAs: blankToUndefined })}
-              />
-              <Select
-                label={t('lead.source')}
-                defaultValue=""
-                {...register('source', { setValueAs: blankToUndefined })}
-              >
-                <option value="">{t('field.empty')}</option>
-                {SOURCES.map((source) => (
-                  <option key={source} value={source}>
-                    {source.replace('_', ' ')}
-                  </option>
-                ))}
-              </Select>
-
-              {error !== null ? (
-                <p role="alert" className="text-sm text-destructive">
-                  {error.message}
-                </p>
-              ) : null}
-
-              <div className="flex justify-end gap-2 pt-2">
-                <Button type="button" variant="ghost" onClick={onClose}>
-                  {t('field.cancel')}
-                </Button>
-                <Button type="submit" loading={pending || check.isPending}>
-                  {t('field.save')}
-                </Button>
-              </div>
-            </form>
-          </>
-        )}
-      </div>
-    </div>
+          </form>
+        </>
+      )}
+    </Dialog>
   );
 }

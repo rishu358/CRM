@@ -1,9 +1,23 @@
 'use client';
 
-import { Button, EmptyState, ErrorState, NoPermissionState, TableSkeleton } from '@crm/ui';
+import {
+  Button,
+  EmptyState,
+  ErrorState,
+  AccountsIcon,
+  NoResultsIcon,
+  ListFooter,
+  NoPermissionState,
+  PageHeader,
+  PlusIcon,
+  SearchField,
+  TableSkeleton,
+  Toolbar,
+} from '@crm/ui';
 import { useMemo, useState } from 'react';
 import { flattenAccountPages, useAccountList, useCreateAccount } from '../lib/accounts';
 import { t } from '../lib/i18n';
+import { useCreateShortcut } from '../lib/shortcuts';
 import { AppShell } from './app-shell';
 import { ACCOUNT_COLUMNS, AccountsTable, DEFAULT_ACCOUNT_COLUMNS } from './accounts-table';
 import { ColumnChooser } from './column-chooser';
@@ -23,6 +37,9 @@ export function AccountsPage() {
   const [sort, setSort] = useState('-created_at');
   const [visibleColumns, setVisibleColumns] = useState<string[]>([...DEFAULT_ACCOUNT_COLUMNS]);
   const [creating, setCreating] = useState(false);
+
+  // `C` does what the New button does, on whichever list is on screen.
+  useCreateShortcut(() => setCreating(true));
 
   const query = useAccountList(search, sort);
   const create = useCreateAccount();
@@ -44,7 +61,7 @@ export function AccountsPage() {
   }, [accounts]);
 
   const content = () => {
-    if (query.isPending) return <TableSkeleton rows={8} columns={5} />;
+    if (query.isPending) return <TableSkeleton rows={8} columns={5} label={t('common.loading')} />;
 
     if (query.isError) {
       if (query.error.status === 403) {
@@ -74,11 +91,12 @@ export function AccountsPage() {
       // mistyped a name would be unhelpful.
       return search.length > 0 ? (
         <EmptyState
+          icon={<NoResultsIcon className="h-5 w-5" />}
           title={t('accounts.noResults.title')}
           description={t('accounts.noResults.description')}
           action={
             <Button variant="outline" onClick={() => setSearch('')}>
-              {t('field.cancel')}
+              {t('common.clearSearch')}
             </Button>
           }
         />
@@ -86,7 +104,16 @@ export function AccountsPage() {
         <EmptyState
           title={t('accounts.empty.title')}
           description={t('accounts.empty.description')}
-          action={<Button onClick={() => setCreating(true)}>{t('accounts.empty.action')}</Button>}
+          icon={<AccountsIcon className="h-5 w-5" />}
+          action={
+            <>
+              <Button onClick={() => setCreating(true)}>
+                <PlusIcon className="h-4 w-4" />
+                {t('accounts.empty.action')}
+              </Button>
+              <ImportLink objectType="account" />
+            </>
+          }
         />
       );
     }
@@ -99,53 +126,63 @@ export function AccountsPage() {
           sort={sort}
           onSortChange={setSort}
         />
-        <div className="flex items-center justify-between text-sm text-muted-foreground">
-          <span aria-live="polite">
-            {accounts.length} {t('accounts.count')}
-          </span>
-          {query.hasNextPage ? (
-            <Button
-              variant="outline"
-              size="sm"
-              loading={query.isFetchingNextPage}
-              onClick={() => void query.fetchNextPage()}
-            >
-              {t('accounts.loadMore')}
-            </Button>
-          ) : null}
-        </div>
+        <ListFooter
+          end={
+            query.hasNextPage ? (
+              <Button
+                variant="outline"
+                size="sm"
+                loading={query.isFetchingNextPage}
+                onClick={() => void query.fetchNextPage()}
+              >
+                {t('accounts.loadMore')}
+              </Button>
+            ) : undefined
+          }
+        >
+          {accounts.length} {t('accounts.count')}
+        </ListFooter>
       </div>
     );
   };
 
   return (
     <AppShell>
-      <header className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-xl font-semibold tracking-tight">{t('accounts.title')}</h1>
-        <div className="flex items-center gap-2">
-          <label className="sr-only" htmlFor="account-search">
-            {t('accounts.search')}
-          </label>
-          <input
+      <PageHeader
+        title={t('accounts.title')}
+        actions={
+          <Button onClick={() => setCreating(true)} aria-keyshortcuts="C">
+            <PlusIcon className="h-4 w-4" />
+            {t('accounts.new')}
+          </Button>
+        }
+      />
+
+      <Toolbar
+        start={
+          <SearchField
             id="account-search"
-            type="search"
+            label={t('accounts.search')}
             value={search}
             onChange={(event) => setSearch(event.target.value)}
             placeholder={t('accounts.searchPlaceholder')}
-            className="h-9 w-56 rounded-md border border-input bg-background px-3 text-sm"
+            wrapperClassName="w-full sm:w-72"
           />
-          {choosableColumns.length > 0 ? (
-            <ColumnChooser
-              options={choosableColumns}
-              selected={visibleColumns}
-              onChange={setVisibleColumns}
-            />
-          ) : null}
-          <ImportLink objectType="account" />
-          <ExportButton objectType="account" q={search} sort={sort} />
-          <Button onClick={() => setCreating(true)}>{t('accounts.new')}</Button>
-        </div>
-      </header>
+        }
+        end={
+          <>
+            {choosableColumns.length > 0 ? (
+              <ColumnChooser
+                options={choosableColumns}
+                selected={visibleColumns}
+                onChange={setVisibleColumns}
+              />
+            ) : null}
+            <ImportLink objectType="account" />
+            <ExportButton objectType="account" q={search} sort={sort} />
+          </>
+        }
+      />
 
       {content()}
 

@@ -1,10 +1,10 @@
 'use client';
 
-import { Badge } from '@crm/ui';
-import Link from 'next/link';
+import { Badge, SortableTh, Table, TableCard, THead, Td, Th, Tr } from '@crm/ui';
 import type { DealRecord, StageRecord } from '../lib/deals';
 import { DEFAULT_PREFERENCES, formatDate, formatMoney } from '../lib/format';
 import { t, type TranslationKey } from '../lib/i18n';
+import { EmptyCell, RecordLink } from './table-parts';
 
 /**
  * The deals list view.
@@ -30,6 +30,9 @@ const COLUMNS: readonly Column[] = [
   { key: 'probability', label: 'deal.probability', sortKey: 'probability' },
   { key: 'expectedCloseDate', label: 'deal.expectedCloseDate', sortKey: 'expected_close_date' },
 ];
+
+/** Columns whose values are figures: right-aligned, tabular. */
+const NUMERIC_COLUMNS: ReadonlySet<string> = new Set(['amount', 'probability']);
 
 export function DealsTable({
   deals,
@@ -61,14 +64,7 @@ export function DealsTable({
   const cell = (deal: DealRecord, column: Column) => {
     switch (column.key) {
       case 'name':
-        return (
-          <Link
-            href={`/deals/${deal.id}`}
-            className="font-medium text-primary underline-offset-4 hover:underline"
-          >
-            {deal.name ?? t('field.empty')}
-          </Link>
-        );
+        return <RecordLink href={`/deals/${deal.id}`}>{deal.name ?? t('field.empty')}</RecordLink>;
       case 'stageId': {
         const stage = deal.stageId === undefined ? undefined : stageById.get(deal.stageId);
         if (stage === undefined) return null;
@@ -102,60 +98,49 @@ export function DealsTable({
   };
 
   return (
-    <div className="overflow-x-auto rounded-lg border border-border">
-      <table className="w-full border-collapse text-sm">
-        <thead className="bg-muted/50">
-          <tr>
+    <TableCard>
+      <Table>
+        <THead>
+          <Tr className="hover:bg-transparent">
             {columns.map((column) => {
-              const sorted = column.sortKey !== null && active.field === column.sortKey;
+              const numeric = NUMERIC_COLUMNS.has(column.key);
+              if (column.sortKey === null) {
+                return (
+                  <Th key={column.key} numeric={numeric}>
+                    {t(column.label)}
+                  </Th>
+                );
+              }
+              const sortKey = column.sortKey;
+              const sorted = active.field === sortKey;
               return (
-                <th
+                <SortableTh
                   key={column.key}
-                  scope="col"
-                  aria-sort={sorted ? (active.descending ? 'descending' : 'ascending') : undefined}
-                  className="whitespace-nowrap px-3 py-2 text-left font-medium text-muted-foreground"
+                  numeric={numeric}
+                  sorted={sorted ? (active.descending ? 'descending' : 'ascending') : undefined}
+                  onSort={() => toggleSort(sortKey)}
                 >
-                  {column.sortKey === null ? (
-                    t(column.label)
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => toggleSort(column.sortKey as string)}
-                      className="inline-flex items-center gap-1 rounded-sm hover:text-foreground"
-                    >
-                      {t(column.label)}
-                      {sorted ? (
-                        <span aria-hidden="true">{active.descending ? '↓' : '↑'}</span>
-                      ) : null}
-                      {sorted ? (
-                        <span className="sr-only">
-                          {active.descending
-                            ? t('deals.sortedDescending')
-                            : t('deals.sortedAscending')}
-                        </span>
-                      ) : null}
-                    </button>
-                  )}
-                </th>
+                  {t(column.label)}
+                </SortableTh>
               );
             })}
-          </tr>
-        </thead>
+          </Tr>
+        </THead>
         <tbody>
           {deals.map((deal) => (
-            <tr key={deal.id} className="border-t border-border">
+            <Tr key={deal.id}>
               {columns.map((column) => {
                 const content = cell(deal, column);
                 return (
-                  <td key={column.key} className="px-3 py-2">
-                    {content ?? <span className="text-muted-foreground">{t('field.empty')}</span>}
-                  </td>
+                  <Td key={column.key} numeric={NUMERIC_COLUMNS.has(column.key)}>
+                    {content ?? <EmptyCell />}
+                  </Td>
                 );
               })}
-            </tr>
+            </Tr>
           ))}
         </tbody>
-      </table>
-    </div>
+      </Table>
+    </TableCard>
   );
 }

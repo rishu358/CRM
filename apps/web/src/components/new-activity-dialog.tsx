@@ -1,7 +1,7 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Button, Input, Select } from '@crm/ui';
+import { Button, Dialog, Input, Select } from '@crm/ui';
 import { activityCreateSchema } from '@crm/contracts';
 import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
@@ -62,14 +62,6 @@ export function NewActivityDialog({
     setFocus('subject');
   }, [setFocus]);
 
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
-    };
-    document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
-  }, [onClose]);
-
   const type = watch('type');
 
   const submit = handleSubmit((values, event) => {
@@ -92,60 +84,49 @@ export function NewActivityDialog({
   });
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/30 p-4">
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="new-activity-title"
-        className="w-full max-w-md rounded-lg border border-border bg-card p-6 shadow-lg"
-      >
-        <h2 id="new-activity-title" className="mb-4 text-base font-semibold">
-          {t('activities.new')}
-        </h2>
+    <Dialog title={t('activities.new')} closeLabel={t('common.close')} onClose={onClose}>
+      <form onSubmit={(event) => void submit(event)} noValidate className="space-y-4">
+        <Select label={t('activities.field.type')} {...register('type')}>
+          <option value="task">{t('activities.type.task')}</option>
+          <option value="call">{t('activities.type.call')}</option>
+          <option value="meeting">{t('activities.type.meeting')}</option>
+          <option value="note">{t('activities.type.note')}</option>
+        </Select>
 
-        <form onSubmit={(event) => void submit(event)} noValidate className="space-y-4">
-          <Select label={t('activities.field.type')} {...register('type')}>
-            <option value="task">{t('activities.type.task')}</option>
-            <option value="call">{t('activities.type.call')}</option>
-            <option value="meeting">{t('activities.type.meeting')}</option>
-            <option value="note">{t('activities.type.note')}</option>
-          </Select>
+        <Input
+          label={t('activities.field.subject')}
+          aria-required="true"
+          error={errors.subject === undefined ? undefined : t('error.required')}
+          {...register('subject')}
+        />
 
-          <Input
-            label={t('activities.field.subject')}
-            aria-required="true"
-            error={errors.subject === undefined ? undefined : t('error.required')}
-            {...register('subject')}
-          />
+        {type !== 'note' ? (
+          <Input label={t('activities.field.dueAt')} type="datetime-local" name="dueAt" />
+        ) : null}
 
-          {type !== 'note' ? (
-            <Input label={t('activities.field.dueAt')} type="datetime-local" name="dueAt" />
-          ) : null}
+        <Select label={t('activities.field.priority')} {...register('priority')}>
+          <option value="low">{t('activities.priority.low')}</option>
+          <option value="normal">{t('activities.priority.normal')}</option>
+          <option value="high">{t('activities.priority.high')}</option>
+        </Select>
 
-          <Select label={t('activities.field.priority')} {...register('priority')}>
-            <option value="low">{t('activities.priority.low')}</option>
-            <option value="normal">{t('activities.priority.normal')}</option>
-            <option value="high">{t('activities.priority.high')}</option>
-          </Select>
+        <Input label={t('activities.field.body')} {...register('body')} />
 
-          <Input label={t('activities.field.body')} {...register('body')} />
+        {error !== null ? (
+          <p role="alert" className="text-sm text-destructive">
+            {error.message}
+          </p>
+        ) : null}
 
-          {error !== null ? (
-            <p role="alert" className="text-sm text-destructive">
-              {error.message}
-            </p>
-          ) : null}
-
-          <div className="flex justify-end gap-2 pt-2">
-            <Button type="button" variant="ghost" onClick={onClose}>
-              {t('field.cancel')}
-            </Button>
-            <Button type="submit" loading={pending}>
-              {t('field.save')}
-            </Button>
-          </div>
-        </form>
-      </div>
-    </div>
+        <div className="flex justify-end gap-2 pt-2">
+          <Button type="button" variant="ghost" onClick={onClose}>
+            {t('field.cancel')}
+          </Button>
+          <Button type="submit" loading={pending}>
+            {t('field.save')}
+          </Button>
+        </div>
+      </form>
+    </Dialog>
   );
 }

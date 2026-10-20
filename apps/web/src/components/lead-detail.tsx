@@ -6,8 +6,10 @@ import {
   Card,
   CardBody,
   CardHeader,
+  CardSkeleton,
   ErrorState,
   NoPermissionState,
+  PageHeader,
   Select,
   Skeleton,
 } from '@crm/ui';
@@ -18,6 +20,7 @@ import { t, type TranslationKey } from '../lib/i18n';
 import { OPEN_LEAD_STATUSES, useLead, useUpdateLead } from '../lib/leads';
 import { useRecordView } from '../lib/activities';
 import { AppShell } from './app-shell';
+import { BackLink } from './back-link';
 import { ActivityPanel } from './activity-panel';
 import { ConvertLeadDialog } from './convert-lead-dialog';
 import { InlineField } from './inline-field';
@@ -64,9 +67,10 @@ export function LeadDetail({ id }: { id: string }) {
   if (query.isPending) {
     return (
       <AppShell>
-        <div className="space-y-4">
+        <div className="space-y-5">
+          <Skeleton className="h-4 w-28" />
           <Skeleton className="h-8 w-64" />
-          <Skeleton className="h-64 w-full" />
+          <CardSkeleton rows={7} label={t('common.loading')} />
         </div>
       </AppShell>
     );
@@ -108,30 +112,22 @@ export function LeadDetail({ id }: { id: string }) {
 
   return (
     <AppShell>
-      <nav className="mb-4">
-        <Link
-          href="/leads"
-          className="text-sm text-muted-foreground underline-offset-4 hover:underline"
-        >
-          {t('lead.backToList')}
-        </Link>
-      </nav>
-
-      <header className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <h1 className="text-xl font-semibold tracking-tight">
-            {formatName(lead) || t('field.empty')}
-          </h1>
-          {lead.status !== undefined ? (
+      <PageHeader
+        back={<BackLink href="/leads">{t('lead.backToList')}</BackLink>}
+        title={formatName(lead) || t('field.empty')}
+        meta={
+          lead.status !== undefined ? (
             <Badge tone={converted ? 'success' : 'neutral'}>
               {t(`lead.status.${lead.status}` as TranslationKey)}
             </Badge>
-          ) : null}
-        </div>
-        {!converted ? (
-          <Button onClick={() => setConverting(true)}>{t('lead.convert')}</Button>
-        ) : null}
-      </header>
+          ) : undefined
+        }
+        actions={
+          !converted ? (
+            <Button onClick={() => setConverting(true)}>{t('lead.convert')}</Button>
+          ) : undefined
+        }
+      />
 
       {conflicted ? (
         <div
@@ -205,66 +201,80 @@ export function LeadDetail({ id }: { id: string }) {
         </Card>
       ) : null}
 
-      <Card>
-        <CardHeader title={t('lead.details')} />
-        <CardBody className="divide-y divide-border">
-          {EDITABLE_FIELDS.filter((field) => field.key in record).map((field) => (
-            <InlineField
-              key={field.key}
-              label={t(field.label)}
-              type={field.type}
-              readOnly={converted}
-              value={record[field.key] as string | null | undefined}
-              onSave={(next) => {
-                update.mutate({
-                  id: lead.id,
-                  version: lead.version,
-                  patch: { [field.key]: next },
-                });
-              }}
-            />
-          ))}
-
-          {lead.status !== undefined && !converted ? (
-            <div className="grid grid-cols-[10rem_1fr] items-center gap-3 py-2">
-              <span className="text-sm text-muted-foreground">{t('lead.status')}</span>
-              <div className="max-w-sm">
-                <Select
-                  label={t('lead.status')}
-                  labelHidden
-                  value={lead.status}
-                  onChange={(event) => {
+      {/*
+        Details beside the timeline from `xl`, stacked below it. The timeline is
+        "one timeline per record" (UX §5): it should be on screen with the
+        fields, not a scroll away from them.
+      */}
+      <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_26rem]">
+        <div className="min-w-0 space-y-6">
+          <Card>
+            <CardHeader title={t('lead.details')} />
+            <CardBody className="divide-y divide-border px-5 py-1">
+              {EDITABLE_FIELDS.filter((field) => field.key in record).map((field) => (
+                <InlineField
+                  key={field.key}
+                  label={t(field.label)}
+                  type={field.type}
+                  readOnly={converted}
+                  value={record[field.key] as string | null | undefined}
+                  onSave={(next) => {
                     update.mutate({
                       id: lead.id,
                       version: lead.version,
-                      patch: { status: event.target.value },
+                      patch: { [field.key]: next },
                     });
                   }}
-                >
-                  {OPEN_LEAD_STATUSES.map((status) => (
-                    <option key={status} value={status}>
-                      {t(`lead.status.${status}` as TranslationKey)}
-                    </option>
-                  ))}
-                </Select>
+                />
+              ))}
+
+              {lead.status !== undefined && !converted ? (
+                <div className="grid grid-cols-[10rem_1fr] items-center gap-3 py-1">
+                  <span className="text-sm text-muted-foreground">{t('lead.status')}</span>
+                  <div className="max-w-sm">
+                    <Select
+                      label={t('lead.status')}
+                      labelHidden
+                      value={lead.status}
+                      onChange={(event) => {
+                        update.mutate({
+                          id: lead.id,
+                          version: lead.version,
+                          patch: { status: event.target.value },
+                        });
+                      }}
+                    >
+                      {OPEN_LEAD_STATUSES.map((status) => (
+                        <option key={status} value={status}>
+                          {t(`lead.status.${status}` as TranslationKey)}
+                        </option>
+                      ))}
+                    </Select>
+                  </div>
+                </div>
+              ) : null}
+
+              <div className="grid grid-cols-[10rem_1fr] items-start gap-3 py-1 text-sm">
+                <span className="pt-1.5 text-muted-foreground">{t('lead.created')}</span>
+                <span className="px-2 pt-1.5">
+                  {formatDateTime(lead.createdAt, DEFAULT_PREFERENCES)}
+                </span>
               </div>
-            </div>
+              <div className="grid grid-cols-[10rem_1fr] items-start gap-3 py-1 text-sm">
+                <span className="pt-1.5 text-muted-foreground">{t('lead.updated')}</span>
+                <span className="px-2 pt-1.5">
+                  {formatDateTime(lead.updatedAt, DEFAULT_PREFERENCES)}
+                </span>
+              </div>
+            </CardBody>
+          </Card>
+
+          {converting ? (
+            <ConvertLeadDialog lead={lead} onClose={() => setConverting(false)} />
           ) : null}
-
-          <div className="grid grid-cols-[10rem_1fr] gap-3 py-2 text-sm">
-            <span className="text-muted-foreground">{t('lead.created')}</span>
-            <span>{formatDateTime(lead.createdAt, DEFAULT_PREFERENCES)}</span>
-          </div>
-          <div className="grid grid-cols-[10rem_1fr] gap-3 py-2 text-sm">
-            <span className="text-muted-foreground">{t('lead.updated')}</span>
-            <span>{formatDateTime(lead.updatedAt, DEFAULT_PREFERENCES)}</span>
-          </div>
-        </CardBody>
-      </Card>
-
-      {converting ? <ConvertLeadDialog lead={lead} onClose={() => setConverting(false)} /> : null}
-
-      <ActivityPanel objectType="lead" recordId={id} />
+        </div>
+        <ActivityPanel objectType="lead" recordId={id} />
+      </div>
     </AppShell>
   );
 }
