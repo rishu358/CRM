@@ -83,8 +83,8 @@ export class AttachmentsRepository {
    *
    * Only `ready` rows: a row exists from the moment the upload is declared,
    * and one whose bytes have not been checked — or were refused — is not a
-   * file anybody should be offered. The uploader learns its fate from the
-   * response to `uploaded`, not from this list.
+   * file anybody should be offered. The uploader learns its fate from
+   * `GET /attachments/{id}`, not from this list.
    */
   async listForRecord(
     tx: Tx,

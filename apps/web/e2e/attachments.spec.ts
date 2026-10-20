@@ -96,7 +96,7 @@ test.describe('attachments on a record page', () => {
       'image/svg+xml',
     );
 
-    await expect(page.getByRole('alert')).toContainText('cannot be attached');
+    await expect(page.getByRole('alert').filter({ hasText: 'cannot be attached' })).toBeVisible();
     await expect(page.getByText(name)).toBeHidden();
   });
 
@@ -109,8 +109,9 @@ test.describe('attachments on a record page', () => {
     const name = `photo-${tag()}.png`;
     await attach(page, name, Buffer.from('this is not an image at all'), 'image/png');
 
-    // It never becomes a listed file, however long we wait for the worker.
-    await page.waitForTimeout(5_000);
-    await expect(page.getByText(name)).toBeHidden();
+    // The worker refuses it, and the uploader is told why rather than left
+    // looking at a list that never changes.
+    await expect(page.getByRole('alert').filter({ hasText: 'contents are not' })).toBeVisible(SLOW);
+    await expect(page.getByRole('listitem').filter({ hasText: name })).toBeHidden();
   });
 });

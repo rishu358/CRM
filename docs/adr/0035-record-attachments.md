@@ -112,6 +112,16 @@ marks the attachment `ready` or `rejected` with a sentence for the user and
 deletes the object. Until it passes, the attachment is not listed and no
 download link is issued.
 
+Because that check runs **after** the confirmation has returned, a refusal cannot
+be in the confirmation's response, and the list shows only files that passed.
+Without a third place to look, a file the worker refused would simply never
+appear and nobody would be told why — the first version of the panel did exactly
+that, found by the end-to-end test. `GET /attachments/{id}` returns one
+attachment in any state, with `failureReason`; the panel polls it until the file
+is `ready` (then refreshes the list) or `rejected` (then says why). It is gated
+like every read — `read` on the record, 404 otherwise — and never returns the
+storage key.
+
 The worker re-checks `head()` as well, because the presigned URL outlives the
 confirmation and an object can be swapped between the two — the same point
 ADR-0029 §7 makes about imports. A test swaps a valid PDF for a PE executable.
