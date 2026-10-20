@@ -435,7 +435,8 @@ export const recordAccessPersonSchema = z.object({
 export const recordAccessSchema = z.object({
   objectType: ownedObjectSchema,
   id: z.uuid(),
-  owner: z.object({ userId: z.uuid(), name: z.string() }).nullable(),
+  /** `name` is null when the owner is no longer a member of this workspace. */
+  owner: z.object({ userId: z.uuid(), name: z.string().nullable() }).nullable(),
   /** The fields you can read, which is all the explainer will talk about. */
   fields: z.array(catalogueFieldSchema),
   people: z.array(recordAccessPersonSchema),

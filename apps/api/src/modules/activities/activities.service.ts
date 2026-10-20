@@ -306,6 +306,24 @@ export class ActivitiesService {
     });
   }
 
+  /**
+   * Tell the new assignee, and re-time the reminder for them, after an
+   * administrator has reassigned these activities (MVP_SPEC M3).
+   *
+   * The write itself is the access module's one shared statement; this is the
+   * part only this module knows — that handing somebody work is news to them
+   * (ADR-0025) — and it is the very same pair of events an ordinary edit
+   * publishes, so the worker follows without knowing a reassignment happened.
+   */
+  async announceReassigned(tx: Tx, actor: Actor, ids: readonly string[]): Promise<void> {
+    for (const id of ids) {
+      const row = await this.repository.findById(tx, actor.tenantId, id);
+      if (row === null) continue;
+      await this.publishAssignment(tx, actor, row);
+      await this.publishReminder(tx, actor, row);
+    }
+  }
+
   async remove(actor: Actor, id: string, version: number): Promise<void> {
     assertCan(actor, 'delete', { objectType: 'activity' });
 

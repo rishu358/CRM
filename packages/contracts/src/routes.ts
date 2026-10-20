@@ -1678,7 +1678,7 @@ const accessRoutes: RouteDefinition[] = [
       'who can read that kind of record. Handles a bounded batch per call and reports ' +
       '`remaining`.',
     auth: 'session',
-    body: { name: 'ReassignRun', schema: reassignSchema },
+    body: { name: 'Reassign', schema: reassignSchema },
     response: {
       kind: 'object',
       status: 200,
