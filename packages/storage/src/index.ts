@@ -3,6 +3,7 @@ import { randomBytes } from 'node:crypto';
 export * from './s3.js';
 export * from './memory.js';
 export * from './config.js';
+export * from './download-name.js';
 
 /**
  * A storage key nobody can guess or influence (CLAUDE.md §5.12).
@@ -15,7 +16,11 @@ export * from './config.js';
  * boundary is that keys are only ever handed out for rows RLS let the caller
  * see.
  */
-export function newStorageKey(tenantId: string, area: 'imports' | 'exports', suffix = ''): string {
+export function newStorageKey(
+  tenantId: string,
+  area: 'imports' | 'exports' | 'attachments',
+  suffix = '',
+): string {
   return `tenants/${tenantId}/${area}/${randomBytes(32).toString('base64url')}${suffix}`;
 }
 

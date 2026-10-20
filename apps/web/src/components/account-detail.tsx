@@ -22,6 +22,7 @@ import { AppShell } from './app-shell';
 import { BackLink } from './back-link';
 import { WhoCanSeeButton } from './who-can-see';
 import { ActivityPanel } from './activity-panel';
+import { AttachmentPanel } from './attachment-panel';
 import { InlineField } from './inline-field';
 import { InlineMoneyField } from './inline-money-field';
 
@@ -297,6 +298,7 @@ export function AccountDetail({ id }: { id: string }) {
           ) : null}
         </div>
         <ActivityPanel objectType="account" recordId={id} />
+        <AttachmentPanel objectType="account" recordId={id} />
       </div>
     </AppShell>
   );

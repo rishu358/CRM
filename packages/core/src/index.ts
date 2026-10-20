@@ -13,5 +13,6 @@ export * from './search/index.js';
 export * from './storage/index.js';
 export * from './sessions/index.js';
 export * from './auth/index.js';
+export * from './files/index.js';
 export * from './import-export/index.js';
 export * from './audit/index.js';

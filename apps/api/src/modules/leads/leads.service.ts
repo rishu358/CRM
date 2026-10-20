@@ -15,6 +15,7 @@ import {
   NotFoundError,
   ValidationError,
   VersionConflictError,
+  type Action,
   type Actor,
   type FieldDefinition,
   type ObjectType,
@@ -613,6 +614,34 @@ export class LeadsService {
         return [row.id, label.length > 0 ? label : 'Lead'];
       }),
     );
+  }
+
+  /**
+   * "May this actor do `action` to this record?"
+   *
+   * The question a polymorphic feature has to ask of the module that owns the
+   * record, because it holds the `(object_type, record_id)` pair and nothing
+   * else (ADR-0005). Attachments ask it twice: `read` to list the files on a
+   * record, and `update` to add or remove one (ADR-0035).
+   *
+   * The scope is applied **in SQL**, as the constraint belonging to that
+   * action rather than to `read`, so a role with `read: all` and `update: own`
+   * can list the files on a colleague's lead and not touch them. A
+   * record outside the caller's reach is indistinguishable from one that does
+   * not exist, which is what stops the polymorphic pair becoming a way around
+   * record scope (CLAUDE.md §5.5).
+   */
+  async allowsRecordAction(tx: Tx, actor: Actor, action: Action, id: string): Promise<boolean> {
+    const decision = can(actor, action, { objectType: 'lead' });
+    if (!decision.allowed) return false;
+
+    const rows = await this.repository.findReadableMany(
+      tx,
+      actor.tenantId,
+      [id],
+      decision.constraint,
+    );
+    return rows.length > 0;
   }
 
   private inTenant<T>(actor: Actor, work: (tx: Tx) => Promise<T>): Promise<T> {

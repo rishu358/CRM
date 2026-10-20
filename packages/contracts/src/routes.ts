@@ -25,6 +25,13 @@ import {
   verifyEmailSchema,
 } from './auth.js';
 import {
+  attachmentCreateResultSchema,
+  attachmentCreateSchema,
+  attachmentListQuerySchema,
+  attachmentParamsSchema,
+  attachmentSchema,
+} from './attachments.js';
+import {
   accountCreateSchema,
   accountDeleteQuerySchema,
   accountListQuerySchema,
@@ -1217,6 +1224,138 @@ const exportRoutes: RouteDefinition[] = [
   },
 ];
 
+const attachmentRoutes: RouteDefinition[] = [
+  {
+    method: 'POST',
+    path: '/attachments',
+    operationId: 'createAttachment',
+    tag: 'Attachments',
+    summary: 'Attach a file to a record: declare it, get a place to upload it',
+    description:
+      'Creates the row and returns a **presigned upload URL**. The file goes from the ' +
+      'browser straight to object storage and never through this API (CLAUDE.md §5.12). ' +
+      'The content type is decided here from the allow-listed extension — never taken ' +
+      'from the client — and bound into the signature along with the exact size. The ' +
+      'storage key is random and is never returned. Requires `update` on the record the ' +
+      'file is being attached to, which is also what makes a record in another tenant, ' +
+      'or outside the caller scope, a 404.',
+    auth: 'session',
+    body: { name: 'AttachmentCreate', schema: attachmentCreateSchema },
+    response: {
+      kind: 'object',
+      status: 201,
+      name: 'AttachmentCreateResponse',
+      description: 'The attachment and the URL to upload to.',
+      data: attachmentCreateResultSchema,
+    },
+    errors: [...RECORD, ErrorCode.CONFLICT],
+  },
+  {
+    method: 'POST',
+    path: '/attachments/{id}/uploaded',
+    operationId: 'confirmAttachmentUpload',
+    tag: 'Attachments',
+    summary: 'Say the upload finished; the bytes are checked',
+    description:
+      'Checks the object exists and is the size that was declared, then queues the byte ' +
+      'check in the worker, which reads the first 8 KB, decides the type from the ' +
+      'signature and refuses a file whose contents disagree with its name. Until that ' +
+      'passes the attachment is not listed and no download link is issued.',
+    auth: 'session',
+    params: attachmentParamsSchema,
+    response: {
+      kind: 'object',
+      status: 202,
+      name: 'AttachmentAcceptedResponse',
+      description: 'The attachment, now being checked.',
+      data: attachmentSchema,
+    },
+    errors: [...RECORD, ErrorCode.CONFLICT],
+  },
+  {
+    method: 'GET',
+    path: '/attachments',
+    operationId: 'listAttachments',
+    tag: 'Attachments',
+    summary: 'The files on one record',
+    description:
+      'Always scoped to a single record: `objectType` and `recordId` are required, and ' +
+      'the record must be one the caller may read, so the polymorphic pair cannot be ' +
+      'used to reach around record scope. Keyset-paginated, oldest first.',
+    auth: 'session',
+    query: attachmentListQuerySchema,
+    response: {
+      kind: 'list',
+      status: 200,
+      name: 'AttachmentListResponse',
+      description: 'A page of attachments.',
+      data: attachmentSchema,
+    },
+    errors: RECORD,
+  },
+  {
+    method: 'GET',
+    path: '/attachments/{id}',
+    operationId: 'getAttachment',
+    tag: 'Attachments',
+    summary: 'One attachment, whatever state it is in',
+    description:
+      'How an uploader finds out what became of a file. The byte check runs in the ' +
+      'worker after `uploaded` returns, so a file can be refused *after* the response ' +
+      'that accepted it; this is where `rejected` and its `failureReason` are visible, ' +
+      'because the list shows only files that passed. Requires `read` on the record the ' +
+      'file hangs from, and is a 404 otherwise.',
+    auth: 'session',
+    params: attachmentParamsSchema,
+    response: {
+      kind: 'object',
+      status: 200,
+      name: 'AttachmentResponse',
+      description: 'The attachment.',
+      data: attachmentSchema,
+    },
+    errors: RECORD,
+  },
+  {
+    method: 'POST',
+    path: '/attachments/{id}/download',
+    operationId: 'attachmentDownloadLink',
+    tag: 'Attachments',
+    summary: 'A short-lived download link',
+    description:
+      'A presigned URL that expires in minutes and is never guessable; the file is not ' +
+      'streamed through this API. Served as `Content-Disposition: attachment` with the ' +
+      'type from our own allow-list, so an uploaded document is saved rather than ' +
+      'rendered. A POST because handing out the link is the moment the file leaves, and ' +
+      'that is audited.',
+    auth: 'session',
+    params: attachmentParamsSchema,
+    response: {
+      kind: 'object',
+      status: 200,
+      name: 'AttachmentDownloadResponse',
+      description: 'A presigned download URL.',
+      data: downloadLinkSchema,
+    },
+    errors: [...RECORD, ErrorCode.CONFLICT],
+  },
+  {
+    method: 'DELETE',
+    path: '/attachments/{id}',
+    operationId: 'deleteAttachment',
+    tag: 'Attachments',
+    summary: 'Remove a file from a record',
+    description:
+      'Soft delete, requiring `update` on the record the file hangs from. The stored ' +
+      'object outlives the row by the retention window so that an undelete can bring ' +
+      'the file back, and the worker then removes both (ADR-0035).',
+    auth: 'session',
+    params: attachmentParamsSchema,
+    response: { kind: 'empty', status: 204, description: 'Deleted.' },
+    errors: RECORD,
+  },
+];
+
 const searchRoutes: RouteDefinition[] = [
   {
     method: 'GET',
@@ -1827,6 +1966,7 @@ export const API_ROUTES: readonly RouteDefinition[] = [
     deleteQuery: activityDeleteQuerySchema,
   }),
   ...myDayRoutes,
+  ...attachmentRoutes,
   ...searchRoutes,
   ...notificationRoutes,
   ...invitationRoutes,

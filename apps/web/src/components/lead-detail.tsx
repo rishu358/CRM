@@ -23,6 +23,7 @@ import { AppShell } from './app-shell';
 import { BackLink } from './back-link';
 import { WhoCanSeeButton } from './who-can-see';
 import { ActivityPanel } from './activity-panel';
+import { AttachmentPanel } from './attachment-panel';
 import { ConvertLeadDialog } from './convert-lead-dialog';
 import { InlineField } from './inline-field';
 
@@ -282,6 +283,7 @@ export function LeadDetail({ id }: { id: string }) {
           ) : null}
         </div>
         <ActivityPanel objectType="lead" recordId={id} />
+        <AttachmentPanel objectType="lead" recordId={id} />
       </div>
     </AppShell>
   );

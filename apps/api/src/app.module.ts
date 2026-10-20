@@ -7,6 +7,7 @@ import { HealthController } from './health.controller.js';
 import { AccessModule } from './modules/access/access.module.js';
 import { AccountsModule } from './modules/accounts/accounts.module.js';
 import { ActivitiesModule } from './modules/activities/activities.module.js';
+import { AttachmentsModule } from './modules/attachments/attachments.module.js';
 import { ContactsModule } from './modules/contacts/contacts.module.js';
 import { DealsModule } from './modules/deals/deals.module.js';
 import { ExportsModule } from './modules/exports/exports.module.js';
@@ -43,6 +44,7 @@ export class AppModule {
         DealsModule,
         LeadsModule,
         ActivitiesModule,
+        AttachmentsModule,
         SearchModule,
         NotificationsModule,
         InvitationsModule,

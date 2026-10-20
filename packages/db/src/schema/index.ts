@@ -8,3 +8,4 @@ export * from './platform.js';
 export * from './crm.js';
 export * from './search.js';
 export * from './import-export.js';
+export * from './attachments.js';

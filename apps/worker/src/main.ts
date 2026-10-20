@@ -4,6 +4,7 @@ import { pino } from 'pino';
 import { loadWorkerEnv } from './env.js';
 import { createEmailProvider } from './email/provider.js';
 import { pruneActivityLinks } from './handlers/activities.js';
+import { pruneAttachments, purgeAttachment, verifyAttachment } from './handlers/attachments.js';
 import { notifyAssignment, notifyReminder, sendDigest } from './handlers/notifications.js';
 import { indexSearchDocument, removeSearchDocument } from './handlers/search.js';
 import { projectTimeline } from './handlers/timeline.js';
@@ -119,15 +120,36 @@ for (const eventType of ['import.uploaded.v1', 'import.started.v1', 'import.chun
 relay.onExhausted('export.requested.v1', failExportOnExhaustion(importExportDeps));
 
 /**
+ * Record attachments (MVP_SPEC §6.1, ADR-0035).
+ *
+ * The byte check is here for the same reason an import's is: the API signs
+ * URLs and reads metadata, and the worker is the only process that ever reads
+ * a file's bytes (CLAUDE.md §5.12). The purge is driven by an event the delete
+ * dated to the end of the retention window, so the outbox is the scheduler
+ * (ADR-0025) and there is no sweep.
+ */
+const attachmentDeps = { storage: importExportDeps.storage, logger };
+
+relay.on('attachment.uploaded.v1', verifyAttachment(attachmentDeps));
+relay.on('attachment.purge_due.v1', purgeAttachment(attachmentDeps));
+
+/**
  * Orphan cleanup for polymorphic links (ADR-0005).
  *
- * The delete events of every linkable object, because the link table has no
- * foreign key to tell it when a target disappears.
+ * The delete events of every linkable object, because neither the link table
+ * nor the attachments table has a foreign key to tell it when a target
+ * disappears. An orphaned attachment is worse than an orphaned link row — a
+ * private file nobody can reach and everybody pays to store — so its handler
+ * removes the stored object as well.
  */
 relay.on('contact.deleted.v1', pruneActivityLinks);
 relay.on('account.deleted.v1', pruneActivityLinks);
 relay.on('lead.deleted.v1', pruneActivityLinks);
 relay.on('deal.deleted.v1', pruneActivityLinks);
+
+for (const objectType of ['account', 'contact', 'lead', 'deal', 'activity'] as const) {
+  relay.on(`${objectType}.deleted.v1`, pruneAttachments(attachmentDeps));
+}
 
 let running = true;
 

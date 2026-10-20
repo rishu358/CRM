@@ -25,6 +25,7 @@ export * from './schema/index.js';
 export {
   and,
   asc,
+  count,
   desc,
   eq,
   getTableColumns,

@@ -25,6 +25,7 @@ import { AppShell } from './app-shell';
 import { BackLink } from './back-link';
 import { WhoCanSeeButton } from './who-can-see';
 import { ActivityPanel } from './activity-panel';
+import { AttachmentPanel } from './attachment-panel';
 import { InlineField } from './inline-field';
 import { InlineMoneyField } from './inline-money-field';
 import { LostReasonDialog } from './lost-reason-dialog';
@@ -371,6 +372,7 @@ export function DealDetail({ id }: { id: string }) {
           )}
         </div>
         <ActivityPanel objectType="deal" recordId={id} />
+        <AttachmentPanel objectType="deal" recordId={id} />
       </div>
     </AppShell>
   );

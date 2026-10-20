@@ -22,6 +22,7 @@ import { AppShell } from './app-shell';
 import { BackLink } from './back-link';
 import { WhoCanSeeButton } from './who-can-see';
 import { ActivityPanel } from './activity-panel';
+import { AttachmentPanel } from './attachment-panel';
 import { InlineField } from './inline-field';
 
 /**
@@ -182,6 +183,7 @@ export function ContactDetail({ id }: { id: string }) {
           </Card>
         </div>
         <ActivityPanel objectType="contact" recordId={id} />
+        <AttachmentPanel objectType="contact" recordId={id} />
       </div>
     </AppShell>
   );

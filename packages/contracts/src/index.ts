@@ -9,6 +9,7 @@ export * from './notifications.js';
 export * from './search.js';
 export * from './imports.js';
 export * from './exports.js';
+export * from './attachments.js';
 export * from './auth.js';
 export * from './invitations.js';
 export * from './access.js';
