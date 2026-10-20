@@ -10,11 +10,19 @@
  * from tenant metadata; the validation boundary stays exactly here.
  *
  * It doubles as the registry `can()` reasons over, which is why administrative
- * objects such as `invitation` appear here too (MVP_SPEC M2). They are not
- * records: nothing links an activity or a tag to an invitation, and none of
- * them is a `BUSINESS_OBJECT_TYPE`, so they carry no owner, no soft delete and
- * no custom fields. When the polymorphic modules arrive they validate against
- * a narrower list of their own rather than widening this one.
+ * objects such as `invitation`, `role`, `team` and `membership` appear here too
+ * (MVP_SPEC M2, M3). They are not records: nothing links an activity or a tag to
+ * an invitation, and none of them is a `BUSINESS_OBJECT_TYPE`, so they carry no
+ * owner, no soft delete and no custom fields. When the polymorphic modules
+ * arrive they validate against a narrower list of their own rather than widening
+ * this one.
+ *
+ * `role`, `team` and `membership` are what the administration screens are
+ * authorized against (MVP_SPEC M3), and `role:read` is also the gate on the
+ * access explainer: anyone who may read the workspace's permission
+ * configuration may ask what it does, and nobody else may — a sales rep must
+ * not be able to enumerate colleagues or learn which fields are hidden from
+ * them (ADR-0033).
  */
 
 export const OBJECT_TYPES = [
@@ -24,6 +32,9 @@ export const OBJECT_TYPES = [
   'deal',
   'activity',
   'invitation',
+  'role',
+  'team',
+  'membership',
 ] as const;
 
 export type ObjectType = (typeof OBJECT_TYPES)[number];

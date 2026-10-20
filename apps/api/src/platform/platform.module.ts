@@ -7,6 +7,7 @@ import { CurrencyConverter } from './exchange-rates/currency-converter.service.j
 import { EXCHANGE_RATE_SOURCE } from './exchange-rates/exchange-rate.source.js';
 import { ManualExchangeRateSource } from './exchange-rates/manual-exchange-rate.source.js';
 import { OutboxService } from './outbox.service.js';
+import { OwnershipRegistry } from './ownership.registry.js';
 import { TenantRateLimitService } from './rate-limit.service.js';
 import { STORAGE_PROVIDER } from './storage/storage.tokens.js';
 
@@ -21,6 +22,7 @@ import { STORAGE_PROVIDER } from './storage/storage.tokens.js';
   providers: [
     AuditService,
     OutboxService,
+    OwnershipRegistry,
     FieldMetadataService,
     TenantRateLimitService,
     CurrencyConverter,
@@ -37,6 +39,7 @@ import { STORAGE_PROVIDER } from './storage/storage.tokens.js';
   exports: [
     AuditService,
     OutboxService,
+    OwnershipRegistry,
     FieldMetadataService,
     TenantRateLimitService,
     CurrencyConverter,

@@ -1,6 +1,6 @@
 'use client';
 
-import { Button, Select } from '@crm/ui';
+import { Button, Dialog, DialogFooter, ExportIcon, Select } from '@crm/ui';
 import { useEffect, useRef, useState } from 'react';
 import {
   useCreateExport,
@@ -47,6 +47,7 @@ export function ExportButton({
   return (
     <>
       <Button ref={buttonRef} variant="outline" onClick={() => setOpen(true)}>
+        <ExportIcon className="h-4 w-4" />
         {t('export.button')}
       </Button>
       {open ? (
@@ -84,17 +85,11 @@ function ExportDialog({
   const download = useExportDownload();
   const selectRef = useRef<HTMLSelectElement>(null);
 
-  // Focus moves into the dialog on open and Escape closes it (CLAUDE.md §9).
+  // Focus moves to the first control on open; the dialog itself traps focus and
+  // closes on Escape (CLAUDE.md §9).
   useEffect(() => {
     selectRef.current?.focus();
   }, []);
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
-    };
-    document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
-  }, [onClose]);
 
   const record = job.data?.data;
   const forbidden =
@@ -111,71 +106,64 @@ function ExportDialog({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/30 p-4">
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="export-title"
-        className="w-full max-w-md rounded-lg border border-border bg-card p-6 shadow-lg"
-      >
-        <h2 id="export-title" className="mb-2 text-base font-semibold">
-          {t('export.title', { objects: t(OBJECT_LABELS[objectType]) })}
-        </h2>
-        <p className="mb-4 text-sm text-muted-foreground">{t('export.description')}</p>
+    <Dialog
+      title={t('export.title', { objects: t(OBJECT_LABELS[objectType]) })}
+      description={t('export.description')}
+      closeLabel={t('common.close')}
+      onClose={onClose}
+    >
+      {record === undefined && !running ? (
+        <Select
+          ref={selectRef}
+          label={t('export.format')}
+          value={format}
+          onChange={(event) => setFormat(event.target.value === 'xlsx' ? 'xlsx' : 'csv')}
+        >
+          <option value="csv">{t('export.format.csv')}</option>
+          <option value="xlsx">{t('export.format.xlsx')}</option>
+        </Select>
+      ) : null}
 
-        {record === undefined && !running ? (
-          <Select
-            ref={selectRef}
-            label={t('export.format')}
-            value={format}
-            onChange={(event) => setFormat(event.target.value === 'xlsx' ? 'xlsx' : 'csv')}
-          >
-            <option value="csv">{t('export.format.csv')}</option>
-            <option value="xlsx">{t('export.format.xlsx')}</option>
-          </Select>
+      <div aria-live="polite" className="mt-4 space-y-3 text-sm">
+        {running ? <p>{t('export.running')}</p> : null}
+
+        {record?.status === 'completed' ? (
+          <>
+            <p>{t('export.ready', { count: record.rowCount ?? 0 })}</p>
+            <p className="text-muted-foreground">{t('export.expires')}</p>
+          </>
         ) : null}
 
-        <div aria-live="polite" className="mt-4 space-y-3 text-sm">
-          {running ? <p>{t('export.running')}</p> : null}
-
-          {record?.status === 'completed' ? (
-            <>
-              <p>{t('export.ready', { count: record.rowCount ?? 0 })}</p>
-              <p className="text-muted-foreground">{t('export.expires')}</p>
-            </>
-          ) : null}
-
-          {forbidden ? (
-            <p role="alert" className="text-destructive">
-              {t('export.forbidden')}
-            </p>
-          ) : failed ? (
-            <p role="alert" className="text-destructive">
-              {record?.failureReason ?? create.error?.message ?? t('export.failed')}
-            </p>
-          ) : null}
-          {download.isError && !forbidden ? (
-            <p role="alert" className="text-destructive">
-              {t('export.error')}
-            </p>
-          ) : null}
-        </div>
-
-        <div className="mt-6 flex justify-end gap-2">
-          <Button type="button" variant="ghost" onClick={onClose}>
-            {t('export.close')}
-          </Button>
-          {record?.status === 'completed' ? (
-            <Button loading={download.isPending} onClick={() => download.mutate(record.id)}>
-              {t('export.download')}
-            </Button>
-          ) : record === undefined || failed || forbidden ? (
-            <Button loading={create.isPending} disabled={running} onClick={start}>
-              {t('export.start')}
-            </Button>
-          ) : null}
-        </div>
+        {forbidden ? (
+          <p role="alert" className="text-destructive">
+            {t('export.forbidden')}
+          </p>
+        ) : failed ? (
+          <p role="alert" className="text-destructive">
+            {record?.failureReason ?? create.error?.message ?? t('export.failed')}
+          </p>
+        ) : null}
+        {download.isError && !forbidden ? (
+          <p role="alert" className="text-destructive">
+            {t('export.error')}
+          </p>
+        ) : null}
       </div>
-    </div>
+
+      <DialogFooter>
+        <Button type="button" variant="ghost" onClick={onClose}>
+          {t('export.close')}
+        </Button>
+        {record?.status === 'completed' ? (
+          <Button loading={download.isPending} onClick={() => download.mutate(record.id)}>
+            {t('export.download')}
+          </Button>
+        ) : record === undefined || failed || forbidden ? (
+          <Button loading={create.isPending} disabled={running} onClick={start}>
+            {t('export.start')}
+          </Button>
+        ) : null}
+      </DialogFooter>
+    </Dialog>
   );
 }

@@ -1,7 +1,7 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Button, Input } from '@crm/ui';
+import { Button, Dialog, Input } from '@crm/ui';
 import { accountCreateSchema } from '@crm/contracts';
 import { type z } from 'zod';
 import { useEffect } from 'react';
@@ -67,14 +67,6 @@ export function NewAccountDialog({
     setFocus('name');
   }, [setFocus]);
 
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
-    };
-    document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
-  }, [onClose]);
-
   const submit = handleSubmit((values) => {
     const payload: Record<string, unknown> = { name: values.name };
     for (const key of ['domain', 'email', 'phone'] as const) {
@@ -85,64 +77,53 @@ export function NewAccountDialog({
   });
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/30 p-4">
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="new-account-title"
-        className="w-full max-w-md rounded-lg border border-border bg-card p-6 shadow-lg"
-      >
-        <h2 id="new-account-title" className="mb-4 text-base font-semibold">
-          {t('accounts.new')}
-        </h2>
-
-        {/*
+    <Dialog title={t('accounts.new')} closeLabel={t('common.close')} onClose={onClose}>
+      {/*
           noValidate: the browser's own validation bubble would pre-empt ours,
           and it cannot be styled, translated, or announced consistently. Zod
           owns validation here, and the messages render as role="alert".
         */}
-        <form onSubmit={(event) => void submit(event)} noValidate className="space-y-4">
-          <Input
-            label={t('account.name')}
-            aria-required="true"
-            error={errors.name === undefined ? undefined : t('error.required')}
-            {...register('name')}
-          />
-          <Input
-            label={t('account.domain')}
-            hint="acme.example"
-            error={errors.domain?.message}
-            {...register('domain', { setValueAs: blankToUndefined })}
-          />
-          <Input
-            label={t('account.email')}
-            type="email"
-            error={errors.email?.message}
-            {...register('email', { setValueAs: blankToUndefined })}
-          />
-          <Input
-            label={t('account.phone')}
-            hint="+919876543210"
-            error={errors.phone?.message}
-            {...register('phone', { setValueAs: blankToUndefined })}
-          />
+      <form onSubmit={(event) => void submit(event)} noValidate className="space-y-4">
+        <Input
+          label={t('account.name')}
+          aria-required="true"
+          error={errors.name === undefined ? undefined : t('error.required')}
+          {...register('name')}
+        />
+        <Input
+          label={t('account.domain')}
+          hint="acme.example"
+          error={errors.domain?.message}
+          {...register('domain', { setValueAs: blankToUndefined })}
+        />
+        <Input
+          label={t('account.email')}
+          type="email"
+          error={errors.email?.message}
+          {...register('email', { setValueAs: blankToUndefined })}
+        />
+        <Input
+          label={t('account.phone')}
+          hint="+919876543210"
+          error={errors.phone?.message}
+          {...register('phone', { setValueAs: blankToUndefined })}
+        />
 
-          {error !== null ? (
-            <p role="alert" className="text-sm text-destructive">
-              {error.message}
-            </p>
-          ) : null}
+        {error !== null ? (
+          <p role="alert" className="text-sm text-destructive">
+            {error.message}
+          </p>
+        ) : null}
 
-          <div className="flex justify-end gap-2 pt-2">
-            <Button type="button" variant="ghost" onClick={onClose}>
-              {t('field.cancel')}
-            </Button>
-            <Button type="submit" loading={pending}>
-              {t('field.save')}
-            </Button>
-          </div>
-        </form>
-      </div>
-    </div>
+        <div className="flex justify-end gap-2 pt-2">
+          <Button type="button" variant="ghost" onClick={onClose}>
+            {t('field.cancel')}
+          </Button>
+          <Button type="submit" loading={pending}>
+            {t('field.save')}
+          </Button>
+        </div>
+      </form>
+    </Dialog>
   );
 }

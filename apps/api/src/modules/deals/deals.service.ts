@@ -29,7 +29,7 @@ import {
   type DealUpdateInput,
   type MoneyInput,
 } from '@crm/contracts';
-import type { Deal as DealRow, Tx } from '@crm/db';
+import { recordRefFor, type Deal as DealRow, type Tx } from '@crm/db';
 import { isConstraintViolation } from '../../common/db-errors.js';
 import { assertFiltersReadable, assertSortable } from '../../common/field-queries.js';
 import { DatabaseService } from '../../database/database.service.js';
@@ -222,7 +222,10 @@ export class DealsService {
       const row = await this.loadOrNotFound(tx, actor, id);
       // Record-level check. Out of scope raises 404, not 403, so the endpoint
       // cannot be used to discover that an id exists (CLAUDE.md §5.5).
-      assertCan(actor, 'read', { objectType: 'deal', record: { ownerId: row.ownerId } });
+      assertCan(actor, 'read', {
+        objectType: 'deal',
+        record: await recordRefFor(tx, actor, row.ownerId),
+      });
 
       const fields = await this.fieldMetadata.forObject(tx, actor.tenantId, 'deal');
       const people = await this.repository.peopleFor(tx, actor.tenantId, [row.id]);
@@ -317,7 +320,10 @@ export class DealsService {
 
     return this.inTenant(actor, async (tx) => {
       const existing = await this.loadOrNotFound(tx, actor, id);
-      assertCan(actor, 'update', { objectType: 'deal', record: { ownerId: existing.ownerId } });
+      assertCan(actor, 'update', {
+        objectType: 'deal',
+        record: await recordRefFor(tx, actor, existing.ownerId),
+      });
 
       const fields = await this.fieldMetadata.forObject(tx, actor.tenantId, 'deal');
       assertWritableDealFields(actor, input, fields);
@@ -403,7 +409,10 @@ export class DealsService {
 
     await this.inTenant(actor, async (tx) => {
       const existing = await this.loadOrNotFound(tx, actor, id);
-      assertCan(actor, 'delete', { objectType: 'deal', record: { ownerId: existing.ownerId } });
+      assertCan(actor, 'delete', {
+        objectType: 'deal',
+        record: await recordRefFor(tx, actor, existing.ownerId),
+      });
 
       const deleted = await this.repository.softDelete(
         tx,

@@ -4,6 +4,7 @@ import { AuthGuard } from './auth/auth.guard.js';
 import { AuthModule } from './auth/auth.module.js';
 import { DatabaseModule } from './database/database.module.js';
 import { HealthController } from './health.controller.js';
+import { AccessModule } from './modules/access/access.module.js';
 import { AccountsModule } from './modules/accounts/accounts.module.js';
 import { ActivitiesModule } from './modules/activities/activities.module.js';
 import { ContactsModule } from './modules/contacts/contacts.module.js';
@@ -47,6 +48,7 @@ export class AppModule {
         InvitationsModule,
         ImportsModule,
         ExportsModule,
+        AccessModule,
       ],
       controllers: [HealthController, OpenApiController],
       providers: [{ provide: APP_GUARD, useExisting: AuthGuard }],

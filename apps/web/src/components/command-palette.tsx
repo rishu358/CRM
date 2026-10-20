@@ -1,8 +1,19 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
-import { Button, cn } from '@crm/ui';
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
+import {
+  AccountsIcon,
+  Button,
+  CommandIcon,
+  ContactsIcon,
+  DealsIcon,
+  Kbd,
+  LeadsIcon,
+  MyDayIcon,
+  SearchIcon,
+  cn,
+} from '@crm/ui';
 import { t, type TranslationKey } from '../lib/i18n';
 import { requestIntent, type PaletteIntent } from '../lib/palette-intent';
 import {
@@ -12,6 +23,7 @@ import {
   type SearchObjectType,
   type SearchResultRecord,
 } from '../lib/search';
+import { singleKeyShortcutsEnabled, useModifierLabel } from '../lib/shortcuts';
 
 /**
  * The command palette (MVP_SPEC M7, UX principle 3: keyboard-first).
@@ -38,7 +50,20 @@ interface PaletteItem {
   readonly detail: string;
   readonly href: string;
   readonly intent?: PaletteIntent;
+  /** Which icon to draw: a record type, or 'action' for a command. */
+  readonly kind: SearchObjectType | 'action';
+  /** Keys that do the same thing without the palette, shown as a hint. */
+  readonly keys?: readonly string[];
 }
+
+const KIND_ICONS: Readonly<Record<SearchObjectType | 'action', ReactNode>> = {
+  account: <AccountsIcon className="h-4 w-4" />,
+  contact: <ContactsIcon className="h-4 w-4" />,
+  lead: <LeadsIcon className="h-4 w-4" />,
+  deal: <DealsIcon className="h-4 w-4" />,
+  activity: <MyDayIcon className="h-4 w-4" />,
+  action: <CommandIcon className="h-4 w-4" />,
+};
 
 /** Where a record of each type lives. */
 const RECORD_PATHS: Readonly<Record<SearchObjectType, (id: string) => string>> = {
@@ -69,12 +94,18 @@ const ACTIONS: readonly {
   label: TranslationKey;
   href: string;
   intent?: PaletteIntent;
+  keys?: readonly string[];
 }[] = [
   { key: 'new-deal', label: 'palette.action.newDeal', href: '/deals', intent: 'new-deal' },
-  { key: 'go-my-day', label: 'palette.action.goToMyDay', href: '/my-day' },
-  { key: 'go-deals', label: 'palette.action.goToDeals', href: '/deals' },
-  { key: 'go-team', label: 'palette.action.goToTeam', href: '/settings/team' },
-  { key: 'go-settings', label: 'palette.action.goToSettings', href: '/settings/security' },
+  { key: 'go-my-day', label: 'palette.action.goToMyDay', href: '/my-day', keys: ['G', 'M'] },
+  { key: 'go-deals', label: 'palette.action.goToDeals', href: '/deals', keys: ['G', 'D'] },
+  { key: 'go-team', label: 'palette.action.goToTeam', href: '/settings/team', keys: ['G', 'T'] },
+  {
+    key: 'go-settings',
+    label: 'palette.action.goToSettings',
+    href: '/settings/security',
+    keys: ['G', 'S'],
+  },
 ];
 
 export function CommandPalette() {
@@ -87,6 +118,7 @@ export function CommandPalette() {
   const inputRef = useRef<HTMLInputElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
   const listId = useId();
+  const modifier = useModifierLabel();
 
   const debounced = useDebounced(term);
   const search = useSearch(debounced);
@@ -115,7 +147,14 @@ export function CommandPalette() {
         setOpen((value) => !value);
         return;
       }
-      if (event.key === '/' && !event.metaKey && !event.ctrlKey && !isTyping(event.target)) {
+      if (
+        event.key === '/' &&
+        !event.metaKey &&
+        !event.ctrlKey &&
+        !isTyping(event.target) &&
+        // `/` is a single-character shortcut, so it honours the switch (WCAG 2.1.4).
+        singleKeyShortcutsEnabled()
+      ) {
         event.preventDefault();
         setOpen(true);
       }
@@ -221,28 +260,31 @@ export function CommandPalette() {
       <Button
         ref={triggerRef}
         variant="outline"
-        size="sm"
         onClick={() => setOpen(true)}
         data-testid="palette-trigger"
         aria-keyshortcuts="Control+K Meta+K"
+        className="w-full max-w-sm justify-start gap-2 font-normal text-muted-foreground md:max-w-xs lg:max-w-sm"
       >
-        {t('palette.open')}
-        <kbd className="ml-2 rounded border border-border px-1 text-xs text-muted-foreground">
-          {t('palette.shortcut')}
-        </kbd>
+        <SearchIcon className="h-4 w-4" />
+        <span className="flex-1 text-left">{t('palette.open')}</span>
+        <span aria-hidden="true" className="hidden items-center gap-0.5 sm:flex">
+          <Kbd>{modifier}</Kbd>
+          <Kbd>K</Kbd>
+        </span>
       </Button>
 
       {open ? (
-        <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 p-4 pt-[10vh]">
+        <div className="fixed inset-0 z-50 flex animate-fade-in items-start justify-center bg-foreground/45 p-4 pt-[10vh]">
           <div
             ref={dialogRef}
             role="dialog"
             aria-modal="true"
             aria-label={t('palette.title')}
             data-testid="palette"
-            className="w-full max-w-xl overflow-hidden rounded-lg border border-border bg-card shadow-xl"
+            className="w-full max-w-xl animate-pop-in overflow-hidden rounded-xl border border-border bg-popover text-popover-foreground shadow-lg"
           >
-            <div className="border-b border-border p-2">
+            <div className="flex items-center gap-2 border-b border-border px-4">
+              <SearchIcon aria-hidden="true" className="h-4 w-4 shrink-0 text-muted-foreground" />
               {/*
                 Every key is handled here rather than on the dialog: focus
                 never leaves this input, so this is where the events actually
@@ -271,7 +313,7 @@ export function CommandPalette() {
                   // the user has not seen yet.
                   setActive(0);
                 }}
-                className="w-full bg-transparent px-3 py-2 text-sm outline-none placeholder:text-muted-foreground"
+                className="h-12 w-full bg-transparent text-base outline-none ring-0 placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0"
               />
             </div>
 
@@ -279,7 +321,7 @@ export function CommandPalette() {
               id={listId}
               role="listbox"
               aria-label={t('palette.results')}
-              className="max-h-80 overflow-y-auto p-1"
+              className="max-h-80 overflow-y-auto p-2"
             >
               {items.map((item, index) => (
                 <button
@@ -296,7 +338,7 @@ export function CommandPalette() {
                   tabIndex={-1}
                   data-testid="palette-option"
                   className={cn(
-                    'block w-full rounded-md px-3 py-2 text-left text-sm',
+                    'flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm focus-visible:ring-0',
                     index === activeIndex ? 'bg-accent text-accent-foreground' : 'text-foreground',
                   )}
                   // Keep the caret where it is: a click must not move focus out
@@ -305,8 +347,22 @@ export function CommandPalette() {
                   onMouseMove={() => setActive(index)}
                   onClick={() => choose(item)}
                 >
-                  <span className="block font-medium">{item.label}</span>
-                  <span className="block text-xs text-muted-foreground">{item.detail}</span>
+                  <span aria-hidden="true" className="shrink-0 text-muted-foreground">
+                    {KIND_ICONS[item.kind]}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-medium">{item.label}</span>
+                    <span className="block truncate text-xs text-muted-foreground">
+                      {item.detail}
+                    </span>
+                  </span>
+                  {item.keys === undefined ? null : (
+                    <span aria-hidden="true" className="flex shrink-0 items-center gap-0.5">
+                      {item.keys.map((key) => (
+                        <Kbd key={key}>{key}</Kbd>
+                      ))}
+                    </span>
+                  )}
                 </button>
               ))}
             </div>
@@ -314,11 +370,11 @@ export function CommandPalette() {
             <div
               role="status"
               aria-live="polite"
-              className="border-t border-border px-4 py-2 text-xs text-muted-foreground"
+              className="border-t border-border px-4 pt-2 text-xs text-muted-foreground"
             >
               {statusLine(term, search, items.length)}
             </div>
-            <p className="px-4 pb-2 text-xs text-muted-foreground">{t('palette.hint')}</p>
+            <p className="px-4 pb-2 pt-0.5 text-xs text-muted-foreground">{t('palette.hint')}</p>
           </div>
         </div>
       ) : null}
@@ -342,6 +398,7 @@ function toItem(result: SearchResultRecord): PaletteItem {
     label: result.title,
     detail,
     href: RECORD_PATHS[result.objectType](result.id),
+    kind: result.objectType,
   };
 }
 
@@ -354,7 +411,9 @@ function filterActions(term: string): PaletteItem[] {
     label: t(action.label),
     detail: t('palette.actions'),
     href: action.href,
+    kind: 'action',
     ...(action.intent === undefined ? {} : { intent: action.intent }),
+    ...(action.keys === undefined ? {} : { keys: action.keys }),
   }));
 }
 

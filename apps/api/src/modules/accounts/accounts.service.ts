@@ -25,7 +25,7 @@ import {
   type DuplicateMatch,
   type MoneyInput,
 } from '@crm/contracts';
-import type { Account as AccountRow, Tx } from '@crm/db';
+import { recordRefFor, type Account as AccountRow, type Tx } from '@crm/db';
 import { isConstraintViolation } from '../../common/db-errors.js';
 import { assertFiltersReadable, assertSortable } from '../../common/field-queries.js';
 import { DatabaseService } from '../../database/database.service.js';
@@ -124,7 +124,10 @@ export class AccountsService {
       const row = await this.loadOrNotFound(tx, actor, id);
       // Record-level check. Out of scope raises 404, not 403, so the endpoint
       // cannot be used to discover that an id exists (CLAUDE.md §5.5).
-      assertCan(actor, 'read', { objectType: 'account', record: { ownerId: row.ownerId } });
+      assertCan(actor, 'read', {
+        objectType: 'account',
+        record: await recordRefFor(tx, actor, row.ownerId),
+      });
 
       const fields = await this.fieldMetadata.forObject(tx, actor.tenantId, 'account');
       return serializeAccount(actor, row, fields);
@@ -212,7 +215,10 @@ export class AccountsService {
 
     return this.inTenant(actor, async (tx) => {
       const existing = await this.loadOrNotFound(tx, actor, id);
-      assertCan(actor, 'update', { objectType: 'account', record: { ownerId: existing.ownerId } });
+      assertCan(actor, 'update', {
+        objectType: 'account',
+        record: await recordRefFor(tx, actor, existing.ownerId),
+      });
 
       const fields = await this.fieldMetadata.forObject(tx, actor.tenantId, 'account');
       assertWritableAccountFields(actor, input, fields);
@@ -269,7 +275,10 @@ export class AccountsService {
 
     await this.inTenant(actor, async (tx) => {
       const existing = await this.loadOrNotFound(tx, actor, id);
-      assertCan(actor, 'delete', { objectType: 'account', record: { ownerId: existing.ownerId } });
+      assertCan(actor, 'delete', {
+        objectType: 'account',
+        record: await recordRefFor(tx, actor, existing.ownerId),
+      });
 
       const deleted = await this.repository.softDelete(
         tx,

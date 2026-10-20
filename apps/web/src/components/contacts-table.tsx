@@ -1,10 +1,11 @@
 'use client';
 
 import { flexRender, getCoreRowModel, useReactTable, type ColumnDef } from '@tanstack/react-table';
-import Link from 'next/link';
 import { useMemo } from 'react';
 import type { ContactRecord } from '../lib/contacts';
+import { RecordLink, EmptyCell } from './table-parts';
 import { formatDate, DEFAULT_PREFERENCES } from '../lib/format';
+import { Table, TableCard, THead, Td, Th, Tr } from '@crm/ui';
 import { t } from '../lib/i18n';
 
 /**
@@ -61,19 +62,12 @@ export function ContactsTable({ contacts }: { contacts: readonly ContactRecord[]
         // clear, keyboard-reachable target rather than a click handler on <tr>.
         if (index === 0) {
           return (
-            <Link
-              href={`/contacts/${info.row.original.id}`}
-              className="font-medium text-primary underline-offset-4 hover:underline"
-            >
+            <RecordLink href={`/contacts/${info.row.original.id}`}>
               {text.length > 0 ? text : t('field.empty')}
-            </Link>
+            </RecordLink>
           );
         }
-        return text.length > 0 ? (
-          text
-        ) : (
-          <span className="text-muted-foreground">{t('field.empty')}</span>
-        );
+        return text.length > 0 ? text : <EmptyCell />;
       },
     }));
   }, [contacts]);
@@ -85,41 +79,33 @@ export function ContactsTable({ contacts }: { contacts: readonly ContactRecord[]
   });
 
   return (
-    <div className="overflow-x-auto rounded-lg border border-border">
-      <table className="w-full border-collapse text-sm">
-        <thead className="bg-muted/50">
+    <TableCard>
+      <Table>
+        <THead>
           {table.getHeaderGroups().map((headerGroup) => (
-            <tr key={headerGroup.id}>
+            <Tr key={headerGroup.id} className="hover:bg-transparent">
               {headerGroup.headers.map((header) => (
-                <th
-                  key={header.id}
-                  scope="col"
-                  className="px-4 py-2.5 text-left font-medium text-muted-foreground"
-                >
+                <Th key={header.id}>
                   {flexRender(header.column.columnDef.header, header.getContext())}
-                </th>
+                </Th>
               ))}
-              <th scope="col" className="px-4 py-2.5 text-left font-medium text-muted-foreground">
-                {t('contact.created')}
-              </th>
-            </tr>
+              <Th>{t('contact.created')}</Th>
+            </Tr>
           ))}
-        </thead>
+        </THead>
         <tbody>
           {table.getRowModel().rows.map((row) => (
-            <tr key={row.id} className="border-t border-border hover:bg-accent/40">
+            <Tr key={row.id}>
               {row.getVisibleCells().map((cell) => (
-                <td key={cell.id} className="px-4 py-2.5">
-                  {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                </td>
+                <Td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</Td>
               ))}
-              <td className="px-4 py-2.5 text-muted-foreground">
+              <Td className="figures whitespace-nowrap text-muted-foreground">
                 {formatDate(row.original.createdAt, DEFAULT_PREFERENCES)}
-              </td>
-            </tr>
+              </Td>
+            </Tr>
           ))}
         </tbody>
-      </table>
-    </div>
+      </Table>
+    </TableCard>
   );
 }

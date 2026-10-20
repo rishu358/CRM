@@ -1,6 +1,6 @@
 'use client';
 
-import { Button } from '@crm/ui';
+import { BellIcon, Button, IconButton, cn } from '@crm/ui';
 import { useEffect, useRef, useState } from 'react';
 import { DEFAULT_PREFERENCES, formatDateTime } from '../lib/format';
 import { t } from '../lib/i18n';
@@ -26,47 +26,62 @@ export function NotificationBell() {
   const markRead = useMarkNotificationRead();
   const markAll = useMarkAllNotificationsRead();
   const panelRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
-  // Escape closes it, like every other overlay in the app (CLAUDE.md §9).
+  // Escape closes it, like every other overlay in the app (CLAUDE.md §9), and
+  // so does a click anywhere else: a popover that can only be dismissed by
+  // finding its own button again is a small trap.
   useEffect(() => {
     if (!open) return undefined;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setOpen(false);
     };
+    const onPointerDown = (event: MouseEvent) => {
+      if (!(event.target instanceof Node)) return;
+      if (containerRef.current?.contains(event.target) === true) return;
+      setOpen(false);
+    };
     document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
+    document.addEventListener('mousedown', onPointerDown);
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      document.removeEventListener('mousedown', onPointerDown);
+    };
   }, [open]);
 
   const unread = count.data?.data.unread ?? 0;
 
   return (
-    <div className="relative">
-      <Button
-        variant="ghost"
-        size="sm"
+    <div ref={containerRef} className="relative">
+      <IconButton
+        label={
+          unread > 0
+            ? `${t('notifications.title')}, ${t('notifications.unread', { count: unread })}`
+            : t('notifications.title')
+        }
+        icon={<BellIcon className="h-[18px] w-[18px]" />}
         aria-expanded={open}
         aria-haspopup="dialog"
         onClick={() => setOpen((value) => !value)}
-      >
-        {t('notifications.title')}
-        {unread > 0 ? (
-          <span
-            className="ml-2 rounded-full bg-destructive px-2 py-0.5 text-xs text-destructive-foreground"
-            aria-label={t('notifications.unread', { count: unread })}
-          >
-            {unread}
-          </span>
-        ) : null}
-      </Button>
+      />
+      {unread > 0 ? (
+        // Decorative: the count is already in the button's accessible name.
+        <span
+          aria-hidden="true"
+          className="figures pointer-events-none absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-2xs font-semibold leading-none text-destructive-foreground ring-2 ring-background"
+        >
+          {unread > 99 ? '99+' : unread}
+        </span>
+      ) : null}
 
       {open ? (
         <div
           ref={panelRef}
           role="dialog"
           aria-label={t('notifications.title')}
-          className="absolute right-0 z-40 mt-2 w-80 rounded-lg border border-border bg-card p-3 shadow-lg"
+          className="absolute right-0 z-40 mt-2 w-[22rem] max-w-[calc(100vw-2rem)] animate-pop-in rounded-xl border border-border bg-popover p-3 text-popover-foreground shadow-md"
         >
-          <div className="mb-2 flex items-center justify-between">
+          <div className="mb-1 flex items-center justify-between">
             <span className="text-sm font-semibold">{t('notifications.title')}</span>
             <Button
               variant="ghost"
@@ -79,34 +94,35 @@ export function NotificationBell() {
           </div>
 
           {list.isPending ? (
-            <p className="py-6 text-center text-sm text-muted-foreground">{t('common.loading')}</p>
+            <p className="py-8 text-center text-sm text-muted-foreground">{t('common.loading')}</p>
           ) : list.isError ? (
-            <p role="alert" className="py-6 text-center text-sm text-destructive">
+            <p role="alert" className="py-8 text-center text-sm text-destructive">
               {t('notifications.error')}
             </p>
           ) : list.data.data.length === 0 ? (
-            <p className="py-6 text-center text-sm text-muted-foreground">
+            <p className="py-8 text-center text-sm text-muted-foreground">
               {t('notifications.empty')}
             </p>
           ) : (
-            <ul className="max-h-80 divide-y divide-border overflow-y-auto">
+            <ul className="max-h-80 overflow-y-auto">
               {list.data.data.map((notification) => (
-                <li key={notification.id} className="py-2">
+                <li key={notification.id}>
                   <button
                     type="button"
-                    className="w-full text-left"
+                    className="flex w-full flex-col gap-0.5 rounded-md px-2 py-2 text-left transition-colors duration-fast hover:bg-accent/60"
                     onClick={() => markRead.mutate(notification.id)}
                   >
                     <span
-                      className={
+                      className={cn(
+                        'text-sm',
                         notification.readAt === null
-                          ? 'text-sm font-medium'
-                          : 'text-sm text-muted-foreground'
-                      }
+                          ? 'font-medium text-foreground'
+                          : 'text-muted-foreground',
+                      )}
                     >
                       {describe(notification)}
                     </span>
-                    <span className="block text-xs text-muted-foreground">
+                    <span className="figures block text-xs text-muted-foreground">
                       {formatDateTime(notification.createdAt, DEFAULT_PREFERENCES)}
                     </span>
                   </button>

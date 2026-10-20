@@ -1,9 +1,23 @@
 'use client';
 
-import { Button, EmptyState, ErrorState, NoPermissionState, TableSkeleton } from '@crm/ui';
+import {
+  Button,
+  EmptyState,
+  ErrorState,
+  ContactsIcon,
+  NoResultsIcon,
+  ListFooter,
+  NoPermissionState,
+  PageHeader,
+  PlusIcon,
+  SearchField,
+  TableSkeleton,
+  Toolbar,
+} from '@crm/ui';
 import { useState } from 'react';
 import { flattenPages, useContactList, useCreateContact } from '../lib/contacts';
 import { t } from '../lib/i18n';
+import { useCreateShortcut } from '../lib/shortcuts';
 import { AppShell } from './app-shell';
 import { ContactsTable } from './contacts-table';
 import { ExportButton } from './export-button';
@@ -21,12 +35,15 @@ export function ContactsPage() {
   const [search, setSearch] = useState('');
   const [creating, setCreating] = useState(false);
 
+  // `C` does what the New button does, on whichever list is on screen.
+  useCreateShortcut(() => setCreating(true));
+
   const query = useContactList(search);
   const create = useCreateContact();
   const contacts = flattenPages(query.data);
 
   const content = () => {
-    if (query.isPending) return <TableSkeleton rows={8} columns={5} />;
+    if (query.isPending) return <TableSkeleton rows={8} columns={5} label={t('common.loading')} />;
 
     if (query.isError) {
       if (query.error.status === 403) {
@@ -56,11 +73,12 @@ export function ContactsPage() {
       // name would be unhelpful.
       return search.length > 0 ? (
         <EmptyState
+          icon={<NoResultsIcon className="h-5 w-5" />}
           title={t('contacts.noResults.title')}
           description={t('contacts.noResults.description')}
           action={
             <Button variant="outline" onClick={() => setSearch('')}>
-              {t('field.cancel')}
+              {t('common.clearSearch')}
             </Button>
           }
         />
@@ -68,7 +86,16 @@ export function ContactsPage() {
         <EmptyState
           title={t('contacts.empty.title')}
           description={t('contacts.empty.description')}
-          action={<Button onClick={() => setCreating(true)}>{t('contacts.empty.action')}</Button>}
+          icon={<ContactsIcon className="h-5 w-5" />}
+          action={
+            <>
+              <Button onClick={() => setCreating(true)}>
+                <PlusIcon className="h-4 w-4" />
+                {t('contacts.empty.action')}
+              </Button>
+              <ImportLink objectType="contact" />
+            </>
+          }
         />
       );
     }
@@ -76,46 +103,56 @@ export function ContactsPage() {
     return (
       <div className="space-y-4">
         <ContactsTable contacts={contacts} />
-        <div className="flex items-center justify-between text-sm text-muted-foreground">
-          <span aria-live="polite">
-            {contacts.length} {t('contacts.count')}
-          </span>
-          {query.hasNextPage ? (
-            <Button
-              variant="outline"
-              size="sm"
-              loading={query.isFetchingNextPage}
-              onClick={() => void query.fetchNextPage()}
-            >
-              {t('contacts.loadMore')}
-            </Button>
-          ) : null}
-        </div>
+        <ListFooter
+          end={
+            query.hasNextPage ? (
+              <Button
+                variant="outline"
+                size="sm"
+                loading={query.isFetchingNextPage}
+                onClick={() => void query.fetchNextPage()}
+              >
+                {t('contacts.loadMore')}
+              </Button>
+            ) : undefined
+          }
+        >
+          {contacts.length} {t('contacts.count')}
+        </ListFooter>
       </div>
     );
   };
 
   return (
     <AppShell>
-      <header className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-xl font-semibold tracking-tight">{t('contacts.title')}</h1>
-        <div className="flex items-center gap-2">
-          <label className="sr-only" htmlFor="contact-search">
-            {t('contacts.search')}
-          </label>
-          <input
+      <PageHeader
+        title={t('contacts.title')}
+        actions={
+          <Button onClick={() => setCreating(true)} aria-keyshortcuts="C">
+            <PlusIcon className="h-4 w-4" />
+            {t('contacts.new')}
+          </Button>
+        }
+      />
+
+      <Toolbar
+        start={
+          <SearchField
             id="contact-search"
-            type="search"
+            label={t('contacts.search')}
             value={search}
             onChange={(event) => setSearch(event.target.value)}
             placeholder={t('contacts.searchPlaceholder')}
-            className="h-9 w-56 rounded-md border border-input bg-background px-3 text-sm"
+            wrapperClassName="w-full sm:w-72"
           />
-          <ImportLink objectType="contact" />
-          <ExportButton objectType="contact" q={search} sort="-created_at" />
-          <Button onClick={() => setCreating(true)}>{t('contacts.new')}</Button>
-        </div>
-      </header>
+        }
+        end={
+          <>
+            <ImportLink objectType="contact" />
+            <ExportButton objectType="contact" q={search} sort="-created_at" />
+          </>
+        }
+      />
 
       {content()}
 

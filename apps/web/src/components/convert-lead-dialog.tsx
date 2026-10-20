@@ -1,8 +1,8 @@
 'use client';
 
-import { Button, Input, Skeleton } from '@crm/ui';
+import { Button, Dialog, DialogFooter, Input, Skeleton } from '@crm/ui';
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { t, type TranslationKey } from '../lib/i18n';
 import {
   useConversionMatches,
@@ -62,14 +62,6 @@ export function ConvertLeadDialog({ lead, onClose }: { lead: LeadRecord; onClose
         ? { mode: 'none' }
         : { mode: 'create' });
 
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
-    };
-    document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
-  }, [onClose]);
-
   /**
    * Choosing "create" while a match exists is the person saying they have seen
    * it and want a separate record. That is what the API's acknowledgement
@@ -113,132 +105,130 @@ export function ConvertLeadDialog({ lead, onClose }: { lead: LeadRecord; onClose
   })();
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/30 p-4">
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="convert-lead-title"
-        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-lg border border-border bg-card p-6 shadow-lg"
-      >
-        {result !== null ? (
-          <ConversionDone result={result} onClose={onClose} />
-        ) : (
-          <>
-            <h2 id="convert-lead-title" className="mb-1 text-base font-semibold">
-              {t('convert.title', { name: formatName(lead) || (lead.lastName ?? '') })}
-            </h2>
-            <p className="mb-4 text-sm text-muted-foreground">{t('convert.description')}</p>
-
-            {matchesQuery.isPending ? (
-              <div className="space-y-3" role="status" aria-label={t('convert.loadingMatches')}>
-                <Skeleton className="h-16 w-full" />
-                <Skeleton className="h-16 w-full" />
-              </div>
-            ) : (
-              <div className="space-y-5">
-                <Choice legend={t('convert.contact')}>
+    <Dialog
+      title={
+        result !== null
+          ? t('convert.done.title')
+          : t('convert.title', { name: formatName(lead) || (lead.lastName ?? '') })
+      }
+      description={result !== null ? t('convert.done.description') : t('convert.description')}
+      closeLabel={t('common.close')}
+      onClose={onClose}
+      size="lg"
+    >
+      {result !== null ? (
+        <ConversionDone result={result} onClose={onClose} />
+      ) : (
+        <>
+          {matchesQuery.isPending ? (
+            <div className="space-y-3" role="status" aria-label={t('convert.loadingMatches')}>
+              <Skeleton className="h-16 w-full" />
+              <Skeleton className="h-16 w-full" />
+            </div>
+          ) : (
+            <div className="space-y-5">
+              <Choice legend={t('convert.contact')}>
+                <Radio
+                  name="contact"
+                  label={t('convert.contact.create')}
+                  checked={effectiveContact.mode === 'create'}
+                  onChange={() => setContactChoice({ mode: 'create' })}
+                />
+                {contactMatches.map((match) => (
                   <Radio
+                    key={match.id}
                     name="contact"
-                    label={t('convert.contact.create')}
-                    checked={effectiveContact.mode === 'create'}
-                    onChange={() => setContactChoice({ mode: 'create' })}
+                    label={`${t('convert.contact.link')}: ${match.label}`}
+                    hint={reasons(match)}
+                    checked={
+                      effectiveContact.mode === 'link' && effectiveContact.contactId === match.id
+                    }
+                    onChange={() => setContactChoice({ mode: 'link', contactId: match.id })}
                   />
-                  {contactMatches.map((match) => (
-                    <Radio
-                      key={match.id}
-                      name="contact"
-                      label={`${t('convert.contact.link')}: ${match.label}`}
-                      hint={reasons(match)}
-                      checked={
-                        effectiveContact.mode === 'link' && effectiveContact.contactId === match.id
-                      }
-                      onChange={() => setContactChoice({ mode: 'link', contactId: match.id })}
-                    />
-                  ))}
-                </Choice>
+                ))}
+              </Choice>
 
-                <Choice legend={t('convert.account')}>
-                  {company !== null ? (
-                    <Radio
-                      name="account"
-                      label={t('convert.account.create', { company })}
-                      checked={effectiveAccount.mode === 'create'}
-                      onChange={() => setAccountChoice({ mode: 'create' })}
-                    />
-                  ) : null}
-                  {accountMatches.map((match) => (
-                    <Radio
-                      key={match.id}
-                      name="account"
-                      label={`${t('convert.account.link')}: ${match.label}`}
-                      hint={reasons(match)}
-                      checked={
-                        effectiveAccount.mode === 'link' && effectiveAccount.accountId === match.id
-                      }
-                      onChange={() => setAccountChoice({ mode: 'link', accountId: match.id })}
-                    />
-                  ))}
+              <Choice legend={t('convert.account')}>
+                {company !== null ? (
                   <Radio
                     name="account"
-                    label={t('convert.account.none')}
-                    checked={effectiveAccount.mode === 'none'}
-                    onChange={() => setAccountChoice({ mode: 'none' })}
+                    label={t('convert.account.create', { company })}
+                    checked={effectiveAccount.mode === 'create'}
+                    onChange={() => setAccountChoice({ mode: 'create' })}
                   />
-                </Choice>
-
-                {creatingDespiteMatch ? (
-                  <p
-                    role="status"
-                    className="rounded-md border border-warning/40 bg-warning/10 p-3 text-sm"
-                  >
-                    {t('convert.duplicateWarning')}
-                  </p>
                 ) : null}
+                {accountMatches.map((match) => (
+                  <Radio
+                    key={match.id}
+                    name="account"
+                    label={`${t('convert.account.link')}: ${match.label}`}
+                    hint={reasons(match)}
+                    checked={
+                      effectiveAccount.mode === 'link' && effectiveAccount.accountId === match.id
+                    }
+                    onChange={() => setAccountChoice({ mode: 'link', accountId: match.id })}
+                  />
+                ))}
+                <Radio
+                  name="account"
+                  label={t('convert.account.none')}
+                  checked={effectiveAccount.mode === 'none'}
+                  onChange={() => setAccountChoice({ mode: 'none' })}
+                />
+              </Choice>
 
-                <fieldset className="space-y-2">
-                  <legend className="mb-1 text-sm font-medium">{t('convert.deal')}</legend>
-                  <label className="flex items-center gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={makeDeal}
-                      onChange={(event) => setMakeDeal(event.target.checked)}
-                    />
-                    {t('convert.deal.create')}
-                  </label>
-                  {makeDeal ? (
-                    <Input
-                      label={t('convert.deal.name')}
-                      value={dealName}
-                      onChange={(event) => setDealName(event.target.value)}
-                    />
-                  ) : null}
-                </fieldset>
-              </div>
-            )}
+              {creatingDespiteMatch ? (
+                <p
+                  role="status"
+                  className="rounded-md border border-warning/40 bg-warning/10 p-3 text-sm"
+                >
+                  {t('convert.duplicateWarning')}
+                </p>
+              ) : null}
 
-            {errorMessage !== null ? (
-              <p role="alert" className="mt-4 text-sm text-destructive">
-                {errorMessage}
-              </p>
-            ) : null}
-
-            <div className="mt-6 flex justify-end gap-2">
-              <Button type="button" variant="ghost" onClick={onClose}>
-                {t('field.cancel')}
-              </Button>
-              <Button
-                type="button"
-                loading={convert.isPending}
-                disabled={matchesQuery.isPending}
-                onClick={submit}
-              >
-                {t('convert.submit')}
-              </Button>
+              <fieldset className="space-y-2">
+                <legend className="mb-1 text-sm font-medium">{t('convert.deal')}</legend>
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={makeDeal}
+                    onChange={(event) => setMakeDeal(event.target.checked)}
+                  />
+                  {t('convert.deal.create')}
+                </label>
+                {makeDeal ? (
+                  <Input
+                    label={t('convert.deal.name')}
+                    value={dealName}
+                    onChange={(event) => setDealName(event.target.value)}
+                  />
+                ) : null}
+              </fieldset>
             </div>
-          </>
-        )}
-      </div>
-    </div>
+          )}
+
+          {errorMessage !== null ? (
+            <p role="alert" className="mt-4 text-sm text-destructive">
+              {errorMessage}
+            </p>
+          ) : null}
+
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={onClose}>
+              {t('field.cancel')}
+            </Button>
+            <Button
+              type="button"
+              loading={convert.isPending}
+              disabled={matchesQuery.isPending}
+              onClick={submit}
+            >
+              {t('convert.submit')}
+            </Button>
+          </DialogFooter>
+        </>
+      )}
+    </Dialog>
   );
 }
 
@@ -271,8 +261,14 @@ function Radio({
   onChange: () => void;
 }) {
   return (
-    <label className="flex items-start gap-2 rounded-md border border-border p-2.5 text-sm has-[:checked]:border-primary has-[:checked]:bg-accent/40">
-      <input type="radio" name={name} checked={checked} onChange={onChange} className="mt-0.5" />
+    <label className="flex cursor-pointer items-start gap-2.5 rounded-lg border border-input p-3 text-sm transition-colors duration-fast hover:bg-accent/40 has-[:checked]:border-primary has-[:checked]:bg-accent/60">
+      <input
+        type="radio"
+        name={name}
+        checked={checked}
+        onChange={onChange}
+        className="mt-0.5 cursor-pointer"
+      />
       <span>
         {label}
         {hint !== undefined && hint.length > 0 ? (
@@ -308,16 +304,12 @@ function ConversionDone({ result, onClose }: { result: ConversionResult; onClose
 
   return (
     <div className="space-y-4" data-testid="conversion-done">
-      <h2 id="convert-lead-title" className="text-base font-semibold">
-        {t('convert.done.title')}
-      </h2>
-      <p className="text-sm text-muted-foreground">{t('convert.done.description')}</p>
-      <ul className="divide-y divide-border rounded-md border border-border">
+      <ul className="divide-y divide-border rounded-lg border border-border">
         {rows.map((row) => (
           <li key={row.label} className="flex items-center justify-between p-3 text-sm">
             <Link
               href={row.href}
-              className="font-medium text-primary underline-offset-4 hover:underline"
+              className="rounded-sm font-medium text-primary underline-offset-4 hover:underline"
             >
               {row.label}
             </Link>

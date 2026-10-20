@@ -1,6 +1,6 @@
 'use client';
 
-import { Button } from '@crm/ui';
+import { Button, EditIcon, Input } from '@crm/ui';
 import { useEffect, useRef, useState } from 'react';
 import { t } from '../lib/i18n';
 
@@ -61,17 +61,16 @@ export function InlineField({
   };
 
   return (
-    <div className="grid grid-cols-[10rem_1fr] items-start gap-3 py-2">
+    <div className="grid grid-cols-[10rem_1fr] items-start gap-3 py-1">
       <span className="pt-1.5 text-sm text-muted-foreground">{label}</span>
 
       {editing ? (
         <div className="flex items-center gap-2">
-          <label className="sr-only" htmlFor={`field-${label}`}>
-            {label}
-          </label>
-          <input
+          <Input
             id={`field-${label}`}
             ref={inputRef}
+            label={label}
+            labelHidden
             type={type}
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
@@ -80,7 +79,8 @@ export function InlineField({
               if (event.key === 'Enter') commit();
               if (event.key === 'Escape') cancel();
             }}
-            className="h-8 w-full max-w-sm rounded-md border border-input bg-background px-2 text-sm"
+            className="h-8 px-2"
+            wrapperClassName="w-full max-w-sm"
           />
           <Button size="sm" variant="ghost" onMouseDown={cancel}>
             {t('field.cancel')}
@@ -92,12 +92,19 @@ export function InlineField({
           disabled={readOnly}
           onClick={startEditing}
           aria-label={`${t('field.edit')}: ${label}`}
-          className="min-h-8 w-full max-w-sm rounded-md px-2 py-1.5 text-left text-sm hover:bg-accent disabled:cursor-default disabled:hover:bg-transparent"
+          className="group flex min-h-8 w-full max-w-sm items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors duration-fast hover:bg-accent disabled:cursor-default disabled:hover:bg-transparent"
         >
           {value === null || value === undefined || value === '' ? (
             <span className="text-muted-foreground">{t('field.empty')}</span>
           ) : (
-            value
+            <span className="min-w-0 truncate">{value}</span>
+          )}
+          {/* The "this is editable" cue, quiet until you point at it or tab to it. */}
+          {readOnly ? null : (
+            <EditIcon
+              aria-hidden="true"
+              className="h-3.5 w-3.5 shrink-0 text-muted-foreground opacity-0 transition-opacity duration-fast group-hover:opacity-100 group-focus-visible:opacity-100"
+            />
           )}
         </button>
       )}

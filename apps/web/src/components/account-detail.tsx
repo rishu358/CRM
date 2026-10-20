@@ -7,8 +7,10 @@ import {
   Card,
   CardBody,
   CardHeader,
+  CardSkeleton,
   ErrorState,
   NoPermissionState,
+  PageHeader,
   Skeleton,
 } from '@crm/ui';
 import Link from 'next/link';
@@ -17,6 +19,8 @@ import { DEFAULT_PREFERENCES, formatDateTime } from '../lib/format';
 import { t, type TranslationKey } from '../lib/i18n';
 import { useRecordView } from '../lib/activities';
 import { AppShell } from './app-shell';
+import { BackLink } from './back-link';
+import { WhoCanSeeButton } from './who-can-see';
 import { ActivityPanel } from './activity-panel';
 import { InlineField } from './inline-field';
 import { InlineMoneyField } from './inline-money-field';
@@ -61,7 +65,7 @@ function AddressBlock({ label, address }: { label: string; address: AddressValue
   ].filter((line): line is string => typeof line === 'string' && line.trim().length > 0);
 
   return (
-    <div className="grid grid-cols-[10rem_1fr] items-start gap-3 py-2 text-sm">
+    <div className="grid grid-cols-[10rem_1fr] items-start gap-3 py-1 text-sm">
       <span className="text-muted-foreground">{label}</span>
       {lines.length === 0 ? (
         <span className="text-muted-foreground">{t('field.empty')}</span>
@@ -117,9 +121,10 @@ export function AccountDetail({ id }: { id: string }) {
   if (query.isPending) {
     return (
       <AppShell>
-        <div className="space-y-4">
+        <div className="space-y-5">
+          <Skeleton className="h-4 w-28" />
           <Skeleton className="h-8 w-64" />
-          <Skeleton className="h-64 w-full" />
+          <CardSkeleton rows={7} label={t('common.loading')} />
         </div>
       </AppShell>
     );
@@ -168,18 +173,17 @@ export function AccountDetail({ id }: { id: string }) {
 
   return (
     <AppShell>
-      <nav className="mb-4">
-        <Link
-          href="/accounts"
-          className="text-sm text-muted-foreground underline-offset-4 hover:underline"
-        >
-          {t('account.backToList')}
-        </Link>
-      </nav>
-
-      <h1 className="mb-6 text-xl font-semibold tracking-tight">
-        {account.name ?? t('field.empty')}
-      </h1>
+      <PageHeader
+        back={<BackLink href="/accounts">{t('account.backToList')}</BackLink>}
+        title={account.name ?? t('field.empty')}
+        actions={
+          <WhoCanSeeButton
+            objectType="account"
+            recordId={id}
+            subject={t('whoCanSee.subject.account')}
+          />
+        }
+      />
 
       {conflicted ? (
         <div
@@ -209,79 +213,91 @@ export function AccountDetail({ id }: { id: string }) {
         </p>
       )}
 
-      <Card>
-        <CardHeader title={t('account.details')} />
-        <CardBody className="divide-y divide-border">
-          {EDITABLE_FIELDS.filter((field) => field.key in record).map((field) => (
-            <InlineField
-              key={field.key}
-              label={t(field.label)}
-              type={field.type}
-              value={
-                record[field.key] === null || record[field.key] === undefined
-                  ? null
-                  : String(record[field.key])
-              }
-              onSave={(next) => {
-                // A number field must send a number: the API rejects "12" for
-                // employeeCount, correctly, as the wrong type.
-                const value = field.type === 'number' && next !== null ? Number(next) : next;
-                save({ [field.key]: value });
-              }}
-            />
-          ))}
+      {/*
+        Details beside the timeline from `xl`, stacked below it. The timeline is
+        "one timeline per record" (UX §5): it should be on screen with the
+        fields, not a scroll away from them.
+      */}
+      <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_26rem]">
+        <div className="min-w-0 space-y-6">
+          <Card>
+            <CardHeader title={t('account.details')} />
+            <CardBody className="divide-y divide-border px-5 py-1">
+              {EDITABLE_FIELDS.filter((field) => field.key in record).map((field) => (
+                <InlineField
+                  key={field.key}
+                  label={t(field.label)}
+                  type={field.type}
+                  value={
+                    record[field.key] === null || record[field.key] === undefined
+                      ? null
+                      : String(record[field.key])
+                  }
+                  onSave={(next) => {
+                    // A number field must send a number: the API rejects "12" for
+                    // employeeCount, correctly, as the wrong type.
+                    const value = field.type === 'number' && next !== null ? Number(next) : next;
+                    save({ [field.key]: value });
+                  }}
+                />
+              ))}
 
-          {'annualRevenue' in record ? (
-            <InlineMoneyField
-              label={t('account.annualRevenue')}
-              value={account.annualRevenue}
-              onSave={(next) => save({ annualRevenue: next })}
-            />
+              {'annualRevenue' in record ? (
+                <InlineMoneyField
+                  label={t('account.annualRevenue')}
+                  value={account.annualRevenue}
+                  onSave={(next) => save({ annualRevenue: next })}
+                />
+              ) : null}
+
+              {'parentAccountId' in record ? (
+                <div className="grid grid-cols-[10rem_1fr] items-start gap-3 py-1 text-sm">
+                  <span className="pt-1.5 text-muted-foreground">{t('account.parent')}</span>
+                  {account.parentAccountId == null ? (
+                    <span className="text-muted-foreground">{t('account.parent.none')}</span>
+                  ) : (
+                    <ParentAccountLink id={account.parentAccountId} />
+                  )}
+                </div>
+              ) : null}
+
+              <div className="grid grid-cols-[10rem_1fr] items-start gap-3 py-1 text-sm">
+                <span className="pt-1.5 text-muted-foreground">{t('account.created')}</span>
+                <span className="px-2 pt-1.5">
+                  {formatDateTime(account.createdAt, DEFAULT_PREFERENCES)}
+                </span>
+              </div>
+              <div className="grid grid-cols-[10rem_1fr] items-start gap-3 py-1 text-sm">
+                <span className="pt-1.5 text-muted-foreground">{t('account.updated')}</span>
+                <span className="px-2 pt-1.5">
+                  {formatDateTime(account.updatedAt, DEFAULT_PREFERENCES)}
+                </span>
+              </div>
+            </CardBody>
+          </Card>
+
+          {'billingAddress' in record || 'shippingAddress' in record ? (
+            <Card>
+              <CardHeader title={t('account.addresses')} />
+              <CardBody className="divide-y divide-border px-5 py-1">
+                {'billingAddress' in record ? (
+                  <AddressBlock
+                    label={t('account.billingAddress')}
+                    address={account.billingAddress ?? null}
+                  />
+                ) : null}
+                {'shippingAddress' in record ? (
+                  <AddressBlock
+                    label={t('account.shippingAddress')}
+                    address={account.shippingAddress ?? null}
+                  />
+                ) : null}
+              </CardBody>
+            </Card>
           ) : null}
-
-          {'parentAccountId' in record ? (
-            <div className="grid grid-cols-[10rem_1fr] gap-3 py-2 text-sm">
-              <span className="text-muted-foreground">{t('account.parent')}</span>
-              {account.parentAccountId == null ? (
-                <span className="text-muted-foreground">{t('account.parent.none')}</span>
-              ) : (
-                <ParentAccountLink id={account.parentAccountId} />
-              )}
-            </div>
-          ) : null}
-
-          <div className="grid grid-cols-[10rem_1fr] gap-3 py-2 text-sm">
-            <span className="text-muted-foreground">{t('account.created')}</span>
-            <span>{formatDateTime(account.createdAt, DEFAULT_PREFERENCES)}</span>
-          </div>
-          <div className="grid grid-cols-[10rem_1fr] gap-3 py-2 text-sm">
-            <span className="text-muted-foreground">{t('account.updated')}</span>
-            <span>{formatDateTime(account.updatedAt, DEFAULT_PREFERENCES)}</span>
-          </div>
-        </CardBody>
-      </Card>
-
-      {'billingAddress' in record || 'shippingAddress' in record ? (
-        <Card className="mt-6">
-          <CardHeader title={t('account.addresses')} />
-          <CardBody className="divide-y divide-border">
-            {'billingAddress' in record ? (
-              <AddressBlock
-                label={t('account.billingAddress')}
-                address={account.billingAddress ?? null}
-              />
-            ) : null}
-            {'shippingAddress' in record ? (
-              <AddressBlock
-                label={t('account.shippingAddress')}
-                address={account.shippingAddress ?? null}
-              />
-            ) : null}
-          </CardBody>
-        </Card>
-      ) : null}
-
-      <ActivityPanel objectType="account" recordId={id} />
+        </div>
+        <ActivityPanel objectType="account" recordId={id} />
+      </div>
     </AppShell>
   );
 }

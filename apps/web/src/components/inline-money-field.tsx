@@ -1,6 +1,6 @@
 'use client';
 
-import { Button } from '@crm/ui';
+import { Button, EditIcon, Input, Select } from '@crm/ui';
 import { fromMajorString, minorUnitExponent, toCurrency } from '@crm/core';
 import { useEffect, useRef, useState } from 'react';
 import type { MoneyValue } from '../lib/accounts';
@@ -103,17 +103,16 @@ export function InlineMoneyField({
   };
 
   return (
-    <div className="grid grid-cols-[10rem_1fr] items-start gap-3 py-2">
+    <div className="grid grid-cols-[10rem_1fr] items-start gap-3 py-1">
       <span className="pt-1.5 text-sm text-muted-foreground">{label}</span>
 
       {editing ? (
         <div className="flex flex-wrap items-center gap-2">
-          <label className="sr-only" htmlFor="account-revenue-amount">
-            {t('account.amount')}
-          </label>
-          <input
+          <Input
             id="account-revenue-amount"
             ref={inputRef}
+            label={t('account.amount')}
+            labelHidden
             inputMode="decimal"
             value={amount}
             onChange={(event) => setAmount(event.target.value)}
@@ -121,23 +120,23 @@ export function InlineMoneyField({
               if (event.key === 'Enter') commit();
               if (event.key === 'Escape') setEditing(false);
             }}
-            className="h-8 w-40 rounded-md border border-input bg-background px-2 text-sm"
+            className="h-8 px-2"
+            wrapperClassName="w-40"
           />
-          <label className="sr-only" htmlFor="account-revenue-currency">
-            {t('account.currency')}
-          </label>
-          <select
+          <Select
             id="account-revenue-currency"
+            label={t('account.currency')}
+            labelHidden
             value={currency}
             onChange={(event) => setCurrency(event.target.value)}
-            className="h-8 rounded-md border border-input bg-background px-2 text-sm"
+            className="h-8 w-24 px-2"
           >
             {CURRENCIES.map((code) => (
               <option key={code} value={code}>
                 {code}
               </option>
             ))}
-          </select>
+          </Select>
           <Button size="sm" onClick={commit}>
             {t('field.save')}
           </Button>
@@ -155,15 +154,21 @@ export function InlineMoneyField({
           type="button"
           onClick={startEditing}
           aria-label={`${t('field.edit')}: ${label}`}
-          className="min-h-8 w-full max-w-sm rounded-md px-2 py-1.5 text-left text-sm hover:bg-accent"
+          className="group flex min-h-8 w-full max-w-sm items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors duration-fast hover:bg-accent"
         >
           {value == null ? (
             <span className="text-muted-foreground">{t('field.empty')}</span>
           ) : (
             // Formatted through the shared helper, so an Indian tenant sees
             // lakh/crore grouping without this component knowing about it.
-            formatMoney(value.amountMinor, value.currency, DEFAULT_PREFERENCES)
+            <span className="figures">
+              {formatMoney(value.amountMinor, value.currency, DEFAULT_PREFERENCES)}
+            </span>
           )}
+          <EditIcon
+            aria-hidden="true"
+            className="h-3.5 w-3.5 shrink-0 text-muted-foreground opacity-0 transition-opacity duration-fast group-hover:opacity-100 group-focus-visible:opacity-100"
+          />
         </button>
       )}
     </div>

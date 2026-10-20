@@ -199,7 +199,7 @@ describe('(b) record scope: an import only sees, matches and changes what its ac
     expect(await contact(mine)).toMatchObject({ title: 'CTO', version: 2 });
   });
 
-  it('a `team`-scope importer sees a teammate’s record but not an outsider’s', async () => {
+  it('a `team`-scope importer sees and edits a teammate’s record, never an outsider’s', async () => {
     const tag = unique();
     const roleId = await importerRole('team-importer', 'team');
     const lead = (await h.fixtures.createUser(h.tenantId, roleId)).userId;
@@ -233,12 +233,12 @@ describe('(b) record scope: an import only sees, matches and changes what its ac
     expect(await contact(teammates)).toMatchObject({ title: null, version: 1 });
     expect(await contact(outsiders)).toMatchObject({ title: null, version: 1 });
 
-    // `update` then applies the rule the API itself applies to a single record:
-    // `can(actor, 'update', { record: { ownerId } })`, which resolves team scope
-    // through `record.teamId` — and no service supplies one. So a team-scope user
-    // can see a teammate's record and cannot edit it, in the API and here alike.
-    // The import is deliberately *not* more permissive than the API; if the
-    // platform gains team-aware record checks, this test is where it shows.
+    // `update` applies the rule the API itself applies to a single record:
+    // `can(actor, 'update', { record })`. Team scope means "owned by anyone in
+    // my teams", so a teammate's record **is** editable here — as it is through
+    // the API, once the services supply the owner's teams (ADR-0033). The
+    // outsider's record, owned by someone in no shared team, is neither seen
+    // (above) nor touched (below).
     const update = await importAs(
       lead,
       [
@@ -247,8 +247,9 @@ describe('(b) record scope: an import only sees, matches and changes what its ac
       ],
       { duplicateMode: 'update', matchField: 'email' },
     );
-    expect(update).toMatchObject({ failedCount: 1, updatedCount: 0 });
-    expect(await contact(teammates)).toMatchObject({ title: null, version: 1 });
+    expect(update).toMatchObject({ updatedCount: 1, failedCount: 0 });
+    expect(await contact(teammates)).toMatchObject({ title: 'VP', version: 2 });
+    expect(await contact(outsiders)).toMatchObject({ title: null, version: 1 });
   });
 
   it('refuses to update a record the importer can see but may not edit', async () => {

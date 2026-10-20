@@ -1,4 +1,5 @@
-import { Module } from '@nestjs/common';
+import { Inject, Module, type OnModuleInit } from '@nestjs/common';
+import { OwnershipRegistry } from '../../platform/ownership.registry.js';
 import { AccountsController } from './accounts.controller.js';
 import { AccountsRepository } from './accounts.repository.js';
 import { AccountsService } from './accounts.service.js';
@@ -16,4 +17,18 @@ import { AccountsService } from './accounts.service.js';
   providers: [AccountsService, AccountsRepository],
   exports: [AccountsService],
 })
-export class AccountsModule {}
+export class AccountsModule implements OnModuleInit {
+  constructor(@Inject(OwnershipRegistry) private readonly ownership: OwnershipRegistry) {}
+
+  /**
+   * Tell the platform where this module's records keep their owner, so an
+   * administrator can reassign them (MVP_SPEC M3). The names are this module's
+   * own constants; the access module never learns another module's schema.
+   */
+  onModuleInit(): void {
+    this.ownership.register({
+      objectType: 'account',
+      table: { table: 'accounts', ownerColumn: 'owner_id' },
+    });
+  }
+}

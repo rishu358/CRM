@@ -1,10 +1,11 @@
 'use client';
 
 import { flexRender, getCoreRowModel, useReactTable, type ColumnDef } from '@tanstack/react-table';
-import Link from 'next/link';
 import { useMemo } from 'react';
 import type { LeadRecord } from '../lib/leads';
+import { RecordLink, EmptyCell } from './table-parts';
 import { formatDate, DEFAULT_PREFERENCES } from '../lib/format';
+import { Badge, Table, TableCard, THead, Td, Th, Tr } from '@crm/ui';
 import { t, type TranslationKey } from '../lib/i18n';
 
 /**
@@ -24,6 +25,15 @@ const CANDIDATE_COLUMNS = [
   { key: 'status', label: 'lead.status' },
   { key: 'source', label: 'lead.source' },
 ] as const;
+
+/** Status is the one column read at a glance, so it gets a tone; the word stays. */
+const STATUS_TONES: Readonly<Record<string, 'neutral' | 'primary' | 'success' | 'warning'>> = {
+  new: 'primary',
+  contacted: 'neutral',
+  qualified: 'success',
+  unqualified: 'warning',
+  converted: 'success',
+};
 
 /**
  * Render a cell value as text.
@@ -67,19 +77,15 @@ export function LeadsTable({ leads }: { leads: readonly LeadRecord[] }) {
         // clear, keyboard-reachable target rather than a click handler on <tr>.
         if (index === 0) {
           return (
-            <Link
-              href={`/leads/${info.row.original.id}`}
-              className="font-medium text-primary underline-offset-4 hover:underline"
-            >
+            <RecordLink href={`/leads/${info.row.original.id}`}>
               {text.length > 0 ? text : t('field.empty')}
-            </Link>
+            </RecordLink>
           );
         }
-        return text.length > 0 ? (
-          text
-        ) : (
-          <span className="text-muted-foreground">{t('field.empty')}</span>
-        );
+        if (column.key === 'status' && text.length > 0) {
+          return <Badge tone={STATUS_TONES[raw] ?? 'neutral'}>{text}</Badge>;
+        }
+        return text.length > 0 ? text : <EmptyCell />;
       },
     }));
   }, [leads]);
@@ -91,41 +97,33 @@ export function LeadsTable({ leads }: { leads: readonly LeadRecord[] }) {
   });
 
   return (
-    <div className="overflow-x-auto rounded-lg border border-border">
-      <table className="w-full border-collapse text-sm">
-        <thead className="bg-muted/50">
+    <TableCard>
+      <Table>
+        <THead>
           {table.getHeaderGroups().map((headerGroup) => (
-            <tr key={headerGroup.id}>
+            <Tr key={headerGroup.id} className="hover:bg-transparent">
               {headerGroup.headers.map((header) => (
-                <th
-                  key={header.id}
-                  scope="col"
-                  className="px-4 py-2.5 text-left font-medium text-muted-foreground"
-                >
+                <Th key={header.id}>
                   {flexRender(header.column.columnDef.header, header.getContext())}
-                </th>
+                </Th>
               ))}
-              <th scope="col" className="px-4 py-2.5 text-left font-medium text-muted-foreground">
-                {t('lead.created')}
-              </th>
-            </tr>
+              <Th>{t('lead.created')}</Th>
+            </Tr>
           ))}
-        </thead>
+        </THead>
         <tbody>
           {table.getRowModel().rows.map((row) => (
-            <tr key={row.id} className="border-t border-border hover:bg-accent/40">
+            <Tr key={row.id}>
               {row.getVisibleCells().map((cell) => (
-                <td key={cell.id} className="px-4 py-2.5">
-                  {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                </td>
+                <Td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</Td>
               ))}
-              <td className="px-4 py-2.5 text-muted-foreground">
+              <Td className="figures whitespace-nowrap text-muted-foreground">
                 {formatDate(row.original.createdAt, DEFAULT_PREFERENCES)}
-              </td>
-            </tr>
+              </Td>
+            </Tr>
           ))}
         </tbody>
-      </table>
-    </div>
+      </Table>
+    </TableCard>
   );
 }

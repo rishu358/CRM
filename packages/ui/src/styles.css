@@ -1,12 +1,22 @@
 /*
- * Design tokens (CLAUDE.md §9).
+ * Design tokens (CLAUDE.md §9, ADR-0031).
  *
  * Every colour is an HSL triple in a CSS variable, so light and dark are one
  * stylesheet and a tenant theme can be layered on later without a rebuild.
  * Components reference the semantic names only — never a raw hex value.
  *
- * Contrast: the foreground/background pairs below are chosen to clear WCAG 2.1
- * AA (4.5:1 for body text), which MVP_SPEC §9 requires.
+ * The point of view, in one paragraph: a CRM is read, not admired, so the page
+ * is a quiet cool-tinted paper and the content sits on pure-white surfaces
+ * above it — hierarchy comes from that one step of lightness, not from
+ * borders on everything. Ink is a very dark blue-green rather than black.
+ * Teal ("peacock") is the single accent: it means "this is the thing you can
+ * act on", and nothing else is allowed to be teal. Green, amber and red are
+ * reserved for won / waiting / lost and mean only that.
+ *
+ * Contrast is a test, not a promise: `contrast.test.ts` parses this file and
+ * fails the build if any pair below drops under WCAG 2.1 AA, in either theme.
+ * Control borders (`--input`) clear 3:1 because WCAG 1.4.11 applies to the edge
+ * of a field, not only to its text.
  */
 @tailwind base;
 @tailwind components;
@@ -14,43 +24,51 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222 47% 11%;
+    --background: 200 20% 97%;
+    --foreground: 200 32% 10%;
 
     --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
+    --card-foreground: 200 32% 10%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 222 47% 11%;
+    --popover-foreground: 200 32% 10%;
 
-    --primary: 221 83% 45%;
+    --primary: 186 88% 24%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 210 40% 96%;
-    --secondary-foreground: 222 47% 11%;
+    --secondary: 200 18% 93%;
+    --secondary-foreground: 200 32% 12%;
 
-    --muted: 210 40% 96%;
-    --muted-foreground: 215 20% 38%;
+    --muted: 200 18% 95%;
+    --muted-foreground: 200 14% 35%;
 
-    --accent: 210 40% 94%;
-    --accent-foreground: 222 47% 11%;
+    --accent: 186 45% 92%;
+    --accent-foreground: 186 85% 17%;
 
-    --destructive: 0 72% 42%;
+    --destructive: 4 72% 42%;
     --destructive-foreground: 0 0% 100%;
 
-    --success: 142 72% 29%;
+    --success: 150 72% 25%;
     --success-foreground: 0 0% 100%;
 
-    --warning: 35 92% 33%;
+    --warning: 30 95% 29%;
     --warning-foreground: 0 0% 100%;
 
-    --border: 214 32% 88%;
-    --input: 214 32% 88%;
-    --ring: 221 83% 45%;
+    --border: 200 16% 88%;
+    --input: 200 10% 50%;
+    --ring: 186 88% 30%;
 
     --radius: 0.5rem;
-    --font-sans: ui-sans-serif, system-ui, sans-serif;
-    --font-mono: ui-monospace, monospace;
+    /*
+     * The platform's own UI font, tuned. A webfont would add a network
+     * dependency to `pnpm build` and a font-swap to first paint; the system
+     * face is already hinted for the screen it is on. Segoe UI Variable and SF
+     * both carry tabular figures, which is what matters in a table of money.
+     */
+    --font-sans:
+      ui-sans-serif, system-ui, -apple-system, 'Segoe UI Variable Text', 'Segoe UI', Roboto,
+      'Helvetica Neue', Arial, sans-serif;
+    --font-mono: ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo, Consolas, monospace;
   }
 
   /*
@@ -61,96 +79,166 @@
    * lets an explicit light choice win over the OS preference.
    *
    * The attribute rule below is the explicit opt-in, for a future theme switch
-   * and for tests that need to force one appearance.
+   * and for tests that need to force one appearance. The two blocks must stay
+   * identical; `contrast.test.ts` checks that they are.
    */
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme='light']) {
-      --background: 222 47% 7%;
-      --foreground: 210 40% 96%;
+      --background: 200 28% 7%;
+      --foreground: 200 20% 95%;
 
-      --card: 222 45% 10%;
-      --card-foreground: 210 40% 96%;
+      --card: 200 24% 10%;
+      --card-foreground: 200 20% 95%;
 
-      --popover: 222 45% 10%;
-      --popover-foreground: 210 40% 96%;
+      --popover: 200 24% 12%;
+      --popover-foreground: 200 20% 95%;
 
-      --primary: 217 91% 65%;
-      --primary-foreground: 222 47% 7%;
+      --primary: 184 70% 50%;
+      --primary-foreground: 200 40% 7%;
 
-      --secondary: 217 33% 17%;
-      --secondary-foreground: 210 40% 96%;
+      --secondary: 200 20% 17%;
+      --secondary-foreground: 200 20% 95%;
 
-      --muted: 217 33% 17%;
-      --muted-foreground: 215 20% 70%;
+      --muted: 200 20% 13%;
+      --muted-foreground: 200 12% 68%;
 
-      --accent: 217 33% 20%;
-      --accent-foreground: 210 40% 96%;
+      --accent: 186 40% 18%;
+      --accent-foreground: 184 70% 82%;
 
-      --destructive: 0 73% 60%;
-      --destructive-foreground: 222 47% 7%;
+      --destructive: 4 80% 66%;
+      --destructive-foreground: 200 40% 7%;
 
-      --success: 142 69% 52%;
-      --success-foreground: 222 47% 7%;
+      --success: 150 60% 52%;
+      --success-foreground: 200 40% 7%;
 
       --warning: 38 92% 60%;
-      --warning-foreground: 222 47% 7%;
+      --warning-foreground: 200 40% 7%;
 
-      --border: 217 33% 22%;
-      --input: 217 33% 22%;
-      --ring: 217 91% 65%;
+      --border: 200 18% 20%;
+      --input: 200 10% 48%;
+      --ring: 184 70% 55%;
     }
   }
 
   :root[data-theme='dark'],
   .dark {
-    --background: 222 47% 7%;
-    --foreground: 210 40% 96%;
+    --background: 200 28% 7%;
+    --foreground: 200 20% 95%;
 
-    --card: 222 45% 10%;
-    --card-foreground: 210 40% 96%;
+    --card: 200 24% 10%;
+    --card-foreground: 200 20% 95%;
 
-    --popover: 222 45% 10%;
-    --popover-foreground: 210 40% 96%;
+    --popover: 200 24% 12%;
+    --popover-foreground: 200 20% 95%;
 
-    --primary: 217 91% 65%;
-    --primary-foreground: 222 47% 7%;
+    --primary: 184 70% 50%;
+    --primary-foreground: 200 40% 7%;
 
-    --secondary: 217 33% 17%;
-    --secondary-foreground: 210 40% 96%;
+    --secondary: 200 20% 17%;
+    --secondary-foreground: 200 20% 95%;
 
-    --muted: 217 33% 17%;
-    --muted-foreground: 215 20% 70%;
+    --muted: 200 20% 13%;
+    --muted-foreground: 200 12% 68%;
 
-    --accent: 217 33% 20%;
-    --accent-foreground: 210 40% 96%;
+    --accent: 186 40% 18%;
+    --accent-foreground: 184 70% 82%;
 
-    --destructive: 0 73% 60%;
-    --destructive-foreground: 222 47% 7%;
+    --destructive: 4 80% 66%;
+    --destructive-foreground: 200 40% 7%;
 
-    --success: 142 69% 52%;
-    --success-foreground: 222 47% 7%;
+    --success: 150 60% 52%;
+    --success-foreground: 200 40% 7%;
 
     --warning: 38 92% 60%;
-    --warning-foreground: 222 47% 7%;
+    --warning-foreground: 200 40% 7%;
 
-    --border: 217 33% 22%;
-    --input: 217 33% 22%;
-    --ring: 217 91% 65%;
+    --border: 200 18% 20%;
+    --input: 200 10% 48%;
+    --ring: 184 70% 55%;
   }
 
   * {
     @apply border-border;
   }
 
+  html {
+    /* Keeps the page from jumping sideways when a scrollbar appears. */
+    scrollbar-gutter: stable;
+    -webkit-text-size-adjust: 100%;
+  }
+
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-base text-foreground;
     font-feature-settings:
       'rlig' 1,
       'calt' 1;
+    text-rendering: optimizeLegibility;
   }
 
-  /* Focus must always be visible: keyboard users are not an edge case. */
+  /* Headings share one voice: heavier than body, tighter than default. */
+  h1,
+  h2,
+  h3 {
+    @apply font-semibold tracking-tight;
+  }
+
+  ::selection {
+    @apply bg-primary/20;
+  }
+
+  /*
+   * Focus must always be visible: keyboard users are not an edge case. The ring
+   * is offset from the control so it reads on any surface, light or dark.
+   */
   :focus-visible {
     @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
+  }
+
+  /* Native checkboxes and radios take the accent, so they match the rest. */
+  input[type='checkbox'],
+  input[type='radio'] {
+    accent-color: hsl(var(--primary));
+  }
+
+  /* A native dialog's own defaults are replaced by the Dialog component. */
+  dialog {
+    color: inherit;
+  }
+
+  /*
+   * Motion respects the viewer. Anything that animates is a courtesy, so when
+   * someone asks the OS for less of it, it all becomes instant — including
+   * transitions, which `motion-safe:` on each class would be too easy to forget.
+   */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@layer components {
+  /* Loading placeholder: shaped like the content, breathing rather than flashing. */
+  .skeleton {
+    background-color: hsl(var(--muted));
+    background-image: linear-gradient(
+      90deg,
+      transparent 0%,
+      hsl(var(--foreground) / 0.06) 50%,
+      transparent 100%
+    );
+    background-size: 200% 100%;
+    /* @apply, not a bare `animation:`, so Tailwind emits the keyframes too. */
+    @apply animate-shimmer;
+  }
+
+  /* Money and dates: figures that line up down a column. */
+  .figures {
+    font-variant-numeric: tabular-nums lining-nums;
   }
 }

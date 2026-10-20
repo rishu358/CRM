@@ -1,4 +1,5 @@
-import { Module } from '@nestjs/common';
+import { Inject, Module, type OnModuleInit } from '@nestjs/common';
+import { OwnershipRegistry } from '../../platform/ownership.registry.js';
 import { AccountsModule } from '../accounts/accounts.module.js';
 import { ContactsModule } from '../contacts/contacts.module.js';
 import { DealsModule } from '../deals/deals.module.js';
@@ -35,4 +36,28 @@ import { RecordViewsRepository } from './record-views.repository.js';
   ],
   exports: [ActivitiesService],
 })
-export class ActivitiesModule {}
+export class ActivitiesModule implements OnModuleInit {
+  constructor(
+    @Inject(OwnershipRegistry) private readonly ownership: OwnershipRegistry,
+    @Inject(ActivitiesService) private readonly activities: ActivitiesService,
+  ) {}
+
+  /**
+   * Tell the platform where this module's records keep their owner, so an
+   * administrator can reassign them (MVP_SPEC M3). The names are this module's
+   * own constants; the access module never learns another module's schema.
+   */
+  onModuleInit(): void {
+    this.ownership.register({
+      objectType: 'activity',
+      table: { table: 'activities', ownerColumn: 'assigned_to' },
+      // Handing somebody work is news to them, as it is on an ordinary edit.
+      afterReassign: (tx, actor, moved) =>
+        this.activities.announceReassigned(
+          tx,
+          actor,
+          moved.map((row) => row.id),
+        ),
+    });
+  }
+}

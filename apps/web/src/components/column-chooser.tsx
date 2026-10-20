@@ -1,6 +1,6 @@
 'use client';
 
-import { Button } from '@crm/ui';
+import { Button, ColumnsIcon } from '@crm/ui';
 import { useEffect, useRef, useState } from 'react';
 import { t, type TranslationKey } from '../lib/i18n';
 
@@ -60,6 +60,7 @@ export function ColumnChooser({
   return (
     <div ref={container} className="relative">
       <Button variant="outline" aria-expanded={open} onClick={() => setOpen(!open)}>
+        <ColumnsIcon className="h-4 w-4 cursor-pointer" />
         {t('accounts.columns')}
       </Button>
 
@@ -67,12 +68,12 @@ export function ColumnChooser({
         <div
           role="group"
           aria-label={t('accounts.columns.description')}
-          className="absolute right-0 z-20 mt-1 w-56 rounded-md border border-border bg-card p-2 shadow-lg"
+          className="absolute right-0 z-20 mt-1.5 w-60 animate-pop-in rounded-lg border border-border bg-popover p-1.5 text-popover-foreground shadow-md"
         >
           {options.map((option) => (
             <label
               key={option.key}
-              className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-accent"
+              className="flex cursor-pointer items-center gap-2.5 rounded-md px-2.5 py-2 text-sm transition-colors duration-fast hover:bg-accent"
             >
               <input
                 type="checkbox"
