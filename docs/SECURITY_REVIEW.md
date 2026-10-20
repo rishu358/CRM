@@ -520,12 +520,19 @@ failure mode an audit log has.
 - **The erasure's own audit entry carries counts, not values.** Recording what
   was erased would make that row the last place the erased data lives.
 
-### Not verified
+### Verified in a browser
 
-`apps/web/e2e/governance.spec.ts` is written and typechecks but **has not been
-run**: it needs the isolated-database, MinIO, API, worker and production-web
-stack, which was not stood up for this review. Treat the browser flows as
-untested until it has been.
+`apps/web/e2e/governance.spec.ts` (5 tests) passes against the real stack —
+isolated database, MinIO, API, worker and a production `next start` — alongside
+the 82 existing E2E tests (87 in all). It covers the rep's no-permission state,
+delete → Recycle Bin → restore → back in the list, the Owner's workspace archive
+and the rep's refusal, and an erasure driven from the browser that leaves the
+address visible in the audit log before and `[erased]` after.
+
+It found two defects that no unit test could have: the UI read `mutation.error`
+inside its own `catch`, which is the previous render's value, so a 403 never
+switched a card to its no-permission state; and the erasure list never refreshed
+while the worker was still carrying the request out.
 
 ### Deliberately out of scope, and said so
 

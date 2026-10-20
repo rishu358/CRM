@@ -146,6 +146,13 @@ export function useErasureRequests() {
   return useQuery<Page<ErasureRequestView>, ApiRequestError>({
     queryKey: governanceKeys.erasures(),
     queryFn: () => api.get<Page<ErasureRequestView>>('/erasure-requests?limit=50'),
+    // An erasure is carried out by the worker after the request returns, so the
+    // list is stale the moment it is fetched. Poll while anything is still in
+    // flight, and stop the moment nothing is — an idle screen costs no requests.
+    refetchInterval: (query) =>
+      query.state.data?.data.some((row) => row.status === 'pending' || row.status === 'processing')
+        ? 2000
+        : false,
   });
 }
 

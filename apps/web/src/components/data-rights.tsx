@@ -15,6 +15,7 @@ import {
 } from '@crm/ui';
 import { useState, type FormEvent } from 'react';
 import { DEFAULT_PREFERENCES, formatDateTime } from '../lib/format';
+import { ApiRequestError } from '../lib/api-client';
 import { t } from '../lib/i18n';
 import {
   useArchive,
@@ -60,8 +61,11 @@ function useArchiveFlow() {
     try {
       const created = await request.mutateAsync(input);
       setJobId(created.data.id);
-    } catch {
-      if (request.error?.status === 403) setForbidden(true);
+    } catch (error) {
+      // Read the error that was **thrown**. `request.error` is the hook's value
+      // from the render this handler closed over, so inside a catch it is still
+      // empty and a refusal would never reach the screen.
+      if (error instanceof ApiRequestError && error.status === 403) setForbidden(true);
     }
   };
 
@@ -218,13 +222,15 @@ function ErasureCard() {
       setRecordId('');
       setReason('');
       setConfirming(false);
-    } catch {
+    } catch (thrown) {
+      // The thrown error, not `erase.error` — see `useArchiveFlow`.
+      const code = thrown instanceof ApiRequestError ? thrown.code : undefined;
       setError(
-        erase.error?.code === 'CONFLICT'
+        code === 'CONFLICT'
           ? t('dataRights.erase.inProgress')
-          : erase.error?.code === 'NOT_FOUND'
+          : code === 'NOT_FOUND'
             ? t('dataRights.erase.notFound')
-            : erase.error?.code === 'FORBIDDEN'
+            : code === 'FORBIDDEN'
               ? t('dataRights.erase.notAllowed')
               : t('error.generic'),
       );

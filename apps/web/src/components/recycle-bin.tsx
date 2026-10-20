@@ -13,6 +13,7 @@ import {
 } from '@crm/ui';
 import { useState } from 'react';
 import { DEFAULT_PREFERENCES, formatDate } from '../lib/format';
+import { ApiRequestError } from '../lib/api-client';
 import { t } from '../lib/i18n';
 import {
   useRecycleBin,
@@ -56,12 +57,14 @@ export function RecycleBin() {
     setError(null);
     try {
       await restore.mutateAsync(entry);
-    } catch {
-      // Branch on the code, never the message (CLAUDE.md §8).
+    } catch (thrown) {
+      // Branch on the code, never the message (CLAUDE.md §8) — and on the error
+      // that was thrown, not `restore.error`, which is the previous render's.
+      const code = thrown instanceof ApiRequestError ? thrown.code : undefined;
       setError(
-        restore.error?.code === 'VERSION_CONFLICT'
+        code === 'VERSION_CONFLICT'
           ? t('recycleBin.conflict')
-          : restore.error?.code === 'FORBIDDEN'
+          : code === 'FORBIDDEN'
             ? t('recycleBin.notAllowed')
             : t('error.generic'),
       );
