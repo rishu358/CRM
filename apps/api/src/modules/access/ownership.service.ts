@@ -39,8 +39,10 @@ const OWNER_FIELD: Readonly<Record<OwnedObject, string>> = {
 };
 
 /** Thrown to unwind a preview's transaction; carries the answer out of it. */
-class RolledBack<T> {
-  constructor(readonly value: T) {}
+class RolledBack<T> extends Error {
+  constructor(readonly value: T) {
+    super('preview rolled back');
+  }
 }
 
 /**
@@ -193,7 +195,9 @@ export class OwnershipService {
           action: 'update',
           objectType,
           recordId: row.id,
-          changes: { [OWNER_FIELD[objectType]]: { old: row.previousOwnerId, new: input.toOwnerId } },
+          changes: {
+            [OWNER_FIELD[objectType]]: { old: row.previousOwnerId, new: input.toOwnerId },
+          },
         });
         await this.outbox.publish(tx, actor, {
           eventType: `${objectType}.updated.v1`,

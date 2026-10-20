@@ -56,3 +56,12 @@ export function formatName(contact: { firstName?: unknown; lastName?: unknown })
   );
   return parts.join(' ');
 }
+
+/**
+ * A count of things, grouped the way the viewer reads numbers (lakh/crore for
+ * `en-IN`). Counts of records are shown to administrators making a decision, so
+ * `1,24,000` must not be mistaken for `124,000` by someone used to the other.
+ */
+export function formatCount(value: number, preferences: ViewerPreferences): string {
+  return new Intl.NumberFormat(preferences.locale).format(value);
+}

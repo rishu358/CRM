@@ -294,6 +294,7 @@ export class RolesService {
     assertCan(actor, 'update', { objectType: 'role' });
 
     return this.inTenant(actor, async (tx) => {
+      await this.repository.lockAdministration(tx, actor.tenantId);
       if (!(await this.repository.lockRole(tx, actor.tenantId, id))) {
         throw new NotFoundError('Role');
       }

@@ -108,20 +108,16 @@ export class AccessRepository {
       where tenant_id = ${tenantId}::uuid and role_id = ${roleId}::uuid
     `);
     return {
-      grants: rows(grants).map(
-        (row): GrantCell => ({
-          objectType: row['object_type'] as ObjectType,
-          action: row['action'] as Action,
-          scope: row['scope'] as Scope,
-        }),
-      ),
-      fieldRules: rows(rules).map(
-        (row): FieldRuleCell => ({
-          objectType: row['object_type'] as ObjectType,
-          fieldKey: row['field_key'] as string,
-          access: row['access'] as FieldAccess,
-        }),
-      ),
+      grants: rows(grants).map((row): GrantCell => ({
+        objectType: row['object_type'] as ObjectType,
+        action: row['action'] as Action,
+        scope: row['scope'] as Scope,
+      })),
+      fieldRules: rows(rules).map((row): FieldRuleCell => ({
+        objectType: row['object_type'] as ObjectType,
+        fieldKey: row['field_key'] as string,
+        access: row['access'] as FieldAccess,
+      })),
     };
   }
 
@@ -139,6 +135,22 @@ export class AccessRepository {
       for update
     `);
     return rows(result).length > 0;
+  }
+
+  /**
+   * Serialise every change that could remove the last administrator.
+   *
+   * "Somebody can still manage roles and members" is checked after a write and
+   * before the commit, which on its own is a race: two administrators demoting
+   * each other at the same moment each see the other still in place, each pass,
+   * and both commit. A transaction-scoped advisory lock keyed on the workspace
+   * makes the second one wait and then see the first's result. It is released
+   * with the transaction, so nothing can leave it held.
+   */
+  async lockAdministration(tx: Tx, tenantId: string): Promise<void> {
+    await tx.execute(
+      sql`select pg_advisory_xact_lock(hashtextextended(${'access-administration:' + tenantId}::text, 0))`,
+    );
   }
 
   async insertRole(

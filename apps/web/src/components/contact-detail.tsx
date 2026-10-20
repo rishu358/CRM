@@ -20,6 +20,7 @@ import { t } from '../lib/i18n';
 import { useRecordView } from '../lib/activities';
 import { AppShell } from './app-shell';
 import { BackLink } from './back-link';
+import { WhoCanSeeButton } from './who-can-see';
 import { ActivityPanel } from './activity-panel';
 import { InlineField } from './inline-field';
 
@@ -108,6 +109,13 @@ export function ContactDetail({ id }: { id: string }) {
       <PageHeader
         back={<BackLink href="/contacts">{t('contact.backToList')}</BackLink>}
         title={formatName(contact) || t('field.empty')}
+        actions={
+          <WhoCanSeeButton
+            objectType="contact"
+            recordId={id}
+            subject={t('whoCanSee.subject.contact')}
+          />
+        }
       />
 
       {conflicted ? (

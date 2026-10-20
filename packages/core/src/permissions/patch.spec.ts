@@ -74,9 +74,9 @@ describe('diffPermissionState', () => {
   });
 
   it('is empty when nothing changed', () => {
-    expect(diffPermissionState(base, applyPermissionPatch(base, { grants: [], fieldRules: [] }))).toEqual(
-      {},
-    );
+    expect(
+      diffPermissionState(base, applyPermissionPatch(base, { grants: [], fieldRules: [] })),
+    ).toEqual({});
   });
 });
 

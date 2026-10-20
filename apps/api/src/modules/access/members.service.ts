@@ -7,12 +7,7 @@ import {
   ValidationError,
   type Actor,
 } from '@crm/core';
-import type {
-  EffectPreview,
-  Member,
-  MemberListQuery,
-  MemberUpdateInput,
-} from '@crm/contracts';
+import type { EffectPreview, Member, MemberListQuery, MemberUpdateInput } from '@crm/contracts';
 import { loadActors, type Tx } from '@crm/db';
 import { DatabaseService } from '../../database/database.service.js';
 import { AuditService } from '../../platform/audit.service.js';
@@ -49,7 +44,12 @@ export class MembersService {
 
     return this.inTenant(actor, async (tx) => {
       // One row more than asked for, so "is there another page" needs no count.
-      const rows = await this.repository.listMembers(tx, actor.tenantId, query.status, query.limit + 1);
+      const rows = await this.repository.listMembers(
+        tx,
+        actor.tenantId,
+        query.status,
+        query.limit + 1,
+      );
       const hasMore = rows.length > query.limit;
       const page = hasMore ? rows.slice(0, query.limit) : rows;
       return { data: await this.present(tx, actor, page), meta: { hasMore } };
@@ -60,6 +60,7 @@ export class MembersService {
     assertCan(actor, 'update', { objectType: 'membership' });
 
     return this.inTenant(actor, async (tx) => {
+      await this.repository.lockAdministration(tx, actor.tenantId);
       const existing = await this.repository.findMember(tx, actor.tenantId, userId);
       if (existing === null) throw new NotFoundError('Member');
 

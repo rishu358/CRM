@@ -12,19 +12,13 @@ export class OwnershipController {
 
   @Post('preview')
   @HttpCode(200)
-  async preview(
-    @CurrentActor() actor: Actor,
-    @Body(zodPipe(reassignSchema)) body: ReassignInput,
-  ) {
+  async preview(@CurrentActor() actor: Actor, @Body(zodPipe(reassignSchema)) body: ReassignInput) {
     return { data: await this.ownership.preview(actor, body) };
   }
 
   @Post('reassign')
   @HttpCode(200)
-  async reassign(
-    @CurrentActor() actor: Actor,
-    @Body(zodPipe(reassignSchema)) body: ReassignInput,
-  ) {
+  async reassign(@CurrentActor() actor: Actor, @Body(zodPipe(reassignSchema)) body: ReassignInput) {
     return { data: await this.ownership.reassign(actor, body) };
   }
 }

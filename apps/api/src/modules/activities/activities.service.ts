@@ -142,7 +142,10 @@ export class ActivitiesService {
       const row = await this.loadOrNotFound(tx, actor, id);
       // Out of scope raises 404, not 403, so the endpoint cannot be used to
       // discover that an id exists (CLAUDE.md §5.5).
-      assertCan(actor, 'read', { objectType: 'activity', record: await recordRefFor(tx, actor, row.assignedTo) });
+      assertCan(actor, 'read', {
+        objectType: 'activity',
+        record: await recordRefFor(tx, actor, row.assignedTo),
+      });
 
       const fields = await this.fieldMetadata.forObject(tx, actor.tenantId, 'activity');
       const links = await this.resolveLinks(tx, actor, [row]);

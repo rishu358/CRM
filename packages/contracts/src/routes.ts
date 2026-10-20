@@ -1527,11 +1527,7 @@ const accessRoutes: RouteDefinition[] = [
       description: 'The member.',
       data: memberSchema,
     },
-    errors: [
-      ErrorCode.NOT_FOUND,
-      ErrorCode.LAST_ADMINISTRATOR,
-      ErrorCode.PERMISSION_ESCALATION,
-    ],
+    errors: [ErrorCode.NOT_FOUND, ErrorCode.LAST_ADMINISTRATOR, ErrorCode.PERMISSION_ESCALATION],
   },
   {
     method: 'POST',

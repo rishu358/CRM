@@ -109,7 +109,10 @@ export class ContactsService {
       const row = await this.loadOrNotFound(tx, actor, id);
       // Record-level check. Out of scope raises 404, not 403, so the endpoint
       // cannot be used to discover that an id exists (CLAUDE.md §5.5).
-      assertCan(actor, 'read', { objectType: 'contact', record: await recordRefFor(tx, actor, row.ownerId) });
+      assertCan(actor, 'read', {
+        objectType: 'contact',
+        record: await recordRefFor(tx, actor, row.ownerId),
+      });
 
       const fields = await this.fieldMetadata.forObject(tx, actor.tenantId, 'contact');
       return serializeContact(actor, row, fields);
@@ -177,7 +180,10 @@ export class ContactsService {
 
     return this.inTenant(actor, async (tx) => {
       const existing = await this.loadOrNotFound(tx, actor, id);
-      assertCan(actor, 'update', { objectType: 'contact', record: await recordRefFor(tx, actor, existing.ownerId) });
+      assertCan(actor, 'update', {
+        objectType: 'contact',
+        record: await recordRefFor(tx, actor, existing.ownerId),
+      });
 
       const fields = await this.fieldMetadata.forObject(tx, actor.tenantId, 'contact');
       assertWritableContactFields(actor, input, fields);
@@ -225,7 +231,10 @@ export class ContactsService {
 
     await this.inTenant(actor, async (tx) => {
       const existing = await this.loadOrNotFound(tx, actor, id);
-      assertCan(actor, 'delete', { objectType: 'contact', record: await recordRefFor(tx, actor, existing.ownerId) });
+      assertCan(actor, 'delete', {
+        objectType: 'contact',
+        record: await recordRefFor(tx, actor, existing.ownerId),
+      });
 
       const deleted = await this.repository.softDelete(
         tx,

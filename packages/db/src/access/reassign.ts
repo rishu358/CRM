@@ -42,8 +42,7 @@ export interface ReassignedRow {
 }
 
 export type ReassignSelector =
-  | { readonly ids: readonly string[] }
-  | { readonly fromOwnerId: string };
+  { readonly ids: readonly string[] } | { readonly fromOwnerId: string };
 
 export async function reassignOwned(
   tx: Tx,

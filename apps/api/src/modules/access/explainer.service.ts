@@ -8,7 +8,6 @@ import {
   explainRecordAccess,
   NotFoundError,
   type Actor,
-  type ObjectType,
 } from '@crm/core';
 import type { AccessCatalogue, Reach, RecordAccess } from '@crm/contracts';
 import {
@@ -247,12 +246,12 @@ export class ExplainerService {
     const reach = explainReach(
       subject,
       resolved.objects.map((object) => ({
-        objectType: object.objectType as ObjectType,
+        objectType: object.objectType,
         fieldKeys:
           object.kind === 'record'
             ? object.fields
                 // Only fields the viewer can read: a hidden field is not discussed.
-                .filter((field) => canReadField(viewer, object.objectType as ObjectType, field.key))
+                .filter((field) => canReadField(viewer, object.objectType, field.key))
                 .map((field) => field.key)
             : [],
       })),
@@ -281,10 +280,13 @@ export class ExplainerService {
             action: action.action,
             allowed: action.allowed,
             scope: action.scope,
-            viaRoleName: action.viaRoleId === null ? null : (roleNames.get(action.viaRoleId) ?? null),
+            viaRoleName:
+              action.viaRoleId === null ? null : (roleNames.get(action.viaRoleId) ?? null),
           })),
         readableRecords:
-          options.withCounts && read?.allowed === true && this.support.mayCount(viewer, entry.objectType)
+          options.withCounts &&
+          read?.allowed === true &&
+          this.support.mayCount(viewer, entry.objectType)
             ? await counter(subject, 'read', entry.objectType)
             : null,
         fields: entry.fields.map((field) => ({

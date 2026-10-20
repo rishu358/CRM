@@ -39,3 +39,4 @@ supersedes the old one and update the old one's **Status** to
 | [0029](0029-import-export-pipeline.md)                  | Import and export run in the worker, in idempotent chunks       | Accepted |
 | [0030](0030-file-handling-and-spreadsheet-safety.md)    | Files are untrusted bytes in a private store; spreadsheets are  | Accepted |
 | [0031](0031-design-system-point-of-view.md)             | The design system has a point of view; accessibility is a test  | Accepted |
+| [0033](0033-the-engine-explains-itself.md)              | The permission engine explains itself; nothing else does        | Accepted |

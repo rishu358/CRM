@@ -9,7 +9,7 @@
  * Deliberately tiny. It can be swapped for a full library later; what matters
  * now is that no component contains a literal string.
  */
-const en = {
+export const en = {
   'app.name': 'CRM',
   'nav.leads': 'Leads',
   'nav.contacts': 'Contacts',
@@ -613,10 +613,360 @@ const en = {
   'shortcuts.singleKey': 'Single-key shortcuts',
   'shortcuts.singleKey.hint':
     'Turn this off if letter keys trigger things while you use voice control or an assistive keyboard. Ctrl or ⌘ + K always works.',
+  // --- People & access (MVP_SPEC M3, ADR-0033) ---------------------------------
+  'nav.access': 'People & access',
+  'access.tabs': 'People and access sections',
+  'access.tab.people': 'People',
+  'access.tab.roles': 'Roles',
+  'access.tab.teams': 'Teams',
+  'access.tab.explorer': 'Access explorer',
+  'access.forbidden.title': 'Only administrators can manage access',
+  'access.forbidden.description':
+    'Who can see what is set by the people who administer this workspace. Ask one of them if something looks wrong.',
+
+  'access.object.account': 'Accounts',
+  'access.object.contact': 'Contacts',
+  'access.object.lead': 'Leads',
+  'access.object.deal': 'Deals',
+  'access.object.activity': 'Activities',
+  'access.object.invitation': 'Invitations',
+  'access.object.role': 'Roles',
+  'access.object.team': 'Teams',
+  'access.object.membership': 'People',
+  'access.objectOne.account': 'account',
+  'access.objectOne.contact': 'contact',
+  'access.objectOne.lead': 'lead',
+  'access.objectOne.deal': 'deal',
+  'access.objectOne.activity': 'activity',
+  'access.action.read': 'View',
+  'access.action.create': 'Create',
+  'access.action.update': 'Edit',
+  'access.action.delete': 'Delete',
+  'access.action.export': 'Export',
+  'access.action.import': 'Import',
+  'access.scope.none': 'No access',
+  'access.scope.own': 'Own records',
+  'access.scope.team': 'Team’s records',
+  'access.scope.all': 'All records',
+  'access.fieldAccess.hidden': 'Hidden',
+  'access.fieldAccess.read': 'Read-only',
+  'access.fieldAccess.write': 'Can edit',
+  'access.direction.granted': 'Newly allowed',
+  'access.direction.revoked': 'Removed',
+  'access.direction.widened': 'Widened',
+  'access.direction.narrowed': 'Narrowed',
+
+  // The effect of a change, shown before it is saved.
+  'effect.heading': 'What this change would do',
+  'effect.updating': 'Updating…',
+  'effect.loading': 'Working out the effect',
+  'effect.summary': 'Summary of the effect',
+  'effect.error.title': 'Could not work out the effect',
+  'effect.error.description':
+    'Nothing has been saved. Try again; saving is held back until the effect can be shown.',
+  'effect.lockout':
+    'This would leave nobody able to manage roles and people. It cannot be saved: keep at least one administrator.',
+  'effect.escalation':
+    'This grants more than you hold yourself, so it cannot be saved. Someone with that access has to make this change:',
+  'effect.nothing.title': 'Nobody’s access changes',
+  'effect.nothing.description.one': 'The one person it applies to is unaffected.',
+  'effect.nothing.description.other': 'The {count} people it applies to are unaffected.',
+  'effect.fieldsOnly.one': 'One person sees different fields.',
+  'effect.fieldsOnly.other': '{count} people see different fields.',
+  'effect.people.one': 'One person is affected',
+  'effect.people.other': '{count} people are affected',
+  'effect.unaffected.one': '· one more is not',
+  'effect.unaffected.other': '· {count} more are not',
+  'effect.changes.one': '1 change',
+  'effect.changes.other': '{count} changes',
+  'access.verb.read': 'see',
+  'access.verb.create': 'create',
+  'access.verb.update': 'edit',
+  'access.verb.delete': 'delete',
+  'access.verb.export': 'export',
+  'access.verb.import': 'import',
+  'effect.line.lose.counted.one': '1 person can no longer {verb} up to {max} {objects}.',
+  'effect.line.lose.counted.other':
+    '{count} people can no longer {verb} up to {max} {objects} each ({total} in all).',
+  'effect.line.lose.plain.one': '1 person can no longer {verb} some {objects}.',
+  'effect.line.lose.plain.other': '{count} people can no longer {verb} some {objects}.',
+  'effect.line.gain.counted.one': '1 person can now {verb} up to {max} more {objects}.',
+  'effect.line.gain.counted.other':
+    '{count} people can now {verb} up to {max} more {objects} each ({total} in all).',
+  'effect.line.gain.plain.one': '1 person can now {verb} more {objects}.',
+  'effect.line.gain.plain.other': '{count} people can now {verb} more {objects}.',
+  'effect.line.noCounts':
+    'How many records this covers is not shown, because you cannot see every record of this kind yourself.',
+
+  // Roles
+  'roles.title': 'Roles',
+  'roles.description':
+    'A role decides what a person can do with each kind of record, and which fields they see. Everyone has exactly one.',
+  'roles.new': 'New role',
+  'roles.new.description':
+    'Start from nothing, or copy an existing role and adjust it. You can only copy a role that gives no more than you hold.',
+  'roles.new.duplicate': 'A role with that name already exists.',
+  'roles.new.escalation': 'That role grants more than you hold yourself, so it cannot be copied.',
+  'roles.create': 'Create role',
+  'roles.name': 'Name',
+  'roles.descriptionLabel': 'Description',
+  'roles.copyFrom': 'Start from',
+  'roles.copyFrom.hint': 'A copy is a separate role: changing it never changes the original.',
+  'roles.copyFrom.none': 'A blank role',
+  'roles.members': 'People',
+  'roles.grants': 'Permissions',
+  'roles.actions': 'Actions',
+  'roles.system': 'Built in',
+  'roles.edit': 'Edit permissions',
+  'roles.delete': 'Delete',
+  'roles.deleteNamed': 'Delete the role {name}',
+  'roles.delete.title': 'Delete {name}?',
+  'roles.delete.description':
+    'This cannot be undone. Built-in roles and roles with people in them cannot be deleted.',
+  'roles.delete.inUse': 'Move everyone in this role to another role first.',
+  'roles.delete.used': 'This role was used in an invitation, so it is kept. Rename it instead.',
+  'roles.loading': 'Loading roles',
+  'roles.error.title': 'Could not load roles',
+  'roles.error.description': 'Something went wrong. Try again in a moment.',
+  'roles.empty.title': 'No roles yet',
+  'roles.empty.description': 'Create a role to decide what a group of people can do.',
+
+  // The role editor
+  'roleEditor.title': 'Role',
+  'roleEditor.description': 'What people in this role can do, and see.',
+  'roleEditor.back': 'All roles',
+  'roleEditor.noDescription': 'No description',
+  'roleEditor.loading': 'Loading the role',
+  'roleEditor.notFound.title': 'Role not found',
+  'roleEditor.notFound.description': 'It may have been deleted.',
+  'roleEditor.error.title': 'Could not load this role',
+  'roleEditor.error.description': 'Something went wrong. Try again in a moment.',
+  'roleEditor.whatCanTheyReach': 'What can this role reach?',
+  'roleEditor.records.title': 'Records',
+  'roleEditor.records.description':
+    'For each kind of record and action: none, only records the person owns, records owned by anyone on their teams, or all of them.',
+  'roleEditor.admin.title': 'Administration',
+  'roleEditor.admin.description': 'Who can manage the workspace itself. These are all-or-nothing.',
+  'roleEditor.fields.title': 'Field access',
+  'roleEditor.fields.description':
+    'Hide a field, or make it read-only. A field rule can only narrow what the role already allows; it never grants more.',
+  'roleEditor.fields.object': 'Record type',
+  'roleEditor.fields.default': 'Follows the record access',
+  'roleEditor.fields.unrestricted': 'No extra restriction',
+  'roleEditor.matrix.object': 'Record',
+  'roleEditor.matrix.notApplicable': 'Not available for this record',
+  'roleEditor.allowed': 'Allowed',
+  'roleEditor.scope.none': 'None',
+  'roleEditor.scope.own': 'Own',
+  'roleEditor.scope.team': 'Team',
+  'roleEditor.scope.all': 'All',
+  'roleEditor.edited': 'Edited',
+  'roleEditor.effect.idle':
+    'Change something on the left and this shows who it affects and by how much, before anything is saved.',
+  'roleEditor.effect.noHolders': 'Nobody holds this role yet, so nobody’s access changes.',
+  'roleEditor.discard': 'Discard changes',
+  'roleEditor.save': 'Save changes',
+  'roleEditor.save.affecting.one': 'Save — affects 1 person',
+  'roleEditor.save.affecting.other': 'Save — affects {count} people',
+  'roleEditor.save.waiting': 'Saving is available once the effect of your latest edit is shown.',
+  'roleEditor.saved.one': 'Saved. One person’s access changed.',
+  'roleEditor.saved.other': 'Saved. {count} people’s access changed.',
+  'roleEditor.reload': 'Reload',
+  'roleEditor.outOfDate':
+    'Someone else changed this role while you were editing. Reload to see its current permissions before saving.',
+  'roleEditor.error.conflict':
+    'Someone changed this role after you looked at it, so nothing was saved. Reload and review the effect again.',
+  'roleEditor.error.lastAdministrator':
+    'That would leave nobody able to manage roles and people, so it was not saved.',
+  'roleEditor.error.escalation': 'That grants more than you hold yourself, so it was not saved.',
+  'roleEditor.error.forbidden': 'You are not allowed to change roles.',
+
+  // People
+  'people.title': 'People',
+  'people.description':
+    'Everyone in this workspace, their role and teams. Changing a role shows what it would do first.',
+  'people.invite': 'Invite people',
+  'people.name': 'Person',
+  'people.role': 'Role',
+  'people.roleOf': 'Role of {name}',
+  'people.teams': 'Teams',
+  'people.status': 'Status',
+  'people.status.active': 'Active',
+  'people.status.suspended': 'Suspended',
+  'people.joined': 'Joined {date}',
+  'people.you': '(you)',
+  'people.actions': 'Actions',
+  'people.reach': 'What can they reach?',
+  'people.reassign': 'Reassign records…',
+  'people.suspend': 'Suspend',
+  'people.restore': 'Restore',
+  'people.loading': 'Loading people',
+  'people.error.title': 'Could not load people',
+  'people.error.description': 'Something went wrong. Try again in a moment.',
+  'people.empty.title': 'Nobody here yet',
+  'people.empty.description': 'Invite people to the workspace to see them here.',
+  'people.changeRole.title': 'Change role for {name}',
+  'people.changeRole.description': 'Moving them to {role}. Nothing changes until you confirm.',
+  'people.changeRole.effect': 'What this would do to them',
+  'people.changeRole.idle': 'Working out what the new role changes.',
+  'people.changeRole.confirm': 'Move to {role}',
+  'people.suspend.title': 'Suspend {name}?',
+  'people.suspend.description':
+    'They are signed out of this workspace on their next request. Their records stay as they are; reassign them if somebody else should pick them up.',
+  'people.restore.title': 'Restore {name}?',
+  'people.restore.description': 'They can use this workspace again with the role they had.',
+
+  // Teams
+  'teams.title': 'Teams',
+  'teams.description':
+    'Under team scope, a person reaches the records of everyone they share a team with. Changing who is on a team changes that.',
+  'teams.new': 'New team',
+  'teams.name': 'Team name',
+  'teams.members': 'Members',
+  'teams.members.hint': 'Adding or removing people changes which records team-scope roles reach.',
+  'teams.noMembers': 'Nobody is on this team yet.',
+  'teams.memberCount.one': '1 person',
+  'teams.memberCount.other': '{count} people',
+  'teams.edit': 'Edit',
+  'teams.editNamed': 'Edit {name}',
+  'teams.save': 'Save team',
+  'teams.delete': 'Delete',
+  'teams.deleteNamed': 'Delete the team {name}',
+  'teams.delete.title': 'Delete {name}?',
+  'teams.delete.description':
+    'People on it stop sharing records through it under team scope. The people and records themselves are not deleted.',
+  'teams.duplicate': 'A team with that name already exists.',
+  'teams.dialog.description': 'Who is on a team decides what team-scope roles can see.',
+  'teams.loading': 'Loading teams',
+  'teams.error.title': 'Could not load teams',
+  'teams.error.description': 'Something went wrong. Try again in a moment.',
+  'teams.empty.title': 'No teams yet',
+  'teams.empty.description':
+    'Teams let a manager see the records of the people they work with. Create one to get started.',
+
+  // Reassigning records
+  'reassign.owner.title': 'Reassign everything {name} owns',
+  'reassign.owner.description':
+    'Their records and activities move to the person you choose. Each one is versioned and audited as an edit would be.',
+  'reassign.record.title': 'Change the owner of {subject}',
+  'reassign.record.description':
+    'The owner is who sees it under own scope, so changing it changes who can see it.',
+  'reassign.to': 'New owner',
+  'reassign.choose': 'Choose a person',
+  'reassign.counting': 'Counting what would move',
+  'reassign.nothing': 'Nothing would move: it is already theirs, or you cannot change it.',
+  'reassign.willMove.one': '1 will move',
+  'reassign.willMove.other': '{count} will move',
+  'reassign.skipped.one': '1 will not',
+  'reassign.skipped.other': '{count} will not',
+  'reassign.confirm.one': 'Move 1 record',
+  'reassign.confirm.other': 'Move {count} records',
+  'reassign.confirm.none': 'Nothing to move',
+  'reassign.done.one': 'Done. 1 record moved.',
+  'reassign.done.other': 'Done. {total} records moved.',
+  'reassign.error.forbidden': 'You are not allowed to reassign these.',
+  'reassign.error.target':
+    'They cannot be given these: they must be an active person who can see this kind of record, and your own access must allow reassigning.',
+  'reassign.error.field': 'You cannot change the owner of these.',
+
+  // The access explorer
+  'explorer.title': 'Access explorer',
+  'explorer.description':
+    'Pick a person or a role and see what they can reach: which records, at what scope, and which fields are hidden.',
+  'explorer.choose': 'Show me',
+  'explorer.choose.placeholder': 'Choose a person or a role',
+  'explorer.people': 'People',
+  'explorer.roles': 'Roles',
+  'explorer.empty.title': 'Choose someone to see their reach',
+  'explorer.empty.description':
+    'The answer comes from the same rules the product enforces, not from a description of them.',
+  'explorer.loading': 'Working out what they can reach',
+  'explorer.error.title': 'Could not work that out',
+  'explorer.error.description': 'Something went wrong. Try again in a moment.',
+  'explorer.notFound': 'That person or role no longer exists.',
+  'explorer.subject.member': '{name}, in the role {role}',
+  'explorer.subject.role': 'Anyone in the role {name}',
+  'explorer.records.title': 'Records',
+  'explorer.records.description':
+    'What they can do with each kind of record. Hover a cell to see which role grants it.',
+  'explorer.records.reach': 'Can see',
+  'explorer.records.count.one': '1 record',
+  'explorer.records.count.other': '{formatted} records',
+  'explorer.via': 'Granted by {role}',
+  'explorer.fields.title': 'Fields they do not fully have',
+  'explorer.fields.description':
+    'Only fields you can read yourself are listed. “Role” means the whole object is off limits to them.',
+  'explorer.fields.all': 'They can edit every field.',
+  'explorer.fields.none': 'No fields to show.',
+  'explorer.fields.byObject': 'role',
+  'explorer.admin.title': 'Administration',
+  'explorer.admin.description': 'Whether they can manage the workspace itself.',
+
+  // Who can see this record
+  'whoCanSee.button': 'Who can see this?',
+  'whoCanSee.title': 'Who can see this {subject}?',
+  'whoCanSee.subject.contact': 'contact',
+  'whoCanSee.subject.account': 'account',
+  'whoCanSee.subject.lead': 'lead',
+  'whoCanSee.subject.deal': 'deal',
+  'whoCanSee.description':
+    'Each person, and the reason. This is worked out by the same rules that decide what they actually see.',
+  'whoCanSee.loading': 'Working out who can see it',
+  'whoCanSee.summary': '{can} of {total} people can open this.',
+  'whoCanSee.ownedBy': 'Owned by {name}.',
+  'whoCanSee.ownerGone': 'Its owner is no longer in this workspace.',
+  'whoCanSee.unowned': 'Nobody owns it.',
+  'whoCanSee.truncated': 'There are more people than can be shown here.',
+  'whoCanSee.field': 'Check a field',
+  'whoCanSee.field.hint': 'See who can see, and who cannot see, one field of it.',
+  'whoCanSee.field.whole': 'The whole record',
+  'whoCanSee.field.sees': 'Can see it',
+  'whoCanSee.can.one': 'Can see it — 1 person',
+  'whoCanSee.can.other': 'Can see it — {count} people',
+  'whoCanSee.cannot.one': 'Cannot see it — 1 person',
+  'whoCanSee.cannot.other': 'Cannot see it — {count} people',
+  'whoCanSee.nobody': 'Nobody can open it.',
+  'whoCanSee.changeOwner': 'Change owner…',
+  'whoCanSee.reason.owner': 'Because they own it.',
+  'whoCanSee.reason.sharedTeam': 'Because they share the {team} team with its owner.',
+  'whoCanSee.reason.sharedTeam.unnamed': 'Because they share a team with its owner.',
+  'whoCanSee.reason.all': 'Because their role, {role}, can see every {object}.',
+  'whoCanSee.reason.notOwner':
+    'Their role, {role}, only sees {objects} they own, and they do not own this one.',
+  'whoCanSee.reason.noSharedTeam':
+    'Their role, {role}, only sees their team’s {objects}, and they share no team with its owner.',
+  'whoCanSee.reason.unowned':
+    'Nobody owns it, and their role, {role}, only sees {objects} owned by someone in their reach.',
+  'whoCanSee.reason.noGrant': 'Their role, {role}, has no access to {objects}.',
+  'whoCanSee.forbidden.title': 'Only administrators can see this',
+  'whoCanSee.forbidden.description': 'Ask an administrator who can see this record.',
+  'whoCanSee.error.title': 'Could not work out who can see this',
+  'whoCanSee.error.description': 'Something went wrong. Try again in a moment.',
+  'whoCanSee.notFound': 'This record is not available to you, or no longer exists.',
   'invite.pageTitle': 'Accept invitation',
 } as const;
 
 export type TranslationKey = keyof typeof en;
+
+/**
+ * The base of every key that has a `.one` and a `.other` form.
+ *
+ * Derived from the keys themselves, so a base with only one of the two forms,
+ * or a typo in a base, is a type error rather than an English sentence with
+ * "undefined" in the middle of it.
+ */
+export type PluralBase =
+  Extract<TranslationKey, `${string}.one`> extends `${infer Base}.one` ? Base : never;
+
+/** Pick `.one` or `.other` by count, and interpolate `{count}` (plus any `values`). */
+export function tPlural(
+  base: PluralBase,
+  count: number,
+  values: Record<string, string | number> = {},
+): string {
+  const key = `${base}.${count === 1 ? 'one' : 'other'}` as TranslationKey;
+  return t(key, { count: new Intl.NumberFormat('en-IN').format(count), ...values });
+}
 
 /** Look up a string. Interpolates `{name}` placeholders. */
 export function t(key: TranslationKey, values?: Record<string, string | number>): string {

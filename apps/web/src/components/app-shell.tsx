@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useState, type ReactNode } from 'react';
 import {
+  AccessIcon,
   AccountsIcon,
   Button,
   ContactsIcon,
@@ -23,6 +24,7 @@ import {
   TeamIcon,
   cn,
 } from '@crm/ui';
+import { useCanManageAccess } from '../lib/access';
 import { t, type TranslationKey } from '../lib/i18n';
 import { signOut } from '../lib/session';
 import { goToKeyFor } from '../lib/shortcuts';
@@ -48,6 +50,7 @@ const NAV: readonly {
   href: string;
   label: TranslationKey;
   icon: ReactNode;
+  requiresAccessAdmin?: true;
 }[][] = [
   [
     { href: '/my-day', label: 'nav.myDay', icon: <MyDayIcon className="h-4 w-4 shrink-0" /> },
@@ -68,6 +71,14 @@ const NAV: readonly {
   [
     { href: '/settings/team', label: 'nav.team', icon: <TeamIcon className="h-4 w-4 shrink-0" /> },
     {
+      href: '/settings/access',
+      label: 'nav.access',
+      icon: <AccessIcon className="h-4 w-4 shrink-0" />,
+      // Only for people the API lets in (`useCanManageAccess`). Cosmetic: the
+      // routes behind it refuse everybody else on their own.
+      requiresAccessAdmin: true,
+    },
+    {
       href: '/settings/security',
       label: 'nav.settings',
       icon: <SecurityIcon className="h-4 w-4 shrink-0" />,
@@ -84,54 +95,57 @@ function NavList({
   onNavigate?: () => void;
   collapsed?: boolean;
 }) {
+  const canManageAccess = useCanManageAccess();
   return (
     <div className="space-y-5">
       {NAV.map((group, index) => (
         <ul key={index} className="space-y-0.5">
-          {group.map((item) => {
-            const active = pathname.startsWith(item.href);
-            const key = goToKeyFor(item.href);
-            return (
-              <li key={item.href}>
-                <Link
-                  href={item.href}
-                  aria-current={active ? 'page' : undefined}
-                  title={collapsed ? t(item.label) : undefined}
-                  {...(onNavigate === undefined ? {} : { onClick: onNavigate })}
-                  className={cn(
-                    'group relative flex h-9 items-center gap-2.5 rounded-md px-2.5 text-sm transition-colors duration-fast',
-                    collapsed && 'justify-center px-0',
-                    active
-                      ? 'bg-accent font-medium text-accent-foreground'
-                      : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground',
-                  )}
-                >
-                  {/* The one place teal is structural: where you are. */}
-                  {active ? (
-                    <span
-                      aria-hidden="true"
-                      className="absolute left-0 top-2 h-5 w-[3px] rounded-r-full bg-primary"
-                    />
-                  ) : null}
-                  {item.icon}
-                  <span className={collapsed ? 'sr-only' : 'flex-1'}>{t(item.label)}</span>
-                  {key === undefined || collapsed ? null : (
-                    // Revealed on hover or keyboard focus, so the shortcut is
-                    // learnable from the control it belongs to without being a
-                    // permanent column of letters. Decorative: the dialog lists
-                    // every shortcut accessibly.
-                    <span
-                      aria-hidden="true"
-                      className="flex items-center gap-0.5 opacity-0 transition-opacity duration-fast group-hover:opacity-100 group-focus-visible:opacity-100"
-                    >
-                      <Kbd>G</Kbd>
-                      <Kbd>{key.toUpperCase()}</Kbd>
-                    </span>
-                  )}
-                </Link>
-              </li>
-            );
-          })}
+          {group
+            .filter((item) => item.requiresAccessAdmin !== true || canManageAccess)
+            .map((item) => {
+              const active = pathname.startsWith(item.href);
+              const key = goToKeyFor(item.href);
+              return (
+                <li key={item.href}>
+                  <Link
+                    href={item.href}
+                    aria-current={active ? 'page' : undefined}
+                    title={collapsed ? t(item.label) : undefined}
+                    {...(onNavigate === undefined ? {} : { onClick: onNavigate })}
+                    className={cn(
+                      'group relative flex h-9 items-center gap-2.5 rounded-md px-2.5 text-sm transition-colors duration-fast',
+                      collapsed && 'justify-center px-0',
+                      active
+                        ? 'bg-accent font-medium text-accent-foreground'
+                        : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground',
+                    )}
+                  >
+                    {/* The one place teal is structural: where you are. */}
+                    {active ? (
+                      <span
+                        aria-hidden="true"
+                        className="absolute left-0 top-2 h-5 w-[3px] rounded-r-full bg-primary"
+                      />
+                    ) : null}
+                    {item.icon}
+                    <span className={collapsed ? 'sr-only' : 'flex-1'}>{t(item.label)}</span>
+                    {key === undefined || collapsed ? null : (
+                      // Revealed on hover or keyboard focus, so the shortcut is
+                      // learnable from the control it belongs to without being a
+                      // permanent column of letters. Decorative: the dialog lists
+                      // every shortcut accessibly.
+                      <span
+                        aria-hidden="true"
+                        className="flex items-center gap-0.5 opacity-0 transition-opacity duration-fast group-hover:opacity-100 group-focus-visible:opacity-100"
+                      >
+                        <Kbd>G</Kbd>
+                        <Kbd>{key.toUpperCase()}</Kbd>
+                      </span>
+                    )}
+                  </Link>
+                </li>
+              );
+            })}
         </ul>
       ))}
     </div>

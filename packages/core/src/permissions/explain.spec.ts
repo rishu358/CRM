@@ -113,7 +113,9 @@ describe('why an actor can reach a record', () => {
     expect(explainRecordAccess(noGrant, 'read', 'contact', { ownerId: userId }).basis).toBe(
       'no_grant',
     );
-    expect(explainRecordAccess(noGrant, 'read', 'contact', { ownerId: userId }).viaRoleId).toBeNull();
+    expect(
+      explainRecordAccess(noGrant, 'read', 'contact', { ownerId: userId }).viaRoleId,
+    ).toBeNull();
 
     const ownOnly = makeActor({
       userId,
@@ -132,8 +134,10 @@ describe('why an actor can reach a record', () => {
       rolePermissions: [grant(ROLE_A, 'contact', 'read', 'team')],
     });
     expect(
-      explainRecordAccess(teamOnly, 'read', 'contact', { ownerId: newId(), ownerTeamIds: [newId()] })
-        .basis,
+      explainRecordAccess(teamOnly, 'read', 'contact', {
+        ownerId: newId(),
+        ownerTeamIds: [newId()],
+      }).basis,
     ).toBe('no_shared_team');
   });
 
@@ -333,10 +337,9 @@ describe('the explainer agrees with the engine it explains', () => {
         for (const { name: recordName, record } of records) {
           const explained = explainRecordAccess(actor, action, 'contact', record);
           const decided = can(actor, action, { objectType: 'contact', record });
-          expect(
-            explained.allowed,
-            `${actorName} / ${action} / ${recordName}`,
-          ).toBe(decided.allowed);
+          expect(explained.allowed, `${actorName} / ${action} / ${recordName}`).toBe(
+            decided.allowed,
+          );
         }
       }
     }

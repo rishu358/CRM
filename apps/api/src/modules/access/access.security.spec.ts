@@ -234,7 +234,11 @@ describe('only administrators may use any of it', () => {
     // Even for a record they own, and could open themselves.
     expect(people.status).toBe(403);
 
-    const members = await request(harness, { method: 'GET', url: '/api/v1/members', token: rep.token });
+    const members = await request(harness, {
+      method: 'GET',
+      url: '/api/v1/members',
+      token: rep.token,
+    });
     expect(members.status).toBe(403);
   });
 
@@ -311,7 +315,11 @@ describe('only administrators may use any of it', () => {
 
 describe('(a) tenant A cannot reach tenant B', () => {
   it('does not list B’s roles, members or teams', async () => {
-    const roles = await request(harness, { method: 'GET', url: '/api/v1/roles', token: admin.token });
+    const roles = await request(harness, {
+      method: 'GET',
+      url: '/api/v1/roles',
+      token: admin.token,
+    });
     const roleIds = (roles.body['data'] as { id: string }[]).map((role) => role.id);
     for (const roleId of rolesB.values()) expect(roleIds).not.toContain(roleId);
 
@@ -323,7 +331,11 @@ describe('(a) tenant A cannot reach tenant B', () => {
     expect(JSON.stringify(members.body)).not.toContain(adminB.userId);
     expect(JSON.stringify(members.body)).not.toContain('Bela Rival');
 
-    const teams = await request(harness, { method: 'GET', url: '/api/v1/teams', token: admin.token });
+    const teams = await request(harness, {
+      method: 'GET',
+      url: '/api/v1/teams',
+      token: admin.token,
+    });
     expect(JSON.stringify(teams.body)).not.toContain(teamB);
     expect(JSON.stringify(teams.body)).not.toContain('Rival Team');
   });
@@ -626,7 +638,9 @@ describe('(c) a field hidden from the viewer is absent from every explanation', 
       method: 'POST',
       url: `/api/v1/roles/${role}/permissions/preview`,
       token: admin.token,
-      body: { fieldRules: [{ objectType: 'contact', fieldKey: 'no_such_field', access: 'hidden' }] },
+      body: {
+        fieldRules: [{ objectType: 'contact', fieldKey: 'no_such_field', access: 'hidden' }],
+      },
     });
     expect(response.status).toBe(422);
   });
@@ -791,6 +805,43 @@ describe('the workspace keeps an administrator', () => {
     expect(suspendSelf.status).toBe(422);
   });
 
+  it('holds under a race: two administrators demoting each other at once cannot both succeed', async () => {
+    const pair = await harness.fixtures.createTenant({ name: 'Two Admins Ltd' });
+    const roles = await harness.provision(pair.tenantId);
+    const first = await person(pair.tenantId, roles.get('Admin')!, 'First Admin');
+    const second = await person(pair.tenantId, roles.get('Admin')!, 'Second Admin');
+    const repRole = roles.get('Sales Rep')!;
+
+    // Each is, at the moment their request starts, an administrator. Checking
+    // "somebody remains" after the write is not enough on its own: both would see
+    // the other still in place and both would commit.
+    const [a, b] = await Promise.all([
+      request(harness, {
+        method: 'PATCH',
+        url: `/api/v1/members/${second.userId}`,
+        token: first.token,
+        body: { roleId: repRole },
+      }),
+      request(harness, {
+        method: 'PATCH',
+        url: `/api/v1/members/${first.userId}`,
+        token: second.token,
+        body: { roleId: repRole },
+      }),
+    ]);
+
+    expect([a.status, b.status].sort()).toEqual([200, 409]);
+
+    // And somebody can still manage the workspace.
+    const survivor = a.status === 200 ? first : second;
+    const check = await request(harness, {
+      method: 'GET',
+      url: '/api/v1/members',
+      token: survivor.token,
+    });
+    expect(check.status).toBe(200);
+  });
+
   it('flags the lock-out in the preview before anybody tries to save', async () => {
     const lone = await harness.fixtures.createTenant({ name: 'Another One Admin Ltd' });
     const roles = await harness.provision(lone.tenantId);
@@ -803,9 +854,9 @@ describe('the workspace keeps an administrator', () => {
       body: { grants: [{ objectType: 'membership', action: 'update', scope: null }] },
     });
     expect(preview.status).toBe(200);
-    expect((preview.body['data'] as { removesLastAdministrator: boolean }).removesLastAdministrator).toBe(
-      true,
-    );
+    expect(
+      (preview.body['data'] as { removesLastAdministrator: boolean }).removesLastAdministrator,
+    ).toBe(true);
   });
 });
 

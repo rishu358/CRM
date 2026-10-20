@@ -20,6 +20,7 @@ import { t, type TranslationKey } from '../lib/i18n';
 import { useRecordView } from '../lib/activities';
 import { AppShell } from './app-shell';
 import { BackLink } from './back-link';
+import { WhoCanSeeButton } from './who-can-see';
 import { ActivityPanel } from './activity-panel';
 import { InlineField } from './inline-field';
 import { InlineMoneyField } from './inline-money-field';
@@ -175,6 +176,13 @@ export function AccountDetail({ id }: { id: string }) {
       <PageHeader
         back={<BackLink href="/accounts">{t('account.backToList')}</BackLink>}
         title={account.name ?? t('field.empty')}
+        actions={
+          <WhoCanSeeButton
+            objectType="account"
+            recordId={id}
+            subject={t('whoCanSee.subject.account')}
+          />
+        }
       />
 
       {conflicted ? (

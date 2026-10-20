@@ -29,7 +29,9 @@ async function person(roleId: string, name: string): Promise<Person> {
 async function contacts(owner: string, count: number): Promise<string[]> {
   const ids: string[] = [];
   for (let index = 0; index < count; index += 1) {
-    ids.push(await harness.fixtures.createContact(tenantId, { ownerId: owner, lastName: `N${index}` }));
+    ids.push(
+      await harness.fixtures.createContact(tenantId, { ownerId: owner, lastName: `N${index}` }),
+    );
   }
   return ids;
 }
@@ -214,7 +216,11 @@ describe('the effect preview', () => {
 
     const patch = { grants: [{ objectType: 'contact', action: 'read', scope: 'team' }] };
     const before = (
-      await request(harness, { method: 'GET', url: '/api/v1/contacts?limit=100', token: holder.token })
+      await request(harness, {
+        method: 'GET',
+        url: '/api/v1/contacts?limit=100',
+        token: holder.token,
+      })
     ).body['data'] as unknown[];
     expect(before).toHaveLength(3); // Priya's three, via the shared team
 
@@ -234,7 +240,11 @@ describe('the effect preview', () => {
     expect(saved.status).toBe(200);
 
     const after = (
-      await request(harness, { method: 'GET', url: '/api/v1/contacts?limit=100', token: holder.token })
+      await request(harness, {
+        method: 'GET',
+        url: '/api/v1/contacts?limit=100',
+        token: holder.token,
+      })
     ).body['data'] as unknown[];
     expect(after).toHaveLength(change.recordsAfter!);
     expect(before.length - after.length).toBe(change.recordsLost);
@@ -339,7 +349,11 @@ describe('saving a permission change', () => {
     expect(response.status).toBe(422);
 
     expect((await harness.fixtures.auditEntries(tenantId, 'role')).length).toBe(before);
-    const role = await request(harness, { method: 'GET', url: `/api/v1/roles/${id}`, token: admin.token });
+    const role = await request(harness, {
+      method: 'GET',
+      url: `/api/v1/roles/${id}`,
+      token: admin.token,
+    });
     expect((role.body['data'] as { grants: unknown[] }).grants).toEqual([]);
   });
 
@@ -465,7 +479,11 @@ describe('roles', () => {
       token: admin.token,
     });
     expect(deleted.status).toBe(204);
-    const gone = await request(harness, { method: 'GET', url: `/api/v1/roles/${id}`, token: admin.token });
+    const gone = await request(harness, {
+      method: 'GET',
+      url: `/api/v1/roles/${id}`,
+      token: admin.token,
+    });
     expect(gone.status).toBe(404);
 
     const trail = (await harness.fixtures.auditEntries(tenantId, 'role'))
@@ -520,8 +538,16 @@ describe('roles', () => {
   });
 
   it('lists roles with how many people hold each', async () => {
-    const response = await request(harness, { method: 'GET', url: '/api/v1/roles', token: admin.token });
-    const list = response.body['data'] as { name: string; memberCount: number; isSystem: boolean }[];
+    const response = await request(harness, {
+      method: 'GET',
+      url: '/api/v1/roles',
+      token: admin.token,
+    });
+    const list = response.body['data'] as {
+      name: string;
+      memberCount: number;
+      isSystem: boolean;
+    }[];
     expect(list.find((role) => role.name === 'Manager')).toMatchObject({
       memberCount: 2,
       isSystem: true,
@@ -531,8 +557,17 @@ describe('roles', () => {
 
 describe('members', () => {
   it('lists people with role and teams', async () => {
-    const response = await request(harness, { method: 'GET', url: '/api/v1/members', token: admin.token });
-    const list = response.body['data'] as { name: string; roleName: string; teams: { name: string }[]; isYou: boolean }[];
+    const response = await request(harness, {
+      method: 'GET',
+      url: '/api/v1/members',
+      token: admin.token,
+    });
+    const list = response.body['data'] as {
+      name: string;
+      roleName: string;
+      teams: { name: string }[];
+      isYou: boolean;
+    }[];
     expect(list.find((member) => member.name === 'Rahul Manager')).toMatchObject({
       roleName: 'Manager',
       teams: [{ name: 'North' }],
@@ -563,7 +598,12 @@ describe('members', () => {
 
   it('applies the new role on that person’s very next request', async () => {
     const who = await person(roles.get('Sales Rep')!, 'Demoted Dan');
-    const before = await request(harness, { method: 'POST', url: '/api/v1/contacts', token: who.token, body: { lastName: 'Before' } });
+    const before = await request(harness, {
+      method: 'POST',
+      url: '/api/v1/contacts',
+      token: who.token,
+      body: { lastName: 'Before' },
+    });
     expect(before.status).toBe(201);
 
     await request(harness, {
@@ -572,7 +612,12 @@ describe('members', () => {
       token: admin.token,
       body: { roleId: roles.get('Read-only')! },
     });
-    const after = await request(harness, { method: 'POST', url: '/api/v1/contacts', token: who.token, body: { lastName: 'After' } });
+    const after = await request(harness, {
+      method: 'POST',
+      url: '/api/v1/contacts',
+      token: who.token,
+      body: { lastName: 'After' },
+    });
     expect(after.status).toBe(403);
   });
 
@@ -585,7 +630,11 @@ describe('members', () => {
       body: { status: 'suspended' },
     });
     expect(suspend.body['data']).toMatchObject({ status: 'suspended' });
-    const refused = await request(harness, { method: 'GET', url: '/api/v1/contacts', token: who.token });
+    const refused = await request(harness, {
+      method: 'GET',
+      url: '/api/v1/contacts',
+      token: who.token,
+    });
     expect(refused.status).toBeGreaterThanOrEqual(401);
 
     await request(harness, {
@@ -594,7 +643,11 @@ describe('members', () => {
       token: admin.token,
       body: { status: 'active' },
     });
-    const back = await request(harness, { method: 'GET', url: '/api/v1/contacts', token: who.token });
+    const back = await request(harness, {
+      method: 'GET',
+      url: '/api/v1/contacts',
+      token: who.token,
+    });
     expect(back.status).toBe(200);
   });
 });
@@ -632,7 +685,7 @@ describe('teams', () => {
     expect(permissionChanges).toHaveLength(2);
     expect(permissionChanges[0]!.changes).toEqual({ membersRemoved: { old: [bhavin.userId] } });
     expect(permissionChanges[1]!.changes).toEqual({
-      membersAdded: { new: expect.arrayContaining([priya.userId, bhavin.userId]) },
+      membersAdded: { new: expect.arrayContaining([priya.userId, bhavin.userId]) as unknown },
     });
 
     const removed = await request(harness, {
@@ -648,7 +701,11 @@ describe('teams', () => {
     const mine = async () =>
       (
         (
-          await request(harness, { method: 'GET', url: '/api/v1/contacts?limit=100', token: rahul.token })
+          await request(harness, {
+            method: 'GET',
+            url: '/api/v1/contacts?limit=100',
+            token: rahul.token,
+          })
         ).body['data'] as unknown[]
       ).length;
     const before = await mine();
@@ -718,7 +775,11 @@ describe('reassignment', () => {
       ownerId: priya.userId,
       lastName: 'Single move',
     });
-    const before = await request(harness, { method: 'GET', url: `/api/v1/contacts/${id}`, token: admin.token });
+    const before = await request(harness, {
+      method: 'GET',
+      url: `/api/v1/contacts/${id}`,
+      token: admin.token,
+    });
     const version = (before.body['data'] as { version: number }).version;
 
     const response = await request(harness, {
@@ -735,7 +796,11 @@ describe('reassignment', () => {
     });
 
     expect(await ownerOf(id)).toBe(bhavin.userId);
-    const after = await request(harness, { method: 'GET', url: `/api/v1/contacts/${id}`, token: admin.token });
+    const after = await request(harness, {
+      method: 'GET',
+      url: `/api/v1/contacts/${id}`,
+      token: admin.token,
+    });
     expect((after.body['data'] as { version: number }).version).toBe(version + 1);
 
     const audit = (await harness.fixtures.auditEntries(tenantId, 'contact')).find(
@@ -750,8 +815,15 @@ describe('reassignment', () => {
   });
 
   it('makes a form open on the record learn it is stale', async () => {
-    const id = await harness.fixtures.createContact(tenantId, { ownerId: priya.userId, lastName: 'Stale' });
-    const read = await request(harness, { method: 'GET', url: `/api/v1/contacts/${id}`, token: admin.token });
+    const id = await harness.fixtures.createContact(tenantId, {
+      ownerId: priya.userId,
+      lastName: 'Stale',
+    });
+    const read = await request(harness, {
+      method: 'GET',
+      url: `/api/v1/contacts/${id}`,
+      token: admin.token,
+    });
     const version = (read.body['data'] as { version: number }).version;
 
     await request(harness, {
@@ -772,7 +844,10 @@ describe('reassignment', () => {
   it('moves everything one person owns, in bounded batches', async () => {
     const leaver = await person(roles.get('Sales Rep')!, 'Leaving Lal');
     const ids = await contacts(leaver.userId, 4);
-    await harness.fixtures.createLead(tenantId, { ownerId: leaver.userId, lastName: 'Lead of Lal' });
+    await harness.fixtures.createLead(tenantId, {
+      ownerId: leaver.userId,
+      lastName: 'Lead of Lal',
+    });
 
     const preview = await request(harness, {
       method: 'POST',
@@ -781,7 +856,8 @@ describe('reassignment', () => {
       body: { mode: 'owner', fromOwnerId: leaver.userId, toOwnerId: meera.userId },
     });
     expect(preview.status).toBe(200);
-    const items = (preview.body['data'] as { items: { objectType: string; willMove: number }[] }).items;
+    const items = (preview.body['data'] as { items: { objectType: string; willMove: number }[] })
+      .items;
     expect(items.find((item) => item.objectType === 'contact')?.willMove).toBe(4);
     expect(items.find((item) => item.objectType === 'lead')?.willMove).toBe(1);
 
@@ -799,7 +875,10 @@ describe('reassignment', () => {
   });
 
   it('leaves records already owned by the target alone: no version bump, no audit', async () => {
-    const id = await harness.fixtures.createContact(tenantId, { ownerId: bhavin.userId, lastName: 'Already' });
+    const id = await harness.fixtures.createContact(tenantId, {
+      ownerId: bhavin.userId,
+      lastName: 'Already',
+    });
     const before = (await harness.fixtures.auditEntries(tenantId, 'contact')).length;
 
     const response = await request(harness, {
@@ -813,7 +892,10 @@ describe('reassignment', () => {
   });
 
   it('will not hand a record to a suspended person, a stranger, or somebody who cannot see it', async () => {
-    const id = await harness.fixtures.createContact(tenantId, { ownerId: priya.userId, lastName: 'Careful' });
+    const id = await harness.fixtures.createContact(tenantId, {
+      ownerId: priya.userId,
+      lastName: 'Careful',
+    });
 
     const suspended = await person(roles.get('Sales Rep')!, 'Out Orla');
     await harness.fixtures.setMembershipStatus(tenantId, suspended.userId, 'suspended');
@@ -822,7 +904,11 @@ describe('reassignment', () => {
       'Blind Bo',
     );
 
-    for (const toOwnerId of [suspended.userId, blind.userId, '019a0000-0000-7000-8000-00000000dead']) {
+    for (const toOwnerId of [
+      suspended.userId,
+      blind.userId,
+      '019a0000-0000-7000-8000-00000000dead',
+    ]) {
       const response = await request(harness, {
         method: 'POST',
         url: '/api/v1/ownership/reassign',
@@ -860,13 +946,21 @@ describe('reassignment', () => {
       assignedTo: priya.userId,
       subject: 'Team task',
     });
-    const contact = await harness.fixtures.createContact(tenantId, { ownerId: priya.userId, lastName: 'Team record' });
+    const contact = await harness.fixtures.createContact(tenantId, {
+      ownerId: priya.userId,
+      lastName: 'Team record',
+    });
 
     const task = await request(harness, {
       method: 'POST',
       url: '/api/v1/ownership/reassign',
       token: rahul.token,
-      body: { mode: 'records', objectType: 'activity', recordIds: [activity], toOwnerId: rahul.userId },
+      body: {
+        mode: 'records',
+        objectType: 'activity',
+        recordIds: [activity],
+        toOwnerId: rahul.userId,
+      },
     });
     expect(task.status).toBe(200);
     expect(task.body['data']).toMatchObject({ moved: [{ objectType: 'activity', count: 1 }] });
@@ -875,7 +969,12 @@ describe('reassignment', () => {
       method: 'POST',
       url: '/api/v1/ownership/reassign',
       token: rahul.token,
-      body: { mode: 'records', objectType: 'contact', recordIds: [contact], toOwnerId: rahul.userId },
+      body: {
+        mode: 'records',
+        objectType: 'contact',
+        recordIds: [contact],
+        toOwnerId: rahul.userId,
+      },
     });
     // The same rule an ordinary edit applies: reassigning a record is an `all`-scope act.
     expect(record.status).toBe(422);

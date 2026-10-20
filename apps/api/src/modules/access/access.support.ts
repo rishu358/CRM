@@ -21,12 +21,7 @@ import {
   type Scope,
 } from '@crm/core';
 import type { AccessCatalogue, EffectPreview, PermissionPatch } from '@crm/contracts';
-import {
-  countOwnedRecords,
-  isOwnedObjectType,
-  loadActors,
-  type Tx,
-} from '@crm/db';
+import { countOwnedRecords, isOwnedObjectType, loadActors, type Tx } from '@crm/db';
 import { AccessRepository } from './access.repository.js';
 
 /**
@@ -51,6 +46,16 @@ import { AccessRepository } from './access.repository.js';
  * that rule, anybody who may edit roles could size the whole workspace's data
  * by previewing a change, whatever their own reach (ADR-0033).
  */
+/**
+ * The actions whose reach is a *set of existing records*.
+ *
+ * `create` and `import` make new records, so a scope on them has no count to
+ * give; "up to 1,240 contacts they could create" would be a number with no
+ * meaning, and a preview that prints one teaches administrators to ignore
+ * the others.
+ */
+const COUNTED_ACTIONS: ReadonlySet<Action> = new Set(['read', 'update', 'delete', 'export']);
+
 @Injectable()
 export class AccessSupport {
   constructor(@Inject(AccessRepository) private readonly repository: AccessRepository) {}
@@ -210,10 +215,11 @@ export class AccessSupport {
     const catalogue = await this.catalogue(tx, tenantId);
     const labels = new Map<string, string>();
     for (const object of catalogue.objects) {
-      for (const field of object.fields) labels.set(`${object.objectType}:${field.key}`, field.label);
+      for (const field of object.fields)
+        labels.set(`${object.objectType}:${field.key}`, field.label);
     }
     const objects = catalogue.objects.map((object) => ({
-      objectType: object.objectType as ObjectType,
+      objectType: object.objectType,
       fieldKeys: object.fields.map((field) => field.key),
     }));
 
@@ -238,7 +244,7 @@ export class AccessSupport {
       for (const change of diff.scopeChanges) {
         let recordsBefore: number | null = null;
         let recordsAfter: number | null = null;
-        if (countable(change.objectType)) {
+        if (COUNTED_ACTIONS.has(change.action) && countable(change.objectType)) {
           recordsBefore = await counter(person.before, change.action, change.objectType);
           recordsAfter = await counter(person.after, change.action, change.objectType);
         }

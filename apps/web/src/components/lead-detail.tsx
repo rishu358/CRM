@@ -21,6 +21,7 @@ import { OPEN_LEAD_STATUSES, useLead, useUpdateLead } from '../lib/leads';
 import { useRecordView } from '../lib/activities';
 import { AppShell } from './app-shell';
 import { BackLink } from './back-link';
+import { WhoCanSeeButton } from './who-can-see';
 import { ActivityPanel } from './activity-panel';
 import { ConvertLeadDialog } from './convert-lead-dialog';
 import { InlineField } from './inline-field';
@@ -123,9 +124,16 @@ export function LeadDetail({ id }: { id: string }) {
           ) : undefined
         }
         actions={
-          !converted ? (
-            <Button onClick={() => setConverting(true)}>{t('lead.convert')}</Button>
-          ) : undefined
+          <>
+            <WhoCanSeeButton
+              objectType="lead"
+              recordId={id}
+              subject={t('whoCanSee.subject.lead')}
+            />
+            {!converted ? (
+              <Button onClick={() => setConverting(true)}>{t('lead.convert')}</Button>
+            ) : null}
+          </>
         }
       />
 

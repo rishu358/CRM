@@ -44,6 +44,7 @@ export {
   Inbox as InboxIcon,
   Info as InfoIcon,
   Keyboard as KeyboardIcon,
+  KeyRound as AccessIcon,
   LayoutList as ListViewIcon,
   Lock as LockIcon,
   LogOut as SignOutIcon,

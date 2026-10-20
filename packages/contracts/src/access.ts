@@ -324,9 +324,7 @@ export const teamUpdateSchema = z
 export type TeamUpdateInput = z.infer<typeof teamUpdateSchema>;
 
 /** The whole membership of a team, set at once. */
-export const teamMembersSchema = z
-  .object({ userIds: z.array(z.uuid()).max(500) })
-  .strict();
+export const teamMembersSchema = z.object({ userIds: z.array(z.uuid()).max(500) }).strict();
 export type TeamMembersInput = z.infer<typeof teamMembersSchema>;
 
 // ---------------------------------------------------------------------------
@@ -379,7 +377,9 @@ export const reassignPreviewSchema = z.object({
 export type ReassignPreview = z.infer<typeof reassignPreviewSchema>;
 
 export const reassignResultSchema = z.object({
-  moved: z.array(z.object({ objectType: ownedObjectSchema, count: z.number().int().nonnegative() })),
+  moved: z.array(
+    z.object({ objectType: ownedObjectSchema, count: z.number().int().nonnegative() }),
+  ),
   skipped: z.number().int().nonnegative(),
   /** More left to move than one request handles; call again. */
   remaining: z.number().int().nonnegative(),

@@ -1,17 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
-import {
-  assertCan,
-  ConflictError,
-  NotFoundError,
-  ValidationError,
-  type Actor,
-} from '@crm/core';
-import type {
-  Team,
-  TeamCreateInput,
-  TeamMembersInput,
-  TeamUpdateInput,
-} from '@crm/contracts';
+import { assertCan, ConflictError, NotFoundError, ValidationError, type Actor } from '@crm/core';
+import type { Team, TeamCreateInput, TeamMembersInput, TeamUpdateInput } from '@crm/contracts';
 import type { Tx } from '@crm/db';
 import { isConstraintViolation } from '../../common/db-errors.js';
 import { DatabaseService } from '../../database/database.service.js';

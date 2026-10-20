@@ -315,7 +315,9 @@ describe.each(OBJECTS)('the explainer agrees with the API: %s', (object) => {
     >;
     const explainedFields = (await explain(object, reference.id)).fields;
     const surfaced = explainedFields.filter((field) => camel(field.key) in adminBody);
-    expect(surfaced.length, 'the admin should see some fields to compare against').toBeGreaterThan(2);
+    expect(surfaced.length, 'the admin should see some fields to compare against').toBeGreaterThan(
+      2,
+    );
 
     const disagreements: string[] = [];
     for (const record of records[object]) {

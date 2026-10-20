@@ -99,7 +99,17 @@ export function Dialog({
     // the dialog is open: an invisible modal, with the page scroll locked.
     // `close` fires for that, so the caller is told, and the dialog is not
     // left open in state while closed on screen.
-    const onNativeClose = () => onCloseRef.current();
+    //
+    // A genuine close arrives with `open === false`. The guard is for React
+    // Strict Mode in development, which runs this effect, its cleanup (which
+    // calls `close()`) and the effect again: the browser delivers that first
+    // close *after* the listener below has been re-attached, to a dialog that
+    // has by then been reopened, and without the guard it would dismiss the
+    // dialog the moment it appeared. Production builds do not double-run
+    // effects, which is how this went unseen.
+    const onNativeClose = () => {
+      if (!dialog.open) onCloseRef.current();
+    };
 
     dialog.addEventListener('cancel', onCancel);
     dialog.addEventListener('close', onNativeClose);
