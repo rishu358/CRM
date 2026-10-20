@@ -2,7 +2,7 @@ import { ATTACHMENT_LIMITS, newId } from '@crm/core';
 import { typedPool, type TypedPool } from '@crm/db/testing';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
-import { request, startApiHarness, type ApiHarness } from '../../testing/harness.js';
+import { dataOf, request, startApiHarness, type ApiHarness } from '../../testing/harness.js';
 
 /**
  * Attachment endpoints (MVP_SPEC §6.1, CLAUDE.md §5.5 §5.12, ADR-0035).
@@ -117,6 +117,8 @@ async function createAttachment(
       ...overrides,
     },
   });
+  // Tolerant on purpose: this helper also serves tests of refusals, where there
+  // is no data envelope to read and the caller asserts on `status` instead.
   const data = response.body['data'] as
     { attachment: { id: string }; upload: Created['upload'] } | undefined;
   return {
@@ -245,7 +247,7 @@ describe('tenant isolation: tenant B cannot reach tenant A', () => {
     const response = await createAttachment(adminB.token, { recordId: contactB });
     expect(response.status).toBe(201);
 
-    const created = response.body['data'] as { attachment: { id: string } };
+    const created = dataOf<{ attachment: { id: string } }>(response);
     expect((await row(created.attachment.id))['tenant_id']).toBe(tenantB);
   });
 });
@@ -292,7 +294,7 @@ describe('record scope: own cannot reach another rep’s record', () => {
       token: repA.token,
     });
     expect(listed.status).toBe(200);
-    expect((listed.body['data'] as { id: string }[]).map((item) => item.id)).toContain(id);
+    expect(dataOf<{ id: string }[]>(listed).map((item) => item.id)).toContain(id);
 
     const download = await request(harness, {
       method: 'POST',
@@ -426,7 +428,7 @@ describe('the server decides the type, and the download is never rendered', () =
     });
     expect(response.status).toBe(200);
 
-    const link = response.body['data'] as { url: string };
+    const link = dataOf<{ url: string }>(response);
     const headers = harness.storage.headersFor(link.url);
     expect(headers['Content-Disposition']).toBe('attachment; filename="report.pdf"');
     expect(headers['Content-Type']).toBe('application/pdf');
@@ -442,7 +444,7 @@ describe('the server decides the type, and the download is never rendered', () =
       token: adminA.token,
     });
 
-    const link = response.body['data'] as { url: string };
+    const link = dataOf<{ url: string }>(response);
     const disposition = harness.storage.headersFor(link.url)['Content-Disposition'] as string;
     expect(disposition.match(/"/g)).toHaveLength(2);
     expect(disposition).not.toMatch(/[\r\n]/);
@@ -473,7 +475,7 @@ describe('presigned URLs are short-lived and unguessable', () => {
       url: `/api/v1/attachments/${id}/download`,
       token: adminA.token,
     });
-    const link = response.body['data'] as { url: string; expiresAt: string };
+    const link = dataOf<{ url: string; expiresAt: string }>(response);
 
     const expiresAt = new Date(link.expiresAt).getTime();
     expect(expiresAt - Date.now()).toBeLessThanOrEqual(5 * 60 * 1000 + 5_000);
@@ -486,10 +488,10 @@ describe('presigned URLs are short-lived and unguessable', () => {
 
   it('the storage key is random, and is never returned by the API', async () => {
     const response = await createAttachment(adminA.token, { fileName: 'secret-plan.pdf' });
-    const created = response.body['data'] as {
+    const created = dataOf<{
       attachment: Record<string, unknown>;
       upload: unknown;
-    };
+    }>(response);
 
     expect(created.attachment).not.toHaveProperty('fileKey');
     expect(created.attachment).not.toHaveProperty('storageKey');
@@ -506,7 +508,7 @@ describe('presigned URLs are short-lived and unguessable', () => {
     const keys = new Set<string>();
     for (let index = 0; index < 5; index += 1) {
       const response = await createAttachment(adminA.token);
-      const id = (response.body['data'] as { attachment: { id: string } }).attachment.id;
+      const id = dataOf<{ attachment: { id: string } }>(response).attachment.id;
       keys.add((await row(id))['file_key'] as string);
     }
     expect(keys.size).toBe(5);
@@ -583,7 +585,7 @@ describe('the declared size is what the store is told, and is checked again', ()
       token: adminA.token,
     });
     expect(response.status).toBe(202);
-    expect((response.body['data'] as { status: string }).status).toBe('rejected');
+    expect(dataOf<{ status: string }>(response).status).toBe('rejected');
     expect(harness.storage.has(key)).toBe(false);
   });
 
@@ -608,7 +610,7 @@ describe('the declared size is what the store is told, and is checked again', ()
 
     expect(first.status).toBe(202);
     expect(second.status).toBe(202);
-    expect((second.body['data'] as { status: string }).status).toBe('scanning');
+    expect(dataOf<{ status: string }>(second).status).toBe('scanning');
   });
 });
 
@@ -626,7 +628,7 @@ describe('a file that has not passed the byte check is not a file', () => {
       url: listUrl('contact', contact),
       token: adminA.token,
     });
-    expect(scanning.body['data']).toEqual([]);
+    expect(dataOf(scanning)).toEqual([]);
 
     await superuser.query(
       `update attachments set status = 'rejected', failure_reason = 'refused' where id = $1`,
@@ -637,7 +639,7 @@ describe('a file that has not passed the byte check is not a file', () => {
       url: listUrl('contact', contact),
       token: adminA.token,
     });
-    expect(rejected.body['data']).toEqual([]);
+    expect(dataOf(rejected)).toEqual([]);
   });
 
   it('cannot be downloaded', async () => {
@@ -662,14 +664,14 @@ describe('an uploader can see what became of a file', () => {
     await setStatus(created!.id, 'scanning');
     const scanning = await get(adminA.token, created!.id);
     expect(scanning.status).toBe(200);
-    expect((scanning.body['data'] as { status: string }).status).toBe('scanning');
+    expect(dataOf<{ status: string }>(scanning).status).toBe('scanning');
 
     await superuser.query(
       `update attachments set status = 'rejected', failure_reason = 'The file is named .pdf but its contents are not' where id = $1`,
       [created!.id],
     );
     const rejected = await get(adminA.token, created!.id);
-    const data = rejected.body['data'] as { status: string; failureReason: string };
+    const data = dataOf<{ status: string; failureReason: string }>(rejected);
     expect(data.status).toBe('rejected');
     expect(data.failureReason).toContain('named .pdf');
   });
@@ -677,7 +679,7 @@ describe('an uploader can see what became of a file', () => {
   it('never returns the storage key', async () => {
     const id = await uploadAttachment(adminA.token);
     const response = await get(adminA.token, id);
-    expect(response.body['data']).not.toHaveProperty('fileKey');
+    expect(dataOf(response)).not.toHaveProperty('fileKey');
     expect(JSON.stringify(response.body)).not.toContain('tenants/');
   });
 
@@ -735,7 +737,7 @@ describe('the record page’s list is scoped to one record', () => {
       url: listUrl('contact', one),
       token: adminA.token,
     });
-    expect((response.body['data'] as { id: string }[]).map((item) => item.id)).toEqual([onOne]);
+    expect(dataOf<{ id: string }[]>(response).map((item) => item.id)).toEqual([onOne]);
   });
 });
 
@@ -749,7 +751,7 @@ describe('every object type that can carry a file does', () => {
       url: listUrl(objectType, recordId),
       token: adminA.token,
     });
-    expect((listed.body['data'] as { id: string }[]).map((item) => item.id)).toEqual([id]);
+    expect(dataOf<{ id: string }[]>(listed).map((item) => item.id)).toEqual([id]);
 
     // And the other tenant still cannot reach it.
     const foreign = await request(harness, {
@@ -846,7 +848,7 @@ describe('limits and deletion', () => {
       url: listUrl('contact', contact),
       token: adminA.token,
     });
-    expect(listed.body['data']).toEqual([]);
+    expect(dataOf(listed)).toEqual([]);
 
     const download = await request(harness, {
       method: 'POST',
@@ -875,10 +877,16 @@ describe('everything that matters is audited (CLAUDE.md §5.10)', () => {
       token: adminA.token,
     });
 
+    // Ordered by `id`, not `occurred_at`. `occurred_at` is the database's
+    // transaction start time, and the clock behind it can step backwards
+    // between two requests (a VM resync does), which reorders rows that were
+    // written in sequence. The id is a UUIDv7 minted in the API process, which
+    // is monotonic however the clock behaves, so it is the order things
+    // actually happened in.
     const entries = await superuser.query(
       `select action from audit_logs
        where tenant_id = $1 and object_type = 'attachment' and record_id = $2
-       order by occurred_at`,
+       order by id`,
       [tenantA, id],
     );
     expect(entries.rows.map((entry) => (entry as { action: string }).action)).toEqual([

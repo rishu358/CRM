@@ -2,7 +2,7 @@ import { newId } from '@crm/core';
 import { typedPool, type TypedPool } from '@crm/db/testing';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
-import { request, startApiHarness, type ApiHarness } from '../../testing/harness.js';
+import { dataOf, request, startApiHarness, type ApiHarness } from '../../testing/harness.js';
 
 /**
  * Export endpoints (MVP_SPEC §M8, CLAUDE.md §5.11).
@@ -70,8 +70,8 @@ const create = (
     body: { objectType: 'contact', ...body },
   });
 
-const idOf = (response: { body: Record<string, unknown> }): string =>
-  (response.body['data'] as { id: string }).id;
+const idOf = (response: { status: number; body: Record<string, unknown> }): string =>
+  dataOf<{ id: string }>(response).id;
 
 async function jobRow(id: string): Promise<Record<string, unknown>> {
   const row = (await superuser.query('select * from export_jobs where id = $1', [id])).rows[0];
@@ -113,7 +113,7 @@ describe('`export` is its own action, default deny', () => {
   it('accepts a role that can export, and queues the work rather than doing it', async () => {
     const response = await create(repA.token);
     expect(response.status).toBe(202);
-    const job = response.body['data'] as { status: string; rowCount: number | null };
+    const job = dataOf<{ status: string; rowCount: number | null }>(response);
     expect(job.status).toBe('queued');
     expect(job.rowCount).toBeNull();
 
@@ -256,8 +256,14 @@ describe('audit (CLAUDE.md §5.10, §5.11)', () => {
       token: adminA.token,
     });
 
+    // Ordered by `id`, not `occurred_at`. `occurred_at` is the database's
+    // transaction start time, and the clock behind it can step backwards
+    // between two requests (a VM resync does), which reorders rows that were
+    // written in sequence. The id is a UUIDv7 minted in the API process, which
+    // is monotonic however the clock behaves, so it is the order things
+    // actually happened in.
     const entries = await superuser.query(
-      `select changes from audit_logs where tenant_id = $1 and record_id = $2 and action = 'export' order by occurred_at`,
+      `select changes from audit_logs where tenant_id = $1 and record_id = $2 and action = 'export' order by id`,
       [tenantA, idOf(response)],
     );
     // One for the request, one per link: three moments the data could leave.
@@ -302,7 +308,7 @@ describe('download: a short-lived presigned URL, never the file', () => {
       token: adminA.token,
     });
     expect(link.status).toBe(200);
-    const data = link.body['data'] as { url: string; expiresAt: string };
+    const data = dataOf<{ url: string; expiresAt: string }>(link);
     expect(Object.keys(data).sort()).toEqual(['expiresAt', 'url']);
     expect(new Date(data.expiresAt).getTime() - Date.now()).toBeLessThanOrEqual(
       5 * 60 * 1000 + 5_000,
@@ -338,7 +344,7 @@ describe('download: a short-lived presigned URL, never the file', () => {
       url: `/api/v1/exports/${idOf(response)}/download`,
       token: adminA.token,
     });
-    const url = (link.body['data'] as { url: string }).url;
+    const url = dataOf<{ url: string }>(link).url;
     const real = harness.storage.now;
     try {
       harness.storage.now = () => new Date(Date.now() + 6 * 60 * 1000);

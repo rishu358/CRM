@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
-import { startApiHarness, request, type ApiHarness } from '../../testing/harness.js';
+import { dataOf, startApiHarness, request, type ApiHarness } from '../../testing/harness.js';
 
 /**
  * The four mandatory per-module security suites (CLAUDE.md §10):
@@ -152,7 +152,7 @@ describe('(a) tenant A cannot reach tenant B records', () => {
       token: adminA.token,
     });
     expect(response.status).toBe(200);
-    const ids = (response.body['data'] as { id: string }[]).map((row) => row.id);
+    const ids = dataOf<{ id: string }[]>(response).map((row) => row.id);
     expect(ids).toContain(adminDealA);
     expect(ids).toContain(repDealA);
     expect(ids).not.toContain(dealB);
@@ -195,7 +195,7 @@ describe('(a) tenant A cannot reach tenant B records', () => {
       url: `/api/v1/deals/${dealB}`,
       token: adminB.token,
     });
-    expect(check.body['data']).toMatchObject({ name: 'Rival Traders order', version: 1 });
+    expect(dataOf(check)).toMatchObject({ name: 'Rival Traders order', version: 1 });
   });
 
   it('cannot switch tenant with a header for a tenant it does not belong to', async () => {
@@ -320,7 +320,7 @@ describe('(a) tenant A cannot reach tenant B records', () => {
       url: '/api/v1/deals/board',
       token: adminA.token,
     });
-    const columns = (own.body['data'] as { columns: { count: number }[] }).columns;
+    const columns = dataOf<{ columns: { count: number }[] }>(own).columns;
     // Two deals in tenant A at this point; tenant B's is not among them.
     expect(columns.reduce((total, column) => total + column.count, 0)).toBeGreaterThanOrEqual(2);
     expect(JSON.stringify(own.body)).not.toContain('999999');
@@ -332,7 +332,7 @@ describe('(a) tenant A cannot reach tenant B records', () => {
       url: '/api/v1/pipelines',
       token: adminA.token,
     });
-    const ids = (response.body['data'] as { id: string }[]).map((pipeline) => pipeline.id);
+    const ids = dataOf<{ id: string }[]>(response).map((pipeline) => pipeline.id);
     expect(ids).toContain(pipelineA);
     expect(ids).not.toContain(pipelineB);
   });
@@ -345,7 +345,7 @@ describe('(b) a user with own scope cannot see other people records', () => {
       url: '/api/v1/deals?limit=100',
       token: repA.token,
     });
-    const ids = (response.body['data'] as { id: string }[]).map((row) => row.id);
+    const ids = dataOf<{ id: string }[]>(response).map((row) => row.id);
     expect(ids).toContain(repDealA);
     expect(ids).not.toContain(adminDealA);
   });
@@ -382,7 +382,7 @@ describe('(b) a user with own scope cannot see other people records', () => {
           token: repA.token,
         });
         expect(response.status, sort).toBe(200);
-        for (const row of response.body['data'] as { id: string; ownerId?: string }[]) {
+        for (const row of dataOf<{ id: string; ownerId?: string }[]>(response)) {
           seen.push(row.id);
           expect(row.ownerId, `${sort}: a deal owned by someone else`).toBe(repA.userId);
         }
@@ -433,8 +433,7 @@ describe('(b) a user with own scope cannot see other people records', () => {
     });
     expect(response.status).toBe(200);
     // This rep owns nothing: every column is empty, whatever the tenant holds.
-    const columns = (response.body['data'] as { columns: { count: number; total: unknown }[] })
-      .columns;
+    const columns = dataOf<{ columns: { count: number; total: unknown }[] }>(response).columns;
     expect(columns.every((column) => column.count === 0)).toBe(true);
 
     const own = await request(harness, {
@@ -442,8 +441,7 @@ describe('(b) a user with own scope cannot see other people records', () => {
       url: '/api/v1/deals/board',
       token: repA.token,
     });
-    const ownColumns = (own.body['data'] as { columns: { stageId: string; count: number }[] })
-      .columns;
+    const ownColumns = dataOf<{ columns: { stageId: string; count: number }[] }>(own).columns;
     const total = ownColumns.reduce((sum, column) => sum + column.count, 0);
     // Exactly the rep's own deals, not the tenant's.
     const mine = await request(harness, {
@@ -451,7 +449,7 @@ describe('(b) a user with own scope cannot see other people records', () => {
       url: '/api/v1/deals?limit=100',
       token: repA.token,
     });
-    expect(total).toBe((mine.body['data'] as unknown[]).length);
+    expect(total).toBe(dataOf<unknown[]>(mine).length);
   });
 
   it('does not let a rep assign a deal to someone else', async () => {
@@ -472,7 +470,7 @@ describe('(b) a user with own scope cannot see other people records', () => {
       body: { name: 'Patel Metals' },
     });
     expect(response.status).toBe(201);
-    expect((response.body['data'] as Record<string, unknown>)['ownerId']).toBe(repA.userId);
+    expect(dataOf<Record<string, unknown>>(response)['ownerId']).toBe(repA.userId);
   });
 
   it('lets a read-only user read and refuses every write', async () => {
@@ -543,7 +541,7 @@ describe('(c) hidden fields are absent from responses and rejected on write', ()
       token: hiddenRepToken,
     });
     expect(response.status).toBe(200);
-    const deal = response.body['data'] as Record<string, unknown>;
+    const deal = dataOf<Record<string, unknown>>(response);
     // Absent, not null: a null would still confirm the field exists and is set.
     expect('amount' in deal).toBe(false);
     expect('lostReason' in deal).toBe(false);
@@ -556,7 +554,7 @@ describe('(c) hidden fields are absent from responses and rejected on write', ()
       url: '/api/v1/deals?limit=100',
       token: hiddenRepToken,
     });
-    const rows = response.body['data'] as Record<string, unknown>[];
+    const rows = dataOf<Record<string, unknown>[]>(response);
     expect(rows.length).toBeGreaterThan(0);
     for (const row of rows) {
       expect('amount' in row).toBe(false);
@@ -583,11 +581,9 @@ describe('(c) hidden fields are absent from responses and rejected on write', ()
       token: hiddenRepToken,
     });
     expect(response.status).toBe(200);
-    const columns = (
-      response.body['data'] as {
-        columns: { count: number; total: unknown; unconverted: unknown[] }[];
-      }
-    ).columns;
+    const columns = dataOf<{
+      columns: { count: number; total: unknown; unconverted: unknown[] }[];
+    }>(response).columns;
     for (const column of columns) {
       expect(column.total).toBeNull();
       expect(column.unconverted).toEqual([]);
@@ -645,7 +641,7 @@ describe('(c) hidden fields are absent from responses and rejected on write', ()
       url: `/api/v1/deals/${ownedDeal}`,
       token: adminA.token,
     });
-    expect((check.body['data'] as Record<string, unknown>)['amount']).toEqual({
+    expect(dataOf<Record<string, unknown>>(check)['amount']).toEqual({
       amountMinor: '770000123',
       currency: 'USD',
     });
@@ -668,7 +664,7 @@ describe('(c) hidden fields are absent from responses and rejected on write', ()
       url: `/api/v1/deals/${adminDealA}`,
       token: lockedStageRepToken,
     });
-    expect((read.body['data'] as Record<string, unknown>)['stageId']).toBe(stagesA['New']);
+    expect(dataOf<Record<string, unknown>>(read)['stageId']).toBe(stagesA['New']);
   });
 });
 
@@ -714,7 +710,7 @@ describe('sort and filter reach SQL only through the whitelist (CLAUDE.md §5.7)
         token: adminA.token,
       });
       if (response.status === 200) {
-        const ids = (response.body['data'] as { id: string }[]).map((row) => row.id);
+        const ids = dataOf<{ id: string }[]>(response).map((row) => row.id);
         expect(ids, filter).not.toContain(dealB);
       } else {
         expect(response.status, filter).toBe(422);
@@ -741,6 +737,6 @@ describe('sort and filter reach SQL only through the whitelist (CLAUDE.md §5.7)
       url: '/api/v1/deals?filter=name:eq:Deleted%20order&limit=100',
       token: adminA.token,
     });
-    expect((response.body['data'] as unknown[]).length).toBe(0);
+    expect(dataOf<unknown[]>(response).length).toBe(0);
   });
 });

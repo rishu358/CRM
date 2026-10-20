@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
-import { request, startApiHarness, type ApiHarness } from '../../testing/harness.js';
+import { dataOf, request, startApiHarness, type ApiHarness } from '../../testing/harness.js';
 
 /**
  * The explainer against reality (ADR-0033).
@@ -217,11 +217,11 @@ async function explain(object: ObjectKey, id: string) {
     token: adminToken,
   });
   expect(response.status).toBe(200);
-  const data = response.body['data'] as {
+  const data = dataOf<{
     people: Explained[];
     fields: { key: string; label: string }[];
     truncated: boolean;
-  };
+  }>(response);
   return data;
 }
 
@@ -299,7 +299,7 @@ describe.each(OBJECTS)('the explainer agrees with the API: %s', (object) => {
         continue;
       }
       expect(response.status, person.name).toBe(200);
-      const ids = (response.body['data'] as { id: string }[])
+      const ids = dataOf<{ id: string }[]>(response)
         .map((row) => row.id)
         .filter((id) => records[object].some((record) => record.id === id))
         .sort();
@@ -309,10 +309,7 @@ describe.each(OBJECTS)('the explainer agrees with the API: %s', (object) => {
 
   it('says a field is hidden from a member exactly when it is missing from what they receive', async () => {
     const reference = records[object][0]!;
-    const adminBody = (await open(object, reference.id, adminToken)).body['data'] as Record<
-      string,
-      unknown
-    >;
+    const adminBody = dataOf<Record<string, unknown>>(await open(object, reference.id, adminToken));
     const explainedFields = (await explain(object, reference.id)).fields;
     const surfaced = explainedFields.filter((field) => camel(field.key) in adminBody);
     expect(surfaced.length, 'the admin should see some fields to compare against').toBeGreaterThan(
@@ -327,7 +324,7 @@ describe.each(OBJECTS)('the explainer agrees with the API: %s', (object) => {
         const person = members[claim.name]!;
         const real = await open(object, record.id, person.token);
         if (real.status !== 200) continue; // covered by the first test
-        const body = real.body['data'] as Record<string, unknown>;
+        const body = dataOf<Record<string, unknown>>(real);
 
         for (const field of surfaced) {
           const present = camel(field.key) in body;
@@ -356,14 +353,14 @@ describe('what a member can reach agrees with the API', () => {
         token: adminToken,
       });
       expect(response.status, person.name).toBe(200);
-      const reach = response.body['data'] as {
+      const reach = dataOf<{
         objects: {
           objectType: string;
           kind: string;
           readableRecords: number | null;
           actions: { action: string; allowed: boolean; scope: string | null }[];
         }[];
-      };
+      }>(response);
 
       for (const object of OBJECTS) {
         const entry = reach.objects.find((candidate) => candidate.objectType === object)!;
@@ -382,7 +379,7 @@ describe('what a member can reach agrees with the API', () => {
         }
         expect(list.status, `${person.name} / ${object}`).toBe(200);
         expect(entry.readableRecords, `${person.name} / ${object}`).toBe(
-          (list.body['data'] as unknown[]).length,
+          dataOf<unknown[]>(list).length,
         );
       }
     }
@@ -394,15 +391,15 @@ describe('what a member can reach agrees with the API', () => {
     let created = 0;
     for (const person of Object.values(members)) {
       if (person.name === 'Suspended Sam') continue;
-      const reach = (
+      const reach = dataOf<{
+        objects: { objectType: string; actions: { action: string; allowed: boolean }[] }[];
+      }>(
         await request(harness, {
           method: 'GET',
           url: `/api/v1/access/members/${person.userId}`,
           token: adminToken,
-        })
-      ).body['data'] as {
-        objects: { objectType: string; actions: { action: string; allowed: boolean }[] }[];
-      };
+        }),
+      );
 
       const bodies = {
         contact: (tag: string) => ({ lastName: `Probe ${tag}` }),

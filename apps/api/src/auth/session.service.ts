@@ -47,8 +47,10 @@ export class SessionService {
    * an expired or revoked session is loaded and then forgotten about:
    *   - not revoked
    *   - not expired
-   *   - issued at or after the user's `sessions_valid_from`, which a password
-   *     change bumps so every other device is signed out in one write
+   *   - issued under the user's current `session_epoch`, which a password
+   *     change advances so every other device is signed out in one write. A
+   *     counter, not a timestamp: comparing two transactions' `now()` fails
+   *     when the database clock steps backwards (ADR-0036)
    *   - the user is not soft-deleted
    */
   async verify(token: string): Promise<VerifiedSession | null> {
@@ -63,7 +65,7 @@ export class SessionService {
         where s.token_hash = ${tokenHash}
           and s.revoked_at is null
           and s.expires_at > now()
-          and s.created_at >= u.sessions_valid_from
+          and s.epoch >= u.session_epoch
           and u.deleted_at is null
         limit 1
       `);
@@ -104,12 +106,20 @@ export class SessionService {
     const expiresAt = new Date(Date.now() + this.env.SESSION_TTL_DAYS * 24 * 3600 * 1000);
 
     const rows = await this.database.runAsAuth(async (tx) => {
+      // The epoch is read by the same statement that inserts the row, so a
+      // password change committing concurrently leaves this session either
+      // issued under the old epoch (invalid, correctly) or the new one (valid,
+      // correctly). Nothing here depends on the clock (ADR-0036).
       const result = await tx.execute(sql`
-        insert into sessions (id, user_id, token_hash, expires_at, active_tenant_id, ip_address, user_agent)
-        values (
-          gen_random_uuid(), ${userId}, ${tokenHash}, ${expiresAt.toISOString()},
-          ${options.tenantId ?? null}, ${options.ipAddress ?? null}, ${options.userAgent ?? null}
+        insert into sessions (
+          id, user_id, token_hash, expires_at, active_tenant_id, ip_address, user_agent, epoch
         )
+        select
+          gen_random_uuid(), u.id, ${tokenHash}, ${expiresAt.toISOString()},
+          ${options.tenantId ?? null}, ${options.ipAddress ?? null}, ${options.userAgent ?? null},
+          u.session_epoch
+        from users u
+        where u.id = ${userId}
         returning id
       `);
       return result.rows as unknown as { id: string }[];

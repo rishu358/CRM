@@ -1,5 +1,14 @@
 import { sql } from 'drizzle-orm';
-import { boolean, index, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import {
+  boolean,
+  index,
+  integer,
+  pgTable,
+  text,
+  timestamp,
+  uniqueIndex,
+  uuid,
+} from 'drizzle-orm/pg-core';
 import { timestamptz } from './columns.js';
 
 /**
@@ -34,6 +43,11 @@ export const sessions = pgTable(
       .notNull()
       .default(sql`now()`),
     revokedAt: timestamptz('revoked_at'),
+    /**
+     * The owner's `users.session_epoch` when this session was issued. Valid
+     * only while that is still current (ADR-0036).
+     */
+    epoch: integer('epoch').notNull().default(0),
     /** Last request made with this session; updated at most once a minute. */
     lastSeenAt: timestamptz('last_seen_at'),
   },

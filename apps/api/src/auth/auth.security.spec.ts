@@ -1,6 +1,13 @@
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
 import { createOTP } from '@better-auth/utils/otp';
-import { request, startApiHarness, tokenFromEmail, type ApiHarness } from '../testing/harness.js';
+import pg from 'pg';
+import {
+  dataOf,
+  request,
+  startApiHarness,
+  tokenFromEmail,
+  type ApiHarness,
+} from '../testing/harness.js';
 
 /**
  * Security suites for the auth module (CLAUDE.md §10).
@@ -17,6 +24,7 @@ import { request, startApiHarness, tokenFromEmail, type ApiHarness } from '../te
  * correctly.
  */
 let harness: ApiHarness;
+let superuser: pg.Pool;
 
 const PASSWORD = 'correct-horse-battery-staple';
 
@@ -48,16 +56,24 @@ async function account(prefix: string): Promise<Account> {
     url: '/api/v1/auth/sign-in',
     body: { email, password: PASSWORD },
   });
-  const data = signedIn.body['data'] as { token: string; tenantId: string };
+  const data = dataOf<{ token: string; tenantId: string }>(signedIn);
+  if (typeof data.token !== 'string') {
+    // Without this, a sign-in that answered "MFA required" or similar would
+    // leave `token` undefined and every later request would be an anonymous
+    // one, failing as an unexplained 401.
+    throw new Error(`Sign-in did not issue a session: ${JSON.stringify(signedIn.body)}`);
+  }
   return { email, token: data.token, tenantId: data.tenantId };
 }
 
 beforeAll(async () => {
   harness = await startApiHarness(inject('dbUrls'));
+  superuser = new pg.Pool({ connectionString: inject('dbUrls').superuser, max: 2 });
 }, 180_000);
 
 afterAll(async () => {
   await harness.close();
+  await superuser.end();
 });
 
 // ---------------------------------------------------------------------------
@@ -112,7 +128,7 @@ describe('tenant isolation', () => {
     const b = await account('iso-me-b');
 
     const me = await request(harness, { method: 'GET', url: '/api/v1/auth/me', token: a.token });
-    const memberships = (me.body['data'] as { memberships: { tenantId: string }[] }).memberships;
+    const memberships = dataOf<{ memberships: { tenantId: string }[] }>(me).memberships;
     expect(memberships.map((row) => row.tenantId)).not.toContain(b.tenantId);
     expect(memberships).toHaveLength(1);
   });
@@ -156,8 +172,8 @@ describe('session scoping', () => {
       token: b.token,
     });
 
-    const idsA = (listA.body['data'] as { id: string }[]).map((row) => row.id);
-    const idsB = (listB.body['data'] as { id: string }[]).map((row) => row.id);
+    const idsA = dataOf<{ id: string }[]>(listA).map((row) => row.id);
+    const idsB = dataOf<{ id: string }[]>(listB).map((row) => row.id);
     expect(idsA.some((id) => idsB.includes(id))).toBe(false);
   });
 
@@ -170,7 +186,7 @@ describe('session scoping', () => {
       url: '/api/v1/auth/sessions',
       token: b.token,
     });
-    const victimSessionId = (listB.body['data'] as { id: string }[])[0]!.id;
+    const victimSessionId = dataOf<{ id: string }[]>(listB)[0]!.id;
 
     const attempt = await request(harness, {
       method: 'DELETE',
@@ -198,7 +214,7 @@ describe('session scoping', () => {
       url: '/api/v1/auth/sessions',
       token: b.token,
     });
-    const realButForeign = (listB.body['data'] as { id: string }[])[0]!.id;
+    const realButForeign = dataOf<{ id: string }[]>(listB)[0]!.id;
 
     const foreign = await request(harness, {
       method: 'DELETE',
@@ -230,6 +246,53 @@ describe('session scoping', () => {
     expect(
       (await request(harness, { method: 'GET', url: '/api/v1/auth/me', token: b.token })).status,
     ).toBe(200);
+  });
+
+  it('a password change signs out the other devices and keeps the one in use', async () => {
+    const first = await account('epoch-change');
+    const other = await request(harness, {
+      method: 'POST',
+      url: '/api/v1/auth/sign-in',
+      body: { email: first.email, password: PASSWORD },
+    });
+    const otherToken = dataOf<{ token: string }>(other).token;
+
+    const changed = await request(harness, {
+      method: 'POST',
+      url: '/api/v1/auth/change-password',
+      token: first.token,
+      body: { currentPassword: PASSWORD, newPassword: 'an-entirely-new-passphrase' },
+    });
+    const replacement = dataOf<{ token: string }>(changed).token;
+
+    const status = async (token: string) =>
+      (await request(harness, { method: 'GET', url: '/api/v1/auth/me', token })).status;
+    expect(await status(replacement)).toBe(200);
+    expect(await status(otherToken)).toBe(401);
+    expect(await status(first.token)).toBe(401);
+  });
+
+  it('whether a session is valid does not depend on the database clock', async () => {
+    // Regression (ADR-0036): validity used to compare two transactions' now(),
+    // so a clock that stepped backwards between sign-up and sign-in produced a
+    // session older than its own user and a 401 for somebody who had just
+    // signed in. Here the timestamps are set to say exactly that — user born
+    // tomorrow, session a day old — and the session must still work.
+    const a = await account('clock-free');
+    await superuser.query(
+      `update users set created_at = now() + interval '1 day',
+                        sessions_valid_from = now() + interval '1 day'
+       where email = $1`,
+      [a.email],
+    );
+    await superuser.query(
+      `update sessions set created_at = now() - interval '1 day'
+       where user_id = (select id from users where email = $1)`,
+      [a.email],
+    );
+
+    const me = await request(harness, { method: 'GET', url: '/api/v1/auth/me', token: a.token });
+    expect(me.status).toBe(200);
   });
 });
 
@@ -265,7 +328,7 @@ describe('what responses expose', () => {
       url: '/api/v1/auth/mfa/enroll',
       token: a.token,
     });
-    const secret = (enrolment.body['data'] as { secret: string }).secret;
+    const secret = dataOf<{ secret: string }>(enrolment).secret;
 
     const status = await request(harness, {
       method: 'GET',
@@ -285,7 +348,7 @@ describe('what responses expose', () => {
       url: '/api/v1/auth/mfa/enroll',
       token: a.token,
     });
-    const code = (enrolment.body['data'] as { backupCodes: string[] }).backupCodes[0]!;
+    const code = dataOf<{ backupCodes: string[] }>(enrolment).backupCodes[0]!;
 
     const status = await request(harness, {
       method: 'GET',
@@ -294,7 +357,7 @@ describe('what responses expose', () => {
     });
     expect(JSON.stringify(status.body)).not.toContain(code);
     // The count is fine to show; the codes are not.
-    expect((status.body['data'] as { backupCodesRemaining: number }).backupCodesRemaining).toBe(10);
+    expect(dataOf<{ backupCodesRemaining: number }>(status).backupCodesRemaining).toBe(10);
   });
 });
 
@@ -462,7 +525,7 @@ describe('one-time tokens', () => {
       url: '/api/v1/auth/mfa/enroll',
       token: a.token,
     });
-    const secret = (enrolment.body['data'] as { secret: string }).secret;
+    const secret = dataOf<{ secret: string }>(enrolment).secret;
     await request(harness, {
       method: 'POST',
       url: '/api/v1/auth/mfa/activate',
@@ -475,7 +538,7 @@ describe('one-time tokens', () => {
       url: '/api/v1/auth/sign-in',
       body: { email: a.email, password: PASSWORD },
     });
-    const challengeToken = (challenged.body['data'] as { challengeToken: string }).challengeToken;
+    const challengeToken = dataOf<{ challengeToken: string }>(challenged).challengeToken;
 
     const code = await createOTP(secret, { digits: 6, period: 30 }).totp();
     const first = await request(harness, {

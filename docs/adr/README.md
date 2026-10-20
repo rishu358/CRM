@@ -41,3 +41,4 @@ supersedes the old one and update the old one's **Status** to
 | [0031](0031-design-system-point-of-view.md)             | The design system has a point of view; accessibility is a test  | Accepted |
 | [0033](0033-the-engine-explains-itself.md)              | The permission engine explains itself; nothing else does        | Accepted |
 | [0035](0035-record-attachments.md)                      | A record attachment is an untrusted file with somebody's name   | Accepted |
+| [0036](0036-session-revocation-by-epoch.md)             | Sessions are revoked by an epoch counter, not by clocks         | Accepted |

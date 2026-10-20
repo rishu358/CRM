@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
-import { startApiHarness, request, type ApiHarness } from '../../testing/harness.js';
+import { dataOf, startApiHarness, request, type ApiHarness } from '../../testing/harness.js';
 
 /**
  * The four mandatory per-module security suites (CLAUDE.md §10):
@@ -155,7 +155,7 @@ describe('(a) tenant A cannot reach tenant B activities', () => {
   it('does not list them', async () => {
     const response = await call('GET', '/activities?limit=100', adminA.token);
     expect(response.status).toBe(200);
-    const ids = (response.body['data'] as Body[]).map((row) => row['id']);
+    const ids = dataOf<Body[]>(response).map((row) => row['id']);
     expect(ids).not.toContain(activityB.id);
   });
 
@@ -216,7 +216,7 @@ describe('(a) tenant A cannot reach tenant B activities', () => {
 describe('(b) a rep with own scope sees only their own activities', () => {
   it('lists their own and not a colleague’s', async () => {
     const response = await call('GET', '/activities?limit=100', repA.token);
-    const ids = (response.body['data'] as Body[]).map((row) => row['id']);
+    const ids = dataOf<Body[]>(response).map((row) => row['id']);
     expect(ids).toContain(repActivityA.id);
     expect(ids).not.toContain(adminActivityA.id);
   });
@@ -250,7 +250,7 @@ describe('(b) a rep with own scope sees only their own activities', () => {
 
   it('My Day shows only the viewer’s own work even for an admin', async () => {
     const response = await call('GET', '/my-day?timeZone=UTC', adminA.token);
-    const day = response.body['data'] as Record<string, Body[]>;
+    const day = dataOf<Record<string, Body[]>>(response);
     const ids = [...day['overdue']!, ...day['dueToday']!, ...day['upcoming']!].map(
       (row) => row['id'],
     );
@@ -273,17 +273,17 @@ describe('a polymorphic link is not a way around record scope', () => {
       links: [{ objectType: 'contact', recordId: adminContactA }],
     });
     expect(created.status).toBe(201);
-    const id = (created.body['data'] as Body)['id'] as string;
+    const id = dataOf<Body>(created)['id'] as string;
 
     // The admin sees the link.
     const asAdmin = await call('GET', `/activities/${id}`, adminA.token);
-    expect((asAdmin.body['data'] as Body)['links']).toHaveLength(1);
+    expect(dataOf<Body>(asAdmin)['links']).toHaveLength(1);
 
     // The rep sees the activity, and no link at all — not a null, not a
     // placeholder, nothing that confirms a contact is attached.
     const asRep = await call('GET', `/activities/${id}`, repA.token);
     expect(asRep.status).toBe(200);
-    expect((asRep.body['data'] as Body)['links']).toEqual([]);
+    expect(dataOf<Body>(asRep)['links']).toEqual([]);
 
     // The link row is still there: it is hidden from this reader, not deleted.
     expect(await harness.fixtures.activityLinks(id)).toHaveLength(1);
@@ -372,7 +372,7 @@ describe('(c) hidden fields are stripped on read and rejected on write', () => {
   it('omits a hidden field rather than returning it as null', async () => {
     const response = await call('GET', `/activities/${theirActivity}`, restricted.token);
     expect(response.status).toBe(200);
-    const activity = response.body['data'] as Body;
+    const activity = dataOf<Body>(response);
 
     expect('body' in activity).toBe(false);
     expect(activity['subject']).toBe('Private notes');
@@ -381,7 +381,7 @@ describe('(c) hidden fields are stripped on read and rejected on write', () => {
 
   it('keeps the hidden field out of the list as well as the record', async () => {
     const response = await call('GET', '/activities?limit=100', restricted.token);
-    for (const row of response.body['data'] as Body[]) {
+    for (const row of dataOf<Body[]>(response)) {
       expect('body' in row).toBe(false);
     }
   });
@@ -393,7 +393,7 @@ describe('(c) hidden fields are stripped on read and rejected on write', () => {
     });
 
     const response = await call('GET', '/my-day?timeZone=UTC', restricted.token);
-    const day = response.body['data'] as Record<string, Body[]>;
+    const day = dataOf<Record<string, Body[]>>(response);
     for (const row of [...day['overdue']!, ...day['dueToday']!, ...day['upcoming']!]) {
       expect('body' in row).toBe(false);
     }
@@ -454,9 +454,9 @@ describe('stored XSS payloads are dead on arrival and on the way out', () => {
     });
     expect(created.status).toBe(201);
 
-    const id = (created.body['data'] as Body)['id'] as string;
+    const id = dataOf<Body>(created)['id'] as string;
     const stored = (await harness.fixtures.activityRow(id))?.body ?? '';
-    const returned = ((created.body['data'] as Body)['body'] as string | null) ?? '';
+    const returned = (dataOf<Body>(created)['body'] as string | null) ?? '';
 
     for (const text of [stored, returned]) {
       const lowered = text.toLowerCase();
@@ -481,7 +481,7 @@ describe('stored XSS payloads are dead on arrival and on the way out', () => {
     });
 
     const response = await call('GET', `/activities/${id}`, adminA.token);
-    const body = ((response.body['data'] as Body)['body'] as string).toLowerCase();
+    const body = (dataOf<Body>(response)['body'] as string).toLowerCase();
     expect(body).not.toContain('<script');
     expect(body).not.toContain('javascript:');
     expect(body).toContain('ok');
@@ -510,7 +510,7 @@ describe('notifications are readable only by the person they are addressed to', 
 
   it('lists only the caller’s own', async () => {
     const response = await call('GET', '/notifications?limit=100', adminA.token);
-    const ids = (response.body['data'] as Body[]).map((row) => row['id']);
+    const ids = dataOf<Body[]>(response).map((row) => row['id']);
     expect(ids).toContain(mine);
     expect(ids).not.toContain(theirs);
     expect(ids).not.toContain(otherTenant);

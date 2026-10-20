@@ -11,7 +11,7 @@ import {
 import { typedPool, type TypedPool } from '@crm/db/testing';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
-import { request, startApiHarness, type ApiHarness } from '../../testing/harness.js';
+import { dataOf, request, startApiHarness, type ApiHarness } from '../../testing/harness.js';
 import { allowedSortKeys as accountSortKeys } from '../accounts/accounts.sql-helpers.js';
 import { allowedSortKeys as contactSortKeys } from '../contacts/contacts.sql-helpers.js';
 import { allowedSortKeys as dealSortKeys } from '../deals/deals.sql-helpers.js';
@@ -216,7 +216,7 @@ async function viaList(
       token,
     });
     if (response.status !== 200) return { ids, status: response.status };
-    ids.push(...(response.body['data'] as { id: string }[]).map((row) => row.id));
+    ids.push(...dataOf<{ id: string }[]>(response).map((row) => row.id));
     const meta = response.body['meta'] as { nextCursor: string | null; hasMore: boolean };
     if (!meta.hasMore) break;
     cursor = meta.nextCursor;

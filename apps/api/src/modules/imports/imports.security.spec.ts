@@ -2,7 +2,7 @@ import { IMPORT_LIMITS, newId } from '@crm/core';
 import { typedPool, type TypedPool } from '@crm/db/testing';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
-import { request, startApiHarness, type ApiHarness } from '../../testing/harness.js';
+import { dataOf, request, startApiHarness, type ApiHarness } from '../../testing/harness.js';
 
 /**
  * Import endpoints (MVP_SPEC §M8, CLAUDE.md §5.12, ADR-0029).
@@ -77,6 +77,8 @@ async function createImport(
     headers,
     body: { objectType: 'contact', fileName: 'people.csv', sizeBytes: 100, ...overrides },
   });
+  // Tolerant on purpose: this helper also serves tests of refusals, where there
+  // is no data envelope to read and the caller asserts on `status` instead.
   const data = response.body['data'] as
     { job: { id: string }; upload: Created['upload'] } | undefined;
   return {
@@ -302,10 +304,8 @@ describe('§5.12: the API never receives, reads or stores a file', () => {
       token: managerA.token,
     });
     expect(wrong.status).toBe(202);
-    expect((wrong.body['data'] as { status: string; failureReason: string }).status).toBe(
-      'rejected',
-    );
-    expect((wrong.body['data'] as { failureReason: string }).failureReason).toMatch(/not the size/);
+    expect(dataOf<{ status: string; failureReason: string }>(wrong).status).toBe('rejected');
+    expect(dataOf<{ failureReason: string }>(wrong).failureReason).toMatch(/not the size/);
     expect(harness.storage.has(key)).toBe(false);
   });
 
@@ -317,7 +317,7 @@ describe('§5.12: the API never receives, reads or stores a file', () => {
       token: managerA.token,
     });
     expect(first.status).toBe(202);
-    expect((first.body['data'] as { status: string }).status).toBe('analyzing');
+    expect(dataOf<{ status: string }>(first).status).toBe('analyzing');
 
     const second = await request(harness, {
       method: 'POST',
@@ -325,7 +325,7 @@ describe('§5.12: the API never receives, reads or stores a file', () => {
       token: managerA.token,
     });
     expect(second.status).toBe(202);
-    expect((second.body['data'] as { status: string }).status).toBe('analyzing');
+    expect(dataOf<{ status: string }>(second).status).toBe('analyzing');
 
     // One event, not two.
     const events = await superuser.query(
@@ -354,8 +354,8 @@ describe('idempotency (CLAUDE.md §6)', () => {
     const key = `key-${unique()}`;
     const first = await createImport(managerA.token, {}, { 'Idempotency-Key': key });
     const second = await createImport(managerA.token, {}, { 'Idempotency-Key': key });
-    const idOf = (r: { body: Record<string, unknown> }) =>
-      (r.body['data'] as { job: { id: string } }).job.id;
+    const idOf = (r: { status: number; body: Record<string, unknown> }) =>
+      dataOf<{ job: { id: string } }>(r).job.id;
     expect(first.status).toBe(201);
     expect(idOf(second)).toBe(idOf(first));
 
@@ -370,8 +370,8 @@ describe('idempotency (CLAUDE.md §6)', () => {
     const key = `shared-${unique()}`;
     const a = await createImport(managerA.token, {}, { 'Idempotency-Key': key });
     const b = await createImport(otherManagerA.token, {}, { 'Idempotency-Key': key });
-    const idOf = (r: { body: Record<string, unknown> }) =>
-      (r.body['data'] as { job: { id: string } }).job.id;
+    const idOf = (r: { status: number; body: Record<string, unknown> }) =>
+      dataOf<{ job: { id: string } }>(r).job.id;
     expect(idOf(a)).not.toBe(idOf(b));
   });
 
@@ -417,7 +417,7 @@ describe('(a) tenant isolation', () => {
       token: adminB.token,
     });
     expect(response.status).toBe(200);
-    expect(response.body['data']).toEqual([]);
+    expect(dataOf(response)).toEqual([]);
   });
 
   it('answers 404, not 403, so the id is not confirmed to exist', async () => {
@@ -460,16 +460,16 @@ describe('(b) scope: a job is private to the person who started it', () => {
       url: '/api/v1/imports?limit=100',
       token: otherManagerA.token,
     });
-    const ids = (list.body['data'] as { id: string }[]).map((job) => job.id);
+    const ids = dataOf<{ id: string }[]>(list).map((job) => job.id);
     expect(ids).toContain(mine.created!.id);
 
-    const managersJobs = (
+    const managersJobs = dataOf<{ id: string }[]>(
       await request(harness, {
         method: 'GET',
         url: '/api/v1/imports?limit=100',
         token: managerA.token,
-      })
-    ).body['data'] as { id: string }[];
+      }),
+    );
     for (const job of managersJobs) expect(ids).not.toContain(job.id);
   });
 
@@ -487,7 +487,7 @@ describe('(b) scope: a job is private to the person who started it', () => {
     for (let page = 0; page < 5; page += 1) {
       const url: string = `/api/v1/imports?limit=2${cursor === null ? '' : `&cursor=${encodeURIComponent(cursor)}`}`;
       const response = await request(harness, { method: 'GET', url, token: pager.token });
-      seen.push(...(response.body['data'] as { id: string }[]).map((job) => job.id));
+      seen.push(...dataOf<{ id: string }[]>(response).map((job) => job.id));
       const meta = response.body['meta'] as { nextCursor: string | null; hasMore: boolean };
       if (!meta.hasMore) break;
       cursor = meta.nextCursor;
@@ -518,7 +518,7 @@ describe('(c) field-level permissions and what a column may be mapped to', () =>
       url: `/api/v1/imports/${id}`,
       token: managerA.token,
     });
-    const data = response.body['data'] as { targets: { key: string }[]; matchFields: string[] };
+    const data = dataOf<{ targets: { key: string }[]; matchFields: string[] }>(response);
     const keys = data.targets.map((target) => target.key);
 
     expect(keys).toEqual(
@@ -540,9 +540,9 @@ describe('(c) field-level permissions and what a column may be mapped to', () =>
     const limited = await userWithRole(tenantA, roleId);
 
     const id = await jobForMapping(limited.token);
-    const data = (
-      await request(harness, { method: 'GET', url: `/api/v1/imports/${id}`, token: limited.token })
-    ).body['data'] as { targets: { key: string }[] };
+    const data = dataOf<{ targets: { key: string }[] }>(
+      await request(harness, { method: 'GET', url: `/api/v1/imports/${id}`, token: limited.token }),
+    );
     const keys = data.targets.map((target) => target.key);
     expect(keys).toContain('email');
     expect(keys).not.toContain('title');
@@ -708,12 +708,12 @@ describe('start: a successful start only queues work', () => {
     });
 
     expect(response.status).toBe(202);
-    const job = response.body['data'] as {
+    const job = dataOf<{
       status: string;
       processedRows: number;
       createdCount: number;
       mapping: unknown[];
-    };
+    }>(response);
     // The UI is not blocked on the import: the request returns having done none of it.
     expect(job.status).toBe('staging');
     expect(job.processedRows).toBe(0);
@@ -771,7 +771,7 @@ describe('start: a successful start only queues work', () => {
       body: { mapping: body.mapping, duplicateMode: 'create', matchField: 'email' },
     });
     expect(response.status).toBe(202);
-    expect((response.body['data'] as { matchField: string | null }).matchField).toBeNull();
+    expect(dataOf<{ matchField: string | null }>(response).matchField).toBeNull();
   });
 });
 
@@ -798,7 +798,7 @@ describe('the error file link', () => {
       token: managerA.token,
     });
     expect(link.status).toBe(200);
-    const data = link.body['data'] as { url: string; expiresAt: string };
+    const data = dataOf<{ url: string; expiresAt: string }>(link);
     expect(Object.keys(data).sort()).toEqual(['expiresAt', 'url']);
     expect(new Date(data.expiresAt).getTime() - Date.now()).toBeLessThanOrEqual(
       5 * 60 * 1000 + 5_000,
@@ -829,7 +829,7 @@ describe('the error file link', () => {
       url: `/api/v1/imports/${created!.id}/error-file`,
       token: managerA.token,
     });
-    const url = (link.body['data'] as { url: string }).url;
+    const url = dataOf<{ url: string }>(link).url;
 
     const realNow = harness.storage.now;
     try {
@@ -855,9 +855,15 @@ describe('audit', () => {
       },
     });
 
+    // Ordered by `id`, not `occurred_at`. `occurred_at` is the database's
+    // transaction start time, and the clock behind it can step backwards
+    // between two requests (a VM resync does), which reorders rows that were
+    // written in sequence. The id is a UUIDv7 minted in the API process, which
+    // is monotonic however the clock behaves, so it is the order things
+    // actually happened in.
     const entries = await superuser.query(
       `select action, actor_id, changes from audit_logs
-       where tenant_id = $1 and record_id = $2 and action = 'import' order by occurred_at`,
+       where tenant_id = $1 and record_id = $2 and action = 'import' order by id`,
       [tenantA, created!.id],
     );
     expect(entries.rows).toHaveLength(2);
