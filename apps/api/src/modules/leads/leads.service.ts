@@ -34,7 +34,7 @@ import {
   type LeadListQuery,
   type LeadUpdateInput,
 } from '@crm/contracts';
-import type { Lead as LeadRow, Tx } from '@crm/db';
+import { recordRefFor, type Lead as LeadRow, type Tx } from '@crm/db';
 import { assertFiltersReadable, assertSortable } from '../../common/field-queries.js';
 import { DatabaseService } from '../../database/database.service.js';
 import { AuditService, diffChanges } from '../../platform/audit.service.js';
@@ -144,7 +144,7 @@ export class LeadsService {
       const row = await this.loadOrNotFound(tx, actor, id);
       // Record-level check. Out of scope raises 404, not 403, so the endpoint
       // cannot be used to discover that an id exists (CLAUDE.md §5.5).
-      assertCan(actor, 'read', { objectType: 'lead', record: { ownerId: row.ownerId } });
+      assertCan(actor, 'read', { objectType: 'lead', record: await recordRefFor(tx, actor, row.ownerId) });
 
       const fields = await this.fieldMetadata.forObject(tx, actor.tenantId, 'lead');
       return serializeLead(actor, row, fields);
@@ -229,7 +229,7 @@ export class LeadsService {
 
     return this.inTenant(actor, async (tx) => {
       const existing = await this.loadOrNotFound(tx, actor, id);
-      assertCan(actor, 'update', { objectType: 'lead', record: { ownerId: existing.ownerId } });
+      assertCan(actor, 'update', { objectType: 'lead', record: await recordRefFor(tx, actor, existing.ownerId) });
 
       // A converted lead is a record of what happened, not a working record:
       // editing it would let it drift from the contact it became (ADR-0022).
@@ -281,7 +281,7 @@ export class LeadsService {
 
     await this.inTenant(actor, async (tx) => {
       const existing = await this.loadOrNotFound(tx, actor, id);
-      assertCan(actor, 'delete', { objectType: 'lead', record: { ownerId: existing.ownerId } });
+      assertCan(actor, 'delete', { objectType: 'lead', record: await recordRefFor(tx, actor, existing.ownerId) });
 
       const deleted = await this.repository.softDelete(
         tx,
@@ -340,7 +340,7 @@ export class LeadsService {
 
     return this.inTenant(actor, async (tx) => {
       const lead = await this.loadOrNotFound(tx, actor, id);
-      assertCan(actor, 'update', { objectType: 'lead', record: { ownerId: lead.ownerId } });
+      assertCan(actor, 'update', { objectType: 'lead', record: await recordRefFor(tx, actor, lead.ownerId) });
 
       const visible = this.visibleValues(actor, lead);
       return this.duplicatesFor(tx, actor, {
@@ -368,7 +368,7 @@ export class LeadsService {
     // through the owning module's `createInTx`, which takes this `tx`.
     return this.inTenant(actor, async (tx) => {
       const lead = await this.loadOrNotFound(tx, actor, id);
-      assertCan(actor, 'update', { objectType: 'lead', record: { ownerId: lead.ownerId } });
+      assertCan(actor, 'update', { objectType: 'lead', record: await recordRefFor(tx, actor, lead.ownerId) });
 
       if (lead.status === 'converted') throw alreadyConverted();
       if (lead.version !== input.version) throw new VersionConflictError('lead');

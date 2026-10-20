@@ -105,6 +105,35 @@ import {
   unreadCountSchema,
 } from './notifications.js';
 import { searchQuerySchema, searchResultSchema } from './search.js';
+import {
+  catalogueSchema,
+  effectPreviewSchema,
+  memberListQuerySchema,
+  memberParamsSchema,
+  memberRolePreviewSchema,
+  memberSchema,
+  memberUpdateSchema,
+  permissionApplySchema,
+  permissionPatchSchema,
+  reachMemberParamsSchema,
+  reachRoleParamsSchema,
+  reachSchema,
+  reassignPreviewSchema,
+  reassignResultSchema,
+  reassignSchema,
+  recordAccessParamsSchema,
+  recordAccessSchema,
+  roleCreateSchema,
+  roleDetailSchema,
+  roleParamsSchema,
+  roleSummarySchema,
+  roleUpdateSchema,
+  teamCreateSchema,
+  teamMembersSchema,
+  teamParamsSchema,
+  teamSchema,
+  teamUpdateSchema,
+} from './access.js';
 
 /**
  * The route registry: one entry per endpoint the API actually serves.
@@ -1288,6 +1317,444 @@ const notificationRoutes: RouteDefinition[] = [
  * The generator sorts; the drift test compares sets. Order here is for
  * readers only.
  */
+const ADMIN_ONLY_NOTE =
+  'Authorized by `can()` against the `role`, `team` and `membership` objects, like every other ' +
+  'route. Without the grant the answer is `FORBIDDEN`.';
+
+const accessRoutes: RouteDefinition[] = [
+  {
+    method: 'GET',
+    path: '/access/catalogue',
+    operationId: 'getAccessCatalogue',
+    tag: 'Access',
+    summary: 'What can be granted',
+    description:
+      'The objects, actions and scopes the role editor offers, and the fields of each record ' +
+      'object, read from the tenant’s field metadata. ' +
+      ADMIN_ONLY_NOTE,
+    auth: 'session',
+    response: {
+      kind: 'object',
+      status: 200,
+      name: 'AccessCatalogueResponse',
+      description: 'The grant catalogue.',
+      data: catalogueSchema,
+    },
+    errors: [],
+  },
+  {
+    method: 'GET',
+    path: '/roles',
+    operationId: 'listRoles',
+    tag: 'Roles',
+    summary: 'Roles in the workspace',
+    description: ADMIN_ONLY_NOTE,
+    auth: 'session',
+    response: {
+      kind: 'object',
+      status: 200,
+      name: 'RoleListResponse',
+      description: 'Every role, with how many people hold it.',
+      data: roleSummarySchema.array(),
+    },
+    errors: [],
+  },
+  {
+    method: 'POST',
+    path: '/roles',
+    operationId: 'createRole',
+    tag: 'Roles',
+    summary: 'Create a role',
+    description:
+      'Optionally starts from another role’s permissions. A copy can never be wider than the ' +
+      'role the caller holds (`PERMISSION_ESCALATION`). ' +
+      ADMIN_ONLY_NOTE,
+    auth: 'session',
+    body: { name: 'RoleCreate', schema: roleCreateSchema },
+    response: {
+      kind: 'object',
+      status: 201,
+      name: 'RoleResponse',
+      description: 'The new role.',
+      data: roleDetailSchema,
+    },
+    errors: [ErrorCode.CONFLICT, ErrorCode.PERMISSION_ESCALATION, ErrorCode.NOT_FOUND],
+  },
+  {
+    method: 'GET',
+    path: '/roles/{id}',
+    operationId: 'getRole',
+    tag: 'Roles',
+    summary: 'A role and its permissions',
+    description: ADMIN_ONLY_NOTE,
+    auth: 'session',
+    params: roleParamsSchema,
+    response: {
+      kind: 'object',
+      status: 200,
+      name: 'RoleDetailResponse',
+      description: 'The role, its grants, its field rules and a digest of them.',
+      data: roleDetailSchema,
+    },
+    errors: RECORD,
+  },
+  {
+    method: 'PATCH',
+    path: '/roles/{id}',
+    operationId: 'updateRole',
+    tag: 'Roles',
+    summary: 'Rename a role',
+    description: 'System roles keep their names. ' + ADMIN_ONLY_NOTE,
+    auth: 'session',
+    params: roleParamsSchema,
+    body: { name: 'RoleUpdate', schema: roleUpdateSchema },
+    response: {
+      kind: 'object',
+      status: 200,
+      name: 'RoleUpdateResponse',
+      description: 'The role.',
+      data: roleDetailSchema,
+    },
+    errors: [ErrorCode.NOT_FOUND, ErrorCode.CONFLICT],
+  },
+  {
+    method: 'DELETE',
+    path: '/roles/{id}',
+    operationId: 'deleteRole',
+    tag: 'Roles',
+    summary: 'Delete a role',
+    description:
+      'System roles cannot be deleted, and a role with members cannot be deleted until they ' +
+      'are moved (`ROLE_IN_USE`). ' +
+      ADMIN_ONLY_NOTE,
+    auth: 'session',
+    params: roleParamsSchema,
+    response: { kind: 'empty', status: 204, description: 'Deleted.' },
+    errors: [ErrorCode.NOT_FOUND, ErrorCode.ROLE_IN_USE, ErrorCode.CONFLICT],
+  },
+  {
+    method: 'POST',
+    path: '/roles/{id}/permissions/preview',
+    operationId: 'previewRolePermissions',
+    tag: 'Roles',
+    summary: 'What a change would do, before saving it',
+    description:
+      'Computes the **effect** of a proposed change — who gains or loses reach, over how many ' +
+      'records, and which fields go dark — by running the proposed permissions through `can()` ' +
+      'for each person who holds the role. Nothing is written. Counts are returned only for ' +
+      'objects the caller can read in full. ' +
+      ADMIN_ONLY_NOTE,
+    auth: 'session',
+    params: roleParamsSchema,
+    body: { name: 'PermissionPatch', schema: permissionPatchSchema },
+    response: {
+      kind: 'object',
+      status: 200,
+      name: 'EffectPreviewResponse',
+      description: 'The effect of the proposed change.',
+      data: effectPreviewSchema,
+    },
+    errors: [ErrorCode.NOT_FOUND],
+  },
+  {
+    method: 'PATCH',
+    path: '/roles/{id}/permissions',
+    operationId: 'updateRolePermissions',
+    tag: 'Roles',
+    summary: 'Change a role’s permissions',
+    description:
+      'Applies the patch, audits it as a `permission_change` in the same transaction, and ' +
+      'announces it. `expectedDigest` must be the digest the preview was computed against, so ' +
+      'what was previewed is what is saved (`VERSION_CONFLICT` otherwise). Refused if it would ' +
+      'leave nobody able to manage roles (`LAST_ADMINISTRATOR`) or grants more than the caller ' +
+      'holds (`PERMISSION_ESCALATION`). ' +
+      ADMIN_ONLY_NOTE,
+    auth: 'session',
+    params: roleParamsSchema,
+    body: { name: 'PermissionApply', schema: permissionApplySchema },
+    response: {
+      kind: 'object',
+      status: 200,
+      name: 'RolePermissionsResponse',
+      description: 'The role after the change.',
+      data: roleDetailSchema,
+    },
+    errors: [
+      ErrorCode.NOT_FOUND,
+      ErrorCode.VERSION_CONFLICT,
+      ErrorCode.LAST_ADMINISTRATOR,
+      ErrorCode.PERMISSION_ESCALATION,
+    ],
+  },
+  {
+    method: 'GET',
+    path: '/members',
+    operationId: 'listMembers',
+    tag: 'Members',
+    summary: 'People in the workspace',
+    description: ADMIN_ONLY_NOTE,
+    auth: 'session',
+    query: memberListQuerySchema,
+    response: {
+      kind: 'object',
+      status: 200,
+      name: 'MemberListResponse',
+      description: 'The members, with their role and teams.',
+      data: memberSchema.array(),
+      meta: z.object({ hasMore: z.boolean() }),
+    },
+    errors: [],
+  },
+  {
+    method: 'PATCH',
+    path: '/members/{userId}',
+    operationId: 'updateMember',
+    tag: 'Members',
+    summary: 'Change somebody’s role, or suspend them',
+    description:
+      'Audited as a `permission_change`. Refused if it would leave nobody able to manage roles ' +
+      '(`LAST_ADMINISTRATOR`), or give them a role wider than the caller’s own ' +
+      '(`PERMISSION_ESCALATION`). Suspending takes effect on their next request, because every ' +
+      'request re-reads the membership. ' +
+      ADMIN_ONLY_NOTE,
+    auth: 'session',
+    params: memberParamsSchema,
+    body: { name: 'MemberUpdate', schema: memberUpdateSchema },
+    response: {
+      kind: 'object',
+      status: 200,
+      name: 'MemberResponse',
+      description: 'The member.',
+      data: memberSchema,
+    },
+    errors: [
+      ErrorCode.NOT_FOUND,
+      ErrorCode.LAST_ADMINISTRATOR,
+      ErrorCode.PERMISSION_ESCALATION,
+    ],
+  },
+  {
+    method: 'POST',
+    path: '/members/{userId}/role-preview',
+    operationId: 'previewMemberRole',
+    tag: 'Members',
+    summary: 'What moving somebody to another role would do',
+    description:
+      'The same effect preview as for a role, for one person changing role. Nothing is ' +
+      'written. ' +
+      ADMIN_ONLY_NOTE,
+    auth: 'session',
+    params: memberParamsSchema,
+    body: { name: 'MemberRolePreview', schema: memberRolePreviewSchema },
+    response: {
+      kind: 'object',
+      status: 200,
+      name: 'MemberRolePreviewResponse',
+      description: 'The effect of the change.',
+      data: effectPreviewSchema,
+    },
+    errors: [ErrorCode.NOT_FOUND],
+  },
+  {
+    method: 'GET',
+    path: '/teams',
+    operationId: 'listTeams',
+    tag: 'Teams',
+    summary: 'Teams and their members',
+    description: ADMIN_ONLY_NOTE,
+    auth: 'session',
+    response: {
+      kind: 'object',
+      status: 200,
+      name: 'TeamListResponse',
+      description: 'Every team.',
+      data: teamSchema.array(),
+    },
+    errors: [],
+  },
+  {
+    method: 'POST',
+    path: '/teams',
+    operationId: 'createTeam',
+    tag: 'Teams',
+    summary: 'Create a team',
+    description: ADMIN_ONLY_NOTE,
+    auth: 'session',
+    body: { name: 'TeamCreate', schema: teamCreateSchema },
+    response: {
+      kind: 'object',
+      status: 201,
+      name: 'TeamResponse',
+      description: 'The team.',
+      data: teamSchema,
+    },
+    errors: [ErrorCode.CONFLICT, ErrorCode.NOT_FOUND],
+  },
+  {
+    method: 'PATCH',
+    path: '/teams/{id}',
+    operationId: 'updateTeam',
+    tag: 'Teams',
+    summary: 'Rename a team or move it under another',
+    description: 'A team cannot be moved beneath itself. ' + ADMIN_ONLY_NOTE,
+    auth: 'session',
+    params: teamParamsSchema,
+    body: { name: 'TeamUpdate', schema: teamUpdateSchema },
+    response: {
+      kind: 'object',
+      status: 200,
+      name: 'TeamUpdateResponse',
+      description: 'The team.',
+      data: teamSchema,
+    },
+    errors: [ErrorCode.NOT_FOUND, ErrorCode.CONFLICT],
+  },
+  {
+    method: 'DELETE',
+    path: '/teams/{id}',
+    operationId: 'deleteTeam',
+    tag: 'Teams',
+    summary: 'Delete a team',
+    description:
+      'Audited as a `permission_change`, because anyone who reached records through this team ' +
+      'under `team` scope stops reaching them. ' +
+      ADMIN_ONLY_NOTE,
+    auth: 'session',
+    params: teamParamsSchema,
+    response: { kind: 'empty', status: 204, description: 'Deleted.' },
+    errors: RECORD,
+  },
+  {
+    method: 'PATCH',
+    path: '/teams/{id}/members',
+    operationId: 'setTeamMembers',
+    tag: 'Teams',
+    summary: 'Set who is on a team',
+    description:
+      'Replaces the membership. Audited as a `permission_change`: team membership is what ' +
+      '`team` scope resolves through. ' +
+      ADMIN_ONLY_NOTE,
+    auth: 'session',
+    params: teamParamsSchema,
+    body: { name: 'TeamMembers', schema: teamMembersSchema },
+    response: {
+      kind: 'object',
+      status: 200,
+      name: 'TeamMembersResponse',
+      description: 'The team.',
+      data: teamSchema,
+    },
+    errors: [ErrorCode.NOT_FOUND],
+  },
+  {
+    method: 'POST',
+    path: '/ownership/preview',
+    operationId: 'previewReassignment',
+    tag: 'Ownership',
+    summary: 'What a reassignment would move',
+    description:
+      'Counts what would change owner and what would be skipped, without moving anything. ' +
+      'Records the caller may not update are skipped, and the count does not say why.',
+    auth: 'session',
+    body: { name: 'Reassign', schema: reassignSchema },
+    response: {
+      kind: 'object',
+      status: 200,
+      name: 'ReassignPreviewResponse',
+      description: 'What would move.',
+      data: reassignPreviewSchema,
+    },
+    errors: [ErrorCode.NOT_FOUND],
+  },
+  {
+    method: 'POST',
+    path: '/ownership/reassign',
+    operationId: 'reassignRecords',
+    tag: 'Ownership',
+    summary: 'Move records to a new owner',
+    description:
+      'Single, bulk, or everything one person owns. Each record is versioned, audited and ' +
+      'announced exactly as an ordinary edit would be. The new owner must be an active member ' +
+      'who can read that kind of record. Handles a bounded batch per call and reports ' +
+      '`remaining`.',
+    auth: 'session',
+    body: { name: 'ReassignRun', schema: reassignSchema },
+    response: {
+      kind: 'object',
+      status: 200,
+      name: 'ReassignResponse',
+      description: 'What moved.',
+      data: reassignResultSchema,
+    },
+    errors: [ErrorCode.NOT_FOUND, ErrorCode.FIELD_NOT_WRITABLE],
+  },
+  {
+    method: 'GET',
+    path: '/access/records/{objectType}/{id}',
+    operationId: 'explainRecordAccess',
+    tag: 'Access',
+    summary: 'Who can see this record, and why',
+    description:
+      'For each active member: whether they can open the record, and the reason — ownership, ' +
+      'a shared team, or a role that reaches every record — together with which fields are ' +
+      'hidden from them. Computed by `can()` and the field engine, the same functions the ' +
+      'API enforces with (ADR-0031). A record outside **your own** reach is `NOT_FOUND`, and ' +
+      'only fields you can read are discussed. ' +
+      ADMIN_ONLY_NOTE,
+    auth: 'session',
+    params: recordAccessParamsSchema,
+    response: {
+      kind: 'object',
+      status: 200,
+      name: 'RecordAccessResponse',
+      description: 'Who reaches the record and why.',
+      data: recordAccessSchema,
+    },
+    errors: RECORD,
+  },
+  {
+    method: 'GET',
+    path: '/access/members/{userId}',
+    operationId: 'explainMemberReach',
+    tag: 'Access',
+    summary: 'What this person can reach',
+    description:
+      'Per object and action: the scope and the role granting it; per record object, how many ' +
+      'records `read` reaches (where you may count) and which fields are hidden or read-only. ' +
+      ADMIN_ONLY_NOTE,
+    auth: 'session',
+    params: reachMemberParamsSchema,
+    response: {
+      kind: 'object',
+      status: 200,
+      name: 'MemberReachResponse',
+      description: 'What the person can reach.',
+      data: reachSchema,
+    },
+    errors: RECORD,
+  },
+  {
+    method: 'GET',
+    path: '/access/roles/{id}',
+    operationId: 'explainRoleReach',
+    tag: 'Access',
+    summary: 'What holders of this role can reach',
+    description:
+      'As for a person, without record counts: those depend on who holds the role. ' +
+      ADMIN_ONLY_NOTE,
+    auth: 'session',
+    params: reachRoleParamsSchema,
+    response: {
+      kind: 'object',
+      status: 200,
+      name: 'RoleReachResponse',
+      description: 'What the role reaches.',
+      data: reachSchema,
+    },
+    errors: RECORD,
+  },
+];
+
 export const API_ROUTES: readonly RouteDefinition[] = [
   ...healthRoutes,
   ...metaRoutes,
@@ -1369,6 +1836,7 @@ export const API_ROUTES: readonly RouteDefinition[] = [
   ...invitationRoutes,
   ...importRoutes,
   ...exportRoutes,
+  ...accessRoutes,
 ];
 
 /** `GET /contacts/{id}` — how the drift test and the generator name a route. */

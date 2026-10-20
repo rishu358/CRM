@@ -18,6 +18,7 @@ import {
   constraintToSql,
   OBJECT_DESCRIPTORS,
   outboxEvents,
+  recordRefFor,
   type RecordRow,
   type Tx,
 } from '@crm/db';
@@ -332,7 +333,7 @@ export async function processChunk(
       const record = matches[0] as RecordRow;
       const decision = can(actor, 'update', {
         objectType: object,
-        record: { ownerId: (record['ownerId'] as string | null) ?? null },
+        record: await recordRefFor(tx, actor, (record['ownerId'] as string | null) ?? null),
       });
       if (!decision.allowed) {
         parsed.errors.push({

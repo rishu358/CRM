@@ -65,16 +65,36 @@ const INVITATION_GRANT: SystemRoleGrant = {
   scope: 'all',
 };
 
+/**
+ * Who may administer the workspace's own permission configuration (MVP_SPEC M3).
+ *
+ * `role`, `team` and `membership` have no owner, so — exactly like `invitation`
+ * — `all` is the only scope that means anything on them, and the absence of a
+ * row is what denies everyone else. Granted to Owner and Admin, the two
+ * personas MVP_SPEC §4 describes as controlling who sees what.
+ *
+ * `role:read` is also the gate on the access explainer (ADR-0031). That is
+ * deliberate rather than convenient: the explainer answers questions *about*
+ * the permission configuration — who reaches a record, which fields are hidden
+ * from whom — so the people who may read that configuration are exactly the
+ * people who may ask it questions.
+ */
+const ADMINISTRATION_GRANTS: readonly SystemRoleGrant[] = [
+  { objectType: 'role', actions: ['read', 'create', 'update', 'delete'], scope: 'all' },
+  { objectType: 'team', actions: ['read', 'create', 'update', 'delete'], scope: 'all' },
+  { objectType: 'membership', actions: ['read', 'update'], scope: 'all' },
+];
+
 export const SYSTEM_ROLES: readonly SystemRoleDefinition[] = [
   {
     name: 'Owner',
     description: 'Full control of the company account, including billing and security settings.',
-    grants: [...grantsFor(ALL_ACTIONS, 'all'), INVITATION_GRANT],
+    grants: [...grantsFor(ALL_ACTIONS, 'all'), INVITATION_GRANT, ...ADMINISTRATION_GRANTS],
   },
   {
     name: 'Admin',
     description: 'Manages users, roles and customization. Sees all records.',
-    grants: [...grantsFor(ALL_ACTIONS, 'all'), INVITATION_GRANT],
+    grants: [...grantsFor(ALL_ACTIONS, 'all'), INVITATION_GRANT, ...ADMINISTRATION_GRANTS],
   },
   {
     name: 'Manager',

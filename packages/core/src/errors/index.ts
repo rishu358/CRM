@@ -64,6 +64,19 @@ export const ErrorCode = {
    * reporting an error.
    */
   DUPLICATE_RECORDS: 'DUPLICATE_RECORDS',
+  /**
+   * The change would leave the workspace with nobody who can manage roles and
+   * members (MVP_SPEC M3). Nothing is wrong with the request in isolation; the
+   * client reacts by explaining the lock-out, not by reporting a failure.
+   */
+  LAST_ADMINISTRATOR: 'LAST_ADMINISTRATOR',
+  /** A role still has members, so it cannot be deleted until they are moved. */
+  ROLE_IN_USE: 'ROLE_IN_USE',
+  /**
+   * The change hands out more than the person making it holds. Distinct from
+   * `FORBIDDEN`: they may edit roles, just not beyond their own reach (ADR-0031).
+   */
+  PERMISSION_ESCALATION: 'PERMISSION_ESCALATION',
   /** Unexpected failure. Details are logged, never returned. */
   INTERNAL: 'INTERNAL',
 } as const;
@@ -257,6 +270,38 @@ export class InvitationRecipientMismatchError extends DomainError {
       ErrorCode.INVITATION_RECIPIENT_MISMATCH,
       'This invitation was sent to a different address. Sign in as that person to accept it.',
       403,
+    );
+  }
+}
+
+export class LastAdministratorError extends DomainError {
+  constructor() {
+    super(
+      ErrorCode.LAST_ADMINISTRATOR,
+      'This would leave nobody able to manage roles and members. Keep at least one administrator.',
+      409,
+    );
+  }
+}
+
+export class RoleInUseError extends DomainError {
+  constructor(memberCount: number) {
+    super(
+      ErrorCode.ROLE_IN_USE,
+      'Move this role’s members to another role before deleting it.',
+      409,
+      [{ message: 'Role has members', meta: { memberCount } }],
+    );
+  }
+}
+
+export class PermissionEscalationError extends DomainError {
+  constructor(grants: readonly string[]) {
+    super(
+      ErrorCode.PERMISSION_ESCALATION,
+      'You cannot grant access beyond what you hold yourself.',
+      403,
+      grants.map((path) => ({ path, message: 'Beyond your own access' })),
     );
   }
 }

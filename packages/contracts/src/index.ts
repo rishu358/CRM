@@ -11,5 +11,6 @@ export * from './imports.js';
 export * from './exports.js';
 export * from './auth.js';
 export * from './invitations.js';
+export * from './access.js';
 export * from './routes.js';
 export * from './openapi.js';

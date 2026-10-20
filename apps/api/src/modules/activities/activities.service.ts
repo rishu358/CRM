@@ -27,7 +27,7 @@ import {
   type ActivityListQuery,
   type ActivityUpdateInput,
 } from '@crm/contracts';
-import type { Activity as ActivityRow, Tx } from '@crm/db';
+import { recordRefFor, type Activity as ActivityRow, type Tx } from '@crm/db';
 import { assertFiltersReadable, assertSortable } from '../../common/field-queries.js';
 import { DatabaseService } from '../../database/database.service.js';
 import { AuditService, diffChanges } from '../../platform/audit.service.js';
@@ -142,7 +142,7 @@ export class ActivitiesService {
       const row = await this.loadOrNotFound(tx, actor, id);
       // Out of scope raises 404, not 403, so the endpoint cannot be used to
       // discover that an id exists (CLAUDE.md §5.5).
-      assertCan(actor, 'read', { objectType: 'activity', record: { ownerId: row.assignedTo } });
+      assertCan(actor, 'read', { objectType: 'activity', record: await recordRefFor(tx, actor, row.assignedTo) });
 
       const fields = await this.fieldMetadata.forObject(tx, actor.tenantId, 'activity');
       const links = await this.resolveLinks(tx, actor, [row]);
@@ -251,7 +251,7 @@ export class ActivitiesService {
       const existing = await this.loadOrNotFound(tx, actor, id);
       assertCan(actor, 'update', {
         objectType: 'activity',
-        record: { ownerId: existing.assignedTo },
+        record: await recordRefFor(tx, actor, existing.assignedTo),
       });
 
       const fields = await this.fieldMetadata.forObject(tx, actor.tenantId, 'activity');
@@ -313,7 +313,7 @@ export class ActivitiesService {
       const existing = await this.loadOrNotFound(tx, actor, id);
       assertCan(actor, 'delete', {
         objectType: 'activity',
-        record: { ownerId: existing.assignedTo },
+        record: await recordRefFor(tx, actor, existing.assignedTo),
       });
 
       const deleted = await this.repository.softDelete(
@@ -346,7 +346,7 @@ export class ActivitiesService {
       const existing = await this.loadOrNotFound(tx, actor, id);
       assertCan(actor, 'update', {
         objectType: 'activity',
-        record: { ownerId: existing.assignedTo },
+        record: await recordRefFor(tx, actor, existing.assignedTo),
       });
 
       const [link] = await this.resolveRequestedLinks(tx, actor, [input]);
@@ -384,7 +384,7 @@ export class ActivitiesService {
       const existing = await this.loadOrNotFound(tx, actor, id);
       assertCan(actor, 'update', {
         objectType: 'activity',
-        record: { ownerId: existing.assignedTo },
+        record: await recordRefFor(tx, actor, existing.assignedTo),
       });
 
       // Detaching needs no read permission on the target: the caller can

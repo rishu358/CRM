@@ -13,7 +13,7 @@ function wider(a: FieldAccess, b: FieldAccess): FieldAccess {
 }
 
 /**
- * What a single role can do with a field, before union across roles.
+ * What a single role can do with a field, and how it got there.
  *
  * The base comes from the role's object-level grant: a role that cannot read the
  * object cannot read any of its fields, and a role that can only read it cannot
@@ -22,16 +22,42 @@ function wider(a: FieldAccess, b: FieldAccess): FieldAccess {
  * Field permissions can only restrict, never widen. Otherwise a stray field row
  * would hand out write access to an object the role was never granted, and
  * field-level configuration would become a way around object-level permissions.
+ *
+ * `base` and `override` are reported alongside `access` so the explainer can
+ * say *which* of the two concealed a field — "her role cannot read contacts at
+ * all" and "her role hides this one field" are different problems with
+ * different fixes, and an administrator needs to be told which one they have
+ * (ADR-0031). They are a description of this evaluation, not a second one.
  */
-function accessForRole(role: CompiledRole, objectType: ObjectType, fieldKey: string): FieldAccess {
+export interface RoleFieldAccess {
+  readonly roleId: CompiledRole['roleId'];
+  /** What this role ends up allowing. */
+  readonly access: FieldAccess;
+  /** What the object-level grant alone allowed, before any field rule. */
+  readonly base: FieldAccess;
+  /** The `field_permissions` row that applied, if there was one. */
+  readonly override: FieldAccess | undefined;
+}
+
+function accessForRole(
+  role: CompiledRole,
+  objectType: ObjectType,
+  fieldKey: string,
+): RoleFieldAccess {
   const canWrite = role.grants.has(grantKey(objectType, 'update'));
   const canRead = role.grants.has(grantKey(objectType, 'read'));
 
   const base: FieldAccess = canWrite ? 'write' : canRead ? 'read' : 'hidden';
-  if (base === 'hidden') return 'hidden';
-
   const override = role.fieldOverrides.get(fieldKeyOf(objectType, fieldKey));
-  return override === undefined ? base : narrower(override, base);
+
+  if (base === 'hidden') return { roleId: role.roleId, access: 'hidden', base, override };
+
+  return {
+    roleId: role.roleId,
+    access: override === undefined ? base : narrower(override, base),
+    base,
+    override,
+  };
 }
 
 /**
@@ -39,14 +65,49 @@ function accessForRole(role: CompiledRole, objectType: ObjectType, fieldKey: str
  *
  * Union across the actor's roles, matching how object grants combine in `can()`:
  * holding an extra role never takes access away.
+ *
+ * This runs once per field per row of every list response, so it keeps its
+ * early exit and allocates nothing. `fieldAccessDerivation` is the same
+ * reduction over the same `accessForRole`, kept separate so the explainer's
+ * bookkeeping is not paid for on the serialization path; a test asserts the two
+ * agree on every combination.
  */
 export function fieldAccess(actor: Actor, objectType: ObjectType, fieldKey: string): FieldAccess {
   let effective: FieldAccess = 'hidden';
   for (const role of actor.permissions.roles) {
-    effective = wider(effective, accessForRole(role, objectType, fieldKey));
+    effective = wider(effective, accessForRole(role, objectType, fieldKey).access);
     if (effective === 'write') break;
   }
   return effective;
+}
+
+/** The actor's access to one field, with the per-role workings (ADR-0031). */
+export interface FieldAccessDerivation {
+  readonly fieldKey: string;
+  readonly access: FieldAccess;
+  /** Every role the actor holds, and what each allows on this field. */
+  readonly roles: readonly RoleFieldAccess[];
+  /** The first role granting the effective access — the one that decides. */
+  readonly decidingRoleId: CompiledRole['roleId'] | null;
+}
+
+export function fieldAccessDerivation(
+  actor: Actor,
+  objectType: ObjectType,
+  fieldKey: string,
+): FieldAccessDerivation {
+  const roles = actor.permissions.roles.map((role) => accessForRole(role, objectType, fieldKey));
+
+  let access: FieldAccess = 'hidden';
+  let decidingRoleId: CompiledRole['roleId'] | null = null;
+  for (const role of roles) {
+    if (FIELD_ACCESS_RANK[role.access] > FIELD_ACCESS_RANK[access]) {
+      access = role.access;
+      decidingRoleId = role.roleId;
+    }
+  }
+
+  return { fieldKey, access, roles, decidingRoleId };
 }
 
 export function canReadField(actor: Actor, objectType: ObjectType, fieldKey: string): boolean {
