@@ -95,7 +95,7 @@ export function descriptorFor(objectType: SoftDeletableObjectType): RecyclableDe
 export interface DeletedRecordRow {
   readonly id: string;
   readonly owner_id: string | null;
-  readonly deleted_at: Date;
+  readonly deleted_at: Date | string;
   /**
    * `deleted_at` as Postgres renders it, carried verbatim into the cursor.
    *
@@ -147,7 +147,7 @@ export async function selectDeletedPage(
 
   const labels = sql.join(
     descriptor.labelColumns.map(
-      (part) => sql`${part.fieldKey}, r.${sql.identifier(part.column)}::text`,
+      (part) => sql`${part.fieldKey}::text, r.${sql.identifier(part.column)}::text`,
     ),
     sql`, `,
   );
@@ -180,7 +180,7 @@ export async function selectDeletedById(
 
   const labels = sql.join(
     descriptor.labelColumns.map(
-      (part) => sql`${part.fieldKey}, r.${sql.identifier(part.column)}::text`,
+      (part) => sql`${part.fieldKey}::text, r.${sql.identifier(part.column)}::text`,
     ),
     sql`, `,
   );
@@ -247,7 +247,8 @@ export async function selectPurgeable(
   tx: Tx,
   tenantId: string,
   descriptor: RecyclableDescriptor,
-  cutoff: Date,
+  /** A timestamp as Postgres rendered it; cast back in SQL so no precision is lost. */
+  cutoff: string,
   limit: number,
 ): Promise<string[]> {
   const table = sql.identifier(descriptor.table);
@@ -257,7 +258,7 @@ export async function selectPurgeable(
     from ${table}
     where tenant_id = ${tenantId}::uuid
       and deleted_at is not null
-      and deleted_at < ${cutoff.toISOString()}::timestamptz
+      and deleted_at < ${cutoff}::timestamptz
     order by deleted_at
     limit ${limit}
     for update skip locked

@@ -137,6 +137,13 @@ export async function redactAuditDiffs(
   recordId: string,
 ): Promise<number> {
   const keys = redactableDiffKeys(objectType);
+  // Built as an ARRAY[...] of individually bound parameters. Handing Drizzle a
+  // JS array directly expands it into a row constructor, `($1, $2, ...)`, which
+  // Postgres cannot cast to text[].
+  const keyArray = sql`array[${sql.join(
+    keys.map((key) => sql`${key}`),
+    sql`, `,
+  )}]::text[]`;
 
   const result = await tx.execute(sql`
     update audit_logs
@@ -144,7 +151,7 @@ export async function redactAuditDiffs(
       select jsonb_object_agg(
         entry.key,
         case
-          when entry.key = any(${keys}::text[]) then
+          when entry.key = any(${keyArray}) then
             (case when entry.value ? 'old'
                   then jsonb_build_object('old', to_jsonb(${ERASED_PLACEHOLDER}::text))
                   else '{}'::jsonb end)
@@ -164,7 +171,7 @@ export async function redactAuditDiffs(
       and changes <> '{}'::jsonb
       and exists (
         select 1 from jsonb_each(audit_logs.changes) as probe
-        where probe.key = any(${keys}::text[])
+        where probe.key = any(${keyArray})
       )
   `);
 

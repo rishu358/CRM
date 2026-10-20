@@ -94,11 +94,13 @@ export function runPurgeSweep(deps: PurgeDeps = {}): EventHandler {
     // deadline in this system: the relay compares `available_at` against
     // `now()`, and a retention window judged by this process's clock would drift
     // by however far the two disagree.
+    // Rendered to text and cast back in SQL, so the comparison uses exactly the
+    // instant Postgres computed rather than a millisecond-truncated copy.
     const cutoff = (
       await tx.execute(
-        sql`select now() - make_interval(days => ${retentionDays}) as cutoff`,
+        sql`select (now() - make_interval(days => ${retentionDays}))::text as cutoff`,
       )
-    ).rows[0] as unknown as { cutoff: Date };
+    ).rows[0] as unknown as { cutoff: string };
 
     let purgedTotal = 0;
 

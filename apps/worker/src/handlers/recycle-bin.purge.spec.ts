@@ -319,24 +319,31 @@ describe('the cleanup list stays complete (ADR-0005)', () => {
     // up — which only works if the job knows about every such table. A new
     // polymorphic table added without a line in the handler fails here rather
     // than leaving orphans nobody notices for a year.
+    // Partitions are excluded so `audit_logs` counts once, not fifteen times.
     const rows = await rowsOf<{ table_name: string }>(
-      `select c.table_name
-       from information_schema.columns c
-       where c.table_schema = 'public'
-         and c.column_name = 'record_id'
-         and exists (
-           select 1 from information_schema.columns o
-           where o.table_schema = c.table_schema
-             and o.table_name = c.table_name
-             and o.column_name = 'object_type'
-         )
-       group by c.table_name`,
+      `select c.relname as table_name
+       from pg_class c
+       join pg_namespace n on n.oid = c.relnamespace
+       where n.nspname = 'public'
+         and c.relkind in ('r', 'p')
+         and not c.relispartition
+         and exists (select 1 from pg_attribute a
+                     where a.attrelid = c.oid and a.attname = 'record_id' and not a.attisdropped)
+         and exists (select 1 from pg_attribute a
+                     where a.attrelid = c.oid and a.attname = 'object_type' and not a.attisdropped)`,
     );
 
     const polymorphic = rows.map((row) => row.table_name).sort();
-    // `search_documents` is a projection rather than a reference and is cleared
-    // by the same pass, deliberately outside the list (see the handler).
-    const expected = [...POLYMORPHIC_REFERENCE_TABLE_LIST, 'search_documents'].sort();
+    const expected = [
+      ...POLYMORPHIC_REFERENCE_TABLE_LIST,
+      // A projection rather than a reference; cleared by the same pass.
+      'search_documents',
+      // Retained on purpose. The audit log is history, append-only by grant: an
+      // erasure *redacts* it (ADR-0032) and nothing deletes from it.
+      'audit_logs',
+      // An event log the relay drains and prunes on its own schedule.
+      'outbox_events',
+    ].sort();
 
     expect(
       polymorphic.filter((table) => !(expected as readonly string[]).includes(table)),

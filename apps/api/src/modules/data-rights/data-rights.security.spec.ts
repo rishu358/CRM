@@ -368,7 +368,11 @@ describe('download links (CLAUDE.md §5.12)', () => {
       token: ownerA.token,
     });
     expect(ready.status).toBe(200);
-    expect((ready.body['data'] as { url: string }).url).toContain(key);
+    expect((ready.body['data'] as { url: string }).url).toMatch(/^memory:\/\/download\//);
+    // The API signed a URL and nothing else: it never read or wrote the file's
+    // bytes (CLAUDE.md §5.12). `put` above is the test playing the worker.
+    expect(harness.storage.reads).toBe(0);
+    expect(harness.storage.writes).toBe(0);
 
     // Issuing the link is itself audited: it is the moment the data leaves.
     const audit = await superuser.query(

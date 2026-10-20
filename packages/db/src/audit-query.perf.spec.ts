@@ -30,6 +30,7 @@ import pg from 'pg';
  */
 let client: DbClient;
 let rawSuperuser: pg.Pool;
+let migrator: pg.Pool;
 let fixtures: Fixtures;
 let tenantId: string;
 let actorId: string;
@@ -41,6 +42,7 @@ beforeAll(async () => {
   const urls = inject('dbUrls');
   client = createDbClient({ connectionString: urls.app, maxConnections: 2 });
   rawSuperuser = new pg.Pool({ connectionString: urls.superuser, max: 2 });
+  migrator = new pg.Pool({ connectionString: urls.migrator, max: 1 });
   fixtures = new Fixtures(rawSuperuser);
 
   tenantId = (await fixtures.createTenant({ name: 'Audit plan' })).tenantId;
@@ -50,10 +52,12 @@ beforeAll(async () => {
   // 0003 bootstraps partitions from last month forward, so the older months
   // this test needs do not exist yet and their rows would land in
   // `audit_logs_default` — where nothing can be pruned. Creating them here is
-  // what the rolling-window job will do in production, and doing it as the
-  // superuser mirrors how partitions are managed: not by the application.
+  // what the rolling-window job will do in production. Created as crm_migrator,
+  // which owns every table: a partition owned by the superuser would be caught
+  // by the RLS suite's "owns no tables" check, and rightly, since the suites
+  // share one database.
   for (const offset of MONTH_OFFSETS) {
-    await rawSuperuser.query(
+    await migrator.query(
       `do $$
        declare
          start_month date := (date_trunc('month', now() + make_interval(months => $1::int)))::date;
@@ -85,7 +89,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await client.close();
-  await rawSuperuser.end();
+  await Promise.all([rawSuperuser.end(), migrator.end()]);
 });
 
 /** The plan, as the application role sees it — RLS included. */
@@ -163,7 +167,9 @@ describe('the filters reach an index', () => {
       limit 50
     `);
 
-    expect(plan).toContain('audit_logs_tenant_actor_idx');
+    // Postgres names each partition's index after the partition and its
+    // columns, so the parent's name never appears in a plan.
+    expect(plan).toContain('tenant_id_actor_id_occurred_at_idx');
   });
 
   it('filtering by object type uses the index migration 0016 added for it', async () => {
@@ -178,7 +184,7 @@ describe('the filters reach an index', () => {
       limit 50
     `);
 
-    expect(plan).toMatch(/audit_logs_tenant_object_time_idx|audit_logs_tenant_time_idx/);
+    expect(plan).toContain('tenant_id_object_type_occurred_at_idx');
     expect(plan).not.toMatch(/Seq Scan on audit_logs_\d{4}_\d{2}/);
   });
 
@@ -202,8 +208,6 @@ describe('the filters reach an index', () => {
       limit 50
     `);
 
-    expect(plan).toMatch(
-      /audit_logs_tenant_record_idx|audit_logs_tenant_object_time_idx|audit_logs_tenant_time_idx/,
-    );
+    expect(plan).toContain('tenant_id_object_type_record_id_idx');
   });
 });

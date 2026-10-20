@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Inject, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Inject, Param, Post, Query } from '@nestjs/common';
 import {
   recycleBinListQuerySchema,
   recycleBinParamsSchema,
@@ -31,7 +31,9 @@ export class RecycleBinController {
     return this.recycleBin.list(actor, query);
   }
 
+  /** A POST that changes state but creates nothing, so 200 rather than Nest's 201. */
   @Post(':objectType/:id/restore')
+  @HttpCode(200)
   async restore(
     @CurrentActor() actor: Actor,
     @Param(zodPipe(recycleBinParamsSchema)) params: RecycleBinParams,

@@ -70,8 +70,16 @@ describe('the relay drains one queue across tenants', () => {
     const processed = await relay().tick();
     expect(processed).toBeGreaterThanOrEqual(2);
 
+    // Nothing **due** is left. Events dated to the future stay pending by design
+    // — reminders, digests and each tenant's Recycle Bin purge sweep are held
+    // back by `available_at` (ADR-0025, ADR-0031) — so counting every pending
+    // row would fail the moment anything in the database is scheduled.
     const remaining = await withoutTenant(worker.db, (tx) =>
-      tx.execute(sql`select count(*)::int as pending from outbox_events where status = 'pending'`),
+      tx.execute(sql`
+        select count(*)::int as pending
+        from outbox_events
+        where status = 'pending' and available_at <= now()
+      `),
     );
     expect((remaining.rows[0] as { pending: number }).pending).toBe(0);
   });

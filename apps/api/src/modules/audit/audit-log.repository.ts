@@ -159,7 +159,7 @@ export class AuditLogRepository {
 
 export interface AuditLogRow {
   readonly id: string;
-  readonly occurred_at: Date;
+  readonly occurred_at: Date | string;
   /** `occurred_at` as Postgres renders it, for the keyset cursor. */
   readonly cursor_value: string;
   readonly actor_id: string | null;

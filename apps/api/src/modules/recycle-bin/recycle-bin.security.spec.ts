@@ -37,6 +37,9 @@ let rolesA: ReadonlyMap<string, string>;
 let adminA: { token: string; userId: string };
 let repA: { token: string; userId: string };
 let otherRepA: { token: string; userId: string };
+/** Two users who may delete (and so restore) their **own** contacts, and nobody else's. */
+let ownDeleterA: { token: string; userId: string };
+let ownDeleterB: { token: string; userId: string };
 let adminB: { token: string; userId: string };
 
 async function userWithRole(tenantId: string, roleId: string) {
@@ -92,6 +95,15 @@ beforeAll(async () => {
   repA = await userWithRole(tenantA, rolesA.get('Sales Rep')!);
   otherRepA = await userWithRole(tenantA, rolesA.get('Sales Rep')!);
   adminB = await userWithRole(tenantB, rolesB.get('Admin')!);
+
+  // The seeded Sales Rep cannot delete at all, so it cannot exercise *scope* on
+  // restore — it would be refused for lacking the grant. This role can delete
+  // what it owns and nothing else, which is the case the scope rule is about.
+  const ownDeleter = await harness.fixtures.createRole(tenantA, `Own deleter ${newId()}`);
+  await harness.fixtures.grant(tenantA, ownDeleter, 'contact', 'read', 'own');
+  await harness.fixtures.grant(tenantA, ownDeleter, 'contact', 'delete', 'own');
+  ownDeleterA = await userWithRole(tenantA, ownDeleter);
+  ownDeleterB = await userWithRole(tenantA, ownDeleter);
 });
 
 afterAll(async () => {
@@ -151,8 +163,8 @@ describe('record scope (CLAUDE.md §10b)', () => {
   });
 
   it("a rep cannot restore a colleague's record", async () => {
-    const theirs = await deletedContact(tenantA, otherRepA.userId);
-    const response = await restore(repA.token, 'contact', theirs);
+    const theirs = await deletedContact(tenantA, ownDeleterB.userId);
+    const response = await restore(ownDeleterA.token, 'contact', theirs);
     expect(response.status).toBe(404);
   });
 
@@ -181,13 +193,15 @@ describe('restore re-checks permission at restore time (MVP_SPEC M4)', () => {
   it('does not inherit the right from whoever deleted the record', async () => {
     // Deleted while the rep owned it; the rep's own grant is what decides now,
     // and it no longer covers the record because ownership moved.
-    const deleted = await deletedContact(tenantA, repA.userId);
+    const deleted = await deletedContact(tenantA, ownDeleterA.userId);
     await superuser.query('update contacts set owner_id = $2 where id = $1', [
       deleted,
-      otherRepA.userId,
+      ownDeleterB.userId,
     ]);
 
-    expect((await restore(repA.token, 'contact', deleted)).status).toBe(404);
+    expect((await restore(ownDeleterA.token, 'contact', deleted)).status).toBe(404);
+    // Whereas the new owner, who holds the same grant, may.
+    expect((await restore(ownDeleterB.token, 'contact', deleted)).status).toBe(200);
   });
 
   it('restores for someone who may, bumping the version and writing audit + outbox', async () => {

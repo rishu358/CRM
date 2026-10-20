@@ -49,6 +49,7 @@ export class DataRightsController {
 
   /** A POST because handing out the link is the moment the data leaves. */
   @Post('data-exports/:id/download')
+  @HttpCode(200)
   async downloadLink(
     @CurrentActor() actor: Actor,
     @Param(zodPipe(dataExportParamsSchema)) params: { id: string },

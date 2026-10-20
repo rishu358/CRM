@@ -1,4 +1,5 @@
 import {
+  asInstant,
   AUDIT_DEFAULT_WINDOW_MS,
   can,
   DATA_EXPORT_CAPABILITY,
@@ -234,7 +235,7 @@ async function* auditCsvStream(
     for (const row of page) {
       const visible = visibleAuditChanges(actor, row.object_type, row.changes);
       text += csvLine([
-        row.occurred_at.toISOString(),
+        asInstant(row.occurred_at).toISOString(),
         row.actor_name,
         row.actor_id,
         row.action,
@@ -280,7 +281,7 @@ async function* jsonStream(
           (first ? '\n    ' : ',\n    ') +
             JSON.stringify({
               id: row.id,
-              occurredAt: row.occurred_at.toISOString(),
+              occurredAt: asInstant(row.occurred_at).toISOString(),
               actorId: row.actor_id,
               actorName: row.actor_name,
               action: row.action,
@@ -410,7 +411,7 @@ async function subjectSections(
   const visibleHistory = history.map((row) => {
     const visible = visibleAuditChanges(actor, row.object_type, row.changes);
     return {
-      occurredAt: row.occurred_at.toISOString(),
+      occurredAt: asInstant(row.occurred_at).toISOString(),
       actorName: row.actor_name,
       action: row.action,
       changes: visible.changes,
@@ -438,7 +439,7 @@ async function subjectSections(
 
 interface AuditArchiveRow {
   readonly id: string;
-  readonly occurred_at: Date;
+  readonly occurred_at: Date | string;
   /** `occurred_at` as Postgres renders it, for the keyset cursor. */
   readonly cursor_value: string;
   readonly actor_id: string | null;

@@ -1,4 +1,4 @@
-import { visibleAuditChanges, type Actor } from '@crm/core';
+import { asInstant, visibleAuditChanges, type Actor } from '@crm/core';
 import type { AuditEntry } from '@crm/contracts';
 import type { AuditLogRow } from './audit-log.repository.js';
 
@@ -23,7 +23,7 @@ export function serializeAuditEntry(actor: Actor, row: AuditLogRow): AuditEntry 
 
   return {
     id: row.id,
-    occurredAt: row.occurred_at.toISOString(),
+    occurredAt: asInstant(row.occurred_at).toISOString(),
     actorId: row.actor_id,
     actorName: row.actor_name,
     action: row.action,

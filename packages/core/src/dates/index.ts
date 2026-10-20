@@ -135,6 +135,19 @@ export function formatDate(instant: Date, locale: string, timeZone: TimeZone): s
   return formatDateTime(instant, locale, timeZone, { dateStyle: 'medium' });
 }
 
+/**
+ * A timestamp read from a raw SQL result, as an instant.
+ *
+ * Drizzle's `tx.execute` returns `timestamptz` columns as **strings**, while its
+ * query builder returns `Date`s, so a raw row typed as `Date` is a type that
+ * compiles and then fails at the first `.toISOString()`. Anything that reads a
+ * timestamp out of `execute` goes through here, and the row type says
+ * `Date | string` so the compiler insists on it.
+ */
+export function asInstant(value: Date | string): Date {
+  return value instanceof Date ? value : new Date(value);
+}
+
 /** Parse an untrusted ISO-8601 string into an instant, or throw. */
 export function parseInstant(value: string): Date {
   const parsed = new Date(value);

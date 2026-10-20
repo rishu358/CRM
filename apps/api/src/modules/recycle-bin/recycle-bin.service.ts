@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import {
   assertCan,
+  asInstant,
   canReadField,
   NotFoundError,
   RECYCLE_BIN_RETENTION_DAYS,
@@ -140,7 +141,7 @@ export class RecycleBinService {
           // The date it was deleted on, as metadata about the event rather than
           // as a field of the record — `deletedAt` is not a field anybody holds
           // a permission on.
-          restoredFrom: { new: existing.deleted_at.toISOString() },
+          restoredFrom: { new: asInstant(existing.deleted_at).toISOString() },
         },
       });
 
@@ -182,7 +183,7 @@ function serializeEntry(
     .filter((value): value is string => typeof value === 'string' && value.length > 0);
 
   const purgeAfter = new Date(
-    row.deleted_at.getTime() + RECYCLE_BIN_RETENTION_DAYS * 24 * 60 * 60 * 1000,
+    asInstant(row.deleted_at).getTime() + RECYCLE_BIN_RETENTION_DAYS * 24 * 60 * 60 * 1000,
   );
 
   return {
@@ -190,7 +191,7 @@ function serializeEntry(
     id: row.id,
     label: parts.length > 0 ? parts.join(' ') : FALLBACK_LABEL[objectType],
     ownerId: row.owner_id,
-    deletedAt: row.deleted_at.toISOString(),
+    deletedAt: asInstant(row.deleted_at).toISOString(),
     purgeAfter: purgeAfter.toISOString(),
     version: row.version,
   };
