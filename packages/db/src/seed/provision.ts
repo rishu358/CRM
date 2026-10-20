@@ -1,7 +1,9 @@
-import { newId } from '@crm/core';
+import { newId, PURGE_SWEEP_INTERVAL_HOURS } from '@crm/core';
 import type { Tx } from '../client.js';
+import { sql } from 'drizzle-orm';
 import {
   fieldDefinitions,
+  outboxEvents,
   pipelineStages,
   pipelines,
   rolePermissions,
@@ -117,6 +119,29 @@ export async function provisionTenantDefaults(
       updatedBy: actorId,
     })),
   );
+
+  // Arm the Recycle Bin purge sweep (MVP_SPEC M4).
+  //
+  // The sweep is an outbox row dated to when it is next due, and its handler
+  // arms the following one, so this single insert is the whole schedule for
+  // this tenant for as long as it exists (ADR-0025, ADR-0034). A partial unique
+  // index keeps it at one pending row per tenant, which is also what makes
+  // re-provisioning harmless.
+  //
+  // Dated by the database's clock, because that is the clock the relay compares
+  // `available_at` against.
+  await tx
+    .insert(outboxEvents)
+    .values({
+      id: newId(),
+      tenantId,
+      eventType: 'recycle_bin.sweep_due.v1',
+      objectType: 'tenant',
+      recordId: tenantId,
+      availableAt: sql`now() + make_interval(hours => ${PURGE_SWEEP_INTERVAL_HOURS})`,
+      actorId: actorId,
+    })
+    .onConflictDoNothing();
 
   return { roleIdsByName, defaultPipelineId };
 }

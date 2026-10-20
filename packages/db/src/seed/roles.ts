@@ -85,16 +85,72 @@ const ADMINISTRATION_GRANTS: readonly SystemRoleGrant[] = [
   { objectType: 'membership', actions: ['read', 'update'], scope: 'all' },
 ];
 
+/**
+ * Reading history, and acting on data-protection rights (MVP_SPEC M11).
+ *
+ * Capabilities, not records, so `all` is the only scope that means anything on
+ * them — exactly like `invitation` above. Granted deliberately narrowly:
+ *
+ *   - `audit_log` read and export go to **Owner and Admin**, the two personas
+ *     MVP_SPEC §4 describes as responsible for security settings. Nobody else
+ *     reaches the viewer at all, because the absence of a row is a denial.
+ *   - `tenant_data` export — the whole workspace in one archive — goes to the
+ *     **Owner alone**, as MVP_SPEC M11 says. It is the single most dangerous
+ *     read in the product.
+ *   - `data_subject` read and export (answering "send me my data") go to Owner
+ *     and Admin, because handling a subject access request is day-to-day work.
+ *     `delete` — erasure — goes to the Owner alone: it is irreversible, it
+ *     reaches into the append-only audit log, and ADR-0032 is explicit that the
+ *     narrow privileged path it opens should be reachable by as few people as
+ *     possible.
+ */
+const AUDIT_LOG_GRANT: SystemRoleGrant = {
+  objectType: 'audit_log',
+  actions: ['read', 'export'],
+  scope: 'all',
+};
+
+const DATA_SUBJECT_READ_GRANT: SystemRoleGrant = {
+  objectType: 'data_subject',
+  actions: ['read', 'export'],
+  scope: 'all',
+};
+
+const DATA_SUBJECT_ERASE_GRANT: SystemRoleGrant = {
+  objectType: 'data_subject',
+  actions: ['read', 'export', 'delete'],
+  scope: 'all',
+};
+
+const TENANT_DATA_GRANT: SystemRoleGrant = {
+  objectType: 'tenant_data',
+  actions: ['export'],
+  scope: 'all',
+};
+
 export const SYSTEM_ROLES: readonly SystemRoleDefinition[] = [
   {
     name: 'Owner',
     description: 'Full control of the company account, including billing and security settings.',
-    grants: [...grantsFor(ALL_ACTIONS, 'all'), INVITATION_GRANT, ...ADMINISTRATION_GRANTS],
+    grants: [
+      ...grantsFor(ALL_ACTIONS, 'all'),
+      INVITATION_GRANT,
+      ...ADMINISTRATION_GRANTS,
+      AUDIT_LOG_GRANT,
+      TENANT_DATA_GRANT,
+      DATA_SUBJECT_ERASE_GRANT,
+    ],
   },
   {
     name: 'Admin',
     description: 'Manages users, roles and customization. Sees all records.',
-    grants: [...grantsFor(ALL_ACTIONS, 'all'), INVITATION_GRANT, ...ADMINISTRATION_GRANTS],
+    grants: [
+      ...grantsFor(ALL_ACTIONS, 'all'),
+      INVITATION_GRANT,
+      ...ADMINISTRATION_GRANTS,
+      AUDIT_LOG_GRANT,
+      DATA_SUBJECT_READ_GRANT,
+    ],
   },
   {
     name: 'Manager',

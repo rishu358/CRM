@@ -15,3 +15,4 @@ export * from './sessions/index.js';
 export * from './auth/index.js';
 export * from './import-export/index.js';
 export * from './audit/index.js';
+export * from './data-rights/index.js';

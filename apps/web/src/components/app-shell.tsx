@@ -6,8 +6,10 @@ import { useState, type ReactNode } from 'react';
 import {
   AccessIcon,
   AccountsIcon,
+  AuditLogIcon,
   Button,
   ContactsIcon,
+  DataRightsIcon,
   DealsIcon,
   Dialog,
   IconButton,
@@ -19,6 +21,7 @@ import {
   MyDayIcon,
   PanelLeftCloseIcon,
   PanelLeftOpenIcon,
+  RecycleBinIcon,
   SecurityIcon,
   SignOutIcon,
   TeamIcon,
@@ -77,6 +80,21 @@ const NAV: readonly {
       // Only for people the API lets in (`useCanManageAccess`). Cosmetic: the
       // routes behind it refuse everybody else on their own.
       requiresAccessAdmin: true,
+    },
+    {
+      href: '/settings/audit-log',
+      label: 'nav.auditLog',
+      icon: <AuditLogIcon className="h-4 w-4 shrink-0" />,
+    },
+    {
+      href: '/settings/recycle-bin',
+      label: 'nav.recycleBin',
+      icon: <RecycleBinIcon className="h-4 w-4 shrink-0" />,
+    },
+    {
+      href: '/settings/data-rights',
+      label: 'nav.dataRights',
+      icon: <DataRightsIcon className="h-4 w-4 shrink-0" />,
     },
     {
       href: '/settings/security',

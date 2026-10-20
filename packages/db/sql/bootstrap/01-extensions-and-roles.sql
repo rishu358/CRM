@@ -9,11 +9,20 @@
 --   * the Testcontainers harness in packages/db/src/testing
 --   * production, applied once by infrastructure
 --
--- Four roles, each with the least privilege its job needs:
+-- Five roles, each with the least privilege its job needs:
 --   crm_migrator  owns every object; runs migrations; NOCREATEROLE
 --   crm_app       the API: tenant-scoped access to everything, via RLS
 --   crm_auth      the auth layer only: global identity tables, no business data
 --   crm_worker    the outbox relay: like crm_app, plus cross-tenant outbox reads
+--   crm_erasure   one job, one column: redacting audit diffs for an erasure
+--                 request that is in flight. See ADR-0032 — it exists because
+--                 the audit log is append-only to crm_app by withheld GRANT,
+--                 and a DPDP/GDPR erasure obligation cannot be satisfied by a
+--                 role that physically cannot write. Rather than give the API
+--                 role UPDATE on history, the capability lives in a role the
+--                 API does not hold credentials for, is limited by column
+--                 grant to `changes` alone, and is limited by policy to rows
+--                 belonging to a subject with a `processing` erasure request.
 --
 -- No role has BYPASSRLS or SUPERUSER, and none owns a table, so Row-Level
 -- Security always applies to all of them (CLAUDE.md §5.1).
@@ -88,7 +97,8 @@ BEGIN
       ('crm_migrator', 'crm_migrator_dev'),
       ('crm_app',      'crm_app_dev'),
       ('crm_auth',     'crm_auth_dev'),
-      ('crm_worker',   'crm_worker_dev')
+      ('crm_worker',   'crm_worker_dev'),
+      ('crm_erasure',  'crm_erasure_dev')
     ) AS t(r, p)
   LOOP
     IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = role_name) THEN
@@ -105,7 +115,7 @@ $$;
 -- The migrator owns the schema; everyone else only gets what is granted.
 ALTER SCHEMA public OWNER TO crm_migrator;
 REVOKE ALL ON SCHEMA public FROM PUBLIC;
-GRANT USAGE ON SCHEMA public TO crm_app, crm_auth, crm_worker;
+GRANT USAGE ON SCHEMA public TO crm_app, crm_auth, crm_worker, crm_erasure;
 
 -- Nobody may create objects in public except the migrator.
-REVOKE CREATE ON SCHEMA public FROM crm_app, crm_auth, crm_worker;
+REVOKE CREATE ON SCHEMA public FROM crm_app, crm_auth, crm_worker, crm_erasure;

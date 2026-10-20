@@ -19,6 +19,9 @@ const OBJECT_KEYS: Readonly<Record<string, TranslationKey>> = {
   role: 'access.object.role',
   team: 'access.object.team',
   membership: 'access.object.membership',
+  audit_log: 'access.object.auditLog',
+  tenant_data: 'access.object.tenantData',
+  data_subject: 'access.object.dataSubject',
 };
 
 const OBJECT_SINGULAR_KEYS: Readonly<Record<string, TranslationKey>> = {

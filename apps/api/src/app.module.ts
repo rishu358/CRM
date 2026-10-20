@@ -6,8 +6,10 @@ import { DatabaseModule } from './database/database.module.js';
 import { HealthController } from './health.controller.js';
 import { AccessModule } from './modules/access/access.module.js';
 import { AccountsModule } from './modules/accounts/accounts.module.js';
+import { AuditLogModule } from './modules/audit/audit-log.module.js';
 import { ActivitiesModule } from './modules/activities/activities.module.js';
 import { ContactsModule } from './modules/contacts/contacts.module.js';
+import { DataRightsModule } from './modules/data-rights/data-rights.module.js';
 import { DealsModule } from './modules/deals/deals.module.js';
 import { ExportsModule } from './modules/exports/exports.module.js';
 import { ImportsModule } from './modules/imports/imports.module.js';
@@ -15,6 +17,7 @@ import { InvitationsModule } from './modules/invitations/invitations.module.js';
 import { LeadsModule } from './modules/leads/leads.module.js';
 import { NotificationsModule } from './modules/notifications/notifications.module.js';
 import { PipelinesModule } from './modules/pipelines/pipelines.module.js';
+import { RecycleBinModule } from './modules/recycle-bin/recycle-bin.module.js';
 import { SearchModule } from './modules/search/search.module.js';
 import { OpenApiController } from './openapi/openapi.controller.js';
 import { PlatformModule } from './platform/platform.module.js';
@@ -49,6 +52,9 @@ export class AppModule {
         ImportsModule,
         ExportsModule,
         AccessModule,
+        AuditLogModule,
+        RecycleBinModule,
+        DataRightsModule,
       ],
       controllers: [HealthController, OpenApiController],
       providers: [{ provide: APP_GUARD, useExisting: AuthGuard }],

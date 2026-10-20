@@ -25,6 +25,8 @@ export interface TestDbUrls {
   readonly app: string;
   readonly auth: string;
   readonly worker: string;
+  /** The narrow audit-redaction role (ADR-0032). Used by the erasure job only. */
+  readonly erasure: string;
   readonly migrator: string;
   readonly superuser: string;
 }
@@ -39,6 +41,7 @@ const DEV_PASSWORDS: Readonly<Record<string, string>> = {
   crm_app: 'crm_app_dev',
   crm_auth: 'crm_auth_dev',
   crm_worker: 'crm_worker_dev',
+  crm_erasure: 'crm_erasure_dev',
   crm_migrator: 'crm_migrator_dev',
 };
 
@@ -78,6 +81,7 @@ export default async function setup(project: TestProject): Promise<() => Promise
     app: urlForRole(superuserUrl, 'crm_app'),
     auth: urlForRole(superuserUrl, 'crm_auth'),
     worker: urlForRole(superuserUrl, 'crm_worker'),
+    erasure: urlForRole(superuserUrl, 'crm_erasure'),
     migrator: migratorUrl,
     superuser: superuserUrl.toString(),
   });
