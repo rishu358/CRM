@@ -49,7 +49,7 @@ import { AccessRepository } from './access.repository.js';
  * viewer can read in full (`read` at `all` scope); a viewer with narrower
  * reach gets the change itself — who loses what scope — and no number. Without
  * that rule, anybody who may edit roles could size the whole workspace's data
- * by previewing a change, whatever their own reach (ADR-0031).
+ * by previewing a change, whatever their own reach (ADR-0033).
  */
 @Injectable()
 export class AccessSupport {

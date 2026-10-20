@@ -3,7 +3,7 @@ import { z } from 'zod';
 
 /**
  * Users, roles, teams, ownership and the access explainer (MVP_SPEC M3,
- * ADR-0031).
+ * ADR-0033).
  *
  * Every request object is `.strict()` (CLAUDE.md §5.6). Note what is absent
  * from all of them: no tenant id, no acting user. Those come from the session.

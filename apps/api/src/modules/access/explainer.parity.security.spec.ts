@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
 import { request, startApiHarness, type ApiHarness } from '../../testing/harness.js';
 
 /**
- * The explainer against reality (ADR-0031).
+ * The explainer against reality (ADR-0033).
  *
  * The explainer is only worth having if it is right, and "right" has one
  * definition: it says what the API does. So this suite does **not** assert the
@@ -23,7 +23,7 @@ import { request, startApiHarness, type ApiHarness } from '../../testing/harness
  * in *two* teams, one owned by a suspended member, a role that reads everything
  * but hides a field, and a role with no grant on the object at all.
  *
- * Team scope is in here for a reason: before ADR-0031 the record endpoints
+ * Team scope is in here for a reason: before ADR-0033 the record endpoints
  * ignored it, so a teammate's record was in the list and a 404 when opened.
  * This is the test that would have said so.
  */

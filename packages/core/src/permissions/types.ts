@@ -115,7 +115,7 @@ export type Decision =
     };
 
 // ---------------------------------------------------------------------------
-// Reasoning (ADR-0031)
+// Reasoning (ADR-0033)
 // ---------------------------------------------------------------------------
 
 /**
@@ -160,7 +160,7 @@ export type RecordMatch =
  * Carried on **both** branches of `Decision`, because "why not?" is as much a
  * question an administrator asks as "why?". It is assembled by `can()` as it
  * decides, from the same values the decision is taken on, so it cannot describe
- * rules other than the ones that were applied (ADR-0031).
+ * rules other than the ones that were applied (ADR-0033).
  */
 export interface Derivation {
   readonly objectType: ObjectType;

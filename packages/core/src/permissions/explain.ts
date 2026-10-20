@@ -5,7 +5,7 @@ import { fieldAccess, fieldAccessDerivation } from './field-access.js';
 import type { Actor, FieldAccess, RecordRef } from './types.js';
 
 /**
- * The access explainer (ADR-0031).
+ * The access explainer (ADR-0033).
  *
  * Every function here is a **reading of `can()` and `fieldAccess()`**, never a
  * second opinion about what the rules are. The pattern is always the same: run

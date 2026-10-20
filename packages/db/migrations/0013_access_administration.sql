@@ -12,7 +12,7 @@
 -- is the only scope that means anything on them, and a role with no row for
 -- them is denied by default like every other denial in this engine.
 --
--- `role:read` is also the gate on the access explainer (ADR-0031): it answers
+-- `role:read` is also the gate on the access explainer (ADR-0033): it answers
 -- questions about the permission configuration, so exactly the people who may
 -- read that configuration may ask it questions.
 --

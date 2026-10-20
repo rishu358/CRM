@@ -20,7 +20,7 @@ import { makeActor } from './testing.js';
 import { FIELD_ACCESS_LEVELS, type FieldPermissionRow, type RolePermissionRow } from './types.js';
 
 /**
- * The explainer's contract (ADR-0031).
+ * The explainer's contract (ADR-0033).
  *
  * Two kinds of test live here, and the second kind is the one that matters.
  *

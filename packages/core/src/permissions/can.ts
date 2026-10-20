@@ -25,7 +25,7 @@ import type {
  * and hands back the `constraint` the repository must put into its WHERE clause.
  * Called with a record it additionally judges that specific record.
  *
- * ## It also reports its reasoning (ADR-0031)
+ * ## It also reports its reasoning (ADR-0033)
  *
  * Every decision carries a `derivation`: which roles granted the action, at
  * which scopes, which of them decided, and why the record did or did not
@@ -123,7 +123,7 @@ function sharedTeam(teamIds: readonly string[], record: RecordRef): string | nul
  *
  * The reason is produced here rather than reconstructed later, so "Priya,
  * because she owns it" and "allowed" are two readings of one evaluation
- * (ADR-0031).
+ * (ADR-0033).
  */
 export function matchConstraint(constraint: RecordConstraint, record: RecordRef): RecordMatch {
   switch (constraint.kind) {

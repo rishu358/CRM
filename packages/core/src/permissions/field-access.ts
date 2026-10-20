@@ -27,7 +27,7 @@ function wider(a: FieldAccess, b: FieldAccess): FieldAccess {
  * say *which* of the two concealed a field — "her role cannot read contacts at
  * all" and "her role hides this one field" are different problems with
  * different fixes, and an administrator needs to be told which one they have
- * (ADR-0031). They are a description of this evaluation, not a second one.
+ * (ADR-0033). They are a description of this evaluation, not a second one.
  */
 export interface RoleFieldAccess {
   readonly roleId: CompiledRole['roleId'];
@@ -81,7 +81,7 @@ export function fieldAccess(actor: Actor, objectType: ObjectType, fieldKey: stri
   return effective;
 }
 
-/** The actor's access to one field, with the per-role workings (ADR-0031). */
+/** The actor's access to one field, with the per-role workings (ADR-0033). */
 export interface FieldAccessDerivation {
   readonly fieldKey: string;
   readonly access: FieldAccess;

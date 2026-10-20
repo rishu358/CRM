@@ -73,7 +73,7 @@ const INVITATION_GRANT: SystemRoleGrant = {
  * row is what denies everyone else. Granted to Owner and Admin, the two
  * personas MVP_SPEC §4 describes as controlling who sees what.
  *
- * `role:read` is also the gate on the access explainer (ADR-0031). That is
+ * `role:read` is also the gate on the access explainer (ADR-0033). That is
  * deliberate rather than convenient: the explainer answers questions *about*
  * the permission configuration — who reaches a record, which fields are hidden
  * from whom — so the people who may read that configuration are exactly the

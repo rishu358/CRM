@@ -74,7 +74,7 @@ export const ErrorCode = {
   ROLE_IN_USE: 'ROLE_IN_USE',
   /**
    * The change hands out more than the person making it holds. Distinct from
-   * `FORBIDDEN`: they may edit roles, just not beyond their own reach (ADR-0031).
+   * `FORBIDDEN`: they may edit roles, just not beyond their own reach (ADR-0033).
    */
   PERMISSION_ESCALATION: 'PERMISSION_ESCALATION',
   /** Unexpected failure. Details are logged, never returned. */

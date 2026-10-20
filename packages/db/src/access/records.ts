@@ -4,7 +4,7 @@ import type { Tx } from '../client.js';
 import { constraintToSql } from '../record-scope.js';
 
 /**
- * Read-only facts about who owns what, for the access explainer (ADR-0031).
+ * Read-only facts about who owns what, for the access explainer (ADR-0033).
  *
  * The explainer has to answer questions that cross every object type — "how
  * many contacts does this change put out of reach", "who owns this record" —

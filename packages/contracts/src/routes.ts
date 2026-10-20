@@ -1698,7 +1698,7 @@ const accessRoutes: RouteDefinition[] = [
       'For each active member: whether they can open the record, and the reason — ownership, ' +
       'a shared team, or a role that reaches every record — together with which fields are ' +
       'hidden from them. Computed by `can()` and the field engine, the same functions the ' +
-      'API enforces with (ADR-0031). A record outside **your own** reach is `NOT_FOUND`, and ' +
+      'API enforces with (ADR-0033). A record outside **your own** reach is `NOT_FOUND`, and ' +
       'only fields you can read are discussed. ' +
       ADMIN_ONLY_NOTE,
     auth: 'session',

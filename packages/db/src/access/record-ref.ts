@@ -3,7 +3,7 @@ import type { Tx } from '../client.js';
 import { teamIdsByUser } from './records.js';
 
 /**
- * The `RecordRef` a record-level `can()` call needs (ADR-0031).
+ * The `RecordRef` a record-level `can()` call needs (ADR-0033).
  *
  * `team` scope means "owned by me, or by anyone in one of my teams" — that is
  * what `constraintToSql` puts in every list's WHERE clause. A record has no

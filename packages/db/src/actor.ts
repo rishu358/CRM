@@ -20,7 +20,7 @@ import type { Tx } from './client.js';
  * processes two definitions of "may", which is how a permission fix ends up
  * applied in one and not the other.
  *
- * The access explainer is a third consumer (ADR-0031): to say who can see a
+ * The access explainer is a third consumer (ADR-0033): to say who can see a
  * record it has to build every member's Actor, and it must build them **the
  * way a request does**. So there is one implementation, `loadActors`, and
  * `loadActor` is that for a single user. An explainer with its own copy of

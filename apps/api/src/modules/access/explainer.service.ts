@@ -27,7 +27,7 @@ import { AccessSupport } from './access.support.js';
 const MAX_PEOPLE = 500;
 
 /**
- * The access explainer (ADR-0031).
+ * The access explainer (ADR-0033).
  *
  * **Nothing in this class decides what anybody may do.** Each answer is the
  * output of `can()` or the field engine for a real `Actor` — built by

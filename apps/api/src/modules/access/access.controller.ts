@@ -11,7 +11,7 @@ import { zodPipe } from '../../common/zod-validation.pipe.js';
 import { ExplainerService } from './explainer.service.js';
 
 /**
- * `/api/v1/access` — the catalogue and the explainer (ADR-0007, ADR-0031).
+ * `/api/v1/access` — the catalogue and the explainer (ADR-0007, ADR-0033).
  *
  * Every route is for administrators, and that is enforced by `can()` in the
  * service, not here: this controller has no idea who an administrator is.

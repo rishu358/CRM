@@ -236,7 +236,7 @@ describe('(b) record scope: an import only sees, matches and changes what its ac
     // `update` applies the rule the API itself applies to a single record:
     // `can(actor, 'update', { record })`. Team scope means "owned by anyone in
     // my teams", so a teammate's record **is** editable here — as it is through
-    // the API, once the services supply the owner's teams (ADR-0031). The
+    // the API, once the services supply the owner's teams (ADR-0033). The
     // outsider's record, owned by someone in no shared team, is neither seen
     // (above) nor touched (below).
     const update = await importAs(

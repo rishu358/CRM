@@ -22,7 +22,7 @@
  * access explainer: anyone who may read the workspace's permission
  * configuration may ask what it does, and nobody else may — a sales rep must
  * not be able to enumerate colleagues or learn which fields are hidden from
- * them (ADR-0031).
+ * them (ADR-0033).
  */
 
 export const OBJECT_TYPES = [
