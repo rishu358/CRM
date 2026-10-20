@@ -20,10 +20,15 @@ import type { AuthenticatedRequest } from './auth/auth.guard.js';
 export async function createApp(env: ApiEnv = loadApiEnv()): Promise<NestFastifyApplication> {
   const logger = createLogger(env.LOG_LEVEL, env.NODE_ENV === 'development');
 
+  // `abortOnError: false` matters as much as the disabled logger. Nest's
+  // default is to catch a bootstrap failure, hand it to its own logger and end
+  // the process itself — so with `logger: false` the process would exit with no
+  // output at all, and the try/catch in `main.ts` would never run. A startup
+  // failure must be reportable: let it throw, and let the caller log it.
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule.forRoot(env),
     new FastifyAdapter({ trustProxy: true, bodyLimit: 2 * 1024 * 1024 }),
-    { logger: false },
+    { logger: false, abortOnError: false },
   );
 
   const instance = app.getHttpAdapter().getInstance();
