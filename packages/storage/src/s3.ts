@@ -17,6 +17,7 @@ import type {
   UploadUrlRequest,
 } from '@crm/core';
 import { Readable } from 'node:stream';
+import { contentDispositionFor } from './download-name.js';
 
 /**
  * The S3-compatible adapter (ADR-0009): AWS S3, Cloudflare R2, MinIO.
@@ -43,16 +44,6 @@ export interface S3StorageConfig {
   readonly publicEndpoint?: string | undefined;
   /** MinIO needs path-style addressing; S3 and R2 do not. */
   readonly forcePathStyle?: boolean | undefined;
-}
-
-/** Keep a filename the browser is offered to a boring, header-safe alphabet. */
-export function safeDownloadName(name: string): string {
-  const cleaned = name
-    .replace(/[^A-Za-z0-9._-]+/g, '_')
-    // No `..` survives, so the result can never read as a path component.
-    .replace(/\.{2,}/g, '.')
-    .replace(/^\.+/, '');
-  return cleaned.length === 0 ? 'download' : cleaned.slice(0, 120);
 }
 
 export class S3StorageProvider implements StorageProvider {
@@ -117,7 +108,7 @@ export class S3StorageProvider implements StorageProvider {
         Key: request.key,
         // `attachment` makes the browser save the file rather than render it,
         // so an uploaded or generated file is never interpreted as a page.
-        ResponseContentDisposition: `attachment; filename="${safeDownloadName(request.fileName)}"`,
+        ResponseContentDisposition: contentDispositionFor(request.fileName),
         ResponseContentType: request.contentType,
       }),
       { expiresIn: request.expiresInSeconds },

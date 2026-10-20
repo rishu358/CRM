@@ -56,3 +56,25 @@ export function formatName(contact: { firstName?: unknown; lastName?: unknown })
   );
   return parts.join(' ');
 }
+
+/**
+ * A file size a person can read.
+ *
+ * Through the shared formatter like every other number (CLAUDE.md §9), so the
+ * decimal separator follows the viewer's locale — a German reader expects
+ * `1,2 MB`, not `1.2 MB`. Powers of 1024 with the usual KB/MB/GB labels,
+ * which is what every operating system shows for the same file.
+ */
+export function formatFileSize(bytes: number, preferences: ViewerPreferences): string {
+  const units = ['B', 'KB', 'MB', 'GB'] as const;
+  let value = Math.max(bytes, 0);
+  let unit = 0;
+  while (value >= 1024 && unit < units.length - 1) {
+    value /= 1024;
+    unit += 1;
+  }
+  const formatted = new Intl.NumberFormat(preferences.locale, {
+    maximumFractionDigits: unit === 0 ? 0 : 1,
+  }).format(value);
+  return `${formatted} ${units[unit] as string}`;
+}

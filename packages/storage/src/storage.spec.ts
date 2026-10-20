@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  contentDispositionFor,
   createStorageProvider,
   MemoryStorageProvider,
   newStorageKey,
@@ -21,8 +22,9 @@ describe('newStorageKey (CLAUDE.md §5.12: random keys)', () => {
     }
   });
 
-  it('keeps imports and exports apart', () => {
+  it('keeps imports, exports and attachments apart', () => {
     expect(newStorageKey(tenant, 'exports')).toContain('/exports/');
+    expect(newStorageKey(tenant, 'attachments')).toContain('/attachments/');
   });
 });
 
@@ -46,6 +48,50 @@ describe('safeDownloadName', () => {
 
   it('is bounded', () => {
     expect(safeDownloadName('a'.repeat(1000)).length).toBeLessThanOrEqual(120);
+  });
+
+  /**
+   * The filename on an attachment is the uploader's, not ours, and this is
+   * the last thing that touches it before it reaches a header (ADR-0035).
+   * The contract refuses all of these; this is the second, independent pass,
+   * which has to hold on its own.
+   */
+  it.each([
+    ['a right-to-left override', 'invoice‮gnp.exe'],
+    ['a left-to-right override', 'invoice‭gnp.exe'],
+    ['an invisible direction mark', 'report‏.pdf'],
+  ])('flattens %s, so the saved name reads as what it is', (_label, input) => {
+    const result = safeDownloadName(input);
+    expect(result).not.toMatch(/[‪-‮⁦-⁩‎‏]/u);
+    expect(result).toMatch(/^[A-Za-z0-9._-]+$/);
+  });
+
+  it('survives a 300-character name without becoming a header-length problem', () => {
+    expect(safeDownloadName(`${'na'.repeat(150)}.pdf`).length).toBeLessThanOrEqual(120);
+  });
+
+  it('leaves nothing that reads as a path', () => {
+    for (const input of ['../../etc/passwd', 'a/b/c.pdf', 'C:\\Windows\\x.pdf', '....//x.pdf']) {
+      const result = safeDownloadName(input);
+      expect(result).not.toContain('/');
+      expect(result).not.toContain('\\');
+      expect(result).not.toContain('..');
+    }
+  });
+});
+
+describe('contentDispositionFor (ADR-0035)', () => {
+  it('is always an attachment, so an uploaded document is never rendered', () => {
+    expect(contentDispositionFor('contract.pdf')).toBe('attachment; filename="contract.pdf"');
+    // Even for the types a browser would happily render inline.
+    expect(contentDispositionFor('page.html')).toMatch(/^attachment;/);
+    expect(contentDispositionFor('logo.svg')).toMatch(/^attachment;/);
+  });
+
+  it('cannot be broken out of: the name has no quote left in it', () => {
+    const header = contentDispositionFor('a.pdf"; filename="evil.html');
+    expect(header.match(/"/g)).toHaveLength(2);
+    expect(header).not.toMatch(/[\r\n]/);
   });
 });
 

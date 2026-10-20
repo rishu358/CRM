@@ -18,6 +18,7 @@ import { t } from '../lib/i18n';
 import { useRecordView } from '../lib/activities';
 import { AppShell } from './app-shell';
 import { ActivityPanel } from './activity-panel';
+import { AttachmentPanel } from './attachment-panel';
 import { InlineField } from './inline-field';
 
 /**
@@ -167,6 +168,7 @@ export function ContactDetail({ id }: { id: string }) {
       </Card>
 
       <ActivityPanel objectType="contact" recordId={id} />
+      <AttachmentPanel objectType="contact" recordId={id} />
     </AppShell>
   );
 }

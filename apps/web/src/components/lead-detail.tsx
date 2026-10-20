@@ -19,6 +19,7 @@ import { OPEN_LEAD_STATUSES, useLead, useUpdateLead } from '../lib/leads';
 import { useRecordView } from '../lib/activities';
 import { AppShell } from './app-shell';
 import { ActivityPanel } from './activity-panel';
+import { AttachmentPanel } from './attachment-panel';
 import { ConvertLeadDialog } from './convert-lead-dialog';
 import { InlineField } from './inline-field';
 
@@ -265,6 +266,7 @@ export function LeadDetail({ id }: { id: string }) {
       {converting ? <ConvertLeadDialog lead={lead} onClose={() => setConverting(false)} /> : null}
 
       <ActivityPanel objectType="lead" recordId={id} />
+      <AttachmentPanel objectType="lead" recordId={id} />
     </AppShell>
   );
 }

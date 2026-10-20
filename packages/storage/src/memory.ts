@@ -1,4 +1,5 @@
 import { Readable } from 'node:stream';
+import { contentDispositionFor } from './download-name.js';
 import type {
   DownloadUrl,
   DownloadUrlRequest,
@@ -33,7 +34,10 @@ interface IssuedUpload {
 export class MemoryStorageProvider implements StorageProvider {
   private readonly objects = new Map<string, MemoryObject>();
   private readonly uploads = new Map<string, IssuedUpload>();
-  private readonly downloads = new Map<string, { key: string; expiresAt: Date }>();
+  private readonly downloads = new Map<
+    string,
+    { key: string; expiresAt: Date; headers: Readonly<Record<string, string>> }
+  >();
   private counter = 0;
 
   /** Every URL ever issued, in order, so a test can assert what was signed. */
@@ -73,7 +77,17 @@ export class MemoryStorageProvider implements StorageProvider {
     this.issuedDownloadRequests.push(request);
     const token = `d${(this.counter += 1)}`;
     const expiresAt = new Date(this.now().getTime() + request.expiresInSeconds * 1000);
-    this.downloads.set(token, { key: request.key, expiresAt });
+    this.downloads.set(token, {
+      key: request.key,
+      expiresAt,
+      // The same two headers the S3 adapter binds into the signature, built by
+      // the same function, so a test that asserts them is asserting the real
+      // control rather than this fake's idea of it (ADR-0035).
+      headers: {
+        'Content-Disposition': contentDispositionFor(request.fileName),
+        'Content-Type': request.contentType,
+      },
+    });
     return Promise.resolve({ url: `memory://download/${token}`, expiresAt });
   }
 
@@ -96,6 +110,13 @@ export class MemoryStorageProvider implements StorageProvider {
     const object = this.objects.get(issued.key);
     if (object === undefined) throw new Error('No such object');
     return object.bytes;
+  }
+
+  /** The response headers the store would send for a download URL. */
+  headersFor(url: string): Readonly<Record<string, string>> {
+    const issued = this.downloads.get(url.replace('memory://download/', ''));
+    if (issued === undefined) throw new Error('Unknown download URL');
+    return issued.headers;
   }
 
   /** Test seam: put bytes in without a URL, as a hostile client could. */

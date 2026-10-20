@@ -21,6 +21,7 @@ import { t } from '../lib/i18n';
 import { useRecordView } from '../lib/activities';
 import { AppShell } from './app-shell';
 import { ActivityPanel } from './activity-panel';
+import { AttachmentPanel } from './attachment-panel';
 import { InlineField } from './inline-field';
 import { InlineMoneyField } from './inline-money-field';
 import { LostReasonDialog } from './lost-reason-dialog';
@@ -356,6 +357,7 @@ export function DealDetail({ id }: { id: string }) {
       )}
 
       <ActivityPanel objectType="deal" recordId={id} />
+      <AttachmentPanel objectType="deal" recordId={id} />
     </AppShell>
   );
 }

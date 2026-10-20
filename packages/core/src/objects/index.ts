@@ -63,6 +63,25 @@ export function isLinkTargetType(value: unknown): value is LinkTargetType {
   return typeof value === 'string' && LINK_TARGET_TYPE_SET.has(value);
 }
 
+/**
+ * Object types a file may be attached to (ADR-0005, ADR-0035).
+ *
+ * Wider than `LINK_TARGET_TYPES` by one: an activity can carry a file (the
+ * recording of a call, the deck from a meeting), while nothing links an
+ * activity to another activity, so the two closed sets genuinely differ and
+ * neither is the other's superset by accident. Like every polymorphic set it
+ * is the boundary an `object_type` from a client is validated against before
+ * it is anywhere near SQL, and the `attachments` CHECK constraint repeats it.
+ */
+export const ATTACHMENT_TARGET_TYPES = ['account', 'contact', 'lead', 'deal', 'activity'] as const;
+export type AttachmentTargetType = (typeof ATTACHMENT_TARGET_TYPES)[number];
+
+const ATTACHMENT_TARGET_TYPE_SET: ReadonlySet<string> = new Set(ATTACHMENT_TARGET_TYPES);
+
+export function isAttachmentTargetType(value: unknown): value is AttachmentTargetType {
+  return typeof value === 'string' && ATTACHMENT_TARGET_TYPE_SET.has(value);
+}
+
 /** Object types that hold business records with owners and soft deletes. */
 export const BUSINESS_OBJECT_TYPES = ['account', 'contact', 'lead', 'deal'] as const;
 export type BusinessObjectType = (typeof BUSINESS_OBJECT_TYPES)[number];
