@@ -479,6 +479,20 @@ describe('limits', () => {
   });
 });
 
+describe('a limit stored before this module existed', () => {
+  it('never shows a pattern, and shows the limits an administrator can set', async () => {
+    await harness.fixtures.createFieldDefinition(tenantId, {
+      objectType: 'lead',
+      key: 'legacy_code',
+      type: 'text',
+      validation: { pattern: '(a+)+$', maxLength: 8 },
+    });
+    const field = (await list('lead')).find((f) => f.key === 'legacy_code')!;
+    expect(field.validation).toEqual({ maxLength: 8 });
+    expect(JSON.stringify(field)).not.toContain('(a+)+');
+  });
+});
+
 describe('what cannot be edited', () => {
   let field: Definition;
 
