@@ -23,6 +23,20 @@
  * configuration may ask what it does, and nobody else may — a sales rep must
  * not be able to enumerate colleagues or learn which fields are hidden from
  * them (ADR-0033).
+ *
+ * `audit_log`, `tenant_data` and `data_subject` are the same kind of thing for
+ * MVP_SPEC M11. Reading the audit log, exporting the whole workspace and
+ * acting on one person's data-protection rights are capabilities a role either
+ * has or does not, and making them object types means they are granted as
+ * **rows** like everything else — visible in the permission matrix, editable
+ * without a deploy, and denied by the absence of a row. The alternative, an
+ * `if (role === 'Owner')` somewhere in a service, is exactly what ADR-0008 and
+ * CLAUDE.md §5.3 forbid.
+ *
+ * They are kept apart rather than folded into one `data_rights` type because
+ * the three differ in blast radius: a whole-workspace archive, one person's
+ * file, and an irreversible erasure are not the same decision, and a single
+ * type would make granting the mildest grant the most dangerous one.
  */
 
 export const OBJECT_TYPES = [
@@ -35,6 +49,9 @@ export const OBJECT_TYPES = [
   'role',
   'team',
   'membership',
+  'audit_log',
+  'tenant_data',
+  'data_subject',
 ] as const;
 
 export type ObjectType = (typeof OBJECT_TYPES)[number];
@@ -135,4 +152,63 @@ export function isScope(value: unknown): value is Scope {
 /** The widest of two scopes. Used when a user holds several roles. */
 export function widestScope(a: Scope, b: Scope): Scope {
   return scopeRank(a) >= scopeRank(b) ? a : b;
+}
+
+/**
+ * Object types that are capabilities rather than records (MVP_SPEC M2, M3, M11).
+ *
+ * Nothing is linked to them, none has an owner, and `own`/`team` scope would
+ * deny everything on them — `all` is the only scope that means anything. Kept
+ * as a list so a caller can say "this is not a record" without enumerating the
+ * exceptions.
+ *
+ * `role`, `team` and `membership` belong here for the same reason as the rest:
+ * they were added by M3 while this list was being added by M11, so a merge of
+ * the two is the one moment the omission is invisible. A test below pins the
+ * list to the complement of the record types, so the next type added to
+ * `OBJECT_TYPES` has to be classified rather than quietly treated as a record.
+ */
+export const ADMINISTRATIVE_OBJECT_TYPES = [
+  'invitation',
+  'role',
+  'team',
+  'membership',
+  'audit_log',
+  'tenant_data',
+  'data_subject',
+] as const;
+export type AdministrativeObjectType = (typeof ADMINISTRATIVE_OBJECT_TYPES)[number];
+
+const ADMINISTRATIVE_OBJECT_TYPE_SET: ReadonlySet<string> = new Set(ADMINISTRATIVE_OBJECT_TYPES);
+
+export function isAdministrativeObjectType(value: unknown): value is AdministrativeObjectType {
+  return typeof value === 'string' && ADMINISTRATIVE_OBJECT_TYPE_SET.has(value);
+}
+
+/**
+ * Object types that soft-delete into the Recycle Bin (MVP_SPEC M4).
+ *
+ * The business objects plus `activity`: a task, call or meeting is a record
+ * with an owner and a `deleted_at` like any other (ADR-0026), and somebody who
+ * deletes the wrong meeting wants it back as much as somebody who deletes the
+ * wrong contact.
+ *
+ * Identical today to `SEARCHABLE_OBJECT_TYPES`, and deliberately a separate
+ * list: "can be found by typing a name" and "can be restored for thirty days"
+ * are different properties that happen to hold of the same five things, and
+ * collapsing them would silently decide the next object's answer to both.
+ */
+export const SOFT_DELETABLE_OBJECT_TYPES = [
+  'account',
+  'contact',
+  'lead',
+  'deal',
+  'activity',
+] as const;
+export type SoftDeletableObjectType = (typeof SOFT_DELETABLE_OBJECT_TYPES)[number];
+
+const SOFT_DELETABLE_SET: ReadonlySet<string> = new Set(SOFT_DELETABLE_OBJECT_TYPES);
+
+export function isSoftDeletableObjectType(value: unknown): value is SoftDeletableObjectType {
+  return typeof value === 'string' && SOFT_DELETABLE_SET.has(value);
 }

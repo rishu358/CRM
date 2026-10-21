@@ -5,6 +5,8 @@ export * from './migrator.js';
 export * from './record-scope.js';
 export * from './search/index.js';
 export * from './import-export/index.js';
+export * from './recycle-bin/index.js';
+export * from './data-rights/index.js';
 export * as schema from './schema/index.js';
 export * from './schema/index.js';
 
@@ -29,8 +31,12 @@ export {
   desc,
   eq,
   getTableColumns,
+  gte,
   inArray,
+  isNotNull,
   isNull,
+  lt,
+  lte,
   not,
   or,
   sql,

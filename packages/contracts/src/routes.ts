@@ -141,6 +141,23 @@ import {
   teamSchema,
   teamUpdateSchema,
 } from './access.js';
+import { auditEntrySchema, auditListQuerySchema } from './audit.js';
+import {
+  dataExportCreateSchema,
+  dataExportJobSchema,
+  dataExportParamsSchema,
+  erasureCreateSchema,
+  erasureListQuerySchema,
+  erasureParamsSchema,
+  erasureRequestSchema,
+} from './data-rights.js';
+import {
+  recycleBinEntrySchema,
+  recycleBinListQuerySchema,
+  recycleBinParamsSchema,
+  recycleBinRestoreSchema,
+  recycleBinRestoredSchema,
+} from './recycle-bin.js';
 
 /**
  * The route registry: one entry per endpoint the API actually serves.
@@ -1451,6 +1468,217 @@ const notificationRoutes: RouteDefinition[] = [
 ];
 
 /**
+ * Audit viewer, Recycle Bin and data rights (MVP_SPEC M4, M11).
+ *
+ * Each of the three capabilities these routes need is an object type in the
+ * permission registry — `audit_log`, `tenant_data`, `data_subject` — so a role
+ * reaches them by holding a row, and everybody else is denied by the absence of
+ * one. There is no "is this person an admin" branch anywhere behind them
+ * (CLAUDE.md §5.3).
+ */
+const auditRoutes: RouteDefinition[] = [
+  {
+    method: 'GET',
+    path: '/audit-logs',
+    operationId: 'listAuditLogs',
+    tag: 'Audit',
+    summary: 'Read the audit log',
+    description:
+      'Filter by user, object, action, record and date. Needs `read` on `audit_log` at ' +
+      '`all` scope, which the Owner and Admin roles are seeded with. `from` and `to` ' +
+      'bound the partition key and default to the last 30 days, because an unbounded ' +
+      "query reads the tenant's entire history. Each row's diff is filtered through the " +
+      'same field permissions as every other read path, so a field hidden from the ' +
+      'reader does not appear in history either (MVP_SPEC M3); `withheldFields` says how ' +
+      'many entries that removed.',
+    auth: 'session',
+    query: auditListQuerySchema,
+    response: {
+      kind: 'list',
+      status: 200,
+      name: 'AuditLogListResponse',
+      description: 'A page of audit entries, most recent first.',
+      data: auditEntrySchema,
+    },
+    errors: [],
+  },
+];
+
+const recycleBinRoutes: RouteDefinition[] = [
+  {
+    method: 'GET',
+    path: '/recycle-bin',
+    operationId: 'listRecycleBin',
+    tag: 'Recycle Bin',
+    summary: 'Records deleted in the last 30 days',
+    description:
+      'One object type at a time, most recently deleted first. Needs `read` on that ' +
+      "object type, and lists only records inside the caller's record scope — a rep with " +
+      '`own` scope does not see what a colleague deleted. Each entry carries the date it ' +
+      'will be purged.',
+    auth: 'session',
+    query: recycleBinListQuerySchema,
+    response: {
+      kind: 'list',
+      status: 200,
+      name: 'RecycleBinListResponse',
+      description: 'A page of deleted records.',
+      data: recycleBinEntrySchema,
+    },
+    errors: [],
+  },
+  {
+    method: 'POST',
+    path: '/recycle-bin/{objectType}/{id}/restore',
+    operationId: 'restoreRecord',
+    tag: 'Recycle Bin',
+    summary: 'Restore a deleted record',
+    description:
+      'Permission is judged **now**, not inherited from whoever deleted it: the caller ' +
+      'needs `delete` on the object type and the record must be inside their scope. ' +
+      'Carries `version` like every other write, so restoring a record that has moved ' +
+      'since the Bin was listed is a 409. Writes an audit entry and a domain event, ' +
+      'which is what puts the record back into search and the timeline.',
+    auth: 'session',
+    params: recycleBinParamsSchema,
+    body: { name: 'RecycleBinRestore', schema: recycleBinRestoreSchema },
+    response: {
+      kind: 'object',
+      status: 200,
+      name: 'RecycleBinRestoreResponse',
+      description: 'The restored record.',
+      data: recycleBinRestoredSchema,
+    },
+    errors: VERSIONED,
+  },
+];
+
+const dataRightsRoutes: RouteDefinition[] = [
+  {
+    method: 'POST',
+    path: '/data-exports',
+    operationId: 'createDataExport',
+    tag: 'Data Rights',
+    summary: 'Queue an audit-log, whole-tenant or one-person archive',
+    description:
+      'Three kinds, three capabilities: `audit_log` needs `export` on `audit_log`, ' +
+      '`tenant` needs `export` on `tenant_data` (the Owner alone), `data_subject` needs ' +
+      '`export` on `data_subject`. Produced in the background and fetched later through ' +
+      'a short-lived presigned URL; the worker re-checks the capability when it runs. ' +
+      'Audited when asked for and again when it completes. Accepts an `Idempotency-Key` ' +
+      'header.',
+    auth: 'session',
+    body: { name: 'DataExportCreate', schema: dataExportCreateSchema },
+    response: {
+      kind: 'object',
+      status: 202,
+      name: 'DataExportAcceptedResponse',
+      description: 'The queued archive.',
+      data: dataExportJobSchema,
+    },
+    errors: [ErrorCode.NOT_FOUND],
+  },
+  {
+    method: 'GET',
+    path: '/data-exports/{id}',
+    operationId: 'getDataExport',
+    tag: 'Data Rights',
+    summary: 'Archive progress',
+    auth: 'session',
+    params: dataExportParamsSchema,
+    response: {
+      kind: 'object',
+      status: 200,
+      name: 'DataExportResponse',
+      description: 'The job.',
+      data: dataExportJobSchema,
+    },
+    errors: RECORD,
+  },
+  {
+    method: 'POST',
+    path: '/data-exports/{id}/download',
+    operationId: 'dataExportDownloadLink',
+    tag: 'Data Rights',
+    summary: 'A short-lived download link',
+    description:
+      'A presigned URL that expires in minutes; the file is never streamed through this ' +
+      'API. A POST because handing out the link is the moment the data leaves, and that ' +
+      'is audited. The capability is re-checked here too.',
+    auth: 'session',
+    params: dataExportParamsSchema,
+    response: {
+      kind: 'object',
+      status: 200,
+      name: 'DataExportDownloadResponse',
+      description: 'A presigned download URL.',
+      data: downloadLinkSchema,
+    },
+    errors: [...RECORD, ErrorCode.CONFLICT],
+  },
+  {
+    method: 'POST',
+    path: '/erasure-requests',
+    operationId: 'createErasureRequest',
+    tag: 'Data Rights',
+    summary: 'Erase a person',
+    description:
+      'DPDP §12 / GDPR Art. 17. Personal fields on the record are deleted or ' +
+      'pseudonymised and its **audit diffs are redacted** — the audit row is kept, with ' +
+      'personal values replaced by `[erased]`. Needs `delete` on `data_subject`, which ' +
+      'only the Owner role is seeded with. Irreversible. One in-flight request per ' +
+      'subject; a second is a 409. Read ADR-0032 before changing how this is carried ' +
+      'out: the redaction uses a separate database role that can write nothing but the ' +
+      "audit log's `changes` column, and only while this request is in flight.",
+    auth: 'session',
+    body: { name: 'ErasureCreate', schema: erasureCreateSchema },
+    response: {
+      kind: 'object',
+      status: 202,
+      name: 'ErasureAcceptedResponse',
+      description: 'The recorded request.',
+      data: erasureRequestSchema,
+    },
+    errors: [ErrorCode.NOT_FOUND, ErrorCode.CONFLICT],
+  },
+  {
+    method: 'GET',
+    path: '/erasure-requests',
+    operationId: 'listErasureRequests',
+    tag: 'Data Rights',
+    summary: 'Erasures asked for in this workspace',
+    description: 'The compliance record: who was erased, when, by whom, and what it reached.',
+    auth: 'session',
+    query: erasureListQuerySchema,
+    response: {
+      kind: 'list',
+      status: 200,
+      name: 'ErasureRequestListResponse',
+      description: 'A page of erasure requests, most recent first.',
+      data: erasureRequestSchema,
+    },
+    errors: [],
+  },
+  {
+    method: 'GET',
+    path: '/erasure-requests/{id}',
+    operationId: 'getErasureRequest',
+    tag: 'Data Rights',
+    summary: 'One erasure request',
+    auth: 'session',
+    params: erasureParamsSchema,
+    response: {
+      kind: 'object',
+      status: 200,
+      name: 'ErasureRequestResponse',
+      description: 'The request.',
+      data: erasureRequestSchema,
+    },
+    errors: RECORD,
+  },
+];
+
+/**
  * Every route the API serves, in no particular order.
  *
  * The generator sorts; the drift test compares sets. Order here is for
@@ -1973,6 +2201,9 @@ export const API_ROUTES: readonly RouteDefinition[] = [
   ...importRoutes,
   ...exportRoutes,
   ...accessRoutes,
+  ...auditRoutes,
+  ...recycleBinRoutes,
+  ...dataRightsRoutes,
 ];
 
 /** `GET /contacts/{id}` — how the drift test and the generator name a route. */

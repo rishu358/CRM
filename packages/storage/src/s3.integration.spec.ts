@@ -59,6 +59,25 @@ async function put(
   return fetch(url.url, { method: 'PUT', headers: headers ?? url.headers, body });
 }
 
+/**
+ * Wait until a link signed with a one-second lifetime is certainly expired.
+ *
+ * The link is signed here, with this process's clock, but MinIO judges expiry
+ * with the clock of the Docker VM it runs in — and that clock is not close to
+ * this one. Sampled against the host over a few seconds it ran ahead by up to
+ * ~0.8 s and then stepped back by ~2.5 s, to about 1.8 s *behind*. A link whose
+ * server clock is 1.8 s behind stays valid for 1 + 1.8 s of our time, so the
+ * original 2.5 s wait sometimes ended while MinIO still considered the link live
+ * and the upload was accepted: this test failed once in a while, for no reason
+ * that had anything to do with expiry.
+ *
+ * Six seconds clears the largest offset seen with room to spare. It does not
+ * weaken the test: a provider that never expires its links still fails it.
+ */
+const EXPIRY_WAIT_MS = 6_000;
+const pastExpiry = (): Promise<void> =>
+  new Promise((resolve) => setTimeout(resolve, EXPIRY_WAIT_MS));
+
 describe('presigned upload', () => {
   it('accepts exactly the body that was signed for', async () => {
     const body = Buffer.from('last_name,email\nAda,ada@x.io\n');
@@ -127,7 +146,7 @@ describe('presigned upload', () => {
       sizeBytes: 3,
       expiresInSeconds: 1,
     });
-    await new Promise((resolve) => setTimeout(resolve, 2_500));
+    await pastExpiry();
     const response = await put(url, Buffer.from('abc'));
     expect(response.status).toBeGreaterThanOrEqual(400);
     expect(await provider.head('tenants/t/imports/expiring')).toBeNull();
@@ -165,7 +184,7 @@ describe('presigned download', () => {
       fileName: 'x.csv',
       contentType: 'text/csv',
     });
-    await new Promise((resolve) => setTimeout(resolve, 2_500));
+    await pastExpiry();
     expect((await fetch(link.url)).status).toBeGreaterThanOrEqual(400);
   });
 

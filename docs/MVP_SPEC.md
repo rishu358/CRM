@@ -165,7 +165,7 @@ P1: `record_lookup, formula, rollup, file`. Values are validated in `packages/co
 
 ### M3. Users, Roles & Permissions (P0)
 
-- Admin UI: users, teams, roles; per-object CRUD + export/import permissions with `own/team/all` scope; field-level hidden/read/write.
+- Admin UI: users, teams, roles; per-object CRUD + export/import permissions with `own/team/all` scope; field-level hidden/read/write. The permission matrix also covers the M11 capabilities — `audit_log`, `tenant_data` and `data_subject` are object types like any other, so reading history, exporting the workspace and erasing a person are granted as rows rather than inferred from a role name.
 - Record ownership + reassignment (single and bulk).
 - Support impersonation (P1): only with tenant Owner consent, time-limited, banner shown, fully audited.
 
@@ -180,7 +180,7 @@ P1: `record_lookup, formula, rollup, file`. Values are validated in `packages/co
 - Record page: header with key fields, inline editing, related lists (contacts, deals, activities), timeline, notes, attachments, tags.
 - Duplicate detection on create/import: email, phone, account domain/name (fuzzy via pg_trgm). Merge duplicates (P1).
 - **Lead conversion:** creates/links Contact + Account (+ optional Deal), copies mapped fields, keeps history, marks lead converted.
-- Soft delete → Recycle Bin (restore within 30 days, then hard delete by job).
+- Soft delete → Recycle Bin (restore within 30 days, then hard delete by job). **Built:** one object type at a time, scoped to what the actor may read; restore re-checks permission at restore time and carries a `version`; the purge job is an outbox row per tenant that re-arms itself and cleans up links, tags, timeline and index rows in the same transaction (ADR-0034).
 
 **Acceptance**
 
@@ -237,6 +237,21 @@ P1: `record_lookup, formula, rollup, file`. Values are validated in `packages/co
 - Tenant data export (full JSON/CSV archive) for the Owner.
 - **DPDP/GDPR:** export a person's data; erase a person → PII fields deleted/pseudonymized and audit diffs redacted (audit row kept, personal values replaced with `[erased]`).
 - Contact consent tracking (channel, status, source, timestamp).
+
+**Acceptance**
+
+- [x] A field hidden from a role does not appear in the audit diffs shown to that role, on screen **or** in the exported log (`visibleAuditChanges` in `@crm/core`; `visibility.spec.ts`, `audit-log.security.spec.ts`, `archive.security.spec.ts`).
+- [x] An administrator of one tenant sees none of another tenant's audit rows, and a non-administrator cannot reach the viewer at all (`audit-log.security.spec.ts`).
+- [x] Erasing a person deletes or pseudonymises their personal fields and replaces the personal values in their audit diffs with `[erased]`, keeping the rows and their actor, action and timestamp (`erasure.security.spec.ts` in both `@crm/db` and the worker; ADR-0032).
+- [x] A whole-tenant archive contains only that tenant's data (`archive.security.spec.ts`).
+
+**Scope notes.** The whole-tenant and one-person archives are **JSON only**: both
+are a graph, and flattening one into a single CSV loses the links that make it
+answerable. A zip of one file per table is the right CSV shape and is
+deliberately not built; the API refuses `format: csv` for those kinds rather
+than producing a lossy file. The audit-log archive is available as CSV or JSON.
+Redaction reaches the subject's **own** audit rows; rows about related records
+are out of scope (ADR-0032).
 
 ---
 

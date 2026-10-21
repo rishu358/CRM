@@ -1,10 +1,18 @@
-import { createDbClient, PostgresSearchProvider } from '@crm/db';
+import { createDbClient, PostgresSearchProvider, withTenant } from '@crm/db';
 import { createStorageProvider } from '@crm/storage';
 import { pino } from 'pino';
 import { loadWorkerEnv } from './env.js';
 import { createEmailProvider } from './email/provider.js';
 import { pruneActivityLinks } from './handlers/activities.js';
 import { pruneAttachments, purgeAttachment, verifyAttachment } from './handlers/attachments.js';
+
+import { rearmSweepOnExhaustion, runPurgeSweep } from './handlers/recycle-bin.js';
+import { failDataExportOnExhaustion, runDataExport } from './data-rights/archive-handler.js';
+import {
+  failErasureOnExhaustion,
+  runErasure,
+  runErasureRedaction,
+} from './data-rights/erasure-handler.js';
 import { notifyAssignment, notifyReminder, sendDigest } from './handlers/notifications.js';
 import { indexSearchDocument, removeSearchDocument } from './handlers/search.js';
 import { projectTimeline } from './handlers/timeline.js';
@@ -54,6 +62,9 @@ relay.on('contact.linked_from_lead.v1', projectTimeline);
 relay.on('account.linked_from_lead.v1', projectTimeline);
 relay.on('activity.linked.v1', projectTimeline);
 relay.on('activity.completed.v1', projectTimeline);
+for (const objectType of ['account', 'contact', 'lead', 'deal', 'activity'] as const) {
+  relay.on(`${objectType}.restored.v1`, projectTimeline);
+}
 
 /**
  * Notifications and the digest (MVP_SPEC M6, ADR-0025).
@@ -89,7 +100,14 @@ const search = new PostgresSearchProvider();
 for (const objectType of ['account', 'contact', 'lead', 'deal', 'activity'] as const) {
   relay.on(`${objectType}.created.v1`, indexSearchDocument(search));
   relay.on(`${objectType}.updated.v1`, indexSearchDocument(search));
+  // A restore is an un-delete, so it re-projects exactly as an update does
+  // (MVP_SPEC M4). The index handler reads the record, so a record restored and
+  // re-deleted before the relay caught up still ends in the right state.
+  relay.on(`${objectType}.restored.v1`, indexSearchDocument(search));
   relay.on(`${objectType}.deleted.v1`, removeSearchDocument(search));
+  // A purge removes the row itself. The index row is already gone from the soft
+  // delete; this is the belt to that braces.
+  relay.on(`${objectType}.purged.v1`, removeSearchDocument(search));
 }
 
 /**
@@ -149,7 +167,50 @@ relay.on('deal.deleted.v1', pruneActivityLinks);
 
 for (const objectType of ['account', 'contact', 'lead', 'deal', 'activity'] as const) {
   relay.on(`${objectType}.deleted.v1`, pruneAttachments(attachmentDeps));
+  // The Recycle Bin's retention sweep hard-deletes a record and publishes
+  // `<object>.purged.v1` (ADR-0034). A soft delete keeps a record's files so
+  // restoring it brings them back, which is why files are only removed here,
+  // once the row is really gone — ADR-0035 and ADR-0034 §7 each said this
+  // subscriber would be needed once both features existed. `pruneAttachments`
+  // already checks that the row has gone, so it is idempotent under redelivery.
+  relay.on(`${objectType}.purged.v1`, pruneAttachments(attachmentDeps));
 }
+
+/**
+ * The Recycle Bin and data rights (MVP_SPEC M4, M11).
+ *
+ * The purge sweep is scheduled by the outbox and re-arms itself, so these three
+ * lines are the entire schedule: no cron, no cross-tenant scan (ADR-0025,
+ * ADR-0034). An erasure is two events on purpose — see `erasure-handler.ts` for
+ * why the redaction window has to be committed before it can be used
+ * (ADR-0032).
+ */
+relay.on('recycle_bin.sweep_due.v1', runPurgeSweep());
+relay.onExhausted(
+  'recycle_bin.sweep_due.v1',
+  rearmSweepOnExhaustion({
+    withTenant: (tenantId, work) => withTenant(client.db, { tenantId, userId: null }, work),
+  }),
+);
+
+const archiveDeps = {
+  db: client.db,
+  storage: importExportDeps.storage,
+  logger,
+};
+relay.on('data_export.requested.v1', runDataExport(archiveDeps));
+relay.onExhausted('data_export.requested.v1', failDataExportOnExhaustion(archiveDeps));
+
+const erasureClient =
+  env.DATABASE_ERASURE_URL === undefined
+    ? null
+    : createDbClient({ connectionString: env.DATABASE_ERASURE_URL, maxConnections: 2 });
+
+const erasureDeps = { db: client.db, erasureDb: erasureClient?.db ?? null, logger };
+relay.on('erasure.requested.v1', runErasure(erasureDeps));
+relay.on('erasure.claimed.v1', runErasureRedaction(erasureDeps));
+relay.onExhausted('erasure.requested.v1', failErasureOnExhaustion(erasureDeps));
+relay.onExhausted('erasure.claimed.v1', failErasureOnExhaustion(erasureDeps));
 
 let running = true;
 
@@ -157,6 +218,7 @@ async function shutdown(signal: string): Promise<void> {
   logger.info({ signal }, 'Worker shutting down');
   running = false;
   await client.close();
+  await erasureClient?.close();
   process.exit(0);
 }
 

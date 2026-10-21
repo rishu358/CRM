@@ -18,7 +18,13 @@ export * from './download-name.js';
  */
 export function newStorageKey(
   tenantId: string,
-  area: 'imports' | 'exports' | 'attachments',
+  /**
+   * `data-exports` holds the audit-log, whole-tenant and one-person archives
+   * (MVP_SPEC M11). Separate from `exports` so an operator can give the
+   * data-rights files their own lifecycle rule: a whole-workspace archive is a
+   * different thing to leave lying in a bucket than a list export.
+   */
+  area: 'imports' | 'exports' | 'attachments' | 'data-exports',
   suffix = '',
 ): string {
   return `tenants/${tenantId}/${area}/${randomBytes(32).toString('base64url')}${suffix}`;

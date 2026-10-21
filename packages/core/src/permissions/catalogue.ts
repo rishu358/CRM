@@ -90,6 +90,31 @@ export const GRANT_CATALOGUE: readonly GrantCatalogueEntry[] = [
     actions: ['read', 'update'],
     scopes: ADMIN_SCOPES,
   },
+  // The M11 capabilities. ADR-0034 is explicit that these are granted as rows
+  // like everything else, "visible in the permission matrix, editable without a
+  // deploy" — which is true only if they are listed here, because the role
+  // editor renders this catalogue and nothing else. The actions match the
+  // system-role grants in `@crm/db`'s seed exactly: reading history and taking
+  // a copy of it; exporting the whole workspace; and, for one person's data, the
+  // three escalating steps of seeing it, taking it out, and erasing it.
+  {
+    objectType: 'audit_log',
+    kind: 'administrative',
+    actions: ['read', 'export'],
+    scopes: ADMIN_SCOPES,
+  },
+  {
+    objectType: 'tenant_data',
+    kind: 'administrative',
+    actions: ['export'],
+    scopes: ADMIN_SCOPES,
+  },
+  {
+    objectType: 'data_subject',
+    kind: 'administrative',
+    actions: ['read', 'export', 'delete'],
+    scopes: ADMIN_SCOPES,
+  },
 ];
 
 export function catalogueEntry(objectType: ObjectType): GrantCatalogueEntry | undefined {

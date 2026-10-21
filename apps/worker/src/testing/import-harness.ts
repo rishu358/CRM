@@ -26,6 +26,7 @@ import {
   stageImport,
 } from '../import-export/import-handlers.js';
 import { OutboxRelay } from '../relay.js';
+import { drainRelay } from './drain.js';
 
 /**
  * Drives the import and export pipeline through the real relay.
@@ -252,14 +253,8 @@ export async function startImportHarness(
       return harness.job(jobId);
     },
 
-    async drain(limit = 5000) {
-      let total = 0;
-      for (let i = 0; i < limit; i += 1) {
-        const processed = await relay.tick();
-        if (processed === 0) break;
-        total += processed;
-      }
-      return total;
+    drain(limit = 5000) {
+      return drainRelay(relay, rawPool, { limit });
     },
 
     async job(jobId) {

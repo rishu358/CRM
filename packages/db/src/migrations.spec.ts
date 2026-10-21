@@ -25,6 +25,21 @@ const MIGRATIONS_DIR = join(packageRootFrom(import.meta.url), 'migrations');
  */
 const KNOWN_COLLISIONS: ReadonlySet<string> = new Set(['0007']);
 
+/**
+ * Numbers handed to branches that have not merged yet.
+ *
+ * The numbers are assigned centrally for exactly the reason the collision above
+ * happened, which means a branch can legitimately hold 0016 while 0013 to 0015
+ * are still in flight elsewhere. The gap check below would otherwise fail every
+ * such branch, and the usual response to that — renumber — reintroduces the
+ * collision this file exists to prevent.
+ *
+ * It is self-cleaning: the test also asserts that each reserved number is still
+ * **absent**, so the day 0013 lands this list fails until its line is deleted.
+ * A reservation therefore cannot quietly become a permanent hole.
+ */
+const RESERVED_NUMBERS: ReadonlySet<number> = new Set([]);
+
 function migrationFiles(): string[] {
   return readdirSync(MIGRATIONS_DIR)
     .filter((name) => name.endsWith('.sql'))
@@ -60,16 +75,31 @@ describe('migration filenames', () => {
 
   it('leaves no gap in the sequence', () => {
     // A gap usually means a migration was deleted rather than superseded, which
-    // leaves environments that already applied it permanently out of step.
+    // leaves environments that already applied it permanently out of step. A
+    // number reserved by a branch still in flight is the one benign exception.
     const numbers = [...new Set(migrationFiles().map((name) => Number(name.slice(0, 4))))].sort(
       (a, b) => a - b,
     );
 
     expect(numbers[0]).toBe(1);
-    for (let index = 1; index < numbers.length; index += 1) {
-      expect(numbers[index], `gap before migration ${numbers[index]}`).toBe(
-        (numbers[index - 1] ?? 0) + 1,
-      );
+
+    const last = numbers[numbers.length - 1] ?? 0;
+    const missing: number[] = [];
+    for (let n = 1; n <= last; n += 1) {
+      if (!numbers.includes(n) && !RESERVED_NUMBERS.has(n)) missing.push(n);
     }
+
+    expect(missing, `gap before migration ${missing[0] ?? ''}`).toEqual([]);
+  });
+
+  it('has no reservation for a number that has since landed', () => {
+    const present = new Set(migrationFiles().map((name) => Number(name.slice(0, 4))));
+    const landed = [...RESERVED_NUMBERS].filter((number) => present.has(number));
+
+    expect(
+      landed,
+      'A reserved migration number now exists. Remove it from RESERVED_NUMBERS so ' +
+        'the gap check covers it again.',
+    ).toEqual([]);
   });
 });

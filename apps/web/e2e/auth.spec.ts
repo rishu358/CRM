@@ -85,11 +85,19 @@ test.describe('password reset', () => {
     await page.goto('/forgot-password');
     await page.getByLabel('Email address').fill(credentials.owner);
     await page.getByRole('button', { name: 'Send reset link' }).click();
+    // Wait for the confirmation before reading anything. Reading the heading
+    // straight after the click raced the request: whichever submission had not
+    // come back yet showed the form's own heading, and the test reported "the two
+    // answers differ" when it had only looked too early.
+    await expect(page.getByRole('heading', { name: 'Check your email' })).toBeVisible();
     const known = await page.getByRole('heading').last().textContent();
 
     await page.goto('/forgot-password');
     await page.getByLabel('Email address').fill('nobody-here@example.com');
     await page.getByRole('button', { name: 'Send reset link' }).click();
+    // The same page for an address that does not exist. If it were not, this wait
+    // is what would fail — which is the enumeration leak the test is here to catch.
+    await expect(page.getByRole('heading', { name: 'Check your email' })).toBeVisible();
     const unknown = await page.getByRole('heading').last().textContent();
 
     expect(known).toBe(unknown);
