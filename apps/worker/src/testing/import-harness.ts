@@ -13,7 +13,7 @@ import {
   type ImportJob,
   type ImportMappingEntry,
 } from '@crm/db';
-import { provisionTenantDefaults } from '@crm/db/seed';
+import { provisionAsApp } from './provision.js';
 import { Fixtures, typedPool, type TestDbUrls, type TypedPool } from '@crm/db/testing';
 import { MemoryStorageProvider } from '@crm/storage';
 import pg from 'pg';
@@ -124,9 +124,7 @@ export async function startImportHarness(
 
   const tenantId = (await fixtures.createTenant({ name: options.name ?? 'Import Harness' }))
     .tenantId;
-  const provisioned = await withTenant(db.db, { tenantId, userId: null }, (tx) =>
-    provisionTenantDefaults(tx, tenantId, null),
-  );
+  const provisioned = await provisionAsApp(urls.app, tenantId);
   const roleIds = provisioned.roleIdsByName;
 
   const deps = { db: db.db, storage, logger };

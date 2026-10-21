@@ -1,10 +1,5 @@
 import { toCurrency } from '../money/index.js';
-import {
-  isFieldType,
-  type FieldType,
-  type FieldValidation,
-  type PicklistOption,
-} from './types.js';
+import { isFieldType, type FieldType, type FieldValidation, type PicklistOption } from './types.js';
 
 /**
  * The rules for *defining* a custom field (MVP_SPEC M9, ADR-0039).
@@ -261,7 +256,10 @@ export function validateFieldValidation(
       ['maxLength', maxLength],
     ] as const) {
       if (value !== undefined && (!Number.isInteger(value) || value < 0 || value > limit)) {
-        issues.push({ path: `validation.${key}`, message: `Use a whole number from 0 to ${limit}` });
+        issues.push({
+          path: `validation.${key}`,
+          message: `Use a whole number from 0 to ${limit}`,
+        });
       }
     }
     if (minLength !== undefined && maxLength !== undefined && minLength > maxLength) {
@@ -290,7 +288,10 @@ export function validateFieldValidation(
   if (validation.allowedCurrencies !== undefined) {
     const codes = validation.allowedCurrencies;
     if (codes.length > 20) {
-      issues.push({ path: 'validation.allowedCurrencies', message: 'Choose at most 20 currencies' });
+      issues.push({
+        path: 'validation.allowedCurrencies',
+        message: 'Choose at most 20 currencies',
+      });
     }
     for (const code of codes) {
       try {
@@ -312,5 +313,11 @@ export function validateFieldValidation(
 
 /** The text-like types, for callers that need to know whether a field holds a string. */
 export function isTextLike(type: FieldType): boolean {
-  return type === 'text' || type === 'long_text' || type === 'email' || type === 'phone' || type === 'url';
+  return (
+    type === 'text' ||
+    type === 'long_text' ||
+    type === 'email' ||
+    type === 'phone' ||
+    type === 'url'
+  );
 }

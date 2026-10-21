@@ -47,7 +47,16 @@ describe('slugify', () => {
   });
 
   it('always produces a valid field key, whatever it is given', () => {
-    for (const label of ['x', '9', '_', 'a'.repeat(500), '🚀🚀', "Robert'); DROP TABLE", '__proto__', 'constructor']) {
+    for (const label of [
+      'x',
+      '9',
+      '_',
+      'a'.repeat(500),
+      '🚀🚀',
+      "Robert'); DROP TABLE",
+      '__proto__',
+      'constructor',
+    ]) {
       const key = slugify(label);
       expect(FIELD_KEY_PATTERN.test(key), label).toBe(true);
       expect(key.length).toBeLessThanOrEqual(40);
@@ -139,7 +148,9 @@ describe('resolveOptions', () => {
   it('needs at least one option, at least one of them active, and no more than the maximum', () => {
     expect(resolveOptions(undefined, []).ok).toBe(false);
     expect(resolveOptions(undefined, [{ label: 'Only', isActive: false }]).ok).toBe(false);
-    const many = Array.from({ length: MAX_PICKLIST_OPTIONS + 1 }, (_, n) => ({ label: `Option ${n}` }));
+    const many = Array.from({ length: MAX_PICKLIST_OPTIONS + 1 }, (_, n) => ({
+      label: `Option ${n}`,
+    }));
     expect(resolveOptions(undefined, many).ok).toBe(false);
     const fits = Array.from({ length: MAX_PICKLIST_OPTIONS }, (_, n) => ({ label: `Option ${n}` }));
     expect(resolveOptions(undefined, fits).ok).toBe(true);
@@ -203,7 +214,9 @@ describe('validateFieldValidation', () => {
 
   it('takes a short list of distinct currency codes for a currency field', () => {
     expect(validateFieldValidation('currency', { allowedCurrencies: ['INR', 'USD'] })).toEqual([]);
-    expect(validateFieldValidation('currency', { allowedCurrencies: ['INR', 'inr'] })).not.toEqual([]);
+    expect(validateFieldValidation('currency', { allowedCurrencies: ['INR', 'inr'] })).not.toEqual(
+      [],
+    );
     expect(validateFieldValidation('currency', { allowedCurrencies: ['RUPEE'] })).not.toEqual([]);
     expect(validateFieldValidation('currency', { min: '1' })).not.toEqual([]);
   });

@@ -133,12 +133,11 @@ describe('(a) tenant isolation', () => {
     );
     expect(foreign.status).toBe(404);
     expect(missing.status).toBe(404);
-    expect(foreign.body).toEqual({
-      error: expect.objectContaining({
-        code: 'NOT_FOUND',
-        message: (missing.body['error'] as Record<string, unknown>)['message'],
-      }),
-    });
+    const reason = (response: { body: Record<string, unknown> }) => {
+      const { code, message } = response.body['error'] as Record<string, unknown>;
+      return { code, message };
+    };
+    expect(reason(foreign)).toEqual(reason(missing));
 
     const theirs = dataOf<Definition[]>(
       await asUser(adminB, 'GET', '/api/v1/fields?objectType=contact&includeInactive=true'),

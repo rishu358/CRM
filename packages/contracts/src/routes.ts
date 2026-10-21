@@ -2449,7 +2449,6 @@ const customizationRoutes: RouteDefinition[] = [
   },
 ];
 
-
 export const API_ROUTES: readonly RouteDefinition[] = [
   ...healthRoutes,
   ...metaRoutes,
