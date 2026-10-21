@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
 import { hashOneTimeToken } from '@crm/core';
 import {
+  dataOf,
   request,
   startApiHarness,
   tokenFromEmail,
@@ -92,7 +93,7 @@ async function existingAccount(prefix: string): Promise<{ email: string; token: 
     url: '/api/v1/auth/sign-in',
     body: { email, password: PASSWORD },
   });
-  return { email, token: (signedIn.body['data'] as { token: string }).token };
+  return { email, token: dataOf<{ token: string }>(signedIn).token };
 }
 
 beforeAll(async () => {
@@ -120,7 +121,7 @@ beforeAll(async () => {
 
   const created = await invite(ownerA.token, repRoleA, uniqueEmail('pending-a'));
   invitationA = {
-    id: (created.body['data'] as { id: string }).id,
+    id: dataOf<{ id: string }>(created).id,
     email: created.email,
     token: tokenFor(created.email),
   };
@@ -186,14 +187,14 @@ describe('(a) tenant A cannot reach tenant B invitations', () => {
       url: '/api/v1/invitations?limit=100',
       token: ownerA.token,
     });
-    const emails = (list.body['data'] as { email: string }[]).map((row) => row.email);
+    const emails = dataOf<{ email: string }[]>(list).map((row) => row.email);
     expect(emails).toContain(invitationA.email);
     expect(emails).not.toContain(created.email);
   });
 
   it('cannot revoke one, and the 404 is identical to one for an id that never existed', async () => {
     const created = await invite(ownerB.token, repRoleB, uniqueEmail('revoke-b'));
-    const foreignId = (created.body['data'] as { id: string }).id;
+    const foreignId = dataOf<{ id: string }>(created).id;
 
     const foreign = await request(harness, {
       method: 'DELETE',
@@ -227,7 +228,7 @@ describe('(a) tenant A cannot reach tenant B invitations', () => {
     expect(response.status).toBe(403);
     expect((response.body['error'] as { code: string }).code).toBe('INVITATION_RECIPIENT_MISMATCH');
 
-    const row = await harness.fixtures.invitationRow((created.body['data'] as { id: string }).id);
+    const row = await harness.fixtures.invitationRow(dataOf<{ id: string }>(created).id);
     expect(row?.accepted_at).toBeNull();
   });
 
@@ -385,8 +386,7 @@ describe('acceptance identity (ADR-0019)', () => {
       url: '/api/v1/auth/me',
       token: bystander.token,
     });
-    const memberships = (bystanderMe.body['data'] as { memberships: { tenantId: string }[] })
-      .memberships;
+    const memberships = dataOf<{ memberships: { tenantId: string }[] }>(bystanderMe).memberships;
     expect(memberships.map((row) => row.tenantId)).not.toContain(tenantA);
 
     // The real recipient can still use it.
@@ -427,7 +427,7 @@ describe('acceptance identity (ADR-0019)', () => {
       body: { token: tokenFor(email), name: 'Bound Rep', password: PASSWORD },
     });
     expect(accepted.status).toBe(200);
-    const session = (accepted.body['data'] as { token: string }).token;
+    const session = dataOf<{ token: string }>(accepted).token;
 
     // Sales Rep: may create a contact, may not invite anybody.
     expect(
@@ -447,7 +447,7 @@ describe('acceptance identity (ADR-0019)', () => {
   it('refuses an expired link', async () => {
     const email = uniqueEmail('expired');
     const created = await invite(ownerA.token, repRoleA, email);
-    await harness.fixtures.expireInvitation((created.body['data'] as { id: string }).id);
+    await harness.fixtures.expireInvitation(dataOf<{ id: string }>(created).id);
 
     const response = await request(harness, {
       method: 'POST',
@@ -466,7 +466,7 @@ describe('acceptance identity (ADR-0019)', () => {
       url: '/api/v1/invitations/accept',
       body: { token: tokenFor(email), name: 'Already In', password: PASSWORD },
     });
-    const session = (first.body['data'] as { token: string }).token;
+    const session = dataOf<{ token: string }>(first).token;
 
     // Invited again, this time as Owner. Accepting must not promote them.
     await invite(ownerA.token, ownerRoleA, email);
@@ -489,10 +489,10 @@ describe('acceptance identity (ADR-0019)', () => {
       url: '/api/v1/invitations/accept',
       body: { token: tokenFor(email), name: 'Suspended Soon', password: PASSWORD },
     });
-    const session = (joined.body['data'] as { token: string }).token;
+    const session = dataOf<{ token: string }>(joined).token;
 
     const me = await request(harness, { method: 'GET', url: '/api/v1/auth/me', token: session });
-    const userId = (me.body['data'] as { id: string }).id;
+    const userId = dataOf<{ id: string }>(me).id;
     await harness.fixtures.setMembershipStatus(tenantA, userId, 'suspended');
 
     await invite(ownerA.token, ownerRoleA, email);

@@ -194,3 +194,35 @@ export async function request(
   }
   return { status: response.statusCode, body };
 }
+
+/**
+ * Assert a response succeeded, then return its `data` envelope.
+ *
+ * Specs used to index straight into `body['data']`, so an endpoint that
+ * errored surfaced as "Cannot read properties of undefined" and the real
+ * status and error code were lost. Asserting first makes a failure name
+ * itself: the message carries the status and the whole body.
+ *
+ * With no `expectedStatus` any 2xx passes, so a POST that answers 201 needs no
+ * special casing; pass one when the exact status is the thing being tested.
+ */
+export function dataOf<T = unknown>(
+  response: { status: number; body: Record<string, unknown> },
+  expectedStatus?: number,
+): T {
+  const ok =
+    expectedStatus === undefined
+      ? response.status >= 200 && response.status < 300
+      : response.status === expectedStatus;
+  if (!ok) {
+    throw new Error(
+      `Expected HTTP ${expectedStatus ?? '2xx'} but got ${response.status}: ${JSON.stringify(response.body)}`,
+    );
+  }
+  if (!('data' in response.body)) {
+    throw new Error(
+      `HTTP ${response.status} carried no data envelope: ${JSON.stringify(response.body)}`,
+    );
+  }
+  return response.body['data'] as T;
+}

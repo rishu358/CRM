@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
-import { startApiHarness, request, type ApiHarness } from '../../testing/harness.js';
+import { dataOf, startApiHarness, request, type ApiHarness } from '../../testing/harness.js';
 
 /**
  * The four mandatory per-module security suites (CLAUDE.md §10):
@@ -129,7 +129,7 @@ describe('(a) tenant A cannot reach tenant B records', () => {
     });
     expect(response.status).toBe(200);
 
-    const rows = response.body['data'] as { id: string }[];
+    const rows = dataOf<{ id: string }[]>(response);
     const ids = rows.map((row) => row.id);
     expect(ids).toContain(adminContactA);
     expect(ids).toContain(repContactA);
@@ -180,7 +180,7 @@ describe('(a) tenant A cannot reach tenant B records', () => {
       url: `/api/v1/contacts/${contactB}`,
       token: adminB.token,
     });
-    expect((check.body['data'] as Record<string, unknown>)['lastName']).toBe('Rival');
+    expect(dataOf<Record<string, unknown>>(check)['lastName']).toBe('Rival');
   });
 
   it('cannot delete another tenant record', async () => {
@@ -224,7 +224,7 @@ describe('(b) a user with own scope cannot see other people records', () => {
     });
     expect(response.status).toBe(200);
 
-    const ids = (response.body['data'] as { id: string }[]).map((row) => row.id);
+    const ids = dataOf<{ id: string }[]>(response).map((row) => row.id);
     expect(ids).toContain(repContactA);
     expect(ids).not.toContain(adminContactA);
   });
@@ -270,7 +270,7 @@ describe('(b) a user with own scope cannot see other people records', () => {
         });
         expect(response.status, sort).toBe(200);
 
-        for (const row of response.body['data'] as { id: string; ownerId?: string }[]) {
+        for (const row of dataOf<{ id: string; ownerId?: string }[]>(response)) {
           seen.push(row.id);
           expect(row.ownerId, `${sort}: a record owned by someone else`).toBe(repA.userId);
         }
@@ -331,7 +331,7 @@ describe('(b) a user with own scope cannot see other people records', () => {
       body: { lastName: 'Patel' },
     });
     expect(response.status).toBe(201);
-    expect((response.body['data'] as Record<string, unknown>)['ownerId']).toBe(repA.userId);
+    expect(dataOf<Record<string, unknown>>(response)['ownerId']).toBe(repA.userId);
   });
 
   it('lets an admin with all scope see every record in the tenant', async () => {
@@ -340,7 +340,7 @@ describe('(b) a user with own scope cannot see other people records', () => {
       url: '/api/v1/contacts',
       token: adminA.token,
     });
-    const ids = (response.body['data'] as { id: string }[]).map((row) => row.id);
+    const ids = dataOf<{ id: string }[]>(response).map((row) => row.id);
     expect(ids).toContain(adminContactA);
     expect(ids).toContain(repContactA);
   });
@@ -398,7 +398,7 @@ describe('(c) hidden fields are absent from responses and rejected on write', ()
     });
     expect(response.status).toBe(200);
 
-    const contact = response.body['data'] as Record<string, unknown>;
+    const contact = dataOf<Record<string, unknown>>(response);
     // Absent, not null: a null would still confirm the field exists and is set.
     expect('phone' in contact).toBe(false);
     expect(contact['lastName']).toBe('Iyer');
@@ -410,7 +410,7 @@ describe('(c) hidden fields are absent from responses and rejected on write', ()
       url: '/api/v1/contacts',
       token: hiddenRepToken,
     });
-    const rows = response.body['data'] as Record<string, unknown>[];
+    const rows = dataOf<Record<string, unknown>[]>(response);
     expect(rows.length).toBeGreaterThan(0);
     for (const row of rows) {
       expect('phone' in row).toBe(false);
@@ -442,7 +442,7 @@ describe('(c) hidden fields are absent from responses and rejected on write', ()
       url: `/api/v1/contacts/${ownedContact}`,
       token: adminA.token,
     });
-    expect((check.body['data'] as Record<string, unknown>)['phone']).toBe('+919876500000');
+    expect(dataOf<Record<string, unknown>>(check)['phone']).toBe('+919876500000');
   });
 
   it('rejects a write to a read-only field', async () => {
@@ -461,7 +461,7 @@ describe('(c) hidden fields are absent from responses and rejected on write', ()
       url: `/api/v1/contacts/${ownedContact}`,
       token: readOnlyFieldRepToken,
     });
-    expect((response.body['data'] as Record<string, unknown>)['leadSource']).toBe('referral');
+    expect(dataOf<Record<string, unknown>>(response)['leadSource']).toBe('referral');
   });
 
   it('rejects a hidden field on create too, not only on update', async () => {

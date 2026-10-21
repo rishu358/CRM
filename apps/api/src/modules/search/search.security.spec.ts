@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
-import { startApiHarness, request, type ApiHarness } from '../../testing/harness.js';
+import { dataOf, startApiHarness, request, type ApiHarness } from '../../testing/harness.js';
 
 /**
  * The four mandatory per-module security suites (CLAUDE.md §10):
@@ -206,6 +206,7 @@ async function search(
   return {
     status: response.status,
     body: response.body,
+    // Tolerant on purpose: a refused search has no data envelope.
     results: (response.body['data'] as Result[] | undefined) ?? [],
   };
 }
@@ -243,7 +244,7 @@ describe('tenant isolation', () => {
     const next = await search(RIVAL_EMAIL, admin.token);
     const nowhere = await search('nobody.at.all@nowhere.example', admin.token);
     expect(next.status).toBe(nowhere.status);
-    expect(next.body['data']).toEqual(nowhere.body['data']);
+    expect(dataOf(next)).toEqual(dataOf(nowhere));
   });
 
   it('does not let a header name somebody else workspace', async () => {
@@ -334,7 +335,7 @@ describe('record scope', () => {
       url: `/api/v1/contacts/${moving}`,
       token: admin.token,
     });
-    const version = (before.body['data'] as { version: number }).version;
+    const version = dataOf<{ version: number }>(before).version;
     const reassigned = await request(harness, {
       method: 'PATCH',
       url: `/api/v1/contacts/${moving}`,

@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { boolean, index, pgTable, text, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import { boolean, index, integer, pgTable, text, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 import { baseColumns, citext, timestamptz } from './columns.js';
 
 /**
@@ -29,9 +29,16 @@ export const users = pgTable(
     timezone: text('timezone').notNull().default('Asia/Kolkata'),
     mfaEnabled: boolean('mfa_enabled').notNull().default(false),
     /**
-     * Invalidates every session issued before this instant. Set on password
-     * change so revocation is one write rather than a sweep over sessions
-     * (MVP_SPEC M1 acceptance).
+     * Revokes every session issued under an earlier epoch. A password change
+     * adds one, so revocation is one write rather than a sweep over sessions
+     * (MVP_SPEC M1 acceptance). A counter and not a timestamp, because the
+     * comparison must not depend on the database clock moving forwards
+     * (ADR-0036).
+     */
+    sessionEpoch: integer('session_epoch').notNull().default(0),
+    /**
+     * @deprecated No longer read; superseded by `sessionEpoch` (ADR-0036).
+     * Kept so the previous release keeps working through a rolling deploy.
      */
     sessionsValidFrom: timestamptz('sessions_valid_from')
       .notNull()

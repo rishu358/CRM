@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
-import { request, startApiHarness, type ApiHarness } from '../../testing/harness.js';
+import { dataOf, request, startApiHarness, type ApiHarness } from '../../testing/harness.js';
 
 /**
  * The four mandatory per-module security suites (CLAUDE.md §10), for the
@@ -320,7 +320,7 @@ describe('(a) tenant A cannot reach tenant B', () => {
       url: '/api/v1/roles',
       token: admin.token,
     });
-    const roleIds = (roles.body['data'] as { id: string }[]).map((role) => role.id);
+    const roleIds = dataOf<{ id: string }[]>(roles).map((role) => role.id);
     for (const roleId of rolesB.values()) expect(roleIds).not.toContain(roleId);
 
     const members = await request(harness, {
@@ -417,7 +417,7 @@ describe('(a) tenant A cannot reach tenant B', () => {
       token: admin.token,
       body: { name: 'Mixed' },
     });
-    const teamId = (team.body['data'] as { id: string }).id;
+    const teamId = dataOf<{ id: string }>(team).id;
     const members = await request(harness, {
       method: 'PATCH',
       url: `/api/v1/teams/${teamId}/members`,
@@ -449,7 +449,7 @@ describe('(a) tenant A cannot reach tenant B', () => {
       },
     });
     expect(intoA.status).toBe(200);
-    expect(intoA.body['data']).toMatchObject({ moved: [], skipped: 1 });
+    expect(dataOf(intoA)).toMatchObject({ moved: [], skipped: 1 });
 
     const stillB = await harness.fixtures.auditEntries(tenantB, 'contact');
     expect(stillB).toEqual([]);
@@ -532,8 +532,7 @@ describe('(b) a viewer with `own` scope learns nothing about records beyond thei
       token: ownScopeAdmin.token,
     });
     expect(reach.status).toBe(200);
-    const objects = (reach.body['data'] as { objects: { readableRecords: number | null }[] })
-      .objects;
+    const objects = dataOf<{ objects: { readableRecords: number | null }[] }>(reach).objects;
     // `own` scope on contacts, and nothing on the rest: no object they may count in full.
     for (const object of objects) expect(object.readableRecords).toBeNull();
   });
@@ -555,9 +554,9 @@ describe('(b) a viewer with `own` scope learns nothing about records beyond thei
       body: { grants: [{ objectType: 'contact', action: 'read', scope: 'own' }] },
     });
     expect(preview.status).toBe(200);
-    const data = preview.body['data'] as {
+    const data = dataOf<{
       people: { scopeChanges: { direction: string; recordsLost: number | null }[] }[];
-    };
+    }>(preview);
     expect(data.people).toHaveLength(1);
     expect(data.people[0]!.scopeChanges[0]).toMatchObject({
       direction: 'narrowed',
@@ -594,10 +593,10 @@ describe('(c) a field hidden from the viewer is absent from every explanation', 
       token: phoneBlindAdmin.token,
     });
     expect(response.status).toBe(200);
-    const data = response.body['data'] as {
+    const data = dataOf<{
       fields: { key: string }[];
       people: { hiddenFields: string[]; readOnlyFields: string[] }[];
-    };
+    }>(response);
 
     expect(data.fields.map((field) => field.key)).not.toContain('phone');
     expect(data.fields.map((field) => field.key)).toContain('email');
@@ -615,8 +614,8 @@ describe('(c) a field hidden from the viewer is absent from every explanation', 
       token: phoneBlindAdmin.token,
     });
     expect(reach.status).toBe(200);
-    const contact = (
-      reach.body['data'] as { objects: { objectType: string; fields: { key: string }[] }[] }
+    const contact = dataOf<{ objects: { objectType: string; fields: { key: string }[] }[] }>(
+      reach,
     ).objects.find((object) => object.objectType === 'contact')!;
     expect(contact.fields.map((field) => field.key)).not.toContain('phone');
 
@@ -625,8 +624,8 @@ describe('(c) a field hidden from the viewer is absent from every explanation', 
       url: `/api/v1/access/members/${rep.userId}`,
       token: admin.token,
     });
-    const full = (
-      asAdmin.body['data'] as { objects: { objectType: string; fields: { key: string }[] }[] }
+    const full = dataOf<{ objects: { objectType: string; fields: { key: string }[] }[] }>(
+      asAdmin,
     ).objects.find((object) => object.objectType === 'contact')!;
     // The control: somebody who can read it is told about it.
     expect(full.fields.map((field) => field.key)).toContain('phone');
@@ -659,7 +658,7 @@ describe('nobody can hand out more than they hold, or lock the workspace out', (
       body: { name: 'Escalation target' },
     });
     expect(role.status).toBe(201);
-    const { id, digest } = role.body['data'] as { id: string; digest: string };
+    const { id, digest } = dataOf<{ id: string; digest: string }>(role);
 
     // They hold contact:read at `team`, so `all` is beyond them.
     const wider = await request(harness, {
@@ -708,7 +707,7 @@ describe('nobody can hand out more than they hold, or lock the workspace out', (
       body: { grants: [{ objectType: 'deal', action: 'update', scope: 'all' }] },
     });
     expect(preview.status).toBe(200);
-    expect((preview.body['data'] as { beyondYourAccess: unknown[] }).beyondYourAccess).toEqual([
+    expect(dataOf<{ beyondYourAccess: unknown[] }>(preview).beyondYourAccess).toEqual([
       { objectType: 'deal', action: 'update', scope: 'all' },
     ]);
   });
@@ -728,7 +727,7 @@ describe('nobody can hand out more than they hold, or lock the workspace out', (
       url: '/api/v1/members?limit=200',
       token: admin.token,
     });
-    const priya = (unchanged.body['data'] as { userId: string; roleName: string }[]).find(
+    const priya = dataOf<{ userId: string; roleName: string }[]>(unchanged).find(
       (member) => member.userId === rep.userId,
     );
     expect(priya?.roleName).toBe('Sales Rep');
@@ -760,7 +759,7 @@ describe('the workspace keeps an administrator', () => {
       url: `/api/v1/roles/${adminRole}`,
       token: only.token,
     });
-    const digest = (detail.body['data'] as { digest: string }).digest;
+    const digest = dataOf<{ digest: string }>(detail).digest;
 
     const removeRoleUpdate = await request(harness, {
       method: 'PATCH',
@@ -781,7 +780,7 @@ describe('the workspace keeps an administrator', () => {
       token: only.token,
     });
     expect(
-      (after.body['data'] as { grants: { objectType: string; action: string }[] }).grants.some(
+      dataOf<{ grants: { objectType: string; action: string }[] }>(after).grants.some(
         (grant) => grant.objectType === 'role' && grant.action === 'update',
       ),
     ).toBe(true);
@@ -854,9 +853,9 @@ describe('the workspace keeps an administrator', () => {
       body: { grants: [{ objectType: 'membership', action: 'update', scope: null }] },
     });
     expect(preview.status).toBe(200);
-    expect(
-      (preview.body['data'] as { removesLastAdministrator: boolean }).removesLastAdministrator,
-    ).toBe(true);
+    expect(dataOf<{ removesLastAdministrator: boolean }>(preview).removesLastAdministrator).toBe(
+      true,
+    );
   });
 });
 
@@ -868,7 +867,7 @@ describe('what was previewed is what is saved', () => {
       token: admin.token,
       body: { name: 'Digest check' },
     });
-    const { id, digest } = created.body['data'] as { id: string; digest: string };
+    const { id, digest } = dataOf<{ id: string; digest: string }>(created);
 
     const first = await request(harness, {
       method: 'PATCH',

@@ -516,7 +516,7 @@ export class AuthService {
 
     await this.repository.transaction(async (tx) => {
       await this.repository.setPassword(userId, passwordHash, tx);
-      await this.repository.bumpSessionsValidFrom(userId, tx);
+      await this.repository.bumpSessionEpoch(userId, tx);
       await this.repository.revokeOtherSessions(userId, null, tx);
       // An address someone has just proved they can read is a verified
       // address, so a user who never clicked the first link is not stranded.
@@ -535,7 +535,7 @@ export class AuthService {
    *
    * > Changing the password revokes all other sessions.
    *
-   * Implemented by bumping `sessions_valid_from`, which `SessionService.verify`
+   * Implemented by advancing `session_epoch`, which `SessionService.verify`
    * already checks on every request — one write, no sweep, and no window in
    * which a session created mid-change survives.
    */
@@ -554,7 +554,7 @@ export class AuthService {
     const passwordHash = await this.passwords.hash(input.newPassword);
     await this.repository.transaction(async (tx) => {
       await this.repository.setPassword(actor.userId, passwordHash, tx);
-      await this.repository.bumpSessionsValidFrom(actor.userId, tx);
+      await this.repository.bumpSessionEpoch(actor.userId, tx);
       await this.repository.revokeOtherSessions(actor.userId, sessionId, tx);
     });
 

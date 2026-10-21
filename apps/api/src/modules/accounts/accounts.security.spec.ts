@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
-import { startApiHarness, request, type ApiHarness } from '../../testing/harness.js';
+import { dataOf, startApiHarness, request, type ApiHarness } from '../../testing/harness.js';
 
 /**
  * The four mandatory per-module security suites (CLAUDE.md §10):
@@ -129,7 +129,7 @@ describe('(a) tenant A cannot reach tenant B records', () => {
     });
     expect(response.status).toBe(200);
 
-    const ids = (response.body['data'] as { id: string }[]).map((row) => row.id);
+    const ids = dataOf<{ id: string }[]>(response).map((row) => row.id);
     expect(ids).toContain(adminAccountA);
     expect(ids).toContain(repAccountA);
     expect(ids).not.toContain(accountB);
@@ -179,7 +179,7 @@ describe('(a) tenant A cannot reach tenant B records', () => {
       url: `/api/v1/accounts/${accountB}`,
       token: adminB.token,
     });
-    expect((check.body['data'] as Record<string, unknown>)['name']).toBe('Rival Traders');
+    expect(dataOf<Record<string, unknown>>(check)['name']).toBe('Rival Traders');
   });
 
   it('cannot delete another tenant record', async () => {
@@ -270,7 +270,7 @@ describe('(b) a user with own scope cannot see other people records', () => {
     });
     expect(response.status).toBe(200);
 
-    const ids = (response.body['data'] as { id: string }[]).map((row) => row.id);
+    const ids = dataOf<{ id: string }[]>(response).map((row) => row.id);
     expect(ids).toContain(repAccountA);
     expect(ids).not.toContain(adminAccountA);
   });
@@ -312,7 +312,7 @@ describe('(b) a user with own scope cannot see other people records', () => {
         });
         expect(response.status, sort).toBe(200);
 
-        for (const row of response.body['data'] as { id: string; ownerId?: string }[]) {
+        for (const row of dataOf<{ id: string; ownerId?: string }[]>(response)) {
           seen.push(row.id);
           expect(row.ownerId, `${sort}: a record owned by someone else`).toBe(repA.userId);
         }
@@ -373,7 +373,7 @@ describe('(b) a user with own scope cannot see other people records', () => {
       body: { name: 'Patel Metals' },
     });
     expect(response.status).toBe(201);
-    expect((response.body['data'] as Record<string, unknown>)['ownerId']).toBe(repA.userId);
+    expect(dataOf<Record<string, unknown>>(response)['ownerId']).toBe(repA.userId);
   });
 
   it('lets a rep file their account under a parent they cannot read', async () => {
@@ -404,7 +404,7 @@ describe('(b) a user with own scope cannot see other people records', () => {
       url: '/api/v1/accounts?limit=100',
       token: adminA.token,
     });
-    const ids = (response.body['data'] as { id: string }[]).map((row) => row.id);
+    const ids = dataOf<{ id: string }[]>(response).map((row) => row.id);
     expect(ids).toContain(adminAccountA);
     expect(ids).toContain(repAccountA);
   });
@@ -469,7 +469,7 @@ describe('(c) hidden fields are absent from responses and rejected on write', ()
     });
     expect(response.status).toBe(200);
 
-    const account = response.body['data'] as Record<string, unknown>;
+    const account = dataOf<Record<string, unknown>>(response);
     // Absent, not null: a null would still confirm the field exists and is set.
     expect('gstin' in account).toBe(false);
     expect('annualRevenue' in account).toBe(false);
@@ -482,7 +482,7 @@ describe('(c) hidden fields are absent from responses and rejected on write', ()
       url: '/api/v1/accounts?limit=100',
       token: hiddenRepToken,
     });
-    const rows = response.body['data'] as Record<string, unknown>[];
+    const rows = dataOf<Record<string, unknown>[]>(response);
     expect(rows.length).toBeGreaterThan(0);
     for (const row of rows) {
       expect('gstin' in row).toBe(false);
@@ -540,7 +540,7 @@ describe('(c) hidden fields are absent from responses and rejected on write', ()
       url: `/api/v1/accounts/${ownedAccount}`,
       token: adminA.token,
     });
-    expect((check.body['data'] as Record<string, unknown>)['gstin']).toBe('29ABCDE1234F1Z5');
+    expect(dataOf<Record<string, unknown>>(check)['gstin']).toBe('29ABCDE1234F1Z5');
   });
 
   it('rejects a write to a read-only field', async () => {
@@ -559,7 +559,7 @@ describe('(c) hidden fields are absent from responses and rejected on write', ()
       url: `/api/v1/accounts/${ownedAccount}`,
       token: readOnlyFieldRepToken,
     });
-    expect((response.body['data'] as Record<string, unknown>)['industry']).toBe('Jewellery');
+    expect(dataOf<Record<string, unknown>>(response)['industry']).toBe('Jewellery');
   });
 
   it('rejects a hidden field on create too, not only on update', async () => {
@@ -622,7 +622,7 @@ describe('sort and filter reach SQL only through the whitelist (CLAUDE.md §5.7)
         // long as the value was bound rather than interpreted: no row from
         // the other tenant may appear, and the clause must not match
         // everything.
-        const ids = (response.body['data'] as { id: string }[]).map((row) => row.id);
+        const ids = dataOf<{ id: string }[]>(response).map((row) => row.id);
         expect(ids, filter).not.toContain(accountB);
       } else {
         expect(response.status, filter).toBe(422);
@@ -647,6 +647,6 @@ describe('sort and filter reach SQL only through the whitelist (CLAUDE.md §5.7)
       url: '/api/v1/accounts?filter=name:eq:Deleted%20Ltd&limit=100',
       token: adminA.token,
     });
-    expect((response.body['data'] as unknown[]).length).toBe(0);
+    expect(dataOf<unknown[]>(response).length).toBe(0);
   });
 });

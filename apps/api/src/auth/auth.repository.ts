@@ -403,16 +403,17 @@ export class AuthRepository {
   }
 
   /**
-   * Invalidate every session issued before now, in one write.
+   * Invalidate every session issued so far, in one write, by advancing the
+   * user's session epoch (ADR-0036).
    *
    * This is what makes "changing the password revokes all other sessions"
    * (MVP_SPEC M1) a single statement that cannot half-apply, rather than a
    * sweep that might miss a session created while it ran.
    */
-  async bumpSessionsValidFrom(userId: string, tx?: Tx): Promise<void> {
+  async bumpSessionEpoch(userId: string, tx?: Tx): Promise<void> {
     await this.run(tx, (t) =>
       t.execute(
-        sql`update users set sessions_valid_from = now(), updated_at = now() where id = ${userId}`,
+        sql`update users set session_epoch = session_epoch + 1, updated_at = now() where id = ${userId}`,
       ),
     );
   }
