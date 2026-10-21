@@ -28,6 +28,8 @@ let admin: pg.Pool;
 let pool: pg.Pool;
 let fixtures: Fixtures;
 let beforeDir: string;
+/** Everything up to and including 0017: later migrations are not this file's business. */
+let throughDir: string;
 
 function urlFor(base: string, database: string): string {
   const url = new URL(base);
@@ -77,6 +79,11 @@ beforeAll(async () => {
     if (file < '0017') cpSync(join(MIGRATIONS, file), join(beforeDir, file));
   }
 
+  throughDir = mkdtempSync(join(tmpdir(), 'migrations-through-0017-'));
+  for (const file of readdirSync(MIGRATIONS).filter((name) => name.endsWith('.sql'))) {
+    if (file < '0018') cpSync(join(MIGRATIONS, file), join(throughDir, file));
+  }
+
   const migratorUrl = urlFor(urls.migrator, DATABASE);
   await runMigrations(migratorUrl, beforeDir);
 
@@ -87,7 +94,7 @@ beforeAll(async () => {
   second = await company('Also working');
 
   // Now the migration under test, on top of that.
-  const result = await runMigrations(migratorUrl, MIGRATIONS);
+  const result = await runMigrations(migratorUrl, throughDir);
   expect(result.applied).toEqual(['0017_onboarding.sql']);
 }, 180_000);
 
@@ -96,6 +103,7 @@ afterAll(async () => {
   await admin.query(`drop database if exists ${DATABASE} with (force)`);
   await admin.end();
   rmSync(beforeDir, { recursive: true, force: true });
+  rmSync(throughDir, { recursive: true, force: true });
 });
 
 describe('migration 0017 on a database that already has companies', () => {
@@ -172,7 +180,7 @@ describe('migration 0017 on a database that already has companies', () => {
 
   it('applies exactly once: running the same migrations again changes nothing', async () => {
     const urls = inject('dbUrls');
-    const again = await runMigrations(urlFor(urls.migrator, DATABASE), MIGRATIONS);
+    const again = await runMigrations(urlFor(urls.migrator, DATABASE), throughDir);
     expect(again.applied).toEqual([]);
   });
 });
