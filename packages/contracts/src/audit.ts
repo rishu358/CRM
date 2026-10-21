@@ -60,6 +60,10 @@ export const AUDIT_EXTRA_ACTIONS = [
   'impersonate',
   'erase',
   'redact',
+  // Sample data (MVP_SPEC M2, ADR-0037): one summary row each, beside the per-record
+  // `create` and `purge` rows, so "who loaded or cleared the demo records" is one filter.
+  'sample_data_loaded',
+  'sample_data_removed',
 ] as const;
 
 export const auditActionSchema = z.enum([...ACTIONS, ...AUDIT_EXTRA_ACTIONS]);

@@ -58,6 +58,7 @@ export {
   Search as SearchIcon,
   SearchX as NoResultsIcon,
   Settings as SettingsIcon,
+  ListChecks as SetupIcon,
   ListTodo as TaskIcon,
   NotebookPen as NoteIcon,
   ScrollText as AuditLogIcon,

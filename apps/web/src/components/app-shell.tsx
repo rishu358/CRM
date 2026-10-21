@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import {
   AccessIcon,
   AccountsIcon,
@@ -23,11 +23,13 @@ import {
   PanelLeftOpenIcon,
   RecycleBinIcon,
   SecurityIcon,
+  SetupIcon,
   SignOutIcon,
   TeamIcon,
   cn,
 } from '@crm/ui';
 import { useCanManageAccess } from '../lib/access';
+import { useOnboarding } from '../lib/onboarding';
 import { t, type TranslationKey } from '../lib/i18n';
 import { signOut } from '../lib/session';
 import { goToKeyFor } from '../lib/shortcuts';
@@ -54,6 +56,7 @@ const NAV: readonly {
   label: TranslationKey;
   icon: ReactNode;
   requiresAccessAdmin?: true;
+  requiresSetupAccess?: true;
 }[][] = [
   [
     { href: '/my-day', label: 'nav.myDay', icon: <MyDayIcon className="h-4 w-4 shrink-0" /> },
@@ -72,6 +75,14 @@ const NAV: readonly {
   ],
   [{ href: '/import', label: 'nav.import', icon: <ImportIcon className="h-4 w-4 shrink-0" /> }],
   [
+    {
+      href: '/setup',
+      label: 'nav.setup',
+      icon: <SetupIcon className="h-4 w-4 shrink-0" />,
+      // Asked of the API (`GET /onboarding` is behind `tenant_settings:read`), never
+      // inferred from a role name. Cosmetic: the screen refuses everybody else itself.
+      requiresSetupAccess: true,
+    },
     { href: '/settings/team', label: 'nav.team', icon: <TeamIcon className="h-4 w-4 shrink-0" /> },
     {
       href: '/settings/access',
@@ -114,12 +125,17 @@ function NavList({
   collapsed?: boolean;
 }) {
   const canManageAccess = useCanManageAccess();
+  const canSetUp = useOnboarding().isSuccess;
   return (
     <div className="space-y-5">
       {NAV.map((group, index) => (
         <ul key={index} className="space-y-0.5">
           {group
-            .filter((item) => item.requiresAccessAdmin !== true || canManageAccess)
+            .filter(
+              (item) =>
+                (item.requiresAccessAdmin !== true || canManageAccess) &&
+                (item.requiresSetupAccess !== true || canSetUp),
+            )
             .map((item) => {
               const active = pathname.startsWith(item.href);
               const key = goToKeyFor(item.href);
@@ -176,6 +192,21 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [collapsed, toggleCollapsed] = useSidebarCollapsed();
+
+  /**
+   * First run (MVP_SPEC M2): an administrator whose company is not set up yet is
+   * sent to the setup screen, wherever they arrived.
+   *
+   * Only somebody the API lets in ever gets an answer here — `GET /onboarding` is
+   * behind `tenant_settings:read` — so an invited rep, who gets a 403, is never
+   * redirected, and no role name is consulted. `replace`, not `push`, so Back does
+   * not return to a page that would send them straight back.
+   */
+  const onboarding = useOnboarding();
+  const setupPending = onboarding.data?.data.setupCompleted === false;
+  useEffect(() => {
+    if (setupPending && !pathname.startsWith('/setup')) router.replace('/setup');
+  }, [setupPending, pathname, router]);
 
   /**
    * Sign out server-side, then go to the sign-in screen.

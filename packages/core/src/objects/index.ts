@@ -52,6 +52,7 @@ export const OBJECT_TYPES = [
   'audit_log',
   'tenant_data',
   'data_subject',
+  'tenant_settings',
 ] as const;
 
 export type ObjectType = (typeof OBJECT_TYPES)[number];
@@ -176,6 +177,7 @@ export const ADMINISTRATIVE_OBJECT_TYPES = [
   'audit_log',
   'tenant_data',
   'data_subject',
+  'tenant_settings',
 ] as const;
 export type AdministrativeObjectType = (typeof ADMINISTRATIVE_OBJECT_TYPES)[number];
 

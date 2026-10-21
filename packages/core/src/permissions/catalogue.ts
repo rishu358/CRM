@@ -115,6 +115,16 @@ export const GRANT_CATALOGUE: readonly GrantCatalogueEntry[] = [
     actions: ['read', 'export', 'delete'],
     scopes: ADMIN_SCOPES,
   },
+  // Company profile, the setup checklist and sample data (MVP_SPEC M2). One type
+  // rather than reusing `tenant_data`, which is about exporting a workspace's
+  // contents: renaming the company is a far milder grant than taking a copy of
+  // everything, and a single type would make the mild one carry the dangerous one.
+  {
+    objectType: 'tenant_settings',
+    kind: 'administrative',
+    actions: ['read', 'update'],
+    scopes: ADMIN_SCOPES,
+  },
 ];
 
 export function catalogueEntry(objectType: ObjectType): GrantCatalogueEntry | undefined {

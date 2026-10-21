@@ -15,6 +15,7 @@ import {
 } from './data-rights/erasure-handler.js';
 import { notifyAssignment, notifyReminder, sendDigest } from './handlers/notifications.js';
 import { indexSearchDocument, removeSearchDocument } from './handlers/search.js';
+import { removeSampleDataJob } from './handlers/sample-data.js';
 import { projectTimeline } from './handlers/timeline.js';
 import { failExportOnExhaustion, runExport } from './import-export/export-handler.js';
 import {
@@ -199,6 +200,10 @@ const archiveDeps = {
   logger,
 };
 relay.on('data_export.requested.v1', runDataExport(archiveDeps));
+
+// Company setup (MVP_SPEC M2): removing sample data clears search and timeline
+// rows the application role cannot write, so it is the worker's to do (ADR-0037).
+relay.on('sample_data.removal_requested.v1', removeSampleDataJob({ logger }));
 relay.onExhausted('data_export.requested.v1', failDataExportOnExhaustion(archiveDeps));
 
 const erasureClient =

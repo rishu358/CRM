@@ -44,3 +44,4 @@ supersedes the old one and update the old one's **Status** to
 | [0034](0034-audit-viewer-and-recycle-bin-retention.md)   | Reading the audit log, and emptying the Recycle Bin             | Accepted |
 | [0035](0035-record-attachments.md)                       | A record attachment is an untrusted file with somebody's name   | Accepted |
 | [0036](0036-session-revocation-by-epoch.md)              | Sessions are revoked by an epoch counter, not by clocks         | Accepted |
+| [0037](0037-company-setup-and-sample-data.md)            | Company setup and sample data: a registry, keep what was used   | Accepted |
