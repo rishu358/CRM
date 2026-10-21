@@ -732,6 +732,52 @@ to fail.
   and tested not to widen, but a disclosure.
 - **No customisable layout, saved views or scheduled reports** (MVP_SPEC P1).
 
+## Customization (MVP_SPEC M9, ADR-0039), reviewed
+
+A custom field definition decides what every record in a company looks like, so this
+module is reviewed for what it can break afterwards, not only for who may call it.
+
+| Question                                                     | Answer                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| ------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Who may change a definition?                                 | `update` on `tenant_settings`, checked by `can()` in the service for create, edit and order. A rep, a read-only user and a role holding only `tenant_settings:read` are each refused every write, and a test proves nothing changed. Reading the list needs `read` on the object.                                                                                                                                                                   |
+| Can one company see or change another's definitions?         | No. `field_definitions` has RLS, every query is by tenant, and another company's field is a 404 with the same body as one that does not exist. Ordering with a foreign id is refused. A tenant in a header or body is ignored or 422.                                                                                                                                                                                                               |
+| Is a hidden field's existence leaked?                        | No. The form list omits any field the caller cannot read, so no box and no label exists for it; a write to it is refused exactly as a write to a field that was never defined. The management view (settings read) is not filtered, because it describes configuration, not data, and is tested to show the field.                                                                                                                                  |
+| Can a request destroy data through a definition?             | Not through the application role. `DELETE` is revoked; `UPDATE` is column-narrowed so `key`, `type`, `object_type`, `is_system` and `tenant_id` cannot be written at all; a trigger refuses an update that drops a picklist value; the worker may only read. `customization.security.spec.ts` in `@crm/db` proves each against the real roles and **fails exactly those tests with the migration's narrowing removed** (14 of 14 mutations caught). |
+| Is there a way to delete a field?                            | No endpoint, no screen control, no grant. Deactivating hides it and stops writes; the data is kept and returns on reactivation (tested, including by reading the stored value around the switch).                                                                                                                                                                                                                                                   |
+| Can a tenant-supplied pattern run on the server?             | No. `pattern` is rejected on every type at the contract and again in the rules; a pattern stored before this module existed is not shown. The prerequisite for offering one is a time-bounded regex engine (ADR-0039).                                                                                                                                                                                                                              |
+| Can the client choose a key, a type change or a system flag? | No. The key is made from the label on the server; type is fixed after creation; every body is `.strict()`, so `key`, `type`, `isSystem`, `position`, `tenantId` and `ownerId` are 422, each tested.                                                                                                                                                                                                                                                 |
+| Can an administrator fill the page or the table?             | No. At most 60 custom fields per object per company, 100 options per picklist, label 80, section 60, help text 280 characters, all as CHECKs; the cap is taken under an advisory lock and proven with a deliberately overlapping pair of transactions, and by a request-level test of three simultaneous creations.                                                                                                                                 |
+| Is there stored XSS through a label or option?               | A label is stored as typed and returned as JSON; the web app renders every label and option as React text and a URL value as a link only if its scheme is http or https (`safeHref`, tested for `javascript:`, `data:` and `file:`). A test stores markup and quotes in a label and reads them back unchanged.                                                                                                                                      |
+| Does a second administrator overwrite the first?             | No. Edits carry `version`; a stale one is a 409 and changes nothing, in the service and again in the `UPDATE`'s `WHERE`. Each guard alone leaves the other, so the test removes both.                                                                                                                                                                                                                                                               |
+| Does switching a field off leak through search or export?    | Search does not index custom fields at all (`core/search`), and import and export already skip inactive fields (`import-rows`, `export-handler`, `targets`).                                                                                                                                                                                                                                                                                        |
+| Is it audited?                                               | Creating and editing write an `audit_logs` row (`field_definition`) with what changed, and an outbox event; an edit that changes nothing writes none, and a reorder that changes nothing writes none.                                                                                                                                                                                                                                               |
+
+The guards were mutation-tested: each authorization check, the form-list filter, the
+management-view exemption, the system-field refusal, both version checks (alone, then
+together), key uniqueness, the cap's translation to a 422, the ordering checks, the audit
+and event writes, the strictness of each contract object, the types an administrator
+can create and every database grant, trigger and CHECK were removed in turn and the
+specs had to fail. The rounds found three real gaps, all since closed: a concurrency
+test whose transactions did not actually overlap, no test that the management view is
+unfiltered, and no test for a pattern stored before this module existed. Guards that are
+redundant by design (the two version checks; the contract’s and the rules’ refusal of a
+pattern) were removed together, since removing either alone leaves the other.
+
+### Known gaps, deliberately
+
+- **`user_lookup`, `pattern` and `unique` cannot be set from the screen.** The engine
+  supports them; each waits for something this module does not build (a member picker
+  non-administrators can use, a time-bounded regex engine, per-company index DDL).
+- **Built-in fields cannot be relabelled or reordered.** The spec allows it; the screens
+  that draw them have their own labels, so it would be invisible.
+- **A switched-off field still counts against the 60.** No purge path exists.
+- **A narrowed limit is not applied to existing records.** A new maximum length applies to
+  the next write; a record already over it stays readable and its other fields stay editable.
+- **List columns are chosen per visit.** Saved views (M4) will remember them. Filter and
+  sort by a custom field are available through the API and have no screen yet.
+- **The index of a company's definitions is not cached.** Each form and record page reads
+  it (five minutes in the browser); a company with the maximum is 60 rows an object.
+
 ## The OpenAPI document (ADR-0027), reviewed
 
 Generated from the Zod contracts and served at `GET /api/v1/openapi.json`. It

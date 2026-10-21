@@ -24,6 +24,7 @@ import { WhoCanSeeButton } from './who-can-see';
 import { ActivityPanel } from './activity-panel';
 import { AttachmentPanel } from './attachment-panel';
 import { InlineField } from './inline-field';
+import { CustomFieldsCard } from './custom-fields';
 
 /**
  * One contact, edited in place.
@@ -181,6 +182,17 @@ export function ContactDetail({ id }: { id: string }) {
               </div>
             </CardBody>
           </Card>
+          <CustomFieldsCard
+            objectType="contact"
+            values={contact.customFields}
+            onSave={(key, value) => {
+              update.mutate({
+                id: contact.id,
+                version: contact.version,
+                patch: { customFields: { [key]: value } },
+              });
+            }}
+          />
         </div>
         <ActivityPanel objectType="contact" recordId={id} />
         <AttachmentPanel objectType="contact" recordId={id} />

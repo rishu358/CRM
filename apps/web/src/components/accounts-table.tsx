@@ -7,6 +7,8 @@ import { SortableTh, Table, TableCard, THead, Td, Th, Tr } from '@crm/ui';
 import { DEFAULT_PREFERENCES, formatDate, formatMoney } from '../lib/format';
 import { EmptyCell, RecordLink } from './table-parts';
 import { t, type TranslationKey } from '../lib/i18n';
+import { CUSTOM_COLUMN_PREFIX, customCellText } from './custom-fields';
+import type { FieldDefinitionView } from '../lib/fields';
 
 /**
  * The accounts table.
@@ -81,11 +83,14 @@ function displayValue(value: unknown): string {
 export function AccountsTable({
   accounts,
   visibleColumns,
+  customFields = [],
   sort,
   onSortChange,
 }: {
   accounts: readonly AccountRecord[];
   visibleColumns: readonly string[];
+  /** The custom fields this person may read; those whose key is in `visibleColumns` are shown. */
+  customFields?: readonly FieldDefinitionView[];
   /** `field` or `-field`, exactly as it goes to the API. */
   sort: string;
   onSortChange: (sort: string) => void;
@@ -104,7 +109,20 @@ export function AccountsTable({
       (column) => present.has(column.key) && visibleColumns.includes(column.key),
     );
 
-    return visible.map((column, index) => ({
+    const extras: ColumnDef<AccountRecord>[] = customFields
+      .filter((definition) => visibleColumns.includes(CUSTOM_COLUMN_PREFIX + definition.key))
+      .map((definition): ColumnDef<AccountRecord> => ({
+        id: CUSTOM_COLUMN_PREFIX + definition.key,
+        header: definition.label,
+        accessorFn: (row) => customCellText(definition, row),
+        cell: (info) => {
+          const value = info.getValue();
+          const text = typeof value === 'string' ? value : '';
+          return text.length > 0 ? text : <EmptyCell />;
+        },
+      }));
+
+    const builtIn = visible.map((column, index): ColumnDef<AccountRecord> => ({
       id: column.key,
       header: t(column.label),
       accessorFn: (row) => (row as unknown as Record<string, unknown>)[column.key] ?? null,
@@ -123,7 +141,8 @@ export function AccountsTable({
         return text.length > 0 ? text : <EmptyCell />;
       },
     }));
-  }, [accounts, visibleColumns]);
+    return [...builtIn, ...extras];
+  }, [accounts, visibleColumns, customFields]);
 
   const table = useReactTable({
     data: accounts as AccountRecord[],

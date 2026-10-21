@@ -34,6 +34,12 @@ export const fieldDefinitions = pgTable(
     isSystem: boolean('is_system').notNull().default(false),
     /** Deactivating hides the field and blocks writes but keeps the data. */
     isActive: boolean('is_active').notNull().default(true),
+    /** The heading a record page groups this field under; null is the default group (migration 0019). */
+    section: text('section'),
+    /** One line saying what the field is for, shown beside it. */
+    helpText: text('help_text'),
+    /** Optimistic locking: a second administrator's stale save is refused, not merged (migration 0019). */
+    version: integer('version').notNull().default(1),
   },
   (table) => [
     uniqueIndex('field_definitions_tenant_object_key').on(

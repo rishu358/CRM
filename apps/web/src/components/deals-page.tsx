@@ -32,6 +32,7 @@ import { useCreateShortcut } from '../lib/shortcuts';
 import { AppShell } from './app-shell';
 import { DealsBoard } from './deals-board';
 import { DealsTable } from './deals-table';
+import { CustomColumnsChooser, useCustomColumns } from './custom-fields';
 import { ExportButton } from './export-button';
 import { NewDealDialog } from './new-deal-dialog';
 
@@ -47,6 +48,7 @@ type View = 'board' | 'list';
 export function DealsPage() {
   const [view, setView] = useState<View>('board');
   const [search, setSearch] = useState('');
+  const customColumns = useCustomColumns('deal');
   const [sort, setSort] = useState('-created_at');
   const [chosenPipelineId, setChosenPipelineId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
@@ -182,7 +184,13 @@ export function DealsPage() {
 
     return (
       <div className="space-y-4">
-        <DealsTable deals={listed} stages={pipeline.stages} sort={sort} onSortChange={setSort} />
+        <DealsTable
+          deals={listed}
+          stages={pipeline.stages}
+          customColumns={customColumns.chosenDefinitions}
+          sort={sort}
+          onSortChange={setSort}
+        />
         <ListFooter
           end={
             list.hasNextPage ? (
@@ -265,6 +273,7 @@ export function DealsPage() {
                 },
               ]}
             />
+            {view === 'list' ? <CustomColumnsChooser state={customColumns} /> : null}
             {/* Deals are exported, not imported: a row would have to name a pipeline and a stage. */}
             <ExportButton
               objectType="deal"

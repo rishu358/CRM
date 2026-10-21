@@ -20,6 +20,7 @@ import { t } from '../lib/i18n';
 import { useCreateShortcut } from '../lib/shortcuts';
 import { AppShell } from './app-shell';
 import { LeadsTable } from './leads-table';
+import { CustomColumnsChooser, useCustomColumns } from './custom-fields';
 import { ExportButton } from './export-button';
 import { ImportLink } from './import-link';
 import { NewLeadDialog } from './new-lead-dialog';
@@ -33,6 +34,7 @@ import { NewLeadDialog } from './new-lead-dialog';
  */
 export function LeadsPage() {
   const [search, setSearch] = useState('');
+  const customColumns = useCustomColumns('lead');
   const [creating, setCreating] = useState(false);
 
   // `C` does what the New button does, on whichever list is on screen.
@@ -102,7 +104,7 @@ export function LeadsPage() {
 
     return (
       <div className="space-y-4">
-        <LeadsTable leads={leads} />
+        <LeadsTable leads={leads} customColumns={customColumns.chosenDefinitions} />
         <ListFooter
           end={
             query.hasNextPage ? (
@@ -148,6 +150,7 @@ export function LeadsPage() {
         }
         end={
           <>
+            <CustomColumnsChooser state={customColumns} />
             <ImportLink objectType="lead" />
             <ExportButton objectType="lead" q={search} sort="-created_at" />
           </>

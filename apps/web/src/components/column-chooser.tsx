@@ -20,10 +20,16 @@ export function ColumnChooser({
   options,
   selected,
   onChange,
+  buttonLabel,
+  allowEmpty = false,
 }: {
-  options: readonly { key: string; label: TranslationKey }[];
+  options: readonly { key: string; label?: TranslationKey; text?: string }[];
   selected: readonly string[];
   onChange: (next: string[]) => void;
+  /** The button's words, when the default ("Columns") is not what this chooser is for. */
+  buttonLabel?: string;
+  /** For optional extras: choosing none is fine. The default refuses, because an empty table looks like a failed request. */
+  allowEmpty?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const container = useRef<HTMLDivElement>(null);
@@ -53,7 +59,7 @@ export function ColumnChooser({
       ? selected.filter((candidate) => candidate !== key)
       : [...selected, key];
     // Never zero columns: an empty table looks like a failed request.
-    if (next.length === 0) return;
+    if (next.length === 0 && !allowEmpty) return;
     onChange(next);
   };
 
@@ -61,7 +67,7 @@ export function ColumnChooser({
     <div ref={container} className="relative">
       <Button variant="outline" aria-expanded={open} onClick={() => setOpen(!open)}>
         <ColumnsIcon className="h-4 w-4 cursor-pointer" />
-        {t('accounts.columns')}
+        {buttonLabel ?? t('accounts.columns')}
       </Button>
 
       {open ? (
@@ -81,7 +87,7 @@ export function ColumnChooser({
                 onChange={() => toggle(option.key)}
                 className="h-4 w-4"
               />
-              {t(option.label)}
+              {option.text ?? (option.label === undefined ? option.key : t(option.label))}
             </label>
           ))}
         </div>

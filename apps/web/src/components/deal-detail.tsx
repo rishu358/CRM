@@ -27,6 +27,7 @@ import { WhoCanSeeButton } from './who-can-see';
 import { ActivityPanel } from './activity-panel';
 import { AttachmentPanel } from './attachment-panel';
 import { InlineField } from './inline-field';
+import { CustomFieldsCard } from './custom-fields';
 import { InlineMoneyField } from './inline-money-field';
 import { LostReasonDialog } from './lost-reason-dialog';
 
@@ -357,6 +358,18 @@ export function DealDetail({ id }: { id: string }) {
               </Row>
             </CardBody>
           </Card>
+
+          <CustomFieldsCard
+            objectType="deal"
+            values={deal.customFields}
+            onSave={(key, value) => {
+              update.mutate({
+                id: deal.id,
+                version: deal.version,
+                patch: { customFields: { [key]: value } },
+              });
+            }}
+          />
 
           {pendingLost === null ? null : (
             <LostReasonDialog

@@ -18,6 +18,7 @@ import {
   Kbd,
   LeadsIcon,
   MenuIcon,
+  CustomizeIcon,
   DashboardIcon,
   MyDayIcon,
   PanelLeftCloseIcon,
@@ -87,6 +88,14 @@ const NAV: readonly {
       icon: <SetupIcon className="h-4 w-4 shrink-0" />,
       // Asked of the API (`GET /onboarding` is behind `tenant_settings:read`), never
       // inferred from a role name. Cosmetic: the screen refuses everybody else itself.
+      requiresSetupAccess: true,
+    },
+    {
+      href: '/settings/fields',
+      label: 'nav.customization',
+      icon: <CustomizeIcon className="h-4 w-4 shrink-0" />,
+      // Same grant as Setup (`tenant_settings:read`), answered by the API. Cosmetic: the
+      // screen and every write behind it refuse everybody else on their own.
       requiresSetupAccess: true,
     },
     { href: '/settings/team', label: 'nav.team', icon: <TeamIcon className="h-4 w-4 shrink-0" /> },

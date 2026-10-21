@@ -11,7 +11,7 @@ import {
   type DbClient,
   type ErasureRequest,
 } from '@crm/db';
-import { provisionTenantDefaults } from '@crm/db/seed';
+import { provisionAsApp } from './provision.js';
 import { Fixtures, typedPool, type TestDbUrls, type TypedPool } from '@crm/db/testing';
 import { MemoryStorageProvider } from '@crm/storage';
 import pg from 'pg';
@@ -107,9 +107,7 @@ export async function startDataRightsHarness(
 
   const tenantId = (await fixtures.createTenant({ name: options.name ?? 'Data Rights Harness' }))
     .tenantId;
-  const provisioned = await withTenant(db.db, { tenantId, userId: null }, (tx) =>
-    provisionTenantDefaults(tx, tenantId, null),
-  );
+  const provisioned = await provisionAsApp(urls.app, tenantId);
 
   const archiveDeps = { db: db.db, storage, logger };
   const erasureDeps = { db: db.db, erasureDb: erasureDb?.db ?? null, logger };
@@ -158,9 +156,7 @@ export async function startDataRightsHarness(
     async otherTenant() {
       const other = (await fixtures.createTenant({ name: `Neighbour ${newId().slice(0, 8)}` }))
         .tenantId;
-      const result = await withTenant(db.db, { tenantId: other, userId: null }, (tx) =>
-        provisionTenantDefaults(tx, other, null),
-      );
+      const result = await provisionAsApp(urls.app, other);
       return { tenantId: other, roleIds: result.roleIdsByName };
     },
 

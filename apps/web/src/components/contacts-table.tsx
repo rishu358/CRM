@@ -7,6 +7,8 @@ import { RecordLink, EmptyCell } from './table-parts';
 import { formatDate, DEFAULT_PREFERENCES } from '../lib/format';
 import { Table, TableCard, THead, Td, Th, Tr } from '@crm/ui';
 import { t } from '../lib/i18n';
+import { CUSTOM_COLUMN_PREFIX, customCellText } from './custom-fields';
+import type { FieldDefinitionView } from '../lib/fields';
 
 /**
  * The contacts table.
@@ -42,7 +44,13 @@ function displayValue(value: unknown): string {
   return JSON.stringify(value);
 }
 
-export function ContactsTable({ contacts }: { contacts: readonly ContactRecord[] }) {
+export function ContactsTable({
+  contacts,
+  customColumns = [],
+}: {
+  contacts: readonly ContactRecord[];
+  customColumns?: readonly FieldDefinitionView[];
+}) {
   const columns = useMemo<ColumnDef<ContactRecord>[]>(() => {
     const present = new Set<string>();
     for (const contact of contacts) {
@@ -51,7 +59,20 @@ export function ContactsTable({ contacts }: { contacts: readonly ContactRecord[]
 
     const visible = CANDIDATE_COLUMNS.filter((column) => present.has(column.key));
 
-    return visible.map((column, index) => ({
+    const extras: ColumnDef<ContactRecord>[] = customColumns.map(
+      (definition): ColumnDef<ContactRecord> => ({
+        id: CUSTOM_COLUMN_PREFIX + definition.key,
+        header: definition.label,
+        accessorFn: (row) => customCellText(definition, row),
+        cell: (info) => {
+          const value = info.getValue();
+          const text = typeof value === 'string' ? value : '';
+          return text.length > 0 ? text : <EmptyCell />;
+        },
+      }),
+    );
+
+    const builtIn = visible.map((column, index): ColumnDef<ContactRecord> => ({
       id: column.key,
       header: t(column.label),
       accessorFn: (row) => (row as unknown as Record<string, unknown>)[column.key] ?? null,
@@ -70,7 +91,8 @@ export function ContactsTable({ contacts }: { contacts: readonly ContactRecord[]
         return text.length > 0 ? text : <EmptyCell />;
       },
     }));
-  }, [contacts]);
+    return [...builtIn, ...extras];
+  }, [contacts, customColumns]);
 
   const table = useReactTable({
     data: contacts as ContactRecord[],

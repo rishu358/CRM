@@ -8,6 +8,7 @@ import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import type { ApiRequestError } from '../lib/api-client';
 import { t } from '../lib/i18n';
+import { CustomFieldsFields, useCustomFieldDrafts } from './custom-fields';
 import { useCheckDuplicates, type DuplicateMatch } from '../lib/leads';
 import { DuplicateMatches } from './duplicate-matches';
 
@@ -60,6 +61,7 @@ export function NewLeadDialog({
   onClose: () => void;
 }) {
   const check = useCheckDuplicates();
+  const custom = useCustomFieldDrafts('lead');
   const [matches, setMatches] = useState<readonly DuplicateMatch[] | null>(null);
   const [payload, setPayload] = useState<Record<string, unknown> | null>(null);
 
@@ -82,6 +84,9 @@ export function NewLeadDialog({
       const value = values[key];
       if (value !== undefined && value !== null && value !== '') body[key] = value;
     }
+    const extra = custom.collect();
+    if (extra === null) return;
+    if (Object.keys(extra).length > 0) body['customFields'] = extra;
 
     const lookup: Record<string, unknown> = {};
     for (const key of ['email', 'phone', 'company'] as const) {
@@ -176,6 +181,8 @@ export function NewLeadDialog({
                 </option>
               ))}
             </Select>
+
+            <CustomFieldsFields state={custom} idPrefix="new-lead" />
 
             {error !== null ? (
               <p role="alert" className="text-sm text-destructive">

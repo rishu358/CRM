@@ -7,6 +7,8 @@ import { RecordLink, EmptyCell } from './table-parts';
 import { formatDate, DEFAULT_PREFERENCES } from '../lib/format';
 import { Badge, Table, TableCard, THead, Td, Th, Tr } from '@crm/ui';
 import { t, type TranslationKey } from '../lib/i18n';
+import { CUSTOM_COLUMN_PREFIX, customCellText } from './custom-fields';
+import type { FieldDefinitionView } from '../lib/fields';
 
 /**
  * The leads table.
@@ -52,7 +54,13 @@ function displayValue(value: unknown): string {
   return JSON.stringify(value);
 }
 
-export function LeadsTable({ leads }: { leads: readonly LeadRecord[] }) {
+export function LeadsTable({
+  leads,
+  customColumns = [],
+}: {
+  leads: readonly LeadRecord[];
+  customColumns?: readonly FieldDefinitionView[];
+}) {
   const columns = useMemo<ColumnDef<LeadRecord>[]>(() => {
     const present = new Set<string>();
     for (const lead of leads) {
@@ -61,7 +69,20 @@ export function LeadsTable({ leads }: { leads: readonly LeadRecord[] }) {
 
     const visible = CANDIDATE_COLUMNS.filter((column) => present.has(column.key));
 
-    return visible.map((column, index) => ({
+    const extras: ColumnDef<LeadRecord>[] = customColumns.map(
+      (definition): ColumnDef<LeadRecord> => ({
+        id: CUSTOM_COLUMN_PREFIX + definition.key,
+        header: definition.label,
+        accessorFn: (row) => customCellText(definition, row),
+        cell: (info) => {
+          const value = info.getValue();
+          const text = typeof value === 'string' ? value : '';
+          return text.length > 0 ? text : <EmptyCell />;
+        },
+      }),
+    );
+
+    const builtIn = visible.map((column, index): ColumnDef<LeadRecord> => ({
       id: column.key,
       header: t(column.label),
       accessorFn: (row) => (row as unknown as Record<string, unknown>)[column.key] ?? null,
@@ -88,7 +109,8 @@ export function LeadsTable({ leads }: { leads: readonly LeadRecord[] }) {
         return text.length > 0 ? text : <EmptyCell />;
       },
     }));
-  }, [leads]);
+    return [...builtIn, ...extras];
+  }, [leads, customColumns]);
 
   const table = useReactTable({
     data: leads as LeadRecord[],
