@@ -8,6 +8,7 @@ import { EXCHANGE_RATE_SOURCE } from './exchange-rates/exchange-rate.source.js';
 import { ManualExchangeRateSource } from './exchange-rates/manual-exchange-rate.source.js';
 import { OutboxService } from './outbox.service.js';
 import { OwnershipRegistry } from './ownership.registry.js';
+import { TenantClock } from './tenant-clock.service.js';
 import { TenantRateLimitService } from './rate-limit.service.js';
 import { STORAGE_PROVIDER } from './storage/storage.tokens.js';
 
@@ -26,6 +27,7 @@ import { STORAGE_PROVIDER } from './storage/storage.tokens.js';
     FieldMetadataService,
     TenantRateLimitService,
     CurrencyConverter,
+    TenantClock,
     // The one line that changes when live rates arrive (ADR-0021, P1).
     { provide: EXCHANGE_RATE_SOURCE, useClass: ManualExchangeRateSource },
     // One line decides the vendor (ADR-0009). The API only signs URLs and reads
@@ -43,6 +45,7 @@ import { STORAGE_PROVIDER } from './storage/storage.tokens.js';
     FieldMetadataService,
     TenantRateLimitService,
     CurrencyConverter,
+    TenantClock,
     STORAGE_PROVIDER,
   ],
 })

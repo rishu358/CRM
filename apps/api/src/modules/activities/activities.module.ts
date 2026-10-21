@@ -4,6 +4,7 @@ import { AccountsModule } from '../accounts/accounts.module.js';
 import { ContactsModule } from '../contacts/contacts.module.js';
 import { DealsModule } from '../deals/deals.module.js';
 import { LeadsModule } from '../leads/leads.module.js';
+import { ActivitiesReportsService } from './activities-reports.service.js';
 import { ActivitiesController } from './activities.controller.js';
 import { ActivitiesRepository } from './activities.repository.js';
 import { ActivitiesService } from './activities.service.js';
@@ -33,8 +34,9 @@ import { RecordViewsRepository } from './record-views.repository.js';
     RecordLinksService,
     RecordViewsRepository,
     MyDayService,
+    ActivitiesReportsService,
   ],
-  exports: [ActivitiesService],
+  exports: [ActivitiesService, ActivitiesReportsService],
 })
 export class ActivitiesModule implements OnModuleInit {
   constructor(

@@ -33,16 +33,17 @@ test.describe('who is sent to setup', () => {
   test('the owner of a company that is already set up goes straight to work', async ({ page }) => {
     await signIn(page, credentials.owner);
 
-    await page.waitForURL('**/contacts');
+    await page.waitForURL('**/dashboard');
     // Give a redirect every chance to happen before concluding it did not.
-    await expect(page.getByRole('heading', { name: 'Contacts' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Dashboard', level: 1 })).toBeVisible();
     await page.waitForTimeout(1000);
-    expect(new URL(page.url()).pathname).toBe('/contacts');
+    expect(new URL(page.url()).pathname).toBe('/dashboard');
   });
 
   test('a sales rep is never sent there, and cannot open it', async ({ page }) => {
     await signIn(page, credentials.rep);
-    await page.waitForURL('**/contacts');
+    await page.waitForURL('**/dashboard');
+    await page.goto('/contacts');
 
     await expect(page.getByRole('link', { name: 'Setup' })).toHaveCount(0);
 
@@ -104,7 +105,7 @@ test.describe.serial('first run, then the settings page', () => {
     await page.getByRole('button', { name: 'Finish setup' }).click();
 
     // Lands in the app, not back on the form.
-    await page.waitForURL('**/my-day');
+    await page.waitForURL('**/dashboard');
 
     // The sample records are real and marked, wherever they appear.
     await page.goto('/deals');
@@ -117,7 +118,8 @@ test.describe.serial('first run, then the settings page', () => {
     page,
   }) => {
     await signIn(page, credentials.freshOwner);
-    await page.waitForURL('**/contacts');
+    await page.waitForURL('**/dashboard');
+    await page.goto('/contacts');
 
     await page.getByRole('link', { name: 'Setup' }).click();
 
@@ -130,7 +132,8 @@ test.describe.serial('first run, then the settings page', () => {
 
   test('the checklist is honest: sample deals do not count as a first deal', async ({ page }) => {
     await signIn(page, credentials.freshOwner);
-    await page.waitForURL('**/contacts');
+    await page.waitForURL('**/dashboard');
+    await page.goto('/contacts');
     await page.goto('/setup');
 
     await expect(page.getByTestId('setup-checklist')).toBeVisible();
@@ -148,7 +151,8 @@ test.describe.serial('first run, then the settings page', () => {
 
   test('edits the company and the change is still there after a reload', async ({ page }) => {
     await signIn(page, credentials.freshOwner);
-    await page.waitForURL('**/contacts');
+    await page.waitForURL('**/dashboard');
+    await page.goto('/contacts');
     await page.goto('/setup');
 
     const save = page.getByTestId('setup-save');
@@ -164,7 +168,8 @@ test.describe.serial('first run, then the settings page', () => {
 
   test('removes the sample data, and only the sample data', async ({ page }) => {
     await signIn(page, credentials.freshOwner);
-    await page.waitForURL('**/contacts');
+    await page.waitForURL('**/dashboard');
+    await page.goto('/contacts');
 
     // A record a person made, through the same proxy the app uses.
     const surname = `Mine${Date.now().toString(36)}`;
@@ -197,7 +202,8 @@ test.describe.serial('first run, then the settings page', () => {
 
   test('sample data can be added back from the settings page', async ({ page }) => {
     await signIn(page, credentials.freshOwner);
-    await page.waitForURL('**/contacts');
+    await page.waitForURL('**/dashboard');
+    await page.goto('/contacts');
     await page.goto('/setup');
 
     await page.getByTestId('sample-add').click();

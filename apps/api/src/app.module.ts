@@ -16,6 +16,7 @@ import { ExportsModule } from './modules/exports/exports.module.js';
 import { ImportsModule } from './modules/imports/imports.module.js';
 import { InvitationsModule } from './modules/invitations/invitations.module.js';
 import { LeadsModule } from './modules/leads/leads.module.js';
+import { DashboardModule } from './modules/dashboard/dashboard.module.js';
 import { NotificationsModule } from './modules/notifications/notifications.module.js';
 import { PipelinesModule } from './modules/pipelines/pipelines.module.js';
 import { OnboardingModule } from './modules/onboarding/onboarding.module.js';
@@ -59,6 +60,7 @@ export class AppModule {
         RecycleBinModule,
         DataRightsModule,
         OnboardingModule,
+        DashboardModule,
       ],
       controllers: [HealthController, OpenApiController],
       providers: [{ provide: APP_GUARD, useExisting: AuthGuard }],

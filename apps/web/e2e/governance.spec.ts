@@ -32,7 +32,8 @@ async function signIn(page: Page, email: string): Promise<void> {
   await page.getByLabel('Email address').fill(email);
   await page.getByLabel('Password').fill(credentials.password);
   await page.getByRole('button', { name: 'Sign in' }).click();
-  await page.waitForURL('**/contacts');
+  await page.waitForURL('**/dashboard');
+  await page.goto('/contacts');
 }
 
 /** A surname no other run shares, so a test finds exactly its own record. */

@@ -245,6 +245,11 @@ export class Fixtures {
     ]);
   }
 
+  /** The company's calendar, which decides where "this month" starts (ADR-0038). */
+  async setTenantTimeZone(tenantId: string, timeZone: string): Promise<void> {
+    await this.pool.query(`UPDATE tenants SET timezone = $2 WHERE id = $1`, [tenantId, timeZone]);
+  }
+
   /** Authentication events, newest first. Used to assert on brute-force rows. */
   async authEvents(where: {
     email?: string;

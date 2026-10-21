@@ -31,13 +31,15 @@ async function signIn(page: Page, email: string, password: string): Promise<void
 test.describe('sign-in', () => {
   test('signs in with email and password and lands in the app', async ({ page }) => {
     await signIn(page, credentials.owner, credentials.password);
-    await page.waitForURL('**/contacts');
+    await page.waitForURL('**/dashboard');
+    await page.goto('/contacts');
     await expect(page.getByRole('link', { name: 'Sharma' })).toBeVisible();
   });
 
   test('the session token is never readable by page script', async ({ page }) => {
     await signIn(page, credentials.owner, credentials.password);
-    await page.waitForURL('**/contacts');
+    await page.waitForURL('**/dashboard');
+    await page.goto('/contacts');
 
     // httpOnly means document.cookie cannot see it, which is what stops an
     // XSS flaw from walking off with the session (CLAUDE.md §5.9).
@@ -112,13 +114,15 @@ test.describe('password reset', () => {
 test.describe('security settings', () => {
   test('lists this device and offers to sign the others out', async ({ page, context }) => {
     await signIn(page, credentials.rep, credentials.password);
-    await page.waitForURL('**/contacts');
+    await page.waitForURL('**/dashboard');
+    await page.goto('/contacts');
 
     // A second device for the same person, so there is something to revoke.
     const other = await context.browser()!.newContext();
     const otherPage = await other.newPage();
     await signIn(otherPage, credentials.rep, credentials.password);
-    await otherPage.waitForURL('**/contacts');
+    await otherPage.waitForURL('**/dashboard');
+    await otherPage.goto('/contacts');
 
     await page.goto('/settings/security');
     await expect(page.getByText('This device')).toBeVisible();
@@ -146,7 +150,8 @@ test.describe('security settings', () => {
    */
   test('sets up two-factor authentication and then requires it at sign-in', async ({ page }) => {
     await signIn(page, credentials.mfaUser, credentials.password);
-    await page.waitForURL('**/contacts');
+    await page.waitForURL('**/dashboard');
+    await page.goto('/contacts');
     await page.goto('/settings/security');
 
     await page.getByRole('button', { name: 'Set up two-factor authentication' }).click();
@@ -177,7 +182,8 @@ test.describe('security settings', () => {
       .getByLabel('Authentication code')
       .fill(await createOTP(secret, { digits: 6, period: 30 }).totp());
     await page.getByRole('button', { name: 'Verify' }).click();
-    await page.waitForURL('**/contacts');
+    await page.waitForURL('**/dashboard');
+    await page.goto('/contacts');
 
     // Put it back, so this test leaves the seeded tenant as it found it.
     await page.goto('/settings/security');

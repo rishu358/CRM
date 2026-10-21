@@ -18,6 +18,7 @@ import {
   Kbd,
   LeadsIcon,
   MenuIcon,
+  DashboardIcon,
   MyDayIcon,
   PanelLeftCloseIcon,
   PanelLeftOpenIcon,
@@ -59,6 +60,11 @@ const NAV: readonly {
   requiresSetupAccess?: true;
 }[][] = [
   [
+    {
+      href: '/dashboard',
+      label: 'nav.dashboard',
+      icon: <DashboardIcon className="h-4 w-4 shrink-0" />,
+    },
     { href: '/my-day', label: 'nav.myDay', icon: <MyDayIcon className="h-4 w-4 shrink-0" /> },
     { href: '/leads', label: 'nav.leads', icon: <LeadsIcon className="h-4 w-4 shrink-0" /> },
     {
@@ -277,7 +283,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           )}
         >
           <Link
-            href="/my-day"
+            href="/dashboard"
             title={collapsed ? t('app.name') : undefined}
             className="flex items-center gap-2.5 rounded-md px-1 py-1 text-base font-semibold tracking-tight"
           >

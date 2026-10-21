@@ -161,7 +161,7 @@ P1: `record_lookup, formula, rollup, file`. Values are validated in `packages/co
 **Acceptance**
 
 - [ ] New tenant reaches "first deal created" in ≤ 10 min in usability tests with 3 non-technical users.
-- [ ] "Remove sample data" deletes only seeded records.
+- [x] "Remove sample data" deletes only seeded records, and keeps any a person has edited or built on. (`sample-data.security.spec.ts` in `@crm/db`, `sample-data.spec.ts` in the worker; ADR-0037)
 
 ### M3. Users, Roles & Permissions (P0)
 
@@ -230,6 +230,13 @@ P1: `record_lookup, formula, rollup, file`. Values are validated in `packages/co
 
 - Home dashboard: pipeline value by stage, deals won this month, leads by source, overdue tasks, rep leaderboard.
 - **P1:** custom report builder, scheduled reports. **P2:** forecasting, AI insights.
+
+**Acceptance**
+
+- [x] Every figure respects the reader's record scope: a rep with `own` scope gets the totals of their own deals, wins, leads and tasks, and nobody else's. (`dashboard.security.spec.ts`; ADR-0038)
+- [x] A field hidden from a role cannot be read back as a total, a count or a grouping: it is `null` in the response and "not available to you" on screen, never zero. (`dashboard.security.spec.ts`)
+- [x] Each figure equals what the list or board of the same records adds up to for the same person. (`dashboard.spec.ts`, `dashboard.lists.spec.ts`)
+- [x] "This month" is the company's calendar month, from the database clock, including around a month turn in zones ahead of and behind UTC. (`dashboard.window.spec.ts`)
 
 ### M11. Audit & Data Rights (P0)
 

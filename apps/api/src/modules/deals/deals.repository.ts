@@ -53,6 +53,29 @@ export interface ListResult {
   readonly hasMore: boolean;
 }
 
+/**
+ * A calendar month in the company's time zone, as the instants that bound it.
+ *
+ * Computed by the database from its own clock, never from the API process's
+ * `Date`: two requests a moment apart must agree about which month it is, and
+ * the machines the API runs on do not agree about what time it is (ADR-0038).
+ */
+export interface MonthWindow {
+  readonly start: Date;
+  readonly end: Date;
+  readonly previousStart: Date;
+}
+
+/** Deals won in the current or the previous month, per owner and currency. */
+export interface WonCell {
+  readonly ownerId: string | null;
+  readonly period: 'current' | 'previous';
+  readonly currency: string | null;
+  readonly count: number;
+  readonly withAmount: number;
+  readonly amountMinor: bigint;
+}
+
 /** One stage-and-currency cell of the board's totals. */
 export interface BoardCell {
   readonly stageId: string;
@@ -313,6 +336,90 @@ export class DealsRepository {
 
     return rows.map((row) => ({
       stageId: row.stageId,
+      currency: row.currency,
+      count: row.count,
+      withAmount: row.withAmount,
+      amountMinor: BigInt(row.amountMinor),
+    }));
+  }
+
+  /**
+   * This month and the one before, in the company's time zone.
+   *
+   * `now()` is the database's transaction time, so every statement of one
+   * request sees the same instant. The zone is a bound parameter and has already
+   * been checked against the IANA list by the caller.
+   *
+   * `instant` exists so a test can ask what the window was at a moment near a month
+   * boundary, which the real clock cannot be made to be. Production never passes it.
+   */
+  async monthWindow(tx: Tx, timeZone: string, instant?: Date): Promise<MonthWindow> {
+    const at = instant === undefined ? sql`now()` : sql`${instant.toISOString()}::timestamptz`;
+    const local = sql`date_trunc('month', timezone(${timeZone}, ${at}))`;
+    const result = await tx.execute<{ start: Date; end: Date; previous_start: Date }>(sql`
+      select
+        timezone(${timeZone}, ${local}) as start,
+        timezone(${timeZone}, ${local} + interval '1 month') as "end",
+        timezone(${timeZone}, ${local} - interval '1 month') as previous_start
+    `);
+    const row = result.rows[0];
+    if (row === undefined) throw new Error('Month window returned no row');
+    return {
+      start: new Date(row.start),
+      end: new Date(row.end),
+      previousStart: new Date(row.previous_start),
+    };
+  }
+
+  /**
+   * Deals won since the start of last month, per owner, currency and month.
+   *
+   * "Won" is membership of a won stage, which the pipelines module names
+   * (`wonStageIds`); `closed_at` is when the stage put it there. The scope is in
+   * the WHERE clause, as on the list, so a total can never include a colleague's
+   * deal the caller could not open.
+   */
+  async wonCells(
+    tx: Tx,
+    tenantId: string,
+    constraint: RecordConstraint,
+    wonStageIds: readonly string[],
+    window: MonthWindow,
+  ): Promise<WonCell[]> {
+    if (wonStageIds.length === 0) return [];
+
+    const predicates: SQL[] = [
+      eq(deals.tenantId, tenantId),
+      notDeleted(),
+      inArray(deals.stageId, [...wonStageIds]),
+      sql`${deals.closedAt} >= ${window.previousStart.toISOString()}::timestamptz`,
+      sql`${deals.closedAt} < ${window.end.toISOString()}::timestamptz`,
+    ];
+    const scope = constraintToSql(constraint);
+    if (scope !== undefined) predicates.push(scope);
+
+    const period = sql<
+      'current' | 'previous'
+    >`case when ${deals.closedAt} >= ${window.start.toISOString()}::timestamptz then 'current' else 'previous' end`;
+
+    const rows = await tx
+      .select({
+        ownerId: deals.ownerId,
+        period,
+        currency: deals.currency,
+        count: sql<number>`count(*)::int`,
+        withAmount: sql<number>`count(${deals.amountMinor})::int`,
+        amountMinor: sql<string>`coalesce(sum(${deals.amountMinor}), 0)::text`,
+      })
+      .from(deals)
+      .where(and(...predicates))
+      // By position: the period expression carries bound parameters, and the same
+      // text with different parameter numbers is not "the same expression" to Postgres.
+      .groupBy(sql`1, 2, 3`);
+
+    return rows.map((row) => ({
+      ownerId: row.ownerId,
+      period: row.period,
       currency: row.currency,
       count: row.count,
       withAmount: row.withAmount,

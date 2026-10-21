@@ -32,7 +32,7 @@ export default function SignInPage() {
   const [pending, setPending] = useState(false);
 
   const goToApp = () => {
-    router.push('/contacts');
+    router.push('/dashboard');
     router.refresh();
   };
 

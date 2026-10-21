@@ -97,6 +97,12 @@ const ACTIONS: readonly {
   keys?: readonly string[];
 }[] = [
   { key: 'new-deal', label: 'palette.action.newDeal', href: '/deals', intent: 'new-deal' },
+  {
+    key: 'go-dashboard',
+    label: 'palette.action.goToDashboard',
+    href: '/dashboard',
+    keys: ['G', 'H'],
+  },
   { key: 'go-my-day', label: 'palette.action.goToMyDay', href: '/my-day', keys: ['G', 'M'] },
   { key: 'go-deals', label: 'palette.action.goToDeals', href: '/deals', keys: ['G', 'D'] },
   { key: 'go-team', label: 'palette.action.goToTeam', href: '/settings/team', keys: ['G', 'T'] },
@@ -263,7 +269,9 @@ export function CommandPalette() {
         onClick={() => setOpen(true)}
         data-testid="palette-trigger"
         aria-keyshortcuts="Control+K Meta+K"
-        className="w-full max-w-sm justify-start gap-2 font-normal text-muted-foreground md:max-w-xs lg:max-w-sm"
+        // `shrink`, not the button's default `shrink-0`: in a narrow top bar a full-width trigger
+        // pushes the notification bell off the screen and makes the whole page scroll sideways.
+        className="min-w-0 flex-1 shrink justify-start gap-2 font-normal text-muted-foreground max-w-sm md:max-w-xs lg:max-w-sm"
       >
         <SearchIcon className="h-4 w-4" />
         <span className="flex-1 text-left">{t('palette.open')}</span>

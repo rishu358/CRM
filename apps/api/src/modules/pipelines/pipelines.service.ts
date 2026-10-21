@@ -98,6 +98,15 @@ export class PipelinesService {
     return pipeline.id;
   }
 
+  /**
+   * Every stage of one kind across all pipelines, for reports that ask "which deals are
+   * won". The deals module cannot join to stages (ADR-0001), so it is told which they are.
+   */
+  async stageIdsOfKind(tx: Tx, tenantId: string, kind: StageKind): Promise<string[]> {
+    const stages = await this.repository.allStages(tx, tenantId);
+    return stages.filter((stage) => stage.stageType === kind).map((stage) => stage.id);
+  }
+
   async pipelineIsUsable(tx: Tx, tenantId: string, pipelineId: string): Promise<boolean> {
     return (await this.repository.findPipeline(tx, tenantId, pipelineId)) !== null;
   }

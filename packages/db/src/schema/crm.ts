@@ -324,6 +324,10 @@ export const deals = pgTable(
     index('deals_tenant_name_id_idx')
       .on(table.tenantId, table.name, table.id)
       .where(sql`${table.deletedAt} is null`),
+    // Deals won in a window: the dashboard's "this month" (migration 0018, ADR-0038).
+    index('deals_tenant_closed_idx')
+      .on(table.tenantId, table.closedAt, table.id)
+      .where(sql`${table.deletedAt} is null and ${table.closedAt} is not null`),
     index('deals_tenant_close_date_idx')
       .on(table.tenantId, table.expectedCloseDate, table.id)
       .where(sql`${table.deletedAt} is null`),

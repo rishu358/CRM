@@ -3,6 +3,7 @@ import { AccessController } from './access.controller.js';
 import { AccessRepository } from './access.repository.js';
 import { AccessSupport } from './access.support.js';
 import { ExplainerService } from './explainer.service.js';
+import { MemberDirectory } from './member-directory.service.js';
 import { MembersController } from './members.controller.js';
 import { MembersService } from './members.service.js';
 import { OwnershipController } from './ownership.controller.js';
@@ -41,6 +42,8 @@ import { TeamsService } from './teams.service.js';
     TeamsService,
     OwnershipService,
     ExplainerService,
+    MemberDirectory,
   ],
+  exports: [MemberDirectory],
 })
 export class AccessModule {}

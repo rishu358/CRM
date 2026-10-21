@@ -348,7 +348,7 @@ function FirstRun({ profile }: { profile: TenantProfile }) {
 
     try {
       await complete.mutateAsync();
-      router.push('/my-day');
+      router.push('/dashboard');
     } catch {
       setError('setup.error.save');
       setBusy(false);
@@ -360,7 +360,7 @@ function FirstRun({ profile }: { profile: TenantProfile }) {
     setBusy(true);
     try {
       await complete.mutateAsync();
-      router.push('/my-day');
+      router.push('/dashboard');
     } catch {
       setError('setup.error.save');
       setBusy(false);

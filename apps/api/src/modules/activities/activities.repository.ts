@@ -377,4 +377,46 @@ export class ActivitiesRepository {
     const row = (result.rows as unknown as { timezone: string; locale: string }[])[0];
     return row ?? null;
   }
+
+  /**
+   * Open tasks whose due time has passed, oldest first, and how many there are.
+   *
+   * "Passed" is the database's `now()`, the same instant for every statement of
+   * the request, not a `Date` from whichever machine the API runs on. Unlike My
+   * Day this is not cut on anybody's calendar day: a task due at 09:00 is overdue
+   * at 15:00 the same day, which is what a team-wide count has to mean.
+   *
+   * The scope is in the WHERE clause, so both the count and the rows are what the
+   * reader could list, and no more.
+   */
+  async overdueTasks(
+    tx: Tx,
+    tenantId: string,
+    constraint: RecordConstraint,
+    limit: number,
+  ): Promise<{ count: number; rows: Activity[] }> {
+    const predicates: SQL[] = [
+      eq(activities.tenantId, tenantId),
+      notDeleted(),
+      eq(activities.type, 'task'),
+      eq(activities.status, 'open'),
+      sql`${activities.dueAt} < now()`,
+    ];
+    const scope = constraintToSql(constraint);
+    if (scope !== undefined) predicates.push(scope);
+
+    const counted = await tx
+      .select({ count: sql<number>`count(*)::int` })
+      .from(activities)
+      .where(and(...predicates));
+
+    const rows = await tx
+      .select()
+      .from(activities)
+      .where(and(...predicates))
+      .orderBy(asc(activities.dueAt), asc(activities.id))
+      .limit(limit);
+
+    return { count: counted[0]?.count ?? 0, rows };
+  }
 }
