@@ -76,8 +76,8 @@ const suffix = tenantId.replaceAll('-', '').slice(-8);
 try {
   // 1. The tenant itself, as crm_auth.
   await auth.db.execute(
-    sql`insert into tenants (id, name, slug, plan, default_currency, timezone, locale)
-        values (${tenantId}, ${'Demo Jewellers'}, ${`demo-${suffix}`}, 'free', 'INR', 'Asia/Kolkata', 'en-IN')`,
+    sql`insert into tenants (id, name, slug, plan, default_currency, timezone, locale, setup_completed_at)
+        values (${tenantId}, ${'Demo Jewellers'}, ${`demo-${suffix}`}, 'free', 'INR', 'Asia/Kolkata', 'en-IN', now())`,
   );
 
   // 2. Roles, grants and field metadata, as the API role inside tenant context.
@@ -469,6 +469,39 @@ try {
     ),
   );
 
+  // 5b. A second, brand-new company, for the first-run flow (MVP_SPEC M2).
+  //
+  //     The demo company above is a finished one (its setup is marked complete),
+  //     so signing in as its owner goes straight to work. This one has had nothing
+  //     done to it: no sample data, and `setup_completed_at` still null, so signing
+  //     in as its owner lands on the setup screen. It is what the end-to-end suite
+  //     walks through, and what a developer opens to see what a customer sees on
+  //     the first morning.
+  const freshTenantId = newId();
+  const freshOwnerId = newId();
+  const freshEmail = `fresh-${suffix}@example.com`;
+  await auth.db.execute(
+    sql`insert into tenants (id, name, slug, plan, default_currency, timezone, locale)
+        values (${freshTenantId}, ${'Fresh Traders'}, ${`fresh-${suffix}`}, 'free', 'INR', 'Asia/Kolkata', 'en-IN')`,
+  );
+  const freshRoles = await withTenant(app.db, { tenantId: freshTenantId, userId: null }, (tx) =>
+    provisionTenantDefaults(tx, freshTenantId, null),
+  );
+  const freshOwnerRole = freshRoles.roleIdsByName.get(FOUNDING_ROLE_NAME);
+  if (!freshOwnerRole) throw new Error('Seed could not resolve the fresh company owner role');
+  await auth.db.execute(
+    sql`insert into users (id, email, name, locale, timezone, email_verified_at)
+        values (${freshOwnerId}, ${freshEmail}, ${'Asha Verma'}, 'en-IN', 'Asia/Kolkata', now())`,
+  );
+  await auth.db.execute(
+    sql`insert into auth_accounts (id, user_id, provider_id, account_id, password_hash)
+        values (${newId()}, ${freshOwnerId}, 'credential', ${freshEmail}, ${passwordHash})`,
+  );
+  await auth.db.execute(
+    sql`insert into memberships (id, tenant_id, user_id, role_id, status, joined_at)
+        values (${newId()}, ${freshTenantId}, ${freshOwnerId}, ${freshOwnerRole}, 'active', now())`,
+  );
+
   // 6. Index everything that was just inserted (MVP_SPEC M7, ADR-0028).
   //    `reindexTenant` is the same projection the relay uses, so what the
   //    palette finds here is exactly what it would find for a record created
@@ -485,6 +518,7 @@ try {
   console.warn(`  Owner      owner-${suffix}@example.com`);
   console.warn(`  Sales rep  rep-${suffix}@example.com`);
   console.warn(`  MFA demo   mfa-${suffix}@example.com`);
+  console.warn(`  Fresh co   fresh-${suffix}@example.com`);
   console.warn(`  Password   ${DEMO_PASSWORD}`);
   console.warn('');
   console.warn('A pending invitation is waiting at http://localhost:3000/accept-invite:');
@@ -492,6 +526,9 @@ try {
   console.warn(`  Invite     ${inviteToken}`);
   console.warn('');
   console.warn(`  Owner sees every contact, account and deal; the sales rep sees only their own.`);
+  console.warn(
+    `  Fresh co is a second company with its setup not done: sign in as it to see first run.`,
+  );
   console.warn(`  ${indexed} records indexed for search — press Ctrl/Cmd + K and try "gold".`);
 } finally {
   await Promise.all([app.close(), auth.close(), worker.close()]);

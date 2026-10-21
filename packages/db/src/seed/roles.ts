@@ -122,6 +122,19 @@ const DATA_SUBJECT_ERASE_GRANT: SystemRoleGrant = {
   scope: 'all',
 };
 
+/**
+ * Company profile, the setup checklist and sample data (MVP_SPEC M2).
+ *
+ * Owner and Admin, like the rest of workspace administration: they are the two
+ * personas MVP_SPEC §4 describes as setting the company up. Migration 0017
+ * backfills the same rows for tenants that already exist.
+ */
+const TENANT_SETTINGS_GRANT: SystemRoleGrant = {
+  objectType: 'tenant_settings',
+  actions: ['read', 'update'],
+  scope: 'all',
+};
+
 const TENANT_DATA_GRANT: SystemRoleGrant = {
   objectType: 'tenant_data',
   actions: ['export'],
@@ -139,6 +152,7 @@ export const SYSTEM_ROLES: readonly SystemRoleDefinition[] = [
       AUDIT_LOG_GRANT,
       TENANT_DATA_GRANT,
       DATA_SUBJECT_ERASE_GRANT,
+      TENANT_SETTINGS_GRANT,
     ],
   },
   {
@@ -150,6 +164,7 @@ export const SYSTEM_ROLES: readonly SystemRoleDefinition[] = [
       ...ADMINISTRATION_GRANTS,
       AUDIT_LOG_GRANT,
       DATA_SUBJECT_READ_GRANT,
+      TENANT_SETTINGS_GRANT,
     ],
   },
   {

@@ -10,3 +10,4 @@ export * from './search.js';
 export * from './import-export.js';
 export * from './attachments.js';
 export * from './data-rights.js';
+export * from './onboarding.js';

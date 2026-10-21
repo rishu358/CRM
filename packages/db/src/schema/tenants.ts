@@ -25,6 +25,18 @@ export const tenants = pgTable(
     locale: text('locale').notNull().default('en-IN'),
     /** 1-12. India's fiscal year starts in April, so this is not always January. */
     fiscalYearStartMonth: text('fiscal_year_start_month').notNull().default('4'),
+    /**
+     * A short key from the contract's list (MVP_SPEC M2). Nullable: a company that
+     * skipped the question is not an invalid company, and the list can grow without
+     * a migration because the database only bounds its length.
+     */
+    industry: text('industry'),
+    /**
+     * When the founding administrator finished (or skipped) the setup screen. Null
+     * means "send them there". Every tenant that existed before migration 0017 is
+     * marked complete, so nobody who has been working for months meets a wizard.
+     */
+    setupCompletedAt: timestamptz('setup_completed_at'),
     status: text('status').notNull().default('active'),
     settings: jsonb('settings')
       .$type<Record<string, unknown>>()

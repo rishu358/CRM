@@ -301,3 +301,68 @@ export async function hardDelete(
 export function allRecyclableDescriptors(): readonly RecyclableDescriptor[] {
   return SOFT_DELETABLE_OBJECT_TYPES.map((objectType) => RECYCLABLE_DESCRIPTORS[objectType]);
 }
+
+/**
+ * Tables holding rows that point at a record by `(object_type, record_id)`
+ * (ADR-0005).
+ *
+ * ADR-0005 bought cheap new object types by giving up the foreign key on this
+ * side, and said the price is that cleanup becomes a job's responsibility. This
+ * list is that price, written down in one place. A new polymorphic table adds
+ * one line here, and the meta test in `recycle-bin.purge.spec.ts` fails if a
+ * table in the schema carries the pair and is missing from it.
+ *
+ * Tables that reference a record by a plain **foreign key** are deliberately
+ * absent: `deal_contacts` and `activity_links.activity_id` both cascade in the
+ * database (migrations 0008 and 0010), so the delete below takes them with it.
+ * The pair is only needed where ADR-0005 gave the key up.
+ */
+export const POLYMORPHIC_REFERENCE_TABLE_LIST = [
+  'activity_links',
+  'record_tags',
+  'timeline_events',
+  'record_views',
+  // Which records began as sample data (ADR-0037). A purged record's registration
+  // goes with it; the registry has no foreign key to its target (ADR-0005).
+  'sample_records',
+] as const;
+
+/**
+ * Remove rows that point at records which are about to stop existing.
+ *
+ * Deliberately **before** the records are deleted and in the same transaction,
+ * so there is no window in which a link points at nothing. Deleting rows that
+ * are already gone deletes nothing, which is what makes it idempotent.
+ */
+export async function removeReferences(
+  tx: Tx,
+  tenantId: string,
+  objectType: SoftDeletableObjectType,
+  ids: readonly string[],
+): Promise<void> {
+  const idList = sql.join(
+    ids.map((id) => sql`${id}::uuid`),
+    sql`, `,
+  );
+
+  for (const table of POLYMORPHIC_REFERENCE_TABLE_LIST) {
+    await tx.execute(sql`
+      delete from ${sql.identifier(table)}
+      where tenant_id = ${tenantId}::uuid
+        and object_type = ${objectType}
+        and record_id in (${idList})
+    `);
+  }
+
+  // The search index is keyed the same way but is a projection rather than a
+  // reference, and the soft delete already removed these rows. Repeated here so
+  // that a record purged after an index rebuild, or after a failed delete event,
+  // does not stay findable — the one case where a stale index row would survive
+  // everything else.
+  await tx.execute(sql`
+    delete from search_documents
+    where tenant_id = ${tenantId}::uuid
+      and object_type = ${objectType}
+      and record_id in (${idList})
+  `);
+}
