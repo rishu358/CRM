@@ -48,9 +48,14 @@ test.describe('landing', () => {
     await page.goto('/contacts');
     await expect(page.getByRole('heading', { name: 'Contacts' })).toBeVisible();
 
-    await page.keyboard.press('g');
-    await page.keyboard.press('h');
-    await page.waitForURL('**/dashboard');
+    // The heading is on screen before the page's key listeners are attached, so a key
+    // pressed the instant it appears can be lost. Press again until the page answers,
+    // which is what a person does, rather than waiting a guessed number of milliseconds.
+    await expect(async () => {
+      await page.keyboard.press('g');
+      await page.keyboard.press('h');
+      await expect(page).toHaveURL(/\/dashboard$/, { timeout: 1500 });
+    }).toPass({ timeout: 20_000 });
   });
 });
 
