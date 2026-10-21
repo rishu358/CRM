@@ -226,6 +226,13 @@ P1: `record_lookup, formula, rollup, file`. Values are validated in `packages/co
 - Edit picklist values; required fields; layout sections on the record page.
 - Deactivating a field hides it but keeps data (no destructive deletes).
 
+**Acceptance**
+
+- [x] Deactivating a field hides it from forms and records and stops writes to it, and reactivating it brings the stored values back. There is no delete. (`customization.spec.ts`, `customization.security.spec.ts` in `@crm/db`; ADR-0039)
+- [x] A picklist option that has been offered is never removed; retiring one keeps it valid on the records that hold it. (`definition-rules.spec.ts`, `customization.spec.ts`)
+- [x] A field hidden from a role is absent from that role’s forms and unwritable. (`customization.security.spec.ts` in `@crm/api`)
+- [x] An administrator adds a picklist, sees it on a contact and in the new-contact dialog, makes it required and retires an option, end to end. (`e2e/customization.spec.ts`)
+
 ### M10. Dashboard (P0, basic)
 
 - Home dashboard: pipeline value by stage, deals won this month, leads by source, overdue tasks, rep leaderboard.

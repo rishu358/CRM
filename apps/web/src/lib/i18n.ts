@@ -1216,6 +1216,7 @@ export const en = {
   'fields.badge.off': 'Switched off',
   'fields.badge.builtIn': 'Built in',
   'fields.row.section': 'Section: {section}',
+  'fields.row.options': '{offered} of {total} options offered',
   'fields.row.moveUp': 'Move {label} up',
   'fields.row.moveDown': 'Move {label} down',
   'fields.row.edit': 'Edit {label}',

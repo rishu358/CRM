@@ -224,7 +224,7 @@ export function FieldsScreen() {
                             : ` · ${t('fields.row.section', { section: field.section })}`}
                           {field.options === undefined
                             ? ''
-                            : ` · ${field.options.filter((o) => o.isActive !== false).length}/${field.options.length}`}
+                            : ` · ${t('fields.row.options', { offered: field.options.filter((o) => o.isActive !== false).length, total: field.options.length })}`}
                         </p>
                         {field.helpText === null ? null : (
                           <p className="mt-0.5 text-sm text-muted-foreground">{field.helpText}</p>

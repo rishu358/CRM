@@ -46,3 +46,4 @@ supersedes the old one and update the old one's **Status** to
 | [0036](0036-session-revocation-by-epoch.md)              | Sessions are revoked by an epoch counter, not by clocks         | Accepted |
 | [0037](0037-company-setup-and-sample-data.md)            | Company setup and sample data: a registry, keep what was used   | Accepted |
 | [0038](0038-the-dashboard.md)                            | The dashboard: owned by each module, hidden field is null       | Accepted |
+| [0039](0039-customization.md)                            | Customization: what a definition may never do, enforced twice   | Accepted |
