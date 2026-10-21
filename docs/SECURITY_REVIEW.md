@@ -692,6 +692,46 @@ first that deletes many records in one action. Both are reviewed here against §
 - **The "first deal in ten minutes" acceptance criterion needs people** and has not
   been verified; the end-to-end suite measures the click path, not the time.
 
+## The dashboard (MVP_SPEC M10, ADR-0038), reviewed
+
+Every figure on the dashboard is a sum or a count over other modules' records, which
+is the quietest way to read a field that was hidden or a record that was out of scope.
+It is reviewed here against §5 with that in mind.
+
+| Question                                                 | Answer                                                                                                                                                                                                                                                                                                                                                                                      |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Is each widget authorized?                               | Yes, one at a time, by `can()` against the object it summarises (`deal`, `lead`, `activity`). A role with `lead` and no `deal` gets 403 on the pipeline, the won figure and the leaderboard and a working leads card. There is no `dashboard` grant, so there is no second opinion about the same records. Tested for a role with some grants, one with none, and one with mixed scopes.    |
+| Can a total reveal a record outside the reader's scope?  | No. The scope is a `WHERE` clause in each module's own repository query (the one its list uses), not a filter on the result. Tested per widget: a rep with `own` scope gets the figures of their own deals, wins, leads and tasks, and the same pipeline numbers the board gives them.                                                                                                      |
+| Can a total reveal a hidden field?                       | Not when the figure is built from it. `amount` hidden → counts, no money (and no currency of any deal); `closed_at` hidden → no won figure; `owner_id` hidden → no leaderboard; `stage_id` hidden → no pipeline; `status`, `source`, `type`, `due_at` likewise. Each is `null` in the response, never zero, and has its own test that also scans the whole payload for the hidden values.   |
+| What is still shown to someone who cannot read `amount`? | Counts that do not depend on it (deals in a stage, wins this month), as the board always did, and the company's reporting currency, which is a fact about the company and not about any deal.                                                                                                                                                                                               |
+| Do names leak?                                           | The leaderboard names people through `MemberDirectory`, which returns display names of **active members**, for the ids it is given, and nothing else (no address, role, status, list or search). The ids come from deals inside the reader's scope. Tested: no address in the payload, a rep sees only themselves, a suspended member is labelled neutrally and their name does not appear. |
+| Does the client choose the tenant, user or owner?        | No. The only query parameter is `pipelineId`, and the schema is `.strict()`: `tenantId`, `userId`, `ownerId` and `amount` are 422. A tenant named in a header is ignored. A pipeline of another company is 404 with the same body as one that does not exist.                                                                                                                               |
+| Is there SQL built from input?                           | No string building. The time zone is a bound parameter after an IANA check, ids are bound, and the sources are grouped by an expression of the column, not of anything sent.                                                                                                                                                                                                                |
+| Is "this month" trustworthy?                             | The boundaries are computed in SQL from the database clock and the company's zone, once per request, and passed to the query as instants. Tested for four zones (including a +14:00 one and a DST one) against `Intl`, independently of the SQL. Fixtures sit an hour or more from every boundary, so a skewed container clock cannot move one.                                             |
+| Is money correct?                                        | Per-currency subtotals are converted once; a currency with no rate is counted, left out of the total and named; a leaderboard row built on one is flagged `partial`. The month-on-month change is integer arithmetic.                                                                                                                                                                       |
+| Does it cost too much on a large company?                | "Won this month" has its own partial index (migration 0018) and a plan test that asserts it is read and that the rows read are about the window, not the company's history. Open pipeline and open leads read every open record of the company, as the board does; that is recorded as a known limit in ADR-0038 with the remedy.                                                           |
+| Is it audited?                                           | It writes nothing, so there is nothing to audit; reads of other lists are not audited either.                                                                                                                                                                                                                                                                                               |
+
+The guards were mutation-tested: each field gate, each `can()` check, each scope clause
+and each rule (deleted, converted, wrong stage, window bounds, time zone, ordering, the
+top-ten cut, `partial`, former members) was disabled in turn and the dashboard specs had
+to fail.
+
+### Known gaps, deliberately
+
+- **Open pipeline and open leads are computed per request over every open record.**
+  Fine to the tens of thousands; a million open leads wants a maintained count or a short
+  cache (ADR-0038).
+- **The index is built inside the migration transaction.** Safe while `deals` is small;
+  on a large live table it belongs outside the runner (the note in 0007 and the recipe in
+  0016 apply).
+- **A custom role has to be given six more fields to see the whole page** (`closed_at`,
+  `owner_id`, `stage_id`, `type`, `due_at`, `status`). A role missing one sees that figure
+  as "not available to you", which is the safe direction to be wrong in.
+- **The leaderboard shows display names to a reader who could not list members.** Narrow
+  and tested not to widen, but a disclosure.
+- **No customisable layout, saved views or scheduled reports** (MVP_SPEC P1).
+
 ## The OpenAPI document (ADR-0027), reviewed
 
 Generated from the Zod contracts and served at `GET /api/v1/openapi.json`. It
