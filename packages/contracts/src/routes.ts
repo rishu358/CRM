@@ -141,6 +141,13 @@ import {
   teamSchema,
   teamUpdateSchema,
 } from './access.js';
+import {
+  onboardingStatusSchema,
+  sampleDataLoadedSchema,
+  sampleDataRemovalSchema,
+  tenantProfileSchema,
+  tenantProfileUpdateSchema,
+} from './onboarding.js';
 import { auditEntrySchema, auditListQuerySchema } from './audit.js';
 import {
   dataExportCreateSchema,
@@ -2118,6 +2125,134 @@ const accessRoutes: RouteDefinition[] = [
   },
 ];
 
+const SETUP_NOTE =
+  'Authorized by `can()` against the `tenant_settings` object, like every other route. ' +
+  'Without the grant the answer is `FORBIDDEN`.';
+
+const onboardingRoutes: RouteDefinition[] = [
+  {
+    method: 'GET',
+    path: '/tenant',
+    operationId: 'getTenantProfile',
+    tag: 'Onboarding',
+    summary: 'Read the company profile',
+    description: SETUP_NOTE,
+    auth: 'session',
+    response: {
+      kind: 'object',
+      status: 200,
+      name: 'TenantProfileResponse',
+      description: 'The company name, default currency, time zone, locale and industry.',
+      data: tenantProfileSchema,
+    },
+    errors: [],
+  },
+  {
+    method: 'PATCH',
+    path: '/tenant',
+    operationId: 'updateTenantProfile',
+    tag: 'Onboarding',
+    summary: 'Edit the company profile',
+    description:
+      'Name, default currency, time zone and industry, and nothing else: the plan, status, ' +
+      'slug and region are not writable by the application at all. ' +
+      SETUP_NOTE,
+    auth: 'session',
+    body: { name: 'TenantProfileUpdate', schema: tenantProfileUpdateSchema },
+    response: {
+      kind: 'object',
+      status: 200,
+      name: 'TenantProfileUpdateResponse',
+      description: 'The company profile after the change.',
+      data: tenantProfileSchema,
+    },
+    errors: [],
+  },
+  {
+    method: 'GET',
+    path: '/onboarding',
+    operationId: 'getOnboarding',
+    tag: 'Onboarding',
+    summary: 'Where the company is in setting up',
+    description:
+      'Whether setup is finished, the checklist (derived from what actually exists, never ' +
+      'stored) and whether sample data is still present. ' +
+      SETUP_NOTE,
+    auth: 'session',
+    response: {
+      kind: 'object',
+      status: 200,
+      name: 'OnboardingResponse',
+      description: 'Setup state, checklist and sample data.',
+      data: onboardingStatusSchema,
+    },
+    errors: [],
+  },
+  {
+    method: 'POST',
+    path: '/onboarding/complete',
+    operationId: 'completeOnboarding',
+    tag: 'Onboarding',
+    summary: 'Finish setup',
+    description:
+      'Marks setup complete so the setup screen stops being the first thing the founding ' +
+      'administrator sees. Safe to repeat. ' +
+      SETUP_NOTE,
+    auth: 'session',
+    response: {
+      kind: 'object',
+      status: 200,
+      name: 'OnboardingCompleteResponse',
+      description: 'Setup state after finishing.',
+      data: onboardingStatusSchema,
+    },
+    errors: [],
+  },
+  {
+    method: 'POST',
+    path: '/onboarding/sample-data',
+    operationId: 'loadSampleData',
+    tag: 'Onboarding',
+    summary: 'Load sample data',
+    description:
+      'A handful of accounts, contacts, leads, deals and tasks, created in one transaction and ' +
+      'registered as sample data so they can be removed again. Needs the right to create each ' +
+      'kind. Refused with `CONFLICT` while sample data is already present. ' +
+      SETUP_NOTE,
+    auth: 'session',
+    response: {
+      kind: 'object',
+      status: 201,
+      name: 'SampleDataLoadedResponse',
+      description: 'What was created.',
+      data: sampleDataLoadedSchema,
+    },
+    errors: [ErrorCode.CONFLICT],
+  },
+  {
+    method: 'DELETE',
+    path: '/onboarding/sample-data',
+    operationId: 'removeSampleData',
+    tag: 'Onboarding',
+    summary: 'Remove sample data',
+    description:
+      'Asks for the sample records nobody has changed or built on to be deleted. The work ' +
+      'runs in the background and is reported by `sampleData.removing` on `GET /onboarding`. ' +
+      'A sample record that was edited, or that a record you created refers to, is kept and ' +
+      'stops being marked as sample data (ADR-0037). ' +
+      SETUP_NOTE,
+    auth: 'session',
+    response: {
+      kind: 'object',
+      status: 202,
+      name: 'SampleDataRemovalResponse',
+      description: 'The request was accepted.',
+      data: sampleDataRemovalSchema,
+    },
+    errors: [],
+  },
+];
+
 export const API_ROUTES: readonly RouteDefinition[] = [
   ...healthRoutes,
   ...metaRoutes,
@@ -2204,6 +2339,7 @@ export const API_ROUTES: readonly RouteDefinition[] = [
   ...auditRoutes,
   ...recycleBinRoutes,
   ...dataRightsRoutes,
+  ...onboardingRoutes,
 ];
 
 /** `GET /contacts/{id}` — how the drift test and the generator name a route. */

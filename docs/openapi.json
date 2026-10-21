@@ -2454,6 +2454,7 @@
                 "audit_log",
                 "tenant_data",
                 "data_subject",
+                "tenant_settings",
                 "user",
                 "session",
                 "tenant",
@@ -2484,7 +2485,9 @@
                 "permission_change",
                 "impersonate",
                 "erase",
-                "redact"
+                "redact",
+                "sample_data_loaded",
+                "sample_data_removed"
               ]
             }
           },
@@ -8745,6 +8748,302 @@
         }
       }
     },
+    "/onboarding": {
+      "get": {
+        "operationId": "getOnboarding",
+        "summary": "Where the company is in setting up",
+        "tags": [
+          "Onboarding"
+        ],
+        "description": "Whether setup is finished, the checklist (derived from what actually exists, never stored) and whether sample data is still present. Authorized by `can()` against the `tenant_settings` object, like every other route. Without the grant the answer is `FORBIDDEN`.",
+        "responses": {
+          "200": {
+            "description": "Setup state, checklist and sample data.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OnboardingResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No session, or the credentials offered were not accepted. `error.code` is one of: `UNAUTHENTICATED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, but not permitted. `error.code` is one of: `FORBIDDEN`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Input failed validation at the API boundary. `error.code` is one of: `VALIDATION_FAILED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded. Limits are per user and per tenant, not only per IP. `error.code` is one of: `RATE_LIMITED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote `requestId` when reporting it. `error.code` is one of: `INTERNAL`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/onboarding/complete": {
+      "post": {
+        "operationId": "completeOnboarding",
+        "summary": "Finish setup",
+        "tags": [
+          "Onboarding"
+        ],
+        "description": "Marks setup complete so the setup screen stops being the first thing the founding administrator sees. Safe to repeat. Authorized by `can()` against the `tenant_settings` object, like every other route. Without the grant the answer is `FORBIDDEN`.",
+        "responses": {
+          "200": {
+            "description": "Setup state after finishing.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OnboardingCompleteResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No session, or the credentials offered were not accepted. `error.code` is one of: `UNAUTHENTICATED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, but not permitted. `error.code` is one of: `FORBIDDEN`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Input failed validation at the API boundary. `error.code` is one of: `VALIDATION_FAILED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded. Limits are per user and per tenant, not only per IP. `error.code` is one of: `RATE_LIMITED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote `requestId` when reporting it. `error.code` is one of: `INTERNAL`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/onboarding/sample-data": {
+      "delete": {
+        "operationId": "removeSampleData",
+        "summary": "Remove sample data",
+        "tags": [
+          "Onboarding"
+        ],
+        "description": "Asks for the sample records nobody has changed or built on to be deleted. The work runs in the background and is reported by `sampleData.removing` on `GET /onboarding`. A sample record that was edited, or that a record you created refers to, is kept and stops being marked as sample data (ADR-0037). Authorized by `can()` against the `tenant_settings` object, like every other route. Without the grant the answer is `FORBIDDEN`.",
+        "responses": {
+          "202": {
+            "description": "The request was accepted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SampleDataRemovalResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No session, or the credentials offered were not accepted. `error.code` is one of: `UNAUTHENTICATED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, but not permitted. `error.code` is one of: `FORBIDDEN`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Input failed validation at the API boundary. `error.code` is one of: `VALIDATION_FAILED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded. Limits are per user and per tenant, not only per IP. `error.code` is one of: `RATE_LIMITED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote `requestId` when reporting it. `error.code` is one of: `INTERNAL`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "loadSampleData",
+        "summary": "Load sample data",
+        "tags": [
+          "Onboarding"
+        ],
+        "description": "A handful of accounts, contacts, leads, deals and tasks, created in one transaction and registered as sample data so they can be removed again. Needs the right to create each kind. Refused with `CONFLICT` while sample data is already present. Authorized by `can()` against the `tenant_settings` object, like every other route. Without the grant the answer is `FORBIDDEN`.",
+        "responses": {
+          "201": {
+            "description": "What was created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SampleDataLoadedResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No session, or the credentials offered were not accepted. `error.code` is one of: `UNAUTHENTICATED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, but not permitted. `error.code` is one of: `FORBIDDEN`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The write conflicts with the record’s current state. `error.code` is one of: `CONFLICT`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Input failed validation at the API boundary. `error.code` is one of: `VALIDATION_FAILED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded. Limits are per user and per tenant, not only per IP. `error.code` is one of: `RATE_LIMITED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote `requestId` when reporting it. `error.code` is one of: `INTERNAL`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/openapi.json": {
       "get": {
         "operationId": "openApiDocument",
@@ -10637,6 +10936,158 @@
           }
         }
       }
+    },
+    "/tenant": {
+      "get": {
+        "operationId": "getTenantProfile",
+        "summary": "Read the company profile",
+        "tags": [
+          "Onboarding"
+        ],
+        "description": "Authorized by `can()` against the `tenant_settings` object, like every other route. Without the grant the answer is `FORBIDDEN`.",
+        "responses": {
+          "200": {
+            "description": "The company name, default currency, time zone, locale and industry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TenantProfileResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No session, or the credentials offered were not accepted. `error.code` is one of: `UNAUTHENTICATED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, but not permitted. `error.code` is one of: `FORBIDDEN`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Input failed validation at the API boundary. `error.code` is one of: `VALIDATION_FAILED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded. Limits are per user and per tenant, not only per IP. `error.code` is one of: `RATE_LIMITED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote `requestId` when reporting it. `error.code` is one of: `INTERNAL`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateTenantProfile",
+        "summary": "Edit the company profile",
+        "tags": [
+          "Onboarding"
+        ],
+        "description": "Name, default currency, time zone and industry, and nothing else: the plan, status, slug and region are not writable by the application at all. Authorized by `can()` against the `tenant_settings` object, like every other route. Without the grant the answer is `FORBIDDEN`.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TenantProfileUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The company profile after the change.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TenantProfileUpdateResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No session, or the credentials offered were not accepted. `error.code` is one of: `UNAUTHENTICATED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, but not permitted. `error.code` is one of: `FORBIDDEN`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Input failed validation at the API boundary. `error.code` is one of: `VALIDATION_FAILED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded. Limits are per user and per tenant, not only per IP. `error.code` is one of: `RATE_LIMITED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote `requestId` when reporting it. `error.code` is one of: `INTERNAL`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -11993,6 +12444,7 @@
                   "audit_log",
                   "tenant_data",
                   "data_subject",
+                  "tenant_settings",
                   "user",
                   "session",
                   "tenant",
@@ -12018,7 +12470,9 @@
                   "permission_change",
                   "impersonate",
                   "erase",
-                  "redact"
+                  "redact",
+                  "sample_data_loaded",
+                  "sample_data_removed"
                 ]
               },
               "recordId": {
@@ -13194,7 +13648,8 @@
                     "membership",
                     "audit_log",
                     "tenant_data",
-                    "data_subject"
+                    "data_subject",
+                    "tenant_settings"
                   ]
                 },
                 "action": {
@@ -13253,7 +13708,8 @@
                     "membership",
                     "audit_log",
                     "tenant_data",
-                    "data_subject"
+                    "data_subject",
+                    "tenant_settings"
                   ]
                 },
                 "fieldKey": {
@@ -13321,7 +13777,8 @@
                     "membership",
                     "audit_log",
                     "tenant_data",
-                    "data_subject"
+                    "data_subject",
+                    "tenant_settings"
                   ]
                 },
                 "action": {
@@ -13380,7 +13837,8 @@
                     "membership",
                     "audit_log",
                     "tenant_data",
-                    "data_subject"
+                    "data_subject",
+                    "tenant_settings"
                   ]
                 },
                 "fieldKey": {
@@ -13483,6 +13941,47 @@
         ],
         "additionalProperties": false
       },
+      "TenantProfileUpdate": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "defaultCurrency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$"
+          },
+          "timezone": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "industry": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "retail",
+                  "wholesale",
+                  "manufacturing",
+                  "services",
+                  "real_estate",
+                  "education",
+                  "healthcare",
+                  "technology",
+                  "hospitality",
+                  "other"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
       "ErrorResponse": {
         "type": "object",
         "properties": {
@@ -13570,7 +14069,8 @@
                         "membership",
                         "audit_log",
                         "tenant_data",
-                        "data_subject"
+                        "data_subject",
+                        "tenant_settings"
                       ]
                     },
                     "kind": {
@@ -13712,7 +14212,8 @@
                         "membership",
                         "audit_log",
                         "tenant_data",
-                        "data_subject"
+                        "data_subject",
+                        "tenant_settings"
                       ]
                     },
                     "kind": {
@@ -14100,7 +14601,8 @@
                         "membership",
                         "audit_log",
                         "tenant_data",
-                        "data_subject"
+                        "data_subject",
+                        "tenant_settings"
                       ]
                     },
                     "kind": {
@@ -20636,7 +21138,8 @@
                               "membership",
                               "audit_log",
                               "tenant_data",
-                              "data_subject"
+                              "data_subject",
+                              "tenant_settings"
                             ]
                           },
                           "action": {
@@ -20771,7 +21274,8 @@
                               "membership",
                               "audit_log",
                               "tenant_data",
-                              "data_subject"
+                              "data_subject",
+                              "tenant_settings"
                             ]
                           },
                           "fieldKey": {
@@ -20842,7 +21346,8 @@
                         "membership",
                         "audit_log",
                         "tenant_data",
-                        "data_subject"
+                        "data_subject",
+                        "tenant_settings"
                       ]
                     },
                     "action": {
@@ -20954,7 +21459,8 @@
                         "membership",
                         "audit_log",
                         "tenant_data",
-                        "data_subject"
+                        "data_subject",
+                        "tenant_settings"
                       ]
                     },
                     "action": {
@@ -21660,6 +22166,316 @@
         ],
         "additionalProperties": false
       },
+      "OnboardingResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "object",
+            "properties": {
+              "setupCompleted": {
+                "type": "boolean"
+              },
+              "checklist": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "key": {
+                      "type": "string",
+                      "enum": [
+                        "invite_team",
+                        "import_contacts",
+                        "add_first_deal"
+                      ]
+                    },
+                    "done": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "key",
+                    "done"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "sampleData": {
+                "type": "object",
+                "properties": {
+                  "present": {
+                    "type": "boolean"
+                  },
+                  "counts": {
+                    "type": "object",
+                    "properties": {
+                      "accounts": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "contacts": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "leads": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "deals": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "activities": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      }
+                    },
+                    "required": [
+                      "accounts",
+                      "contacts",
+                      "leads",
+                      "deals",
+                      "activities"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "removing": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "present",
+                  "counts",
+                  "removing"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "setupCompleted",
+              "checklist",
+              "sampleData"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "additionalProperties": false
+      },
+      "OnboardingCompleteResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "object",
+            "properties": {
+              "setupCompleted": {
+                "type": "boolean"
+              },
+              "checklist": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "key": {
+                      "type": "string",
+                      "enum": [
+                        "invite_team",
+                        "import_contacts",
+                        "add_first_deal"
+                      ]
+                    },
+                    "done": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "key",
+                    "done"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "sampleData": {
+                "type": "object",
+                "properties": {
+                  "present": {
+                    "type": "boolean"
+                  },
+                  "counts": {
+                    "type": "object",
+                    "properties": {
+                      "accounts": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "contacts": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "leads": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "deals": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "activities": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      }
+                    },
+                    "required": [
+                      "accounts",
+                      "contacts",
+                      "leads",
+                      "deals",
+                      "activities"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "removing": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "present",
+                  "counts",
+                  "removing"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "setupCompleted",
+              "checklist",
+              "sampleData"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "additionalProperties": false
+      },
+      "SampleDataRemovalResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string",
+                "const": "removing"
+              }
+            },
+            "required": [
+              "status"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "additionalProperties": false
+      },
+      "SampleDataLoadedResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "object",
+            "properties": {
+              "created": {
+                "type": "object",
+                "properties": {
+                  "accounts": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "contacts": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "leads": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "deals": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "activities": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "accounts",
+                  "contacts",
+                  "leads",
+                  "deals",
+                  "activities"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "created"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "additionalProperties": false
+      },
       "ReassignPreviewResponse": {
         "type": "object",
         "properties": {
@@ -22144,7 +22960,8 @@
                         "membership",
                         "audit_log",
                         "tenant_data",
-                        "data_subject"
+                        "data_subject",
+                        "tenant_settings"
                       ]
                     },
                     "action": {
@@ -22194,7 +23011,8 @@
                         "membership",
                         "audit_log",
                         "tenant_data",
-                        "data_subject"
+                        "data_subject",
+                        "tenant_settings"
                       ]
                     },
                     "fieldKey": {
@@ -22299,7 +23117,8 @@
                         "membership",
                         "audit_log",
                         "tenant_data",
-                        "data_subject"
+                        "data_subject",
+                        "tenant_settings"
                       ]
                     },
                     "action": {
@@ -22349,7 +23168,8 @@
                         "membership",
                         "audit_log",
                         "tenant_data",
-                        "data_subject"
+                        "data_subject",
+                        "tenant_settings"
                       ]
                     },
                     "fieldKey": {
@@ -22454,7 +23274,8 @@
                         "membership",
                         "audit_log",
                         "tenant_data",
-                        "data_subject"
+                        "data_subject",
+                        "tenant_settings"
                       ]
                     },
                     "action": {
@@ -22504,7 +23325,8 @@
                         "membership",
                         "audit_log",
                         "tenant_data",
-                        "data_subject"
+                        "data_subject",
+                        "tenant_settings"
                       ]
                     },
                     "fieldKey": {
@@ -22609,7 +23431,8 @@
                         "membership",
                         "audit_log",
                         "tenant_data",
-                        "data_subject"
+                        "data_subject",
+                        "tenant_settings"
                       ]
                     },
                     "action": {
@@ -22659,7 +23482,8 @@
                         "membership",
                         "audit_log",
                         "tenant_data",
-                        "data_subject"
+                        "data_subject",
+                        "tenant_settings"
                       ]
                     },
                     "fieldKey": {
@@ -22782,7 +23606,8 @@
                               "membership",
                               "audit_log",
                               "tenant_data",
-                              "data_subject"
+                              "data_subject",
+                              "tenant_settings"
                             ]
                           },
                           "action": {
@@ -22917,7 +23742,8 @@
                               "membership",
                               "audit_log",
                               "tenant_data",
-                              "data_subject"
+                              "data_subject",
+                              "tenant_settings"
                             ]
                           },
                           "fieldKey": {
@@ -22988,7 +23814,8 @@
                         "membership",
                         "audit_log",
                         "tenant_data",
-                        "data_subject"
+                        "data_subject",
+                        "tenant_settings"
                       ]
                     },
                     "action": {
@@ -23100,7 +23927,8 @@
                         "membership",
                         "audit_log",
                         "tenant_data",
-                        "data_subject"
+                        "data_subject",
+                        "tenant_settings"
                       ]
                     },
                     "action": {
@@ -23491,6 +24319,132 @@
               "name",
               "parentTeamId",
               "members"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "additionalProperties": false
+      },
+      "TenantProfileResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "defaultCurrency": {
+                "type": "string"
+              },
+              "timezone": {
+                "type": "string"
+              },
+              "locale": {
+                "type": "string"
+              },
+              "industry": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "retail",
+                      "wholesale",
+                      "manufacturing",
+                      "services",
+                      "real_estate",
+                      "education",
+                      "healthcare",
+                      "technology",
+                      "hospitality",
+                      "other"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "name",
+              "defaultCurrency",
+              "timezone",
+              "locale",
+              "industry"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "additionalProperties": false
+      },
+      "TenantProfileUpdateResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "defaultCurrency": {
+                "type": "string"
+              },
+              "timezone": {
+                "type": "string"
+              },
+              "locale": {
+                "type": "string"
+              },
+              "industry": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "retail",
+                      "wholesale",
+                      "manufacturing",
+                      "services",
+                      "real_estate",
+                      "education",
+                      "healthcare",
+                      "technology",
+                      "hospitality",
+                      "other"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "name",
+              "defaultCurrency",
+              "timezone",
+              "locale",
+              "industry"
             ],
             "additionalProperties": false
           },

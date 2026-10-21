@@ -25,6 +25,7 @@ import {
 import { pruneActivityLinks } from '../handlers/activities.js';
 import { pruneAttachments } from '../handlers/attachments.js';
 import { rearmSweepOnExhaustion, runPurgeSweep } from '../handlers/recycle-bin.js';
+import { removeSampleDataJob } from '../handlers/sample-data.js';
 import { OutboxRelay } from '../relay.js';
 import { drainRelay } from './drain.js';
 
@@ -115,6 +116,7 @@ export async function startDataRightsHarness(
 
   const relay = new OutboxRelay(db.db, { logger, batchSize: 100 })
     .on('recycle_bin.sweep_due.v1', runPurgeSweep())
+    .on('sample_data.removal_requested.v1', removeSampleDataJob({ logger }))
     .on('data_export.requested.v1', runDataExport(archiveDeps))
     .on('erasure.requested.v1', runErasure(erasureDeps))
     .on('erasure.claimed.v1', runErasureRedaction(erasureDeps))

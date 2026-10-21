@@ -18,6 +18,7 @@ import { InvitationsModule } from './modules/invitations/invitations.module.js';
 import { LeadsModule } from './modules/leads/leads.module.js';
 import { NotificationsModule } from './modules/notifications/notifications.module.js';
 import { PipelinesModule } from './modules/pipelines/pipelines.module.js';
+import { OnboardingModule } from './modules/onboarding/onboarding.module.js';
 import { RecycleBinModule } from './modules/recycle-bin/recycle-bin.module.js';
 import { SearchModule } from './modules/search/search.module.js';
 import { OpenApiController } from './openapi/openapi.controller.js';
@@ -57,6 +58,7 @@ export class AppModule {
         AuditLogModule,
         RecycleBinModule,
         DataRightsModule,
+        OnboardingModule,
       ],
       controllers: [HealthController, OpenApiController],
       providers: [{ provide: APP_GUARD, useExisting: AuthGuard }],
