@@ -33,6 +33,12 @@ const config: NextConfig = {
           { key: 'X-Content-Type-Options', value: 'nosniff' },
           { key: 'Referrer-Policy', value: 'no-referrer' },
           { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
+          // Browsers honour this only over HTTPS and ignore it over http, so it is safe to send
+          // from a production build wherever it is served; `preload` is deliberately absent, as
+          // it cannot be taken back. The API sends the same through helmet.
+          ...(process.env.NODE_ENV === 'production'
+            ? [{ key: 'Strict-Transport-Security', value: 'max-age=31536000; includeSubDomains' }]
+            : []),
         ],
       },
     ];
