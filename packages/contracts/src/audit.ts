@@ -39,6 +39,8 @@ export const AUDIT_PLATFORM_OBJECT_TYPES = [
   'import_job',
   'data_export_job',
   'erasure_request',
+  // A custom field or picklist being added, edited or switched off (MVP_SPEC M9, ADR-0039).
+  'field_definition',
 ] as const;
 
 export const auditObjectTypeSchema = z.enum([...OBJECT_TYPES, ...AUDIT_PLATFORM_OBJECT_TYPES]);

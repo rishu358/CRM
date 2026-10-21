@@ -156,6 +156,14 @@ import {
   dashboardPipelineSchema,
   dashboardWonSchema,
 } from './dashboard.js';
+import {
+  fieldCreateSchema,
+  fieldDefinitionSchema,
+  fieldListQuerySchema,
+  fieldOrderSchema,
+  fieldParamsSchema,
+  fieldUpdateSchema,
+} from './fields.js';
 import { auditEntrySchema, auditListQuerySchema } from './audit.js';
 import {
   dataExportCreateSchema,
@@ -2345,6 +2353,103 @@ const dashboardRoutes: RouteDefinition[] = [
   }),
 ];
 
+const CUSTOMIZATION_NOTE =
+  'Reading the list needs `read` on the object (and a field the caller may not read is not ' +
+  'listed at all); creating, editing, deactivating and ordering need `update` on ' +
+  '`tenant_settings`, like every other company-wide setting. Without the grant the answer is ' +
+  '`FORBIDDEN`.';
+
+const customizationRoutes: RouteDefinition[] = [
+  {
+    method: 'GET',
+    path: '/fields',
+    operationId: 'listFields',
+    tag: 'Customization',
+    summary: 'The fields of one object, system and custom',
+    description:
+      'In display order, active ones only unless an administrator asks for `includeInactive`. ' +
+      'This is what forms, record pages and lists are drawn from. ' +
+      CUSTOMIZATION_NOTE,
+    auth: 'session',
+    query: fieldListQuerySchema,
+    response: {
+      kind: 'object',
+      status: 200,
+      name: 'FieldListResponse',
+      description: 'The definitions.',
+      data: fieldDefinitionSchema.array(),
+    },
+    errors: [],
+  },
+  {
+    method: 'POST',
+    path: '/fields',
+    operationId: 'createField',
+    tag: 'Customization',
+    summary: 'Add a custom field',
+    description:
+      'The key is made from the label and never changes; neither does the type. A new field ' +
+      'goes last. At most 60 custom fields per object. ' +
+      CUSTOMIZATION_NOTE,
+    auth: 'session',
+    body: { name: 'FieldCreate', schema: fieldCreateSchema },
+    response: {
+      kind: 'object',
+      status: 201,
+      name: 'FieldCreateResponse',
+      description: 'The new definition.',
+      data: fieldDefinitionSchema,
+    },
+    errors: [ErrorCode.CONFLICT],
+  },
+  {
+    method: 'PATCH',
+    path: '/fields/{id}',
+    operationId: 'updateField',
+    tag: 'Customization',
+    summary: 'Edit a custom field, or switch it off',
+    description:
+      'Label, help text, section, required, limits, options and `isActive`. Deactivating hides ' +
+      'a field and stops it being written; the data is kept and returns on reactivation. ' +
+      'Options are named by value, none can be removed, and a retired one stays valid on ' +
+      'records that hold it. System fields are not editable here. ' +
+      CUSTOMIZATION_NOTE,
+    auth: 'session',
+    params: fieldParamsSchema,
+    body: { name: 'FieldUpdate', schema: fieldUpdateSchema },
+    response: {
+      kind: 'object',
+      status: 200,
+      name: 'FieldUpdateResponse',
+      description: 'The definition after the change.',
+      data: fieldDefinitionSchema,
+    },
+    errors: VERSIONED,
+  },
+  {
+    method: 'POST',
+    path: '/fields/order',
+    operationId: 'orderFields',
+    tag: 'Customization',
+    summary: 'Set the order of an object’s custom fields',
+    description:
+      'Names every custom field of the object, first to last: a list that leaves one out is ' +
+      'refused rather than guessed at. All or nothing. ' +
+      CUSTOMIZATION_NOTE,
+    auth: 'session',
+    body: { name: 'FieldOrder', schema: fieldOrderSchema },
+    response: {
+      kind: 'object',
+      status: 200,
+      name: 'FieldOrderResponse',
+      description: 'The definitions in their new order.',
+      data: fieldDefinitionSchema.array(),
+    },
+    errors: [],
+  },
+];
+
+
 export const API_ROUTES: readonly RouteDefinition[] = [
   ...healthRoutes,
   ...metaRoutes,
@@ -2433,6 +2538,7 @@ export const API_ROUTES: readonly RouteDefinition[] = [
   ...dataRightsRoutes,
   ...onboardingRoutes,
   ...dashboardRoutes,
+  ...customizationRoutes,
 ];
 
 /** `GET /contacts/{id}` — how the drift test and the generator name a route. */

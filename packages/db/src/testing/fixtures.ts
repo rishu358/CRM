@@ -886,6 +886,69 @@ export class Fixtures {
   }
 
   /** A tenant-defined (non-system) custom field, as an admin would add one. */
+  /** What is actually stored under a record's custom fields, whatever the API would show. */
+  async customFieldValues(
+    objectType: 'account' | 'contact' | 'lead' | 'deal',
+    id: string,
+  ): Promise<Record<string, unknown>> {
+    const table = { account: 'accounts', contact: 'contacts', lead: 'leads', deal: 'deals' }[
+      objectType
+    ];
+    const result = await this.pool.query<{ custom_fields: Record<string, unknown> }>(
+      `SELECT custom_fields FROM ${table} WHERE id = $1`,
+      [id],
+    );
+    return result.rows[0]?.custom_fields ?? {};
+  }
+
+  /** A field definition with every property a test might care about. */
+  async createFieldDefinition(
+    tenantId: string,
+    options: {
+      objectType: string;
+      key: string;
+      type: string;
+      label?: string;
+      required?: boolean;
+      options?: readonly { value: string; label: string; isActive?: boolean }[] | null;
+      validation?: Record<string, unknown> | null;
+      isActive?: boolean;
+      isSystem?: boolean;
+      section?: string | null;
+      helpText?: string | null;
+      position?: number;
+    },
+  ): Promise<string> {
+    const id = newId();
+    await this.pool.query(
+      `INSERT INTO field_definitions
+         (id, tenant_id, object_type, key, label, type, required, options, validation,
+          is_active, is_system, section, help_text, position)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9::jsonb, $10, $11, $12, $13, $14)`,
+      [
+        id,
+        tenantId,
+        options.objectType,
+        options.key,
+        options.label ?? options.key,
+        options.type,
+        options.required ?? false,
+        options.options === undefined || options.options === null
+          ? null
+          : JSON.stringify(options.options),
+        options.validation === undefined || options.validation === null
+          ? null
+          : JSON.stringify(options.validation),
+        options.isActive ?? true,
+        options.isSystem ?? false,
+        options.section ?? null,
+        options.helpText ?? null,
+        options.position ?? 1000,
+      ],
+    );
+    return id;
+  }
+
   async createCustomField(
     tenantId: string,
     objectType: string,
