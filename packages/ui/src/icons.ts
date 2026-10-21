@@ -60,6 +60,7 @@ export {
   Settings as SettingsIcon,
   LayoutDashboard as DashboardIcon,
   ListChecks as SetupIcon,
+  SlidersHorizontal as CustomizeIcon,
   ListTodo as TaskIcon,
   NotebookPen as NoteIcon,
   ScrollText as AuditLogIcon,

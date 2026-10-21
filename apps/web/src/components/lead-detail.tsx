@@ -26,6 +26,7 @@ import { ActivityPanel } from './activity-panel';
 import { AttachmentPanel } from './attachment-panel';
 import { ConvertLeadDialog } from './convert-lead-dialog';
 import { InlineField } from './inline-field';
+import { CustomFieldsCard } from './custom-fields';
 
 /**
  * One lead, edited in place.
@@ -277,6 +278,18 @@ export function LeadDetail({ id }: { id: string }) {
               </div>
             </CardBody>
           </Card>
+
+          <CustomFieldsCard
+            objectType="lead"
+            values={lead.customFields}
+            onSave={(key, value) => {
+              update.mutate({
+                id: lead.id,
+                version: lead.version,
+                patch: { customFields: { [key]: value } },
+              });
+            }}
+          />
 
           {converting ? (
             <ConvertLeadDialog lead={lead} onClose={() => setConverting(false)} />

@@ -9,6 +9,7 @@ import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import type { ApiRequestError } from '../lib/api-client';
 import { t } from '../lib/i18n';
+import { CustomFieldsFields, useCustomFieldDrafts } from './custom-fields';
 
 /**
  * Create a deal.
@@ -52,6 +53,7 @@ export function NewDealDialog({
   onSubmit: (values: Record<string, unknown>) => void;
   onClose: () => void;
 }) {
+  const custom = useCustomFieldDrafts('deal');
   const {
     register,
     handleSubmit,
@@ -87,6 +89,9 @@ export function NewDealDialog({
     if (values.expectedCloseDate !== undefined && values.expectedCloseDate !== null) {
       payload['expectedCloseDate'] = values.expectedCloseDate;
     }
+    const extra = custom.collect();
+    if (extra === null) return;
+    if (Object.keys(extra).length > 0) payload['customFields'] = extra;
     onSubmit(payload);
   });
 
@@ -124,6 +129,8 @@ export function NewDealDialog({
           error={errors.expectedCloseDate === undefined ? undefined : t('deal.error.date')}
           {...register('expectedCloseDate', { setValueAs: blankToUndefined })}
         />
+
+        <CustomFieldsFields state={custom} idPrefix="new-deal" />
 
         {error !== null ? (
           <p role="alert" className="text-sm text-destructive">

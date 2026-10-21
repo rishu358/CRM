@@ -300,6 +300,30 @@ describe('(c) a hidden field is absent from the list, and unwritable', () => {
     const who = await person(tenantA, roleId);
     const list = JSON.stringify(await asUser(who, 'GET', '/api/v1/fields?objectType=contact'));
     expect(list).not.toContain(fieldA.key);
+
+    // Their management view is about the company's configuration, not its data, so the
+    // same person sees every definition there, the hidden one included.
+    const managed = JSON.stringify(
+      await asUser(who, 'GET', '/api/v1/fields?objectType=contact&includeInactive=true'),
+    );
+    expect(managed).toContain(fieldA.key);
+  });
+
+  it('says which fields the caller may write, so a form offers a box only where it can work', async () => {
+    const roleId = await harness.fixtures.createRole(tenantA, 'Reader of handshake');
+    await harness.fixtures.grantAll(tenantA, roleId, 'contact', 'all');
+    await harness.fixtures.setFieldPermission(tenantA, roleId, 'contact', fieldA.key, 'read');
+    const who = await person(tenantA, roleId);
+
+    const writableFor = async (person: Person) => {
+      const fields = dataOf<(Definition & { writable: boolean })[]>(
+        await asUser(person, 'GET', '/api/v1/fields?objectType=contact'),
+        200,
+      );
+      return fields.find((f) => f.id === fieldA.id)?.writable;
+    };
+    expect(await writableFor(who)).toBe(false);
+    expect(await writableFor(adminA)).toBe(true);
   });
 
   it('refuses a write to the hidden field on a record, without saying that it exists', async () => {

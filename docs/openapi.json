@@ -20221,6 +20221,9 @@
                 "isActive": {
                   "type": "boolean"
                 },
+                "writable": {
+                  "type": "boolean"
+                },
                 "version": {
                   "type": "integer",
                   "minimum": -9007199254740991,
@@ -20239,6 +20242,7 @@
                 "position",
                 "isSystem",
                 "isActive",
+                "writable",
                 "version"
               ],
               "additionalProperties": false
@@ -20382,6 +20386,9 @@
               "isActive": {
                 "type": "boolean"
               },
+              "writable": {
+                "type": "boolean"
+              },
               "version": {
                 "type": "integer",
                 "minimum": -9007199254740991,
@@ -20400,6 +20407,7 @@
               "position",
               "isSystem",
               "isActive",
+              "writable",
               "version"
             ],
             "additionalProperties": false
@@ -20542,6 +20550,9 @@
               "isActive": {
                 "type": "boolean"
               },
+              "writable": {
+                "type": "boolean"
+              },
               "version": {
                 "type": "integer",
                 "minimum": -9007199254740991,
@@ -20560,6 +20571,7 @@
               "position",
               "isSystem",
               "isActive",
+              "writable",
               "version"
             ],
             "additionalProperties": false
@@ -20704,6 +20716,9 @@
                 "isActive": {
                   "type": "boolean"
                 },
+                "writable": {
+                  "type": "boolean"
+                },
                 "version": {
                   "type": "integer",
                   "minimum": -9007199254740991,
@@ -20722,6 +20737,7 @@
                 "position",
                 "isSystem",
                 "isActive",
+                "writable",
                 "version"
               ],
               "additionalProperties": false

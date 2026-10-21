@@ -5,6 +5,8 @@ import type { DealRecord, StageRecord } from '../lib/deals';
 import { DEFAULT_PREFERENCES, formatDate, formatMoney } from '../lib/format';
 import { t, type TranslationKey } from '../lib/i18n';
 import { EmptyCell, RecordLink } from './table-parts';
+import { customCellText } from './custom-fields';
+import type { FieldDefinitionView } from '../lib/fields';
 
 /**
  * The deals list view.
@@ -37,11 +39,13 @@ const NUMERIC_COLUMNS: ReadonlySet<string> = new Set(['amount', 'probability']);
 export function DealsTable({
   deals,
   stages,
+  customColumns = [],
   sort,
   onSortChange,
 }: {
   deals: readonly DealRecord[];
   stages: readonly StageRecord[];
+  customColumns?: readonly FieldDefinitionView[];
   /** `field` or `-field`, exactly as it goes to the API. */
   sort: string;
   onSortChange: (sort: string) => void;
@@ -124,6 +128,9 @@ export function DealsTable({
                 </SortableTh>
               );
             })}
+            {customColumns.map((definition) => (
+              <Th key={definition.id}>{definition.label}</Th>
+            ))}
           </Tr>
         </THead>
         <tbody>
@@ -136,6 +143,10 @@ export function DealsTable({
                     {content ?? <EmptyCell />}
                   </Td>
                 );
+              })}
+              {customColumns.map((definition) => {
+                const text = customCellText(definition, deal);
+                return <Td key={definition.id}>{text.length > 0 ? text : <EmptyCell />}</Td>;
               })}
             </Tr>
           ))}

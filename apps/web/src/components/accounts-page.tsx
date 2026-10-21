@@ -21,6 +21,7 @@ import { useCreateShortcut } from '../lib/shortcuts';
 import { AppShell } from './app-shell';
 import { ACCOUNT_COLUMNS, AccountsTable, DEFAULT_ACCOUNT_COLUMNS } from './accounts-table';
 import { ColumnChooser } from './column-chooser';
+import { customColumnOptions, useCustomColumns } from './custom-fields';
 import { ExportButton } from './export-button';
 import { ImportLink } from './import-link';
 import { NewAccountDialog } from './new-account-dialog';
@@ -34,6 +35,7 @@ import { NewAccountDialog } from './new-account-dialog';
  */
 export function AccountsPage() {
   const [search, setSearch] = useState('');
+  const customColumns = useCustomColumns('account');
   const [sort, setSort] = useState('-created_at');
   const [visibleColumns, setVisibleColumns] = useState<string[]>([...DEFAULT_ACCOUNT_COLUMNS]);
   const [creating, setCreating] = useState(false);
@@ -123,6 +125,7 @@ export function AccountsPage() {
         <AccountsTable
           accounts={accounts}
           visibleColumns={visibleColumns}
+          customFields={customColumns.definitions}
           sort={sort}
           onSortChange={setSort}
         />
@@ -173,7 +176,7 @@ export function AccountsPage() {
           <>
             {choosableColumns.length > 0 ? (
               <ColumnChooser
-                options={choosableColumns}
+                options={[...choosableColumns, ...customColumnOptions(customColumns.definitions)]}
                 selected={visibleColumns}
                 onChange={setVisibleColumns}
               />

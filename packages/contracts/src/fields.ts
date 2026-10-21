@@ -86,6 +86,8 @@ export const fieldDefinitionSchema = z.object({
   position: z.number().int(),
   isSystem: z.boolean(),
   isActive: z.boolean(),
+  /** Whether the caller may write it, so a screen does not offer a box the API will refuse. */
+  writable: z.boolean(),
   version: z.number().int(),
 });
 export type FieldDefinitionView = z.infer<typeof fieldDefinitionSchema>;

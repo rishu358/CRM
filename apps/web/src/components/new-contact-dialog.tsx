@@ -8,6 +8,7 @@ import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import type { ApiRequestError } from '../lib/api-client';
 import { t } from '../lib/i18n';
+import { CustomFieldsFields, useCustomFieldDrafts } from './custom-fields';
 
 /**
  * Create a contact.
@@ -51,6 +52,7 @@ export function NewContactDialog({
   onSubmit: (values: Record<string, unknown>) => void;
   onClose: () => void;
 }) {
+  const custom = useCustomFieldDrafts('contact');
   const {
     register,
     handleSubmit,
@@ -73,6 +75,9 @@ export function NewContactDialog({
     }
     if (values.email !== undefined && values.email !== '') payload['email'] = values.email;
     if (values.phone !== undefined && values.phone !== '') payload['phone'] = values.phone;
+    const extra = custom.collect();
+    if (extra === null) return;
+    if (Object.keys(extra).length > 0) payload['customFields'] = extra;
     onSubmit(payload);
   });
 
@@ -106,6 +111,8 @@ export function NewContactDialog({
           error={errors.phone?.message}
           {...register('phone', { setValueAs: blankToUndefined })}
         />
+
+        <CustomFieldsFields state={custom} idPrefix="new-contact" />
 
         {error !== null ? (
           <p role="alert" className="text-sm text-destructive">

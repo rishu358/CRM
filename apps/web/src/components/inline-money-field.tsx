@@ -1,11 +1,12 @@
 'use client';
 
 import { Button, EditIcon, Input, Select } from '@crm/ui';
-import { fromMajorString, minorUnitExponent, toCurrency } from '@crm/core';
+import { fromMajorString } from '@crm/core';
 import { useEffect, useRef, useState } from 'react';
 import type { MoneyValue } from '../lib/accounts';
 import { DEFAULT_PREFERENCES, formatMoney } from '../lib/format';
 import { t } from '../lib/i18n';
+import { CURRENCIES, toMajorString } from '../lib/money-input';
 
 /**
  * Edit an amount in place.
@@ -20,8 +21,6 @@ import { t } from '../lib/i18n';
  * never multiplies by 100 in floating point and never decides for itself how
  * many decimal places a currency has (JPY has none, KWD has three).
  */
-const CURRENCIES = ['INR', 'USD', 'EUR', 'GBP', 'AED', 'SGD', 'AUD'] as const;
-
 /**
  * Fallback when the account has no amount yet.
  *
@@ -30,31 +29,6 @@ const CURRENCIES = ['INR', 'USD', 'EUR', 'GBP', 'AED', 'SGD', 'AUD'] as const;
  * (MVP_SPEC §1) rather than a guess dressed up as one.
  */
 const FALLBACK_CURRENCY = 'INR';
-
-/**
- * Minor units back to the major-unit string a person would type.
- *
- * Done on the digits rather than by dividing, so an amount past 2^53 shows
- * the value that is stored rather than a rounded one. The scale comes from
- * @crm/core, which is the one place that knows JPY has no decimals.
- */
-function toMajorString(value: MoneyValue): string {
-  let scale: number;
-  try {
-    scale = minorUnitExponent(toCurrency(value.currency));
-  } catch {
-    return value.amountMinor;
-  }
-
-  const negative = value.amountMinor.startsWith('-');
-  const digits = (negative ? value.amountMinor.slice(1) : value.amountMinor).padStart(
-    scale + 1,
-    '0',
-  );
-  const whole = digits.slice(0, digits.length - scale);
-  const fraction = scale === 0 ? '' : `.${digits.slice(digits.length - scale)}`;
-  return `${negative ? '-' : ''}${whole}${fraction}`;
-}
 
 export function InlineMoneyField({
   label,
@@ -76,7 +50,7 @@ export function InlineMoneyField({
   }, [editing]);
 
   const startEditing = () => {
-    setAmount(value == null ? '' : toMajorString(value));
+    setAmount(value == null ? '' : toMajorString(value.amountMinor, value.currency));
     setCurrency(value?.currency ?? FALLBACK_CURRENCY);
     setError(null);
     setEditing(true);

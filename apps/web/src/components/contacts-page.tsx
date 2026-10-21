@@ -20,6 +20,7 @@ import { t } from '../lib/i18n';
 import { useCreateShortcut } from '../lib/shortcuts';
 import { AppShell } from './app-shell';
 import { ContactsTable } from './contacts-table';
+import { CustomColumnsChooser, useCustomColumns } from './custom-fields';
 import { ExportButton } from './export-button';
 import { ImportLink } from './import-link';
 import { NewContactDialog } from './new-contact-dialog';
@@ -33,6 +34,7 @@ import { NewContactDialog } from './new-contact-dialog';
  */
 export function ContactsPage() {
   const [search, setSearch] = useState('');
+  const customColumns = useCustomColumns('contact');
   const [creating, setCreating] = useState(false);
 
   // `C` does what the New button does, on whichever list is on screen.
@@ -102,7 +104,7 @@ export function ContactsPage() {
 
     return (
       <div className="space-y-4">
-        <ContactsTable contacts={contacts} />
+        <ContactsTable contacts={contacts} customColumns={customColumns.chosenDefinitions} />
         <ListFooter
           end={
             query.hasNextPage ? (
@@ -148,6 +150,7 @@ export function ContactsPage() {
         }
         end={
           <>
+            <CustomColumnsChooser state={customColumns} />
             <ImportLink objectType="contact" />
             <ExportButton objectType="contact" q={search} sort="-created_at" />
           </>

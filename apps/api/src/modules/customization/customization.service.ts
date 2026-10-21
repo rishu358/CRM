@@ -6,6 +6,7 @@ import {
   VersionConflictError,
   assertCan,
   canReadField,
+  canWriteField,
   diffChanges,
   isPicklistType,
   newId,
@@ -78,7 +79,7 @@ export class CustomizationService {
       const visible = management
         ? rows
         : rows.filter((row) => canReadField(actor, objectType, row.key));
-      return visible.map(present);
+      return visible.map((row) => present(row, actor));
     });
   }
 
@@ -157,7 +158,7 @@ export class CustomizationService {
         recordId: row.id,
         payload: { objectType: row.objectType, key: row.key },
       });
-      return present(row);
+      return present(row, actor);
     });
   }
 
@@ -225,7 +226,7 @@ export class CustomizationService {
           payload: { objectType: after.objectType, key: after.key },
         });
       }
-      return present(after);
+      return present(after, actor);
     });
   }
 
@@ -262,7 +263,7 @@ export class CustomizationService {
       }
 
       const before = custom.map((row) => row.id);
-      if (before.join() === input.ids.join()) return rows.map(present);
+      if (before.join() === input.ids.join()) return rows.map((row) => present(row, actor));
 
       for (const [index, id] of input.ids.entries()) {
         await this.repository.setPosition(
@@ -288,7 +289,9 @@ export class CustomizationService {
         payload: { objectType: input.objectType },
       });
 
-      return (await this.repository.list(tx, actor.tenantId, input.objectType, true)).map(present);
+      return (await this.repository.list(tx, actor.tenantId, input.objectType, true)).map((row) =>
+        present(row, actor),
+      );
     });
   }
 
@@ -345,7 +348,7 @@ function limits(validation: FieldValidation | null): FieldDefinitionView['valida
   return Object.keys(shown).length === 0 ? undefined : shown;
 }
 
-function present(row: FieldDefinitionRow): FieldDefinitionView {
+function present(row: FieldDefinitionRow, actor: Actor): FieldDefinitionView {
   const validation = limits(row.validation);
   return {
     id: row.id,
@@ -361,6 +364,7 @@ function present(row: FieldDefinitionRow): FieldDefinitionView {
     position: row.position,
     isSystem: row.isSystem,
     isActive: row.isActive,
+    writable: canWriteField(actor, row.objectType as FieldDefinitionView['objectType'], row.key),
     version: row.version,
   };
 }

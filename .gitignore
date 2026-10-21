@@ -38,3 +38,4 @@ Thumbs.db
 
 # local database volumes
 .docker-data/
+mutation-report.json

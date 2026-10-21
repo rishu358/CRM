@@ -24,6 +24,7 @@ import { WhoCanSeeButton } from './who-can-see';
 import { ActivityPanel } from './activity-panel';
 import { AttachmentPanel } from './attachment-panel';
 import { InlineField } from './inline-field';
+import { CustomFieldsCard } from './custom-fields';
 import { InlineMoneyField } from './inline-money-field';
 
 /**
@@ -296,6 +297,18 @@ export function AccountDetail({ id }: { id: string }) {
               </CardBody>
             </Card>
           ) : null}
+
+          <CustomFieldsCard
+            objectType="account"
+            values={account.customFields}
+            onSave={(key, value) => {
+              update.mutate({
+                id: account.id,
+                version: account.version,
+                patch: { customFields: { [key]: value } },
+              });
+            }}
+          />
         </div>
         <ActivityPanel objectType="account" recordId={id} />
         <AttachmentPanel objectType="account" recordId={id} />
