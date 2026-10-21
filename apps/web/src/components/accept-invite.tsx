@@ -205,7 +205,7 @@ export function AcceptInvite() {
     }
 
     // The session is in a cookie now, set by `/api/session` server-side.
-    router.push('/contacts');
+    router.push('/dashboard');
     router.refresh();
   };
 

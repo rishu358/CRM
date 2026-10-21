@@ -26,6 +26,7 @@ import type { TranslationKey } from './i18n';
 
 /** The `G` then letter destinations, in the order the help list shows them. */
 export const GO_TO: readonly { key: string; href: string; label: TranslationKey }[] = [
+  { key: 'h', href: '/dashboard', label: 'nav.dashboard' },
   { key: 'm', href: '/my-day', label: 'nav.myDay' },
   { key: 'l', href: '/leads', label: 'nav.leads' },
   { key: 'c', href: '/contacts', label: 'nav.contacts' },

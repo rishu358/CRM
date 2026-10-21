@@ -29,7 +29,8 @@ async function signIn(page: Page, email: string, password: string): Promise<void
   await page.getByLabel('Email address').fill(email);
   await page.getByLabel('Password').fill(password);
   await page.getByRole('button', { name: 'Sign in' }).click();
-  await page.waitForURL('**/contacts');
+  await page.waitForURL('**/dashboard');
+  await page.goto('/contacts');
 }
 
 test.describe('inviting', () => {
@@ -101,7 +102,9 @@ test.describe('accepting', () => {
     await page.getByLabel('Choose a password').fill('a-perfectly-fine-passphrase');
     await page.getByRole('button', { name: /Join Demo Jewellers/ }).click();
 
-    await page.waitForURL('**/contacts');
+    await page.waitForURL('**/dashboard');
+
+    await page.goto('/contacts');
 
     // A Sales Rep: `own` scope, so the seeded contacts belong to other people
     // and none of them is visible.

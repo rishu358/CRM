@@ -58,6 +58,7 @@ export {
   Search as SearchIcon,
   SearchX as NoResultsIcon,
   Settings as SettingsIcon,
+  LayoutDashboard as DashboardIcon,
   ListChecks as SetupIcon,
   ListTodo as TaskIcon,
   NotebookPen as NoteIcon,
