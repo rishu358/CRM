@@ -22,6 +22,7 @@ const OBJECT_KEYS: Readonly<Record<string, TranslationKey>> = {
   audit_log: 'access.object.auditLog',
   tenant_data: 'access.object.tenantData',
   data_subject: 'access.object.dataSubject',
+  tenant_settings: 'access.object.tenantSettings',
 };
 
 const OBJECT_SINGULAR_KEYS: Readonly<Record<string, TranslationKey>> = {

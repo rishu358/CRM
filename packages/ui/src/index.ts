@@ -11,6 +11,7 @@ export {
 } from './input.js';
 export { IconSelect, Select, type SelectProps } from './select.js';
 export { Card, CardHeader, CardBody, Badge } from './card.js';
+export { Checkbox, type CheckboxProps } from './checkbox.js';
 export { Avatar, DescriptionRow, Kbd } from './small.js';
 export { Dialog, DialogFooter } from './dialog.js';
 export { PageHeader, Toolbar, ListFooter } from './page.js';
