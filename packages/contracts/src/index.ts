@@ -17,5 +17,6 @@ export * from './auth.js';
 export * from './invitations.js';
 export * from './access.js';
 export * from './onboarding.js';
+export * from './dashboard.js';
 export * from './routes.js';
 export * from './openapi.js';

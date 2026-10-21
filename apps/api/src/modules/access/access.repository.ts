@@ -292,6 +292,33 @@ export class AccessRepository {
     return rows(result).map(toMemberRow);
   }
 
+  /**
+   * Display names of active members, for the ids asked about and nobody else.
+   *
+   * Names only: no address, role or status leaves through here, so a screen that
+   * needs to say whose number it is showing can do so without becoming a member
+   * directory (ADR-0038).
+   */
+  async activeMemberNames(
+    tx: Tx,
+    tenantId: string,
+    userIds: readonly string[],
+  ): Promise<Map<string, string>> {
+    if (userIds.length === 0) return new Map();
+    const result = await tx.execute(sql`
+      select m.user_id, u.name
+      from memberships m
+      join users u on u.id = m.user_id
+      where m.tenant_id = ${tenantId}::uuid
+        and m.status = 'active'
+        and m.user_id in (${sql.join(
+          userIds.map((id) => sql`${id}::uuid`),
+          sql`, `,
+        )})
+    `);
+    return new Map(rows(result).map((row) => [String(row.user_id), String(row.name)] as const));
+  }
+
   async findMember(tx: Tx, tenantId: string, userId: string): Promise<MemberRow | null> {
     const result = await tx.execute(sql`
       select m.user_id, u.name, u.email, m.role_id, r.name as role_name, m.status, m.joined_at

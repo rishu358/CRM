@@ -148,6 +148,14 @@ import {
   tenantProfileSchema,
   tenantProfileUpdateSchema,
 } from './onboarding.js';
+import {
+  dashboardLeaderboardSchema,
+  dashboardLeadsBySourceSchema,
+  dashboardOverdueSchema,
+  dashboardPipelineQuerySchema,
+  dashboardPipelineSchema,
+  dashboardWonSchema,
+} from './dashboard.js';
 import { auditEntrySchema, auditListQuerySchema } from './audit.js';
 import {
   dataExportCreateSchema,
@@ -2253,6 +2261,90 @@ const onboardingRoutes: RouteDefinition[] = [
   },
 ];
 
+const DASHBOARD_NOTE =
+  'Authorized by `can()` against the object the widget summarises, so a caller without that ' +
+  'grant is answered `FORBIDDEN` for this widget alone. Totals respect the caller’s record scope ' +
+  'and field permissions: a part that depends on a hidden field is `null`, never a zero.';
+
+function dashboardRoute(options: {
+  path: string;
+  operationId: string;
+  summary: string;
+  description: string;
+  name: string;
+  data: z.ZodType;
+  query?: z.ZodType;
+}): RouteDefinition {
+  return {
+    method: 'GET',
+    path: options.path,
+    operationId: options.operationId,
+    tag: 'Dashboard',
+    summary: options.summary,
+    description: `${options.description} ${DASHBOARD_NOTE}`,
+    auth: 'session',
+    ...(options.query === undefined ? {} : { query: options.query }),
+    response: {
+      kind: 'object',
+      status: 200,
+      name: options.name,
+      description: options.summary,
+      data: options.data,
+    },
+    errors: [],
+  };
+}
+
+const dashboardRoutes: RouteDefinition[] = [
+  dashboardRoute({
+    path: '/dashboard/pipeline',
+    operationId: 'getDashboardPipeline',
+    summary: 'Open pipeline value by stage',
+    description:
+      'Open stages of one pipeline (the default if none is named), in stage order, converted ' +
+      'to the company currency.',
+    name: 'DashboardPipelineResponse',
+    data: dashboardPipelineSchema,
+    query: dashboardPipelineQuerySchema,
+  }),
+  dashboardRoute({
+    path: '/dashboard/won',
+    operationId: 'getDashboardWon',
+    summary: 'Deals won this month',
+    description:
+      'This calendar month in the company’s time zone, against the month before. Month ' +
+      'boundaries and "now" come from the database clock.',
+    name: 'DashboardWonResponse',
+    data: dashboardWonSchema,
+  }),
+  dashboardRoute({
+    path: '/dashboard/leads-by-source',
+    operationId: 'getDashboardLeadsBySource',
+    summary: 'Open leads by source',
+    description: 'Every current lead that is not converted and not deleted, grouped by source.',
+    name: 'DashboardLeadsBySourceResponse',
+    data: dashboardLeadsBySourceSchema,
+  }),
+  dashboardRoute({
+    path: '/dashboard/overdue-tasks',
+    operationId: 'getDashboardOverdue',
+    summary: 'Overdue tasks',
+    description: 'Open tasks whose due time has passed, with the oldest few.',
+    name: 'DashboardOverdueResponse',
+    data: dashboardOverdueSchema,
+  }),
+  dashboardRoute({
+    path: '/dashboard/leaderboard',
+    operationId: 'getDashboardLeaderboard',
+    summary: 'Rep leaderboard for this month',
+    description:
+      'Deals won this month by owner, over the deals the caller may see: a rep with own scope ' +
+      'sees only themselves. Names are display names of active members only.',
+    name: 'DashboardLeaderboardResponse',
+    data: dashboardLeaderboardSchema,
+  }),
+];
+
 export const API_ROUTES: readonly RouteDefinition[] = [
   ...healthRoutes,
   ...metaRoutes,
@@ -2340,6 +2432,7 @@ export const API_ROUTES: readonly RouteDefinition[] = [
   ...recycleBinRoutes,
   ...dataRightsRoutes,
   ...onboardingRoutes,
+  ...dashboardRoutes,
 ];
 
 /** `GET /contacts/{id}` — how the drift test and the generator name a route. */

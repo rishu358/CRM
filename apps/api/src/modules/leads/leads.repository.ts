@@ -287,4 +287,43 @@ export class LeadsRepository {
       .orderBy(asc(leads.createdAt), asc(leads.id))
       .limit(limit);
   }
+
+  /**
+   * Open leads grouped by source, most common first.
+   *
+   * "Open" is every current lead that is not converted: a converted lead is a
+   * contact now and is counted there. Sources are compared case-insensitively
+   * and without surrounding spaces, because they are typed by people ("Website",
+   * "website ") and a chart with three bars for one source is a wrong chart; the
+   * label shown is one of the spellings. A blank source is the `null` group.
+   *
+   * The scope is in the WHERE clause, so a breakdown never counts a lead the
+   * reader could not open.
+   */
+  async countsBySource(
+    tx: Tx,
+    tenantId: string,
+    constraint: RecordConstraint,
+  ): Promise<{ source: string | null; count: number }[]> {
+    const predicates: SQL[] = [
+      eq(leads.tenantId, tenantId),
+      notDeleted(),
+      sql`${leads.status} <> 'converted'`,
+    ];
+    const scope = constraintToSql(constraint);
+    if (scope !== undefined) predicates.push(scope);
+
+    const key = sql`nullif(lower(btrim(${leads.source})), '')`;
+    const rows = await tx
+      .select({
+        source: sql<string | null>`nullif(min(btrim(${leads.source})), '')`,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(leads)
+      .where(and(...predicates))
+      .groupBy(sql`${key}`)
+      .orderBy(sql`count(*) desc`, sql`${key} asc nulls last`);
+
+    return rows.map((row) => ({ source: row.source, count: row.count }));
+  }
 }

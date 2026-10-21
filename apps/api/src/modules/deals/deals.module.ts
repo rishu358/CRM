@@ -3,6 +3,7 @@ import { OwnershipRegistry } from '../../platform/ownership.registry.js';
 import { AccountsModule } from '../accounts/accounts.module.js';
 import { ContactsModule } from '../contacts/contacts.module.js';
 import { PipelinesModule } from '../pipelines/pipelines.module.js';
+import { DealsReportsService } from './deals-reports.service.js';
 import { DealsController } from './deals.controller.js';
 import { DealsRepository } from './deals.repository.js';
 import { DealsService } from './deals.service.js';
@@ -18,8 +19,8 @@ import { DealsService } from './deals.service.js';
 @Module({
   imports: [AccountsModule, ContactsModule, PipelinesModule],
   controllers: [DealsController],
-  providers: [DealsService, DealsRepository],
-  exports: [DealsService],
+  providers: [DealsService, DealsRepository, DealsReportsService],
+  exports: [DealsService, DealsReportsService],
 })
 export class DealsModule implements OnModuleInit {
   constructor(@Inject(OwnershipRegistry) private readonly ownership: OwnershipRegistry) {}
