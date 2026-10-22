@@ -285,6 +285,13 @@ are out of scope (ADR-0032).
 | Ops          | Daily backups + PITR, restore tested monthly, least-privilege cloud IAM                                                          |
 | Assurance    | Security self-review per module, external pen test before paid launch, ISO 27001/SOC 2 roadmap after traction                    |
 
+**Acceptance (Week 6 hardening, ADR-0040)**
+
+- [x] A server-initiated request cannot reach a private, loopback, link-local or metadata address, by any spelling, redirect or DNS answer, and production code cannot open a connection except through `OutboundHttp`. (`outbound.spec.ts` in `@crm/core`, `client.spec.ts` and `boundary.spec.ts` in `@crm/outbound`) _No caller yet._
+- [x] Every page of the web app carries a nonce-based CSP that the browser enforces and that no product page violates; HSTS is sent in production. (`csp.spec.ts`, `e2e/hardening.spec.ts`)
+- [x] The credential proxy cannot be made to forward outside `/api/v1`. (`proxy-path.spec.ts`, `e2e/hardening.spec.ts`)
+- [ ] Load test with 1M seeded records, accessibility pass, backup/restore drill, production deploy (Module B).
+
 ## 9. Non-Functional Requirements
 
 | Metric         | Target                                                                                  |
