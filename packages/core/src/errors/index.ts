@@ -77,6 +77,12 @@ export const ErrorCode = {
    * `FORBIDDEN`: they may edit roles, just not beyond their own reach (ADR-0033).
    */
   PERMISSION_ESCALATION: 'PERMISSION_ESCALATION',
+  /**
+   * The service is at capacity and could not take this request in time (every database
+   * connection was busy). Nothing is wrong with the request: the client waits (see
+   * `Retry-After`) and tries again, rather than reporting a failure or giving up.
+   */
+  SERVICE_BUSY: 'SERVICE_BUSY',
   /** Unexpected failure. Details are logged, never returned. */
   INTERNAL: 'INTERNAL',
 } as const;

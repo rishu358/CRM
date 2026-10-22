@@ -71,6 +71,7 @@ const STATUS_BY_ERROR_CODE: Readonly<Record<ErrorCode, number>> = {
   [ErrorCode.VALIDATION_FAILED]: 422,
   [ErrorCode.RATE_LIMITED]: 429,
   [ErrorCode.INTERNAL]: 500,
+  [ErrorCode.SERVICE_BUSY]: 503,
 };
 
 /** A one-line gloss per status, so the document reads without the code table. */
@@ -84,12 +85,14 @@ const STATUS_SUMMARY: Readonly<Record<number, string>> = {
   422: 'Input failed validation at the API boundary.',
   429: 'Rate limit exceeded. Limits are per user and per tenant, not only per IP.',
   500: 'Unexpected failure. Quote `requestId` when reporting it.',
+  503: 'The service is at capacity. Wait the number of seconds in `Retry-After` and try again.',
 };
 
 /** Every route can fail this way, whatever it does. */
 const UNIVERSAL_ERRORS: readonly ErrorCode[] = [
   ErrorCode.VALIDATION_FAILED,
   ErrorCode.RATE_LIMITED,
+  ErrorCode.SERVICE_BUSY,
   ErrorCode.INTERNAL,
 ];
 
