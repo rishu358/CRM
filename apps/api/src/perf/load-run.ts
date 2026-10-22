@@ -27,6 +27,8 @@ interface Options {
   readonly warmup: number;
   readonly only: RegExp | null;
   readonly label: string;
+  /** Open-loop mixed traffic at this many requests per second; 0 means one scenario at a time. */
+  readonly rate: number;
 }
 
 interface Context {
@@ -292,6 +294,24 @@ async function measure(
     }
   };
 
+  // A path this user may not call (the audit log, for a rep) answers 403 by design. Say so once
+  // rather than counting every request as an error or leaving a hole in the table.
+  const probe = await fetch(`${options.baseUrl}${scenario.path(context, 0)}`, { headers });
+  await probe.arrayBuffer();
+  if (probe.status === 403) {
+    return {
+      name: `${scenario.name} (403: not permitted for this user)`,
+      requests: 0,
+      errors: 0,
+      rps: 0,
+      p50: Number.NaN,
+      p95: Number.NaN,
+      p99: Number.NaN,
+      max: Number.NaN,
+      budgetP95: null,
+    };
+  }
+
   for (let i = 0; i < options.warmup; i += 1) await once();
 
   const latencies: number[] = [];
@@ -323,6 +343,122 @@ async function measure(
 }
 
 const round = (value: number): number => Math.round(value * 10) / 10;
+
+/** What people do all day, and how often: mostly lists and records, some search, a little reporting. */
+const MIX: readonly { readonly match: RegExp; readonly weight: number }[] = [
+  { match: /^(contacts|accounts|leads|deals): first page/, weight: 40 },
+  {
+    match: /^(contacts: sorted|accounts: sorted|contacts: filter surname|leads: filter)/,
+    weight: 8,
+  },
+  { match: /^(contact|account|deal): one record/, weight: 20 },
+  { match: /^search: (a common surname|full name|a rare term)/, weight: 10 },
+  { match: /^(dashboard|my day|deals: pipeline board)/, weight: 8 },
+  { match: /^activities:/, weight: 6 },
+  { match: /^notifications:/, weight: 8 },
+];
+
+/**
+ * Open-loop traffic: requests are issued on a schedule, whether or not the last one has answered,
+ * which is how a crowd behaves. A closed loop (the other mode) slows down as the server does and so
+ * can never show a queue building; this can.
+ */
+async function runMix(options: Options, token: string, context: Context): Promise<void> {
+  const weighted: { scenario: Scenario; weight: number }[] = [];
+  for (const scenario of SCENARIOS) {
+    const rule = MIX.find((entry) => entry.match.test(scenario.name));
+    if (rule !== undefined) weighted.push({ scenario, weight: rule.weight });
+  }
+  const total = weighted.reduce((sum, entry) => sum + entry.weight, 0);
+  const choose = (): Scenario => {
+    let point = Math.random() * total;
+    for (const entry of weighted) {
+      point -= entry.weight;
+      if (point <= 0) return entry.scenario;
+    }
+    const last = weighted.at(-1);
+    if (last === undefined) throw new Error('empty mix');
+    return last.scenario;
+  };
+
+  const headers = { authorization: `Bearer ${token}` };
+  const byScenario = new Map<string, number[]>();
+  const all: number[] = [];
+  let errors = 0;
+  let inFlight = 0;
+  let peakInFlight = 0;
+  let n = 0;
+  const interval = 1000 / options.rate;
+  const started = performance.now();
+  const end = started + options.seconds * 1000;
+  const pending: Promise<void>[] = [];
+
+  for (let tick = 0; ; tick += 1) {
+    const due = started + tick * interval;
+    if (due >= end) break;
+    const wait = due - performance.now();
+    if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
+    const scenario = choose();
+    const url = `${options.baseUrl}${scenario.path(context, n)}`;
+    n += 1;
+    inFlight += 1;
+    peakInFlight = Math.max(peakInFlight, inFlight);
+    // Latency is from when the request was due, not when it left: a client that was kept waiting
+    // by a busy event loop still waited.
+    pending.push(
+      fetch(url, { headers })
+        .then(async (response) => {
+          await response.arrayBuffer();
+          const ms = performance.now() - due;
+          if (response.ok) {
+            all.push(ms);
+            byScenario.set(scenario.name, [...(byScenario.get(scenario.name) ?? []), ms]);
+          } else if (response.status !== 403) {
+            errors += 1;
+          }
+        })
+        .catch(() => {
+          errors += 1;
+        })
+        .finally(() => {
+          inFlight -= 1;
+        }),
+    );
+  }
+  await Promise.all(pending);
+  const elapsed = (performance.now() - started) / 1000;
+
+  const stats = (values: number[]) => {
+    const sorted = [...values].sort((a, b) => a - b);
+    return {
+      n: sorted.length,
+      p50: round(percentile(sorted, 50)),
+      p95: round(percentile(sorted, 95)),
+      p99: round(percentile(sorted, 99)),
+      max: round(sorted.at(-1) ?? Number.NaN),
+    };
+  };
+  const overall = stats(all);
+  const lines = [
+    `### ${options.label} (open loop, ${String(options.rate)} requests/s for ${String(options.seconds)} s)`,
+    '',
+    `Served ${String(overall.n)} requests at ${String(Math.round(overall.n / elapsed))} req/s with ${String(errors)} errors; at most ${String(peakInFlight)} in flight at once.`,
+    '',
+    '| Path | Requests | p50 ms | p95 ms | p99 ms | max ms |',
+    '| --- | ---: | ---: | ---: | ---: | ---: |',
+    `| **all traffic** | ${String(overall.n)} | ${String(overall.p50)} | ${String(overall.p95)} | ${String(overall.p99)} | ${String(overall.max)} |`,
+  ];
+  for (const [name, values] of [...byScenario.entries()].sort()) {
+    const row = stats(values);
+    lines.push(
+      `| ${name} | ${String(row.n)} | ${String(row.p50)} | ${String(row.p95)} | ${String(row.p99)} | ${String(row.max)} |`,
+    );
+  }
+  process.stdout.write(`\n${lines.join('\n')}\n`);
+  process.stdout.write(
+    `\n${JSON.stringify({ overall, errors, peakInFlight, rate: options.rate })}\n`,
+  );
+}
 
 export function formatTable(label: string, rows: readonly Measurement[]): string {
   const lines = [
@@ -361,6 +497,7 @@ export function parseOptions(argv: readonly string[]): Options {
     warmup: Number(flag('--warmup') ?? '10'),
     only: only === undefined ? null : new RegExp(only, 'i'),
     label: flag('--label') ?? 'run',
+    rate: Number(flag('--rate') ?? '0'),
   };
 }
 
@@ -374,6 +511,11 @@ export async function main(argv: readonly string[]): Promise<void> {
   process.stdout.write(
     `signed in; ${String(context.contactIds.length)} contacts, ${String(context.accountIds.length)} accounts, ${String(context.dealIds.length)} deals sampled; deep cursor ${context.deepCursor === null ? 'MISSING' : 'ok'}\n`,
   );
+
+  if (options.rate > 0) {
+    await runMix(options, token, context);
+    return;
+  }
 
   const rows: Measurement[] = [];
   for (const scenario of SCENARIOS) {
