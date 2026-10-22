@@ -1,0 +1,8 @@
+{
+  "extends": "@crm/config/tsconfig/library.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "types": ["node"]
+  },
+  "include": ["src/**/*.ts", "vitest.config.ts"]
+}

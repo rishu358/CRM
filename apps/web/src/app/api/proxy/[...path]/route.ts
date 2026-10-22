@@ -1,6 +1,7 @@
 import { cookies } from 'next/headers';
 import { NextResponse, type NextRequest } from 'next/server';
 import { webEnv } from '../../../../lib/env';
+import { upstreamPath } from '../../../../lib/proxy-path';
 
 /**
  * Attaches the session token to API calls, server-side.
@@ -65,10 +66,23 @@ async function forward(request: NextRequest, segments: string[]): Promise<NextRe
   const env = webEnv();
   const token = (await cookies()).get(env.SESSION_COOKIE_NAME)?.value;
 
-  // Rebuilt from the matched segments, never from a raw string, so no caller
-  // can traverse out of /api/v1 or aim this at a different origin.
-  const path = segments.map(encodeURIComponent).join('/');
-  const target = new URL(`/api/v1/${path}`, env.API_URL);
+  // Rebuilt from the matched segments, never from a raw string, and refused if any of them
+  // could leave /api/v1 (a dot segment, a separator): see `upstreamPath`.
+  const path = upstreamPath(segments);
+  if (path === null) {
+    return NextResponse.json(
+      {
+        error: {
+          code: 'VALIDATION_FAILED',
+          message: 'Invalid path',
+          details: [],
+          requestId: '',
+        },
+      },
+      { status: 400 },
+    );
+  }
+  const target = new URL(path, env.API_URL);
   target.search = request.nextUrl.search;
 
   const headers = new Headers();

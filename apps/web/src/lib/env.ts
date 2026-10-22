@@ -15,6 +15,11 @@ const envSchema = z
     API_URL: z.string().url().default('http://localhost:3001'),
     SESSION_COOKIE_NAME: z.string().min(1).default('crm_session'),
     SESSION_TTL_DAYS: z.coerce.number().int().positive().max(90).default(14),
+    /**
+     * Where the browser uploads files, by presigned URL (CLAUDE.md §5.12). Only its origin is
+     * used, and only to let the page connect to it: see `csp.ts`. Unset with in-memory storage.
+     */
+    S3_PUBLIC_ENDPOINT: z.string().url().optional(),
   })
   .passthrough();
 

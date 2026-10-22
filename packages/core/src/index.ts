@@ -17,3 +17,4 @@ export * from './files/index.js';
 export * from './import-export/index.js';
 export * from './audit/index.js';
 export * from './data-rights/index.js';
+export * from './outbound/index.js';
