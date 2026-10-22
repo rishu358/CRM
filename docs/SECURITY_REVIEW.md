@@ -987,6 +987,9 @@ build tooling is a real supply-chain target. `pnpm audit` still prints
 `1 high (1 ignored)`, so the exception is visible in the log rather than
 silent, and **any other high finding still fails CI**.
 
+Re-run on 2026-10-22 after the outbound package landed: the same three advisories, nothing new
+(`@crm/outbound` has no dependency beyond `@crm/core`).
+
 Revisit when: `braces` publishes a fix, or Tailwind is upgraded to v4 (which
 drops this dependency chain and would also clear the `postcss-selector-parser`
 finding). The `esbuild` one goes away with `drizzle-kit`, which is only kept
