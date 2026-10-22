@@ -92,46 +92,49 @@ test.describe('headers and the Content Security Policy', () => {
     expect(headers['x-frame-options']).toBe('DENY');
   });
 
-  test('the browser enforces it: no eval even from an allowed script, no inline handler, no bare script', async ({
-    page,
-  }) => {
-    await page.goto('/sign-in');
-
-    // Not only "it did not run" but "the browser said it refused": a script that fails for
-    // some other reason would pass the first and not the second.
-    await page.evaluate(() => {
+  test('the browser enforces it: injected markup with no nonce does not run', async ({ page }) => {
+    // What an XSS hole would give an attacker: markup in the page's own HTML that carries no
+    // nonce. `page.evaluate` cannot stand in for it, because DevTools-injected script is
+    // exempt from the page policy; so the markup is put into the real response, with the
+    // real header, and the browser parses it like any other page.
+    await page.addInitScript(() => {
       const holder = window as unknown as { __refused: string[] };
       holder.__refused = [];
       document.addEventListener('securitypolicyviolation', (event) => {
         holder.__refused.push(event.violatedDirective);
       });
     });
-
-    const inline = await page.evaluate(() => {
-      const button = document.createElement('button');
-      button.setAttribute('onclick', 'window.__inlineRan = true');
-      document.body.appendChild(button);
-      button.click();
-      return (window as unknown as { __inlineRan?: boolean }).__inlineRan === true;
+    await page.route('**/sign-in', async (route) => {
+      const response = await route.fetch();
+      const body = (await response.text()).replace(
+        '</body>',
+        '<script>window.__bareRan = true</script>' +
+          '<img src="data:image/gif;base64,R0lGODlhAQABAAAAACw=" onload="window.__inlineRan = true">' +
+          '</body>',
+      );
+      await route.fulfill({ response, body });
     });
-    expect(inline).toBe(false);
+    await page.goto('/sign-in');
+    await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible();
 
-    // And a script with no nonce, which is what injected markup would be, does not run.
-    const bare = await page.evaluate(() => {
-      const script = document.createElement('script');
-      script.textContent = 'window.__bareRan = true';
-      document.body.appendChild(script);
-      return (window as unknown as { __bareRan?: boolean }).__bareRan === true;
+    const state = await page.evaluate(() => {
+      const w = window as unknown as {
+        __bareRan?: boolean;
+        __inlineRan?: boolean;
+        __refused?: string[];
+      };
+      return {
+        bare: w.__bareRan === true,
+        inline: w.__inlineRan === true,
+        refused: w.__refused ?? [],
+      };
     });
-    expect(bare).toBe(false);
-
-    // The browser reported both refusals as script-src violations, so what stopped them was
-    // the policy and not an accident of how the test built them.
-    const refused = await page.evaluate(
-      () => (window as unknown as { __refused: string[] }).__refused,
-    );
+    // Not only "it did not run" but "the browser said it refused": a script that fails for
+    // some other reason would pass the first and not the second.
+    expect(state.bare).toBe(false);
+    expect(state.inline).toBe(false);
     expect(
-      refused.filter((directive) => directive.startsWith('script-src')).length,
+      state.refused.filter((directive) => directive.startsWith('script-src')).length,
     ).toBeGreaterThanOrEqual(2);
   });
 
@@ -140,7 +143,9 @@ test.describe('headers and the Content Security Policy', () => {
       const violations: string[] = [];
       (window as unknown as { __violations: string[] }).__violations = violations;
       document.addEventListener('securitypolicyviolation', (event) => {
-        violations.push(`${event.violatedDirective} ${event.blockedURI}`);
+        violations.push(
+          `${event.violatedDirective} ${event.blockedURI} ${event.sourceFile}:${event.lineNumber}:${event.columnNumber} ${event.sample}`,
+        );
       });
     });
     const consoleViolations: string[] = [];
