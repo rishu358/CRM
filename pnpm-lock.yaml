@@ -53,6 +53,9 @@ importers:
       '@crm/db':
         specifier: workspace:^
         version: link:../../packages/db
+      '@crm/outbound':
+        specifier: workspace:^
+        version: link:../../packages/outbound
       '@crm/storage':
         specifier: workspace:^
         version: link:../../packages/storage
@@ -229,6 +232,9 @@ importers:
       '@crm/db':
         specifier: workspace:^
         version: link:../../packages/db
+      '@crm/outbound':
+        specifier: workspace:^
+        version: link:../../packages/outbound
       '@crm/storage':
         specifier: workspace:^
         version: link:../../packages/storage

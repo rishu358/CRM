@@ -2,6 +2,7 @@ import { GuardedOutboundHttp, type GuardedClientOptions } from './client.js';
 import type { OutboundHttp } from './types.js';
 
 export * from './types.js';
+export { createResendEmailProvider, EmailSendError, ResendEmailProvider } from './resend.js';
 
 /**
  * The options a caller may set. The rule for which addresses are acceptable is not one

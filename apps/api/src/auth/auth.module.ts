@@ -1,3 +1,4 @@
+import { createResendEmailProvider } from '@crm/outbound';
 import { Global, Module } from '@nestjs/common';
 import { API_ENV_TOKEN } from '../config/env.js';
 import {
@@ -52,10 +53,16 @@ import type { ApiEnv } from '../config/env.js';
     {
       provide: EMAIL_PROVIDER,
       inject: [API_ENV_TOKEN],
-      useFactory: (env: ApiEnv) =>
-        env.EMAIL_PROVIDER === 'memory'
-          ? new MemoryEmailProvider(env)
-          : new ConsoleEmailProvider(env),
+      useFactory: (env: ApiEnv) => {
+        if (env.EMAIL_PROVIDER === 'memory') return new MemoryEmailProvider(env);
+        if (env.EMAIL_PROVIDER === 'resend') {
+          if (env.RESEND_API_KEY === undefined || env.RESEND_API_KEY === '') {
+            throw new Error('EMAIL_PROVIDER=resend requires RESEND_API_KEY');
+          }
+          return createResendEmailProvider({ apiKey: env.RESEND_API_KEY, from: env.EMAIL_FROM });
+        }
+        return new ConsoleEmailProvider(env);
+      },
     },
   ],
   exports: [

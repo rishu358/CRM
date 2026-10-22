@@ -128,9 +128,31 @@ export function filterToSql(filter: ParsedFilter, fields: readonly FieldDefiniti
  * wrong and slow. A proper body search belongs to the search provider
  * (MVP_SPEC M7), which indexes the extracted text.
  */
-export function searchToSql(term: string): SQL {
+/**
+ * The columns a free-text search may look in, by field key.
+ *
+ * What a caller may search is what they may read (CLAUDE.md §5.4). Matching a column is a read of
+ * it: `q=@gmail` answered as a list of rows is a character-at-a-time read of a hidden value, the
+ * same side channel `sort` and `filter` close in `common/field-queries.ts`.
+ */
+const SEARCH_COLUMNS: Readonly<Record<string, SQL>> = {
+  subject: sql`${activities.subject}`,
+};
+
+/** The keys `searchToSql` knows, for the service to intersect with what the actor may read. */
+export const SEARCH_FIELD_KEYS: readonly string[] = Object.keys(SEARCH_COLUMNS);
+
+/**
+ * Free-text search over `readable` columns only. With none readable the predicate is false: a
+ * caller who may read none of them is told there are no matches, as if there were none.
+ */
+export function searchToSql(term: string, readable: readonly string[]): SQL {
   const pattern = `%${escapeLikePattern(term)}%`;
-  return or(sql`${activities.subject} ilike ${pattern} escape ${LIKE_ESCAPE}`)!;
+  const parts = readable.map((key) => {
+    const column = SEARCH_COLUMNS[key];
+    return column === undefined ? undefined : sql`${column} ilike ${pattern} escape ${LIKE_ESCAPE}`;
+  });
+  return or(...parts) ?? sql`false`;
 }
 
 /** Live records only. Soft-deleted rows live in the Recycle Bin. */

@@ -40,16 +40,21 @@ export interface ObjectDescriptor {
   readonly customFields: SQL;
   readonly ownerId: SQL;
   readonly id: SQL;
-  /** Free-text search across the fields a person types into the list's search box. */
-  search(pattern: string): SQL;
+  /** The searchable field keys, which a free-text search may look in. */
+  readonly searchKeys: readonly string[];
   /**
-   * The column a row is matched to an existing record on, **uncast**.
+   * Free-text search over `readable` columns only: what a caller may search is what they may read
+   * (CLAUDE.md §5.4). With none readable the predicate is false.
+   */
+  search(pattern: string, readable: readonly string[]): SQL;
+  /**
+   * The expression a row is matched to an existing record on.
    *
-   * Deliberately not the `columns` entry: that one casts `email` to text so
-   * `ilike` works, and a cast on the column is a cast the planner cannot see
-   * through, so the `(tenant_id, email)` index is not used. Matching 500 rows
-   * against a million-row tenant with a seq scan per chunk is the difference
-   * between a 50,000-row import taking a minute and taking an hour.
+   * For `email` this is `email::text`, compared with the lower-cased value: `citext` equality is
+   * not leakproof, so under row-level security an index on the column itself is never used, and
+   * matching 500 rows against a million-row tenant would read the whole tenant per chunk, the
+   * difference between a 50,000-row import taking a minute and taking an hour. The text
+   * expression has its own index (migration 0020, ADR-0041).
    */
   matchExpression(field: string): SQL;
   /**
@@ -109,7 +114,7 @@ function defineDescriptor(
   table: RecordTable,
   options: {
     columns: ColumnMap;
-    search: (pattern: string) => SQL;
+    searchColumns: ColumnMap;
     match?: ColumnMap;
     exportValue?: (row: RecordRow, key: string) => unknown;
     extraExportColumns?: readonly { key: string; label: string }[];
@@ -125,7 +130,14 @@ function defineDescriptor(
     customFields: sql`${t.customFields}`,
     ownerId: sql`${t.ownerId}`,
     id: sql`${t.id}`,
-    search: options.search,
+    searchKeys: Object.keys(options.searchColumns),
+    search(pattern, readable) {
+      const parts = readable.map((key) => {
+        const column = options.searchColumns[key];
+        return column === undefined ? undefined : like(column, pattern);
+      });
+      return or(...parts) ?? sql`false`;
+    },
     matchExpression(field) {
       const expression = options.match?.[field];
       if (expression === undefined) throw new Error(`${objectType} cannot be matched on ${field}`);
@@ -224,14 +236,13 @@ const CONTACT = defineDescriptor('contact', contacts, {
     created_at: sql`${contacts.createdAt}`,
     updated_at: sql`${contacts.updatedAt}`,
   },
-  search: (pattern) =>
-    or(
-      like(sql`${contacts.firstName}`, pattern),
-      like(sql`${contacts.lastName}`, pattern),
-      like(sql`${contacts.email}::text`, pattern),
-      like(sql`${contacts.phone}`, pattern),
-    )!,
-  match: { email: sql`${contacts.email}`, phone: sql`${contacts.phone}` },
+  searchColumns: {
+    first_name: sql`${contacts.firstName}`,
+    last_name: sql`${contacts.lastName}`,
+    email: sql`${contacts.email}::text`,
+    phone: sql`${contacts.phone}`,
+  },
+  match: { email: sql`${contacts.email}::text`, phone: sql`${contacts.phone}` },
   extraExportColumns: [{ key: 'account_id', label: 'Account ID' }],
 });
 
@@ -251,13 +262,12 @@ const ACCOUNT = defineDescriptor('account', accounts, {
     created_at: sql`${accounts.createdAt}`,
     updated_at: sql`${accounts.updatedAt}`,
   },
-  search: (pattern) =>
-    or(
-      like(sql`${accounts.name}`, pattern),
-      like(sql`${accounts.domain}`, pattern),
-      like(sql`${accounts.email}::text`, pattern),
-      like(sql`${accounts.phone}`, pattern),
-    )!,
+  searchColumns: {
+    name: sql`${accounts.name}`,
+    domain: sql`${accounts.domain}`,
+    email: sql`${accounts.email}::text`,
+    phone: sql`${accounts.phone}`,
+  },
   exportValue: (row, key) =>
     key === 'annual_revenue'
       ? money(row['annualRevenueMinor'], row['annualRevenueCurrency'])
@@ -282,15 +292,14 @@ const LEAD = defineDescriptor('lead', leads, {
     created_at: sql`${leads.createdAt}`,
     updated_at: sql`${leads.updatedAt}`,
   },
-  search: (pattern) =>
-    or(
-      like(sql`${leads.firstName}`, pattern),
-      like(sql`${leads.lastName}`, pattern),
-      like(sql`${leads.company}`, pattern),
-      like(sql`${leads.email}::text`, pattern),
-      like(sql`${leads.phone}`, pattern),
-    )!,
-  match: { email: sql`${leads.email}`, phone: sql`${leads.phone}` },
+  searchColumns: {
+    first_name: sql`${leads.firstName}`,
+    last_name: sql`${leads.lastName}`,
+    company: sql`${leads.company}`,
+    email: sql`${leads.email}::text`,
+    phone: sql`${leads.phone}`,
+  },
+  match: { email: sql`${leads.email}::text`, phone: sql`${leads.phone}` },
   extraExportColumns: [{ key: 'converted_at', label: 'Converted at' }],
 });
 
@@ -310,7 +319,7 @@ const DEAL = defineDescriptor('deal', deals, {
     created_at: sql`${deals.createdAt}`,
     updated_at: sql`${deals.updatedAt}`,
   },
-  search: (pattern) => like(sql`${deals.name}`, pattern),
+  searchColumns: { name: sql`${deals.name}` },
   exportValue: (row, key) =>
     key === 'amount' ? money(row['amountMinor'], row['currency']) : undefined,
   extraExportColumns: [

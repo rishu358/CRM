@@ -5,7 +5,7 @@ import {
   type FieldDefinition,
   type RecordConstraint,
 } from '@crm/core';
-import { planQuery, type QueryPlan } from '@crm/db';
+import { OBJECT_DESCRIPTORS, planQuery, type QueryPlan } from '@crm/db';
 
 /**
  * An export's stored query, turned into the plan the worker pages through.
@@ -26,6 +26,8 @@ export function planExportQuery(
     q?: string | undefined;
   },
   constraint: RecordConstraint,
+  /** May the caller read this field? `q` only looks in the searchable fields they may. */
+  canRead: (fieldKey: string) => boolean,
 ): ExportQueryPlan {
   const filters = (query.filter ?? []).map((raw) => {
     const parsed = parseFilter(raw);
@@ -42,6 +44,7 @@ export function planExportQuery(
       filters,
       sort: query.sort === undefined ? undefined : parseSort(query.sort),
       q: query.q,
+      searchFields: OBJECT_DESCRIPTORS[objectType].searchKeys.filter(canRead),
     },
     constraint,
   );

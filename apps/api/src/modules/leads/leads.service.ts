@@ -36,7 +36,11 @@ import {
   type LeadUpdateInput,
 } from '@crm/contracts';
 import { recordRefFor, type Lead as LeadRow, type Tx } from '@crm/db';
-import { assertFiltersReadable, assertSortable } from '../../common/field-queries.js';
+import {
+  assertFiltersReadable,
+  assertSortable,
+  readableSearchFields,
+} from '../../common/field-queries.js';
 import { DatabaseService } from '../../database/database.service.js';
 import { AuditService, diffChanges } from '../../platform/audit.service.js';
 import { FieldMetadataService } from '../../platform/field-metadata.service.js';
@@ -51,7 +55,7 @@ import {
   serializeLeads,
   type SerializedLead,
 } from './leads.serializer.js';
-import { allowedSortKeys } from './leads.sql-helpers.js';
+import { allowedSortKeys, SEARCH_FIELD_KEYS } from './leads.sql-helpers.js';
 
 /** The name column on a deal is 200 characters; a long company must not 422 the conversion. */
 const MAX_DEAL_NAME = 200;
@@ -128,6 +132,7 @@ export class LeadsService {
         sort,
         filters,
         search: query.q,
+        searchFields: readableSearchFields(actor, 'lead', SEARCH_FIELD_KEYS),
         fields,
       });
 

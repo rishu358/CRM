@@ -24,7 +24,11 @@ import {
   type DuplicateMatch,
 } from '@crm/contracts';
 import { recordRefFor, type Contact as ContactRow, type Tx } from '@crm/db';
-import { assertFiltersReadable, assertSortable } from '../../common/field-queries.js';
+import {
+  assertFiltersReadable,
+  assertSortable,
+  readableSearchFields,
+} from '../../common/field-queries.js';
 import { DatabaseService } from '../../database/database.service.js';
 import { AuditService, diffChanges } from '../../platform/audit.service.js';
 import { FieldMetadataService } from '../../platform/field-metadata.service.js';
@@ -36,7 +40,7 @@ import {
   serializeContacts,
   type SerializedContact,
 } from './contacts.serializer.js';
-import { allowedSortKeys } from './contacts.sql-helpers.js';
+import { allowedSortKeys, SEARCH_FIELD_KEYS } from './contacts.sql-helpers.js';
 
 /**
  * Contacts business logic (CLAUDE.md §11.2).
@@ -93,6 +97,7 @@ export class ContactsService {
         sort,
         filters,
         search: query.q,
+        searchFields: readableSearchFields(actor, 'contact', SEARCH_FIELD_KEYS),
         fields,
       });
 

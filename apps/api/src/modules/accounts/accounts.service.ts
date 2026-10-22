@@ -28,7 +28,11 @@ import {
 } from '@crm/contracts';
 import { recordRefFor, type Account as AccountRow, type Tx } from '@crm/db';
 import { isConstraintViolation } from '../../common/db-errors.js';
-import { assertFiltersReadable, assertSortable } from '../../common/field-queries.js';
+import {
+  assertFiltersReadable,
+  assertSortable,
+  readableSearchFields,
+} from '../../common/field-queries.js';
 import { DatabaseService } from '../../database/database.service.js';
 import { AuditService, diffChanges } from '../../platform/audit.service.js';
 import { FieldMetadataService } from '../../platform/field-metadata.service.js';
@@ -40,7 +44,7 @@ import {
   serializeAccounts,
   type SerializedAccount,
 } from './accounts.serializer.js';
-import { allowedSortKeys } from './accounts.sql-helpers.js';
+import { allowedSortKeys, SEARCH_FIELD_KEYS } from './accounts.sql-helpers.js';
 
 /**
  * Accounts business logic (CLAUDE.md §11.2).
@@ -108,6 +112,7 @@ export class AccountsService {
         sort,
         filters,
         search: query.q,
+        searchFields: readableSearchFields(actor, 'account', SEARCH_FIELD_KEYS),
         fields,
       });
 

@@ -200,7 +200,9 @@ export function runExport(deps: ExportDeps): EventHandler {
       // (storage, database) are left to the relay's retries.
       let plan: ExportQueryPlan;
       try {
-        plan = planExportQuery(objectType, fields, job.query, decision.constraint);
+        plan = planExportQuery(objectType, fields, job.query, decision.constraint, (key) =>
+          canReadField(actor, objectType, key),
+        );
       } catch (error) {
         if (!(error instanceof ValidationError)) throw error;
         await failExport(

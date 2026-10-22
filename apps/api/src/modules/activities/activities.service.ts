@@ -29,7 +29,11 @@ import {
   type ActivityUpdateInput,
 } from '@crm/contracts';
 import { recordRefFor, type Activity as ActivityRow, type Tx } from '@crm/db';
-import { assertFiltersReadable, assertSortable } from '../../common/field-queries.js';
+import {
+  assertFiltersReadable,
+  assertSortable,
+  readableSearchFields,
+} from '../../common/field-queries.js';
 import { DatabaseService } from '../../database/database.service.js';
 import { AuditService, diffChanges } from '../../platform/audit.service.js';
 import { FieldMetadataService } from '../../platform/field-metadata.service.js';
@@ -41,7 +45,7 @@ import {
   serializeActivity,
   type SerializedActivity,
 } from './activities.serializer.js';
-import { allowedSortKeys } from './activities.sql-helpers.js';
+import { allowedSortKeys, SEARCH_FIELD_KEYS } from './activities.sql-helpers.js';
 import { keyFor, RecordLinksService } from './record-links.service.js';
 
 /**
@@ -121,6 +125,7 @@ export class ActivitiesService {
         sort,
         filters,
         search: query.q,
+        searchFields: readableSearchFields(actor, 'activity', SEARCH_FIELD_KEYS),
         fields,
         linkedTo,
         status: query.status,

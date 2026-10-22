@@ -41,6 +41,8 @@ export interface ListOptions {
   readonly sort?: { field: string; direction: SortDirection } | undefined;
   readonly filters: readonly ParsedFilter[];
   readonly search?: string | undefined;
+  /** The searchable columns the actor may read; `search` looks in these and no others. */
+  readonly searchFields?: readonly string[] | undefined;
   readonly fields: readonly FieldDefinition[];
   /** "The activities on this record", as a record page asks for them. */
   readonly linkedTo?: { objectType: LinkTargetType; recordId: string } | undefined;
@@ -99,7 +101,7 @@ export class ActivitiesRepository {
     }
 
     if (options.search !== undefined && options.search.length > 0) {
-      predicates.push(searchToSql(options.search));
+      predicates.push(searchToSql(options.search, options.searchFields ?? []));
     }
 
     const cursor = options.cursor === undefined ? null : decodeCursor(options.cursor);

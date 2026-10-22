@@ -42,3 +42,17 @@ export function assertFiltersReadable(
     }
   }
 }
+
+/**
+ * The searchable fields of an object that this actor may read.
+ *
+ * A free-text `q` matches against these columns, so it is a read of each (see above): a field the
+ * actor cannot read is not searched, rather than searched and hidden afterwards.
+ */
+export function readableSearchFields(
+  actor: Actor,
+  objectType: ObjectType,
+  searchable: readonly string[],
+): string[] {
+  return searchable.filter((key) => canReadField(actor, objectType, key));
+}

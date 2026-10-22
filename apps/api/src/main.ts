@@ -1,10 +1,11 @@
 import 'reflect-metadata';
 import { createApp } from './bootstrap.js';
-import { loadApiEnv } from './config/env.js';
+import { loadApiEnv, productionWarnings } from './config/env.js';
 import { createLogger } from './common/logger.js';
 
 const env = loadApiEnv();
 const logger = createLogger(env.LOG_LEVEL, env.NODE_ENV === 'development');
+for (const warning of productionWarnings(env)) logger.warn(warning);
 
 /**
  * Startup failures are logged and exit non-zero.

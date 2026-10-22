@@ -86,10 +86,46 @@ export function constraintToSql(constraint: RecordConstraint): SQL | undefined {
   return scopeToSql(constraint, sql`${leads.ownerId}`);
 }
 
+/**
+ * `email = value`, written so an index can answer it.
+ *
+ * `email` is `citext`, and under row-level security a `citext` comparison cannot use an index
+ * (its equality function is not leakproof), so the lookup reads every row of the company. Compared
+ * as `text`, against the lower-cased value the column is guaranteed to hold (migration 0020), it
+ * uses `leads_tenant_email_text_idx`. Same answer, a millionth of the reading.
+ */
+export function emailIs(value: string): SQL {
+  return sql`${leads.email}::text = ${value.toLowerCase()}`;
+}
+
 /** Build one filter predicate. The operator is whitelisted by the contracts layer. */
 export function filterToSql(filter: ParsedFilter, fields: readonly FieldDefinition[]): SQL {
   const column = expressionForField(filter.field, fields);
   const operator: FilterOperator = filter.operator;
+
+  // Exact email comparisons go through the text index (see `emailIs`); other operators on email
+  // (`contains`, ordering) keep `citext` semantics and cannot use one either way.
+  if (filter.field === 'email') {
+    const text = sql`${leads.email}::text`;
+    if (operator === 'eq') return emailIs(filter.value);
+    if (operator === 'neq') return sql`${text} is distinct from ${filter.value.toLowerCase()}`;
+    if (operator === 'in') {
+      const values = filter.value
+        .split(',')
+        .filter((value) => value.length > 0)
+        .map((value) => value.toLowerCase());
+      if (values.length === 0) return sql`false`;
+      if (values.length > 100) {
+        throw new ValidationError([
+          { path: filter.field, message: 'An "in" filter accepts at most 100 values' },
+        ]);
+      }
+      return sql`${text} in (${sql.join(
+        values.map((value) => sql`${value}`),
+        sql`, `,
+      )})`;
+    }
+  }
 
   switch (operator) {
     case 'eq':
@@ -129,15 +165,35 @@ export function filterToSql(filter: ParsedFilter, fields: readonly FieldDefiniti
 }
 
 /** Free-text search across the fields a person would actually type into a box. */
-export function searchToSql(term: string): SQL {
+/**
+ * The columns a free-text search may look in, by field key.
+ *
+ * What a caller may search is what they may read (CLAUDE.md §5.4). Matching a column is a read of
+ * it: `q=@gmail` answered as a list of rows is a character-at-a-time read of a hidden value, the
+ * same side channel `sort` and `filter` close in `common/field-queries.ts`.
+ */
+const SEARCH_COLUMNS: Readonly<Record<string, SQL>> = {
+  first_name: sql`${leads.firstName}`,
+  last_name: sql`${leads.lastName}`,
+  company: sql`${leads.company}`,
+  email: sql`${leads.email}::text`,
+  phone: sql`${leads.phone}`,
+};
+
+/** The keys `searchToSql` knows, for the service to intersect with what the actor may read. */
+export const SEARCH_FIELD_KEYS: readonly string[] = Object.keys(SEARCH_COLUMNS);
+
+/**
+ * Free-text search over `readable` columns only. With none readable the predicate is false: a
+ * caller who may read none of them is told there are no matches, as if there were none.
+ */
+export function searchToSql(term: string, readable: readonly string[]): SQL {
   const pattern = `%${escapeLikePattern(term)}%`;
-  return or(
-    sql`${leads.firstName} ilike ${pattern} escape ${LIKE_ESCAPE}`,
-    sql`${leads.lastName} ilike ${pattern} escape ${LIKE_ESCAPE}`,
-    sql`${leads.company} ilike ${pattern} escape ${LIKE_ESCAPE}`,
-    sql`${leads.email}::text ilike ${pattern} escape ${LIKE_ESCAPE}`,
-    sql`${leads.phone} ilike ${pattern} escape ${LIKE_ESCAPE}`,
-  )!;
+  const parts = readable.map((key) => {
+    const column = SEARCH_COLUMNS[key];
+    return column === undefined ? undefined : sql`${column} ilike ${pattern} escape ${LIKE_ESCAPE}`;
+  });
+  return or(...parts) ?? sql`false`;
 }
 
 /** Live records only. Soft-deleted rows live in the Recycle Bin (MVP_SPEC M4). */

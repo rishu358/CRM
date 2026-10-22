@@ -1,3 +1,8 @@
+import {
+  assertProductionConfig,
+  productionConfigProblems,
+  type ProductionConfigInput,
+} from '@crm/core';
 import { storageEnvShape } from '@crm/storage';
 import { z } from 'zod';
 
@@ -42,7 +47,9 @@ const envSchema = z
     // doubling forever (packages/core/auth/throttle.ts).
     AUTH_THROTTLE_MAX_DELAY_MS: z.coerce.number().int().nonnegative().max(60_000).default(8000),
 
-    EMAIL_PROVIDER: z.enum(['console', 'memory']).default('console'),
+    EMAIL_PROVIDER: z.enum(['console', 'memory', 'resend']).default('console'),
+    // Only read when EMAIL_PROVIDER=resend. Never logged.
+    RESEND_API_KEY: z.string().optional(),
 
     // Object storage for import files and generated exports (CLAUDE.md §5.12).
     ...storageEnvShape,
@@ -71,7 +78,34 @@ export function loadApiEnv(source: NodeJS.ProcessEnv = process.env): ApiEnv {
       .join('; ');
     throw new Error(`Invalid API environment: ${problems}`);
   }
+  // A production process with development settings does not start (ADR-0041).
+  assertProductionConfig(productionInput(parsed.data));
   return parsed.data;
+}
+
+function productionInput(env: ApiEnv): ProductionConfigInput {
+  return {
+    nodeEnv: env.NODE_ENV,
+    scope: 'api',
+    authSecret: env.AUTH_SECRET,
+    emailProvider: env.EMAIL_PROVIDER,
+    emailFrom: env.EMAIL_FROM,
+    resendApiKey: env.RESEND_API_KEY,
+    storageProvider: env.STORAGE_PROVIDER,
+    s3AccessKeyId: env.S3_ACCESS_KEY_ID,
+    s3SecretAccessKey: env.S3_SECRET_ACCESS_KEY,
+    s3PublicEndpoint: env.S3_PUBLIC_ENDPOINT,
+    webUrl: env.WEB_URL,
+    apiUrl: env.API_URL,
+    corsOrigins: env.CORS_ORIGINS,
+    databaseUrls: { DATABASE_URL: env.DATABASE_URL, DATABASE_AUTH_URL: env.DATABASE_AUTH_URL },
+    redisUrl: env.REDIS_URL,
+  };
+}
+
+/** Things worth a log line at startup that are not reasons to refuse (production only). */
+export function productionWarnings(env: ApiEnv): readonly string[] {
+  return productionConfigProblems(productionInput(env)).warnings;
 }
 
 export function corsOrigins(env: ApiEnv): string[] {

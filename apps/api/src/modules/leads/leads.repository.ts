@@ -20,6 +20,7 @@ import { decodeCursor, encodeCursor } from '../../common/cursor.js';
 import { keysetPredicate } from '../../common/keyset.js';
 import {
   constraintToSql,
+  emailIs,
   expressionForField,
   filterToSql,
   notDeleted,
@@ -44,6 +45,8 @@ export interface ListOptions {
   readonly sort?: { field: string; direction: SortDirection } | undefined;
   readonly filters: readonly ParsedFilter[];
   readonly search?: string | undefined;
+  /** The searchable columns the actor may read; `search` looks in these and no others. */
+  readonly searchFields?: readonly string[] | undefined;
   readonly fields: readonly FieldDefinition[];
 }
 
@@ -70,7 +73,7 @@ export class LeadsRepository {
     }
 
     if (options.search !== undefined && options.search.length > 0) {
-      predicates.push(searchToSql(options.search));
+      predicates.push(searchToSql(options.search, options.searchFields ?? []));
     }
 
     const cursor = options.cursor === undefined ? null : decodeCursor(options.cursor);
@@ -271,7 +274,7 @@ export class LeadsRepository {
     limit: number,
   ): Promise<Lead[]> {
     const matches: SQL[] = [];
-    if (criteria.email !== undefined) matches.push(eq(leads.email, criteria.email));
+    if (criteria.email !== undefined) matches.push(emailIs(criteria.email));
     if (criteria.phone !== undefined) matches.push(eq(leads.phone, criteria.phone));
     if (matches.length === 0) return [];
 

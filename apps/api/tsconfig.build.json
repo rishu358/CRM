@@ -2,5 +2,5 @@
   "extends": "@crm/config/tsconfig/nest.json",
   "compilerOptions": { "rootDir": "src", "outDir": "dist", "noEmit": false },
   "include": ["src/**/*.ts"],
-  "exclude": ["src/**/*.spec.ts", "src/**/testing/**"]
+  "exclude": ["src/**/*.spec.ts", "src/**/testing/**", "src/perf/**"]
 }

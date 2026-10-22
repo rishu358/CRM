@@ -208,6 +208,8 @@ export function planQuery(
     readonly filters: readonly QueryFilter[];
     readonly sort?: { readonly field: string; readonly direction: 'asc' | 'desc' } | undefined;
     readonly q?: string | undefined;
+    /** The searchable fields the caller may read; `q` looks in these and no others. */
+    readonly searchFields?: readonly string[] | undefined;
   },
   constraint: RecordConstraint,
 ): QueryPlan {
@@ -222,7 +224,7 @@ export function planQuery(
   }
 
   if (query.q !== undefined && query.q !== '') {
-    where.push(descriptor.search(`%${escapeLikePattern(query.q)}%`));
+    where.push(descriptor.search(`%${escapeLikePattern(query.q)}%`, query.searchFields ?? []));
   }
 
   const sort = query.sort ?? { field: 'created_at', direction: 'asc' as const };

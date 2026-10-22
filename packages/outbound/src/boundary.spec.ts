@@ -87,6 +87,12 @@ const ALLOWED: readonly Allowed[] = [
       'Runs in the browser and uploads to the presigned URL the API issued for it. Not a server.',
   },
   {
+    file: 'apps/api/src/perf/load-run.ts',
+    pattern: 'fetch',
+    reason:
+      'A load-test tool run by hand against a scratch environment whose URL the operator passes on the command line. Excluded from the production build and never imported by the service.',
+  },
+  {
     file: 'packages/outbound/src/client.ts',
     pattern: 'node network module',
     reason:

@@ -32,7 +32,11 @@ import {
 } from '@crm/contracts';
 import { recordRefFor, type Deal as DealRow, type Tx } from '@crm/db';
 import { isConstraintViolation } from '../../common/db-errors.js';
-import { assertFiltersReadable, assertSortable } from '../../common/field-queries.js';
+import {
+  assertFiltersReadable,
+  assertSortable,
+  readableSearchFields,
+} from '../../common/field-queries.js';
 import { DatabaseService } from '../../database/database.service.js';
 import { AuditService, diffChanges } from '../../platform/audit.service.js';
 import { CurrencyConverter } from '../../platform/exchange-rates/currency-converter.service.js';
@@ -49,7 +53,7 @@ import {
   type DealPerson,
   type SerializedDeal,
 } from './deals.serializer.js';
-import { allowedSortKeys } from './deals.sql-helpers.js';
+import { allowedSortKeys, SEARCH_FIELD_KEYS } from './deals.sql-helpers.js';
 
 /** The largest value a Postgres bigint holds. A larger amount is a 422, not a 500. */
 const MAX_AMOUNT_MINOR = 9_223_372_036_854_775_807n;
@@ -139,6 +143,7 @@ export class DealsService {
         sort,
         filters,
         search: query.q,
+        searchFields: readableSearchFields(actor, 'deal', SEARCH_FIELD_KEYS),
         fields,
       });
 
