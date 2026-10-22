@@ -160,6 +160,35 @@ export class PostgresSearchProvider implements SearchProvider<Tx> {
 }
 
 /**
+ * How many matching index rows are ranked, at most (ADR-0028 §4, ADR-0041 §4).
+ *
+ * The cost of a search used to be proportional to **how many rows match**, not to how big the
+ * tenant is: every match had to be fetched from the heap and ranked before the best ten could be
+ * known. A surname shared by one record in sixty matches sixty-seven thousand rows at a million
+ * contacts, and measured that took 3 to 6 seconds, which is not a slow search but one that ties up
+ * a database connection long enough to starve everything else.
+ *
+ * So the matches are taken in order of `record_updated_at`, newest first, from an index in that
+ * order (`search_documents_recent_idx`), and only the first `SEARCH_CANDIDATE_CAP` are ranked.
+ * What that changes, and what it does not:
+ *
+ *   - A term that matches fewer rows than this (any selective term, which is nearly every query a
+ *     person types after a second keystroke) is **unchanged**: the planner still reads the
+ *     full-text index for it, and every match is ranked.
+ *   - A term that matches more is ranked among its most recently updated matches. For a broad term
+ *     nearly all matches rank alike, so "the best ten" was "the ten most recent of the best
+ *     weight" anyway; what is given up is an older, higher-weighted match beating a newer,
+ *     lower-weighted one. Typing a little more narrows it, and a palette is for exactly that.
+ *   - The cap applies **after** the visibility predicate (it is part of the same WHERE), so it
+ *     counts only rows the caller may see: a cap cannot be filled, or learned about, through rows
+ *     they may not.
+ *
+ * Six hundred is a few pages of a palette's worth of candidates: well above the ten that are shown
+ * and the handful of fields each record can match in, well below the thousands that cost seconds.
+ */
+export const SEARCH_CANDIDATE_CAP = 600;
+
+/**
  * The full-text statement, exported so a performance test can `EXPLAIN` the
  * exact query the provider runs rather than a hand-written lookalike.
  *
@@ -199,6 +228,8 @@ export function fullTextStatement(
       where tenant_id = ${tenantId}::uuid
         and search_vector @@ to_tsquery('simple', ${query})
         and (${visible})
+      order by record_updated_at desc, id desc
+      limit ${SEARCH_CANDIDATE_CAP}
     )
     select object_type,
            record_id,
@@ -226,17 +257,26 @@ export function fullTextStatement(
  */
 export function fuzzyStatement(tenantId: string, term: string, visible: SQL, limit: number): SQL {
   return sql`
+    with hits as (
+      select object_type,
+             record_id,
+             field_key,
+             value,
+             record_updated_at,
+             word_similarity(${term}, value) as similarity
+      from search_documents
+      where tenant_id = ${tenantId}::uuid
+        and ${term} <% value
+        and (${visible})
+      order by record_updated_at desc, id desc
+      limit ${SEARCH_CANDIDATE_CAP}
+    )
     select object_type,
            record_id,
-           max(word_similarity(${term}, value))::float8 as score,
-           (array_agg(field_key order by word_similarity(${term}, value) desc, field_key))[1]
-             as matched_field_key,
-           (array_agg(value order by word_similarity(${term}, value) desc, field_key))[1]
-             as matched_value
-    from search_documents
-    where tenant_id = ${tenantId}::uuid
-      and ${term} <% value
-      and (${visible})
+           max(similarity)::float8 as score,
+           (array_agg(field_key order by similarity desc, field_key))[1] as matched_field_key,
+           (array_agg(value order by similarity desc, field_key))[1] as matched_value
+    from hits
     group by object_type, record_id
     order by score desc, max(record_updated_at) desc, record_id desc
     limit ${limit}
@@ -274,7 +314,23 @@ export function visibilityPredicate(scopes: readonly SearchObjectScope[]): SQL {
   // `false` cannot happen — the caller drops an empty scope list — but a
   // predicate that defaults to "everything" if this were ever reached is not
   // a mistake worth leaving available.
-  return blocks.length === 0 ? sql`false` : or(...blocks)!;
+  if (blocks.length === 0) return sql`false`;
+  const any = or(...blocks)!;
+
+  // When every block is the same person's own records (a rep, on every object they may search),
+  // say so once, outside the OR as well as inside it. The result is identical, but only a condition
+  // at the top level can become an index condition: `search_documents_fts_idx` and
+  // `search_documents_trgm_idx` lead with `(tenant_id, owner_id)`, so a rep's search reads the
+  // rep's rows, a fortieth of the tenant, instead of fetching every match and discarding most of
+  // them (migration 0021, ADR-0041).
+  const owners = new Set<string>();
+  for (const scope of scopes) {
+    if (scope.constraint.kind === 'own') owners.add(scope.constraint.userId);
+    else return any;
+  }
+  const [only] = [...owners];
+  if (owners.size !== 1 || only === undefined) return any;
+  return sql`(${searchDocuments.ownerId} = ${only}::uuid and ${any})`;
 }
 
 /** Terms long enough to be worth an index probe. */

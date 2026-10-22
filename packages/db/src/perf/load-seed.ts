@@ -623,7 +623,9 @@ export async function loadSeed(
       'audit_logs',
     ]) {
       const t = Date.now();
-      await client.query(`vacuum (analyze) ${table}`);
+      // `parallel 0`: a parallel vacuum needs shared memory, and a container's default 64 MB
+      // /dev/shm is far too small for the million-row tables ("No space left on device").
+      await client.query(`vacuum (analyze, parallel 0) ${table}`);
       log(`vacuum analyze ${table}: ${String(Date.now() - t)} ms`);
     }
 
