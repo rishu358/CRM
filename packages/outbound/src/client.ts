@@ -105,6 +105,31 @@ function cleanHeaders(input: Readonly<Record<string, string>> | undefined): Reco
   return out;
 }
 
+/**
+ * A `lookup` for `net.connect` that answers with the address already judged, whatever name it
+ * is asked about. Node asks with `all: true` when it may try several addresses and without it
+ * otherwise; both shapes get the one address, so there is never a second resolution to lie.
+ */
+export function pinnedLookup(
+  address: string,
+  family: 4 | 6,
+): (
+  name: string,
+  options: unknown,
+  callback: (
+    error: null,
+    address: string | { address: string; family: number }[],
+    family?: number,
+  ) => void,
+) => void {
+  return (_name, options, callback) => {
+    const wantsAll =
+      typeof options === 'object' && options !== null && 'all' in options && options.all === true;
+    if (wantsAll) callback(null, [{ address, family }]);
+    else callback(null, address, family);
+  };
+}
+
 interface Target {
   readonly url: URL;
   readonly address: string;
@@ -291,21 +316,7 @@ export class GuardedOutboundHttp implements OutboundHttp {
         headers: requestHeaders,
         agent: false,
         // The pinned address. Node asks for it with `all: true` on recent versions.
-        lookup: (_name, options, callback) => {
-          const wantsAll =
-            typeof options === 'object' &&
-            options !== null &&
-            'all' in options &&
-            options.all === true;
-          if (wantsAll) {
-            (callback as unknown as (e: null, a: { address: string; family: number }[]) => void)(
-              null,
-              [{ address, family }],
-            );
-          } else {
-            callback(null, address, family);
-          }
-        },
+        lookup: pinnedLookup(address, family),
         ...(secure && !isLiteral ? { servername: hostname } : {}),
       });
 

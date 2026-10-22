@@ -311,6 +311,45 @@ describe('outbound URLs', () => {
     expect(why('https://xapi.resend.com/', pinned)).toBe('host_not_allowed');
   });
 
+  it('refuses a space anywhere in a URL, even where the parser would encode it', () => {
+    expect(why('https://example.com/a b')).toBe('malformed');
+    expect(why('https://example.com/?q=a b')).toBe('malformed');
+    expect(why('https://example.com/a%20b')).toBe('ok');
+  });
+
+  it('judges the default port of the scheme it was given', () => {
+    const plain: OutboundUrlPolicy = { schemes: ['http'], ports: [80], maxUrlLength: 2048 };
+    expect(why('http://example.com/', plain)).toBe('ok');
+    expect(why('http://example.com:80/', plain)).toBe('ok');
+    expect(why('http://example.com:443/', plain)).toBe('port');
+    const secure: OutboundUrlPolicy = { schemes: ['https'], ports: [443], maxUrlLength: 2048 };
+    expect(why('https://example.com/', secure)).toBe('ok');
+  });
+
+  it('matches a pinned host without regard to case, in the pin as well as the URL', () => {
+    const pinned: OutboundUrlPolicy = {
+      schemes: ['https'],
+      ports: [443],
+      maxUrlLength: 2048,
+      allowedHosts: ['API.Resend.com', '*.Example.ORG'],
+    };
+    expect(why('https://api.resend.com/', pinned)).toBe('ok');
+    expect(why('https://A.EXAMPLE.org/', pinned)).toBe('ok');
+    expect(why('https://other.resend.com/', pinned)).toBe('host_not_allowed');
+  });
+
+  it('does not let a wildcard pin match the suffix alone', () => {
+    const pinned: OutboundUrlPolicy = {
+      schemes: ['https'],
+      ports: [443],
+      maxUrlLength: 2048,
+      allowedHosts: ['*.example.org'],
+    };
+    // The URL parser keeps a leading dot, so this host is exactly the suffix.
+    expect(why('https://.example.org/', pinned)).toBe('host_not_allowed');
+    expect(why('https://x.example.org/', pinned)).toBe('ok');
+  });
+
   it('says whether the host was an address, so a caller knows no lookup is needed', () => {
     const literal = checkOutboundUrl('https://8.8.8.8/');
     const named = checkOutboundUrl('https://example.com/');

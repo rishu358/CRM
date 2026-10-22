@@ -2,6 +2,7 @@ import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { classifyAddress, type AddressDecision, type OutboundUrlPolicy } from '@crm/core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { pinnedLookup } from './client.js';
 import { createOutboundHttp, OutboundError, type OutboundResponse } from './index.js';
 import { allowLoopbackToo, createUnsafeOutboundHttpForTests } from './testing.js';
 
@@ -118,6 +119,23 @@ beforeAll(async () => {
       res.statusCode = 302;
       res.setHeader('location', `http://user:pass@127.0.0.1:${echo.port}/json`);
       res.end();
+    } else if (seen.url.startsWith('/hop/')) {
+      const left = Number(seen.url.slice('/hop/'.length));
+      if (left > 0) {
+        res.statusCode = 302;
+        res.setHeader('location', `/hop/${left - 1}`);
+        res.end();
+      } else {
+        res.end('arrived');
+      }
+    } else if (seen.url === '/redirect-302') {
+      res.statusCode = 302;
+      res.setHeader('location', '/json');
+      res.end();
+    } else if (seen.url === '/declares-big-sends-little') {
+      // Promises ten megabytes, sends ten bytes, then waits: only the declared length gives it away.
+      res.setHeader('content-length', String(10_000_000));
+      res.write('x'.repeat(10));
     } else if (seen.url === '/big') {
       res.setHeader('content-length', String(5_000_000));
       res.end(Buffer.alloc(5_000_000, 97));
@@ -285,6 +303,32 @@ describe('a permitted request', () => {
     expect(error.code).toBe('invalid_request');
   });
 
+  it.each([
+    ['a space', 'bad name'],
+    ['a colon', 'x:y'],
+    ['a newline', 'x\ny'],
+    ['nothing', ''],
+  ])('refuses a header name with %s', async (_label, name) => {
+    const before = echo.seen.length;
+    const error = await failure(
+      client().request({ url: `http://127.0.0.1:${echo.port}/json`, headers: { [name]: 'v' } }),
+    );
+    expect(error.code).toBe('invalid_request');
+    expect(echo.seen.length).toBe(before);
+  });
+
+  it('refuses a header value holding a NUL, a lone CR or a lone LF', async () => {
+    for (const value of ['a\u0000b', 'a\rb', 'a\nb']) {
+      const error = await failure(
+        client().request({
+          url: `http://127.0.0.1:${echo.port}/json`,
+          headers: { 'x-a': value },
+        }),
+      );
+      expect(error.code).toBe('invalid_request');
+    }
+  });
+
   it('refuses a request body past the limit', async () => {
     const error = await failure(
       client({ limits: { maxRequestBytes: 10 } }).request({
@@ -408,6 +452,29 @@ describe('redirects', () => {
     expect((await failure(request(0))).code).toBe('too_many_redirects');
   });
 
+  it('follows exactly as many redirects as it is allowed, and not one more', async () => {
+    const request = (hops: number, limit: number) =>
+      client().request({ url: `http://127.0.0.1:${echo.port}/hop/${hops}`, maxRedirects: limit });
+    const ok = await request(2, 2);
+    expect(ok.redirects).toHaveLength(2);
+    expect(new TextDecoder().decode(ok.body)).toBe('arrived');
+    expect((await failure(request(3, 2))).code).toBe('too_many_redirects');
+    expect((await request(0, 0)).status).toBe(200);
+    expect((await failure(request(1, 0))).code).toBe('too_many_redirects');
+  });
+
+  it('turns a POST into a GET with no body on a 302 as well', async () => {
+    await client().request({
+      url: `http://127.0.0.1:${echo.port}/redirect-302`,
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: '{"secret":1}',
+    });
+    const after = echo.seen.at(-1)!;
+    expect(after.method).toBe('GET');
+    expect(after.body).toBe('');
+  });
+
   it('drops what the caller attached when the origin changes, and keeps it within one origin', async () => {
     await client().request({
       url: `http://127.0.0.1:${echo.port}/redirect-to-second`,
@@ -451,6 +518,18 @@ describe('time and size are bounded', () => {
     expect(error.code).toBe('too_large');
   });
 
+  it('refuses on the declared length alone, without waiting for a body that does not come', async () => {
+    const started = Date.now();
+    const error = await failure(
+      client({ limits: { maxResponseBytes: 1000 } }).request({
+        url: `http://127.0.0.1:${echo.port}/declares-big-sends-little`,
+        timeoutMs: 3_000,
+      }),
+    );
+    expect(error.code).toBe('too_large');
+    expect(Date.now() - started).toBeLessThan(2_000);
+  });
+
   it('cuts off a response that never ends, at the cap', async () => {
     const started = Date.now();
     const error = await failure(
@@ -487,6 +566,19 @@ describe('time and size are bounded', () => {
     expect(error.code).toBe('timeout');
   });
 
+  it('bounds the name lookup by the deadline too, so a resolver that never answers cannot hold it', async () => {
+    const never = (): Promise<{ address: string; family: 4 }[]> => new Promise(() => undefined);
+    const started = Date.now();
+    const error = await failure(
+      client({ resolve: never }).request({
+        url: `http://silent.test:${echo.port}/json`,
+        timeoutMs: 300,
+      }),
+    );
+    expect(error.code).toBe('timeout');
+    expect(Date.now() - started).toBeLessThan(3_000);
+  });
+
   it('reports a refused connection as a network error and not a hang', async () => {
     const dead = await listen('127.0.0.1', () => undefined);
     const port = dead.port;
@@ -502,5 +594,22 @@ describe('time and size are bounded', () => {
   it('does not decompress: it asks for the identity encoding, so a small body cannot grow', async () => {
     await client().request({ url: `http://127.0.0.1:${echo.port}/gzip` });
     expect(echo.seen.at(-1)!.headers['accept-encoding']).toBe('identity');
+  });
+});
+
+describe('the pinned lookup', () => {
+  it('answers with the checked address in both shapes Node asks in, whatever name it is given', () => {
+    const lookup = pinnedLookup('93.184.216.34', 4);
+    const single: unknown[] = [];
+    lookup('anything.example', {}, (...args) => single.push(...args));
+    expect(single).toEqual([null, '93.184.216.34', 4]);
+
+    const all: unknown[] = [];
+    lookup('anything.example', { all: true }, (...args) => all.push(...args));
+    expect(all).toEqual([null, [{ address: '93.184.216.34', family: 4 }]]);
+
+    const v6: unknown[] = [];
+    pinnedLookup('2606:4700:4700::1111', 6)('x', { all: false }, (...args) => v6.push(...args));
+    expect(v6).toEqual([null, '2606:4700:4700::1111', 6]);
   });
 });
