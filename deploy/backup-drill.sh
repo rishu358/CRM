@@ -34,6 +34,10 @@
 
 set -u -o pipefail
 
+# Git Bash on Windows rewrites a path-looking argument (`/tmp/x`) into a Windows one before docker
+# sees it. Harmless anywhere else.
+export MSYS_NO_PATHCONV=1
+
 SOURCE_DB="${1:-crm_perf}"
 CONTAINER="${DRILL_CONTAINER:-crm-postgres}"
 SUPER="${DRILL_PGUSER:-postgres}"
@@ -52,8 +56,15 @@ psql_drill() { docker exec -i "$CONTAINER" psql -U "$SUPER" -d "$DRILL_DB" -At -
 now() { date +%s; }
 
 cleanup() {
+  # DRILL_KEEP=1 leaves the restored database in place, to look at what a failure left behind.
+  if [ "${DRILL_KEEP:-}" = "1" ]; then echo "  (kept $DRILL_DB)"; return; fi
   docker exec "$CONTAINER" rm -f "$DUMP_IN_CONTAINER" > /dev/null 2>&1
   if [ -n "${API_PID:-}" ]; then kill "$API_PID" > /dev/null 2>&1; fi
+  # On Windows the shell's pid is not always node's: make sure nothing is left listening on the drill port.
+  if command -v powershell > /dev/null 2>&1; then
+    leftover=$(powershell -NoProfile -Command "(Get-NetTCPConnection -LocalPort $API_PORT -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1).OwningProcess" 2> /dev/null | tr -d "")
+    if [ -n "$leftover" ]; then powershell -NoProfile -Command "Stop-Process -Id $leftover -Force" > /dev/null 2>&1; fi
+  fi
   docker exec "$CONTAINER" psql -U "$SUPER" -d postgres -c "DROP DATABASE IF EXISTS \"$DRILL_DB\" WITH (FORCE)" > /dev/null 2>&1
 }
 trap cleanup EXIT
@@ -185,14 +196,23 @@ else
 fi
 
 step "5. The application on the restored database"
-if [ -n "${DRILL_API_ENV:-}" ] && [ -f "$DRILL_API_ENV" ]; then
+# Never mistake an old process on the port for the one about to be started.
+port_busy=0
+if curl -s -o /dev/null "http://localhost:$API_PORT/api/v1/health"; then port_busy=1; fi
+if [ "$port_busy" = "1" ]; then
+  fail "port $API_PORT is already serving something: stop it and rerun, or set DRILL_API_PORT"
+elif [ -n "${DRILL_API_ENV:-}" ] && [ -f "$DRILL_API_ENV" ]; then
   swap() { sed "s#/$SOURCE_DB#/$DRILL_DB#g" "$DRILL_API_ENV" > /tmp/drill-api.env; }
   swap
   echo "API_PORT=$API_PORT" >> /tmp/drill-api.env
-  (cd "$REPO" && node --env-file="$(cygpath -w /tmp/drill-api.env 2>/dev/null || echo /tmp/drill-api.env)" apps/api/dist/main.js > /tmp/drill-api.log 2>&1) &
+  (cd "$REPO" && exec node --env-file="$(cygpath -w /tmp/drill-api.env 2>/dev/null || echo /tmp/drill-api.env)" apps/api/dist/main.js > /tmp/drill-api.log 2>&1) &
   API_PID=$!
   up=0
-  for _ in $(seq 1 40); do curl -s -o /dev/null "http://localhost:$API_PORT/api/v1/health" && { up=1; break; }; sleep 1; done
+  api_started=$(now)
+  # A freshly restored database has no planner statistics and a cold cache, so the first start can be
+  # slow; give it five minutes and say how long it took.
+  for _ in $(seq 1 300); do curl -s -o /dev/null "http://localhost:$API_PORT/api/v1/health" && { up=1; break; }; sleep 1; done
+  echo "  API start: $(( $(now) - api_started ))s"
   if [ "$up" = "1" ]; then
     pass "the API started against the restored database"
     owner=$(psql_drill -c "select email from users where email like 'owner-%@example.com' order by created_at limit 1")
