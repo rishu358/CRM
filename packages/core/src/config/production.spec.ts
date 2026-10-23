@@ -59,7 +59,9 @@ describe('production configuration', () => {
 
   it('refuses mail that goes nowhere, and a provider it cannot send with', () => {
     expect(problemsOf({ emailProvider: 'console' })).toContain('EMAIL_PROVIDER=console');
-    expect(problemsOf({ emailProvider: 'memory' })).toContain('EMAIL_PROVIDER=memory');
+    expect(problemsOf({ emailProvider: 'memory' })).toContain(
+      'EMAIL_PROVIDER=memory delivers nothing',
+    );
     expect(problemsOf({ emailProvider: undefined })).toContain('EMAIL_PROVIDER=console');
     expect(problemsOf({ emailProvider: 'smtp' })).toContain(
       'not a provider this build can send with',
@@ -166,6 +168,8 @@ describe('production configuration', () => {
       redisUrl: 'rediss://cache.internal.acme:6380',
     };
     expect(productionConfigProblems(worker)).toEqual({ problems: [], warnings: [] });
+    // The worker serves no browser, so a CORS list is not its business, even a bad one.
+    expect(productionConfigProblems({ ...worker, corsOrigins: '*' }).problems).toEqual([]);
     // It is still held to everything it does have.
     expect(
       productionConfigProblems({ ...worker, emailProvider: 'console' }).problems.join(),
