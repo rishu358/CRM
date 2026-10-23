@@ -22,7 +22,6 @@ import {
   expressionForField,
   filterToSql,
   notDeleted,
-  searchToSql,
 } from './accounts.sql-helpers.js';
 
 /**
@@ -43,9 +42,11 @@ export interface ListOptions {
   readonly cursor?: string | undefined;
   readonly sort?: { field: string; direction: SortDirection } | undefined;
   readonly filters: readonly ParsedFilter[];
-  readonly search?: string | undefined;
-  /** The searchable columns the actor may read; `search` looks in these and no others. */
-  readonly searchFields?: readonly string[] | undefined;
+  /**
+   * Restrict the list to these records, from the search seam (`searchForList`). `undefined` is not
+   * searched; an empty list is searched and found nothing.
+   */
+  readonly matchedIds?: readonly string[] | undefined;
   readonly fields: readonly FieldDefinition[];
 }
 
@@ -71,8 +72,12 @@ export class AccountsRepository {
       predicates.push(filterToSql(filter, options.fields));
     }
 
-    if (options.search !== undefined && options.search.length > 0) {
-      predicates.push(searchToSql(options.search, options.searchFields ?? []));
+    if (options.matchedIds !== undefined) {
+      predicates.push(
+        options.matchedIds.length === 0
+          ? sql`false`
+          : inArray(accounts.id, [...options.matchedIds]),
+      );
     }
 
     const cursor = options.cursor === undefined ? null : decodeCursor(options.cursor);
