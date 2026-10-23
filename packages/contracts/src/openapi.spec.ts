@@ -152,7 +152,12 @@ describe('openapi document', () => {
     const properties = list['properties'] as JsonObject;
     expect((properties['data'] as JsonObject)['type']).toBe('array');
     const meta = properties['meta'] as JsonObject;
-    expect(Object.keys(meta['properties'] as JsonObject).sort()).toEqual(['hasMore', 'nextCursor']);
+    // `truncated` is set only when a search matched more records than a list will show (ADR-0041 §5).
+    expect(Object.keys(meta['properties'] as JsonObject).sort()).toEqual([
+      'hasMore',
+      'nextCursor',
+      'truncated',
+    ]);
   });
 
   it('expands query objects into parameters rather than a body', () => {
