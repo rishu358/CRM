@@ -1,5 +1,5 @@
 import { Catch, HttpException, type ArgumentsHost, type ExceptionFilter } from '@nestjs/common';
-import { DomainError, ErrorCode, isDomainError } from '@crm/core';
+import { DomainError, ErrorCode, RateLimitedError, isDomainError } from '@crm/core';
 import type { FastifyReply } from 'fastify';
 import type { Logger } from 'pino';
 import { currentRequestId } from './request-context.js';
@@ -37,6 +37,11 @@ export class DomainErrorFilter implements ExceptionFilter {
 
     if (isDomainError(exception)) {
       this.logDomainError(exception);
+      // A refused request says when to come back, in the header and nowhere else: the body must not
+      // tell a caller how a limit is sized (CLAUDE.md §5.14).
+      if (exception instanceof RateLimitedError && exception.retryAfterSeconds !== undefined) {
+        void reply.header('Retry-After', String(exception.retryAfterSeconds));
+      }
       void reply.status(exception.httpStatus).send({
         error: {
           code: exception.code,

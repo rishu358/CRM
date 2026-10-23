@@ -23,7 +23,7 @@ const GOOD: ProductionConfigInput = {
     DATABASE_URL: 'postgres://crm_app:Zk3pQ8vLm2Xr@db.internal.acme:5432/crm',
     DATABASE_AUTH_URL: 'postgres://crm_auth:Hn7tW4cYb9Ud@db.internal.acme:5432/crm',
   },
-  redisUrl: 'rediss://cache.internal.acme:6380',
+  redisUrl: 'rediss://:Qm7vLk2Xt9WdRb4N@cache.internal.acme:6380',
 };
 
 const problemsOf = (change: Partial<ProductionConfigInput>) =>
@@ -184,17 +184,64 @@ describe('production configuration', () => {
     expect(report.problems.length).toBeGreaterThanOrEqual(6);
   });
 
-  it('warns, and does not refuse, when rate limits cannot be shared', () => {
-    const report = productionConfigProblems({ ...GOOD, redisUrl: undefined });
-    expect(report.problems).toEqual([]);
-    expect(report.warnings.join(' ')).toContain('REDIS_URL');
+  describe('the shared rate limit store', () => {
+    it('refuses to start without one, because N instances would allow N times the limit', () => {
+      const report = productionConfigProblems({ ...GOOD, redisUrl: undefined });
+      expect(report.problems.join(' ')).toContain('REDIS_URL is not set');
+      expect(report.problems.join(' ')).toContain('RATE_LIMIT_ALLOW_PER_PROCESS');
+      expect(productionConfigProblems({ ...GOOD, redisUrl: '' }).problems.join(' ')).toContain(
+        'REDIS_URL is not set',
+      );
+    });
+
+    it('starts without one, with a warning, when the operator says exactly one instance runs', () => {
+      const report = productionConfigProblems({
+        ...GOOD,
+        redisUrl: undefined,
+        perProcessRateLimitsAllowed: true,
+      });
+      expect(report.problems).toEqual([]);
+      expect(report.warnings.join(' ')).toContain('RATE_LIMIT_ALLOW_PER_PROCESS');
+    });
+
+    it('refuses a Redis with no password, on this machine, or that is not Redis', () => {
+      expect(problemsOf({ redisUrl: 'rediss://cache.internal.acme:6380' })).toContain(
+        'REDIS_URL has no password',
+      );
+      expect(problemsOf({ redisUrl: 'rediss://:Qm7vLk2Xt9WdRb4N@localhost:6379' })).toContain(
+        'REDIS_URL points at this machine',
+      );
+      expect(problemsOf({ redisUrl: 'rediss://:Qm7vLk2Xt9WdRb4N@127.0.0.1:6379' })).toContain(
+        'REDIS_URL points at this machine',
+      );
+      expect(problemsOf({ redisUrl: 'http://:Qm7vLk2Xt9WdRb4N@cache.internal.acme' })).toContain(
+        'not a redis:// or rediss:// URL',
+      );
+      expect(problemsOf({ redisUrl: 'not a url' })).toContain('not a redis:// or rediss:// URL');
+    });
+
+    it('warns, and does not refuse, when the connection is not encrypted', () => {
+      const report = productionConfigProblems({
+        ...GOOD,
+        redisUrl: 'redis://:Qm7vLk2Xt9WdRb4N@cache.internal.acme:6379',
+      });
+      expect(report.problems).toEqual([]);
+      expect(report.warnings.join(' ')).toContain('not encrypted');
+    });
+
+    it('does not ask the worker for one: it counts no requests', () => {
+      const report = productionConfigProblems({ ...GOOD, scope: 'worker', redisUrl: undefined });
+      expect(report.problems.join(' ')).not.toContain('REDIS_URL');
+    });
   });
 
   it('throws one error for a bad configuration and returns the warnings for a good one', () => {
     expect(() => assertProductionConfig({ ...GOOD, authSecret: 'short' })).toThrow(
       /Refusing to start/,
     );
-    expect(assertProductionConfig({ ...GOOD, redisUrl: undefined })).toHaveLength(1);
+    expect(
+      assertProductionConfig({ ...GOOD, redisUrl: undefined, perProcessRateLimitsAllowed: true }),
+    ).toHaveLength(1);
     expect(assertProductionConfig(GOOD)).toEqual([]);
     expect(() => assertProductionConfig({ nodeEnv: 'development' })).not.toThrow();
   });
