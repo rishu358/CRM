@@ -101,6 +101,30 @@ describe('the per-address limit', () => {
     expect(first).toEqual([401, 401, 401, 429]);
     expect((await unauthenticated(TWO)).status).toBe(401);
   });
+  it('is about the person behind the web server, not the web server: it follows X-Forwarded-For', async () => {
+    // Every browser request reaches the API from the web server's one address, with the person's
+    // address in X-Forwarded-For (the web app passes it on, ADR-0042). Without that the whole user base
+    // would be one address and one budget.
+    const fromWebServer = '10.0.0.5';
+    const asPerson = (person: string) =>
+      request(limited, {
+        method: 'GET',
+        url: '/api/v1/auth/me',
+        remoteAddress: fromWebServer,
+        headers: { 'x-forwarded-for': person },
+      }).then((response) => response.status);
+
+    const statuses = [
+      await asPerson('203.0.113.50'),
+      await asPerson('203.0.113.50'),
+      await asPerson('203.0.113.50'),
+      await asPerson('203.0.113.50'),
+    ];
+    expect(statuses).toEqual([401, 401, 401, 429]);
+    // A different person behind the same web server has their own budget.
+    expect(await asPerson('203.0.113.51')).toBe(401);
+  });
+
   it('counts requests with a made-up token too: each one costs a session lookup', async () => {
     const THREE = '203.0.113.30';
     const statuses: number[] = [];
