@@ -41,6 +41,7 @@
   },
   "dependencies": {
     "@better-auth/utils": "0.5.0",
+    "@crm/core": "workspace:^",
     "dotenv": "^18.0.8",
     "drizzle-orm": "^0.45.4",
     "pg": "^8.23.1",
@@ -48,7 +49,6 @@
   },
   "devDependencies": {
     "@crm/config": "workspace:^",
-    "@crm/core": "workspace:^",
     "@testcontainers/postgresql": "^12.2.1",
     "@types/node": "^26.6.5",
     "@types/pg": "^8.23.1",

@@ -362,6 +362,9 @@ importers:
       '@better-auth/utils':
         specifier: 0.5.0
         version: 0.5.0
+      '@crm/core':
+        specifier: workspace:^
+        version: link:../core
       dotenv:
         specifier: ^18.0.8
         version: 18.0.8
@@ -378,9 +381,6 @@ importers:
       '@crm/config':
         specifier: workspace:^
         version: link:../config
-      '@crm/core':
-        specifier: workspace:^
-        version: link:../core
       '@testcontainers/postgresql':
         specifier: ^12.2.1
         version: 12.2.1
@@ -436,6 +436,9 @@ importers:
       '@aws-sdk/s3-request-presigner':
         specifier: ^3.726.1
         version: 3.1152.0
+      '@crm/core':
+        specifier: workspace:^
+        version: link:../core
       zod:
         specifier: ^4.6.7
         version: 4.6.7
@@ -443,9 +446,6 @@ importers:
       '@crm/config':
         specifier: workspace:^
         version: link:../config
-      '@crm/core':
-        specifier: workspace:^
-        version: link:../core
       '@types/node':
         specifier: ^26.6.5
         version: 26.6.5
