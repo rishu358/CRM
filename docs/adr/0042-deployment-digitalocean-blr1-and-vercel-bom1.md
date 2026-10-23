@@ -1,7 +1,7 @@
 # ADR-0042: Deployment target: DigitalOcean App Platform in BLR1, the web app on Vercel in bom1
 
 - **Status:** Accepted (the platform choice is the owner's); the configuration is **written and partly
-  rehearsed, never deployed**. §Open questions need an owner decision before real personal data goes in.
+  rehearsed, never deployed**. §Open questions 2 and 3 are still open; 1 (TLS) is resolved below.
 - **Date:** 2026-10-23
 - **Related:** ADR-0041 (deploy images, production config validation, no superuser), ADR-0043
   (bootstrap on a managed database), `docs/RUNBOOK.md` §9
@@ -82,26 +82,30 @@ Vercel's terms restrict Hobby to non-commercial use (check the current wording) 
 outage is an outage of the web app (the API in `blr1` stays up; sessions are intact). The build commands
 in `vercel.json` build only the web app and what it depends on.
 
-## Open questions (an owner decision is needed)
+## Open questions (1 resolved; 2 and 3 need an owner decision)
 
-1. **TLS to the database does not verify against DigitalOcean's certificate, and the API will not connect.**
-   Measured on the installed `pg` 8.23.1: `sslmode=require` is treated as `verify-full`, and a certificate
-   from a private CA fails with `DEPTH_ZERO_SELF_SIGNED_CERT` (reproduced against a self-signed server;
-   DigitalOcean's cluster CA is a private one, so I expect the same; that part is inferred, not observed). The same library prints a warning that in
-   `pg` 9 `require` will become libpq's weaker, non-verifying meaning, so the meaning of the URL we ship
-   will change under us on an upgrade. Options, with a recommendation:
-   - **A (recommended): accept the provider's CA explicitly.** Add `DATABASE_CA_CERT` (the PEM, which is
-     public) and have `createDbClient` pass it as `ssl: { ca, rejectUnauthorized: true }`, stripping `sslmode`
-     from the URL (as I understand `pg`, the URL's parameters are merged over the `ssl` option; confirm when implementing). ~20 lines in `packages/db/src/client.ts`, no
-     new dependency, tested by `deploy/check-app-connection.mjs` and a TLS test. Server identity is
-     verified.
-   - **B:** bake the CA file into the images and set `NODE_EXTRA_CA_CERTS`. No code change, but the CA
-     rotating means rebuilding every image.
-   - **C: `sslmode=require&uselibpqcompat=true`.** Encrypted but the server is not authenticated. Acceptable
-     for a throwaway staging smoke test only; not for personal data.
+1. **TLS to the database (resolved, 2026-10-23): the API now accepts the provider's CA explicitly.**
+   The problem, measured on the installed `pg` 8.23.1: `sslmode=require` is treated as `verify-full`, and a
+   certificate from a private CA fails with `UNABLE_TO_VERIFY_LEAF_SIGNATURE` (reproduced against a real
+   Postgres with a private CA; DigitalOcean's cluster CA is a private one, so I expect the same, which is
+   inferred, not observed). The same library prints a warning that in `pg` 9 `require` will become libpq's
+   weaker, non-verifying meaning, so the meaning of the URL we ship would change under us on an upgrade.
 
-   Until one is chosen the system cannot be deployed. `check-app-connection.mjs` reports which of these
-   you are in on the real cluster. This needs a change in `packages/db`, which this task did not make.
+   **Decision (the owner chose option A): `DATABASE_CA_CERT`.** The CA, as PEM or as one line of base64,
+   is passed to the driver as `ssl: { ca, rejectUnauthorized: true }`, and **every TLS parameter is removed
+   from the URL** (`packages/db/src/tls.ts`). That second half is not tidiness: a mutation test confirmed
+   that a leftover `sslmode=require` replaces the CA with the driver's default trust store and the connection
+   fails. Server identity is verified, hostname included; a wrong CA and a wrong host both fail
+   (`packages/db/src/tls.security.spec.ts`, against a real TLS Postgres with a private CA). With the
+   variable unset nothing changes, so local development and a provider whose certificate Node already
+   trusts behave as before. A CA beside `sslmode=disable` is refused rather than resolved either way, and a
+   value that is not a certificate fails at start-up without repeating it. It reaches the API, the worker,
+   the migration runner and the `db:*` scripts.
+
+   Rejected: **B**, baking the CA into the images with `NODE_EXTRA_CA_CERTS` (the CA rotating means
+   rebuilding every image), and **C**, `sslmode=require&uselibpqcompat=true` (encrypts to whoever answers).
+   Still unverified on the real cluster: that DigitalOcean's certificate names the hostname the console
+   gives. `deploy/check-app-connection.mjs` tests exactly that, the way the API connects.
 
 2. **Public endpoints with trusted sources, or a VPC?** The spec uses public hostnames, TLS, and the
    cluster's **Trusted Sources** restricted to the app. App Platform can join a VPC for private hostnames;

@@ -313,8 +313,9 @@ cmd_bootstrap() {
   {
     echo "# Generated $(date -u +%Y-%m-%dT%H:%M:%SZ) by verify-managed-postgres.sh bootstrap. Secrets: never commit, never paste."
     echo "# Inputs for deploy/render-do-app-spec.sh. Fill in the blank ones (Resend, Spaces, Valkey, hosts) yourself."
-    echo "# The database URLs say sslmode=require, which node-postgres reads as verify-full: it will NOT connect to a"
-    echo "# provider with a private CA until ADR-0042 open question 1 is settled. Test with deploy/check-app-connection.mjs."
+    echo "# The URLs say sslmode=require; the app ignores it when DATABASE_CA_CERT is set and verifies the server"
+    echo "# against that CA instead (ADR-0042). Check it with deploy/check-app-connection.mjs before deploying."
+    echo "DATABASE_CA_CERT=$(ca_cert_base64)"
     echo "AUTH_SECRET=$(head -c 48 /dev/urandom | base64 | tr -d '\n')"
     for r in app auth worker erasure migrator; do
       local var
@@ -361,6 +362,12 @@ cmd_audit() {
   [[ -n "$DB" ]] || die "audit needs --db <database name>."
   check_roles_and_schema "$DB" crm_
   audit_dev_passwords
+}
+
+# DATABASE_CA_CERT for the app: the base64 of the CA file given for psql (DB_CA_CERT), or blank to fill in.
+ca_cert_base64() {
+  if [[ -n "${DB_CA_CERT:-}" ]]; then base64 < "$DB_CA_CERT" | tr -d '
+'; fi
 }
 
 # ---- main ----------------------------------------------------------------------------------------

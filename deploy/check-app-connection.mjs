@@ -1,13 +1,14 @@
-// Connect the way the API does (node-postgres, the connection string as given) and report two
-// things psql cannot tell you: whether TLS verifies against this provider's certificate, and which
-// role the string really is. ADR-0042, docs/RUNBOOK.md §9.6.
+// Connect the way the API does (node-postgres, through the same helper `createDbClient` uses) and
+// report what psql cannot tell you: whether TLS verifies against this provider's certificate, and
+// which role the connection string really is. ADR-0042, docs/RUNBOOK.md §9.6.
 //
-//   DATABASE_URL='postgres://crm_app:...@host:25060/crm?sslmode=require' \
-//     pnpm --filter @crm/db exec node ../../deploy/check-app-connection.mjs
+//   pnpm --filter @crm/db build
+//   DATABASE_URL='postgres://crm_app:...@host:25060/crm' DATABASE_CA_CERT="$(base64 -w0 ca.crt)" \
+//     node deploy/check-app-connection.mjs
 //
-// Run it from a machine that is allowed to reach the database (the cluster's trusted sources), with
-// the `crm_app` URL: it should be exactly the value you gave the API. It prints no URL and no
-// password. Exit 0 only if the connection works AND the role cannot bypass row-level security.
+// Run it from a machine on the cluster's trusted sources, with the `crm_app` URL and the CA value you
+// gave the API: it should be exactly what the API will run with. It prints no URL, no password and no
+// certificate. Exit 0 only if the connection verifies AND the role cannot bypass row-level security.
 
 import { createRequire } from 'node:module';
 
@@ -17,19 +18,49 @@ if (url === undefined || url === '') {
   process.exit(2);
 }
 
-// Resolve `pg` the way packages/db does, whatever directory this is run from.
+// `pg` and the helper are resolved from packages/db, whatever directory this is run from.
 const require = createRequire(new URL('../packages/db/package.json', import.meta.url));
 const pg = require('pg');
+let poolConnectionConfig;
+try {
+  ({ poolConnectionConfig } = await import(new URL('../packages/db/dist/tls.js', import.meta.url)));
+} catch {
+  console.error('[FAIL] packages/db is not built: run `pnpm --filter @crm/db build` first');
+  process.exit(2);
+}
 
-const pool = new pg.Pool({ connectionString: url, max: 1, connectionTimeoutMillis: 10_000 });
+const caCert = process.env.DATABASE_CA_CERT;
+let config;
+try {
+  config = poolConnectionConfig(url, caCert);
+} catch (error) {
+  console.log(`[FAIL] ${error instanceof Error ? error.message : String(error)}`);
+  process.exit(1);
+}
+console.log(
+  config.ssl === undefined
+    ? '[INFO] No DATABASE_CA_CERT: the URL decides TLS, and node-postgres reads sslmode=require as verify-full.'
+    : '[INFO] DATABASE_CA_CERT is set: verifying the server against it, hostname included.',
+);
+
+const pool = new pg.Pool({ ...config, max: 1, connectionTimeoutMillis: 10_000 });
 let failed = false;
 try {
   const { rows } = await pool.query(
-    `select r.rolname as name, r.rolsuper as superuser, r.rolbypassrls as bypassrls
+    `select r.rolname as name, r.rolsuper as superuser, r.rolbypassrls as bypassrls,
+            coalesce((select s.ssl from pg_stat_ssl s where s.pid = pg_backend_pid()), false) as ssl
        from pg_roles r where r.rolname = current_user`,
   );
-  console.log('[PASS] Connected with the connection string exactly as the API would use it.');
   const role = rows[0];
+  console.log('[PASS] Connected with the configuration the API would use.');
+  if (role.ssl) {
+    console.log('[PASS] The session is encrypted.');
+  } else {
+    failed = true;
+    console.log(
+      '[FAIL] The session is NOT encrypted. Personal data would cross the network in clear.',
+    );
+  }
   if (role.superuser || role.bypassrls) {
     failed = true;
     console.log(
@@ -43,17 +74,22 @@ try {
   failed = true;
   const code = error && typeof error === 'object' && 'code' in error ? String(error.code) : '';
   const text = error instanceof Error ? error.message : String(error);
-  if (
-    /SELF_SIGNED|self.signed|UNABLE_TO_VERIFY|unable to verify|certificate/i.test(`${code} ${text}`)
-  ) {
+  if (/ALTNAME_INVALID/.test(code)) {
     console.log(
-      '[FAIL] TLS verification failed: node-postgres treats sslmode=require as verify-full, and ' +
-        "this provider's certificate is signed by a private CA that Node does not trust. " +
-        'The API will fail the same way. Decide with docs/adr/0042 (Open question 1) and RUNBOOK §9.6; ' +
-        `do not "fix" it with sslmode=no-verify without reading why not. (${code || 'no code'})`,
+      '[FAIL] The certificate does not name the host in DATABASE_URL. Use the exact hostname the provider ' +
+        `shows (not an IP address or a private alias the certificate does not list). (${code})`,
+    );
+  } else if (/SELF_SIGNED|UNABLE_TO_VERIFY|certificate/i.test(`${code} ${text}`)) {
+    console.log(
+      config.ssl === undefined
+        ? "[FAIL] TLS verification failed: the provider's certificate is signed by a private CA that Node does not " +
+            "trust. Set DATABASE_CA_CERT to the provider's CA certificate (base64 of the PEM). Do not use " +
+            `sslmode=no-verify. (${code || 'no code'})`
+        : "[FAIL] TLS verification failed with the CA you set: it is not the CA that signed this server's " +
+            `certificate. Download the CA from this cluster's page in the console. (${code || 'no code'})`,
     );
   } else {
-    // pg messages can echo the host or user but never the password; still print only the message.
+    // pg messages can name the host or user but never the password; print only the message.
     console.log(`[FAIL] ${code ? `${code}: ` : ''}${text}`);
   }
 } finally {

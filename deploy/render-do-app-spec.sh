@@ -22,7 +22,7 @@ ENV_FILE="${1:-}"
 [[ -n "$ENV_FILE" && -r "$ENV_FILE" ]] || { echo "usage: $0 [--check] <secrets-file>" >&2; exit 2; }
 TEMPLATE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/do-app-platform.yaml"
 
-REQUIRED=(CRM_VERSION WEB_URL API_URL AUTH_SECRET
+REQUIRED=(CRM_VERSION WEB_URL API_URL AUTH_SECRET DATABASE_CA_CERT
   DATABASE_URL DATABASE_AUTH_URL DATABASE_WORKER_URL DATABASE_ERASURE_URL DATABASE_MIGRATION_URL
   EMAIL_FROM RESEND_API_KEY
   S3_BUCKET S3_REGION S3_ENDPOINT S3_PUBLIC_ENDPOINT S3_ACCESS_KEY_ID S3_SECRET_ACCESS_KEY)
@@ -61,6 +61,10 @@ for k in WEB_URL API_URL S3_ENDPOINT S3_PUBLIC_ENDPOINT; do
   [[ -z "${V[$k]:-}" || "${V[$k]}" == https://* ]] || problems+=("$k must be an https URL")
 done
 [[ -z "${V[REDIS_URL]:-}" || "${V[REDIS_URL]}" == rediss://* ]] || problems+=("REDIS_URL must be a TLS (rediss://) URL")
+# The CA is public but must be a certificate: base64 of a PEM (one line, so it fits an env value).
+if [[ -n "${V[DATABASE_CA_CERT]:-}" ]] && ! printf '%s' "${V[DATABASE_CA_CERT]}" | base64 -d 2>/dev/null | grep -q 'BEGIN CERTIFICATE'; then
+  problems+=("DATABASE_CA_CERT must be the base64 of the provider's CA certificate (base64 -w0 ca.crt)")
+fi
 [[ "${V[CRM_VERSION]:-}" != latest ]] || problems+=("CRM_VERSION must name a release, not 'latest'")
 [[ ${#V[AUTH_SECRET]} -ge 32 || -z "${V[AUTH_SECRET]:-}" ]] || problems+=("AUTH_SECRET must be at least 32 characters")
 

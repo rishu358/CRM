@@ -86,9 +86,12 @@ services:
       # Two roles, two pools (ADR-0002). Never doadmin, never crm_migrator.
       - { key: DATABASE_URL, value: '@@DATABASE_URL@@', scope: RUN_TIME, type: SECRET }
       - { key: DATABASE_AUTH_URL, value: '@@DATABASE_AUTH_URL@@', scope: RUN_TIME, type: SECRET }
+      # The provider's CA certificate (public), base64 of the PEM: `base64 -w0 ca.crt`. Without it Node
+      # refuses DigitalOcean's certificate and the API cannot connect (ADR-0042). Verification stays on.
       # A small pool: a managed Postgres has few connections to give (docs/RUNBOOK.md §9.7). The auth
       # pool is a quarter of this, minimum two.
       - { key: DATABASE_POOL_MAX, value: '6', scope: RUN_TIME }
+      - { key: DATABASE_CA_CERT, value: '@@DATABASE_CA_CERT@@', scope: RUN_TIME }
       # Valkey speaks the Redis protocol. Optional today: nothing reads it until Redis-backed rate
       # limiting lands, and the API logs a warning while it is empty. Use the rediss:// (TLS) URL.
       - { key: REDIS_URL, value: '@@REDIS_URL@@', scope: RUN_TIME, type: SECRET }
@@ -147,6 +150,7 @@ workers:
           type: SECRET,
         }
       - { key: DATABASE_POOL_MAX, value: '4', scope: RUN_TIME }
+      - { key: DATABASE_CA_CERT, value: '@@DATABASE_CA_CERT@@', scope: RUN_TIME }
       - { key: EMAIL_PROVIDER, value: resend, scope: RUN_TIME }
       - { key: EMAIL_FROM, value: '@@EMAIL_FROM@@', scope: RUN_TIME }
       - { key: RESEND_API_KEY, value: '@@RESEND_API_KEY@@', scope: RUN_TIME, type: SECRET }
@@ -184,3 +188,4 @@ jobs:
           type: SECRET,
         }
       - { key: DATABASE_URL, value: '@@DATABASE_URL@@', scope: RUN_TIME, type: SECRET }
+      - { key: DATABASE_CA_CERT, value: '@@DATABASE_CA_CERT@@', scope: RUN_TIME }

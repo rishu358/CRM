@@ -301,8 +301,8 @@ env file; `.dockerignore` and `.gitignore` both exclude them.
   twice.
 - **Nothing here has been run in production.** §9.11 lists what was rehearsed against a local stand-in for
   DigitalOcean's Postgres and what could not be.
-- **The API cannot yet connect to DigitalOcean's Postgres**: node-postgres verifies the certificate and the
-  provider's CA is private (§9.6, ADR-0042). Needs a decision and a small change in `packages/db`.
+- **TLS to DigitalOcean's Postgres is by `DATABASE_CA_CERT`** (§9.6, ADR-0042), tested against a local
+  private-CA server, **not yet against the real cluster's certificate**.
 - **The web proxy does not forward the end user's IP to the API**, so the per-IP limits and the audit log's
   address are the proxy's, not the user's, and the API's `trustProxy: true` trusts a client-supplied
   `X-Forwarded-For` (ADR-0042).
@@ -313,9 +313,9 @@ env file; `.dockerignore` and `.gitignore` both exclude them.
 > on DigitalOcean or Vercel.** Nothing in this section has created a cloud resource; every step below is
 > yours, with your accounts. What was and was not verified is listed in §9.11. Decisions and open
 > questions: [ADR-0042](adr/0042-deployment-digitalocean-blr1-and-vercel-bom1.md) and
-> [ADR-0043](adr/0043-managed-postgres-schema-ownership.md). **Read ADR-0042's first open question
-> (TLS to the database) before provisioning anything: as the code stands, the API cannot connect to
-> DigitalOcean's Postgres.**
+> [ADR-0043](adr/0043-managed-postgres-schema-ownership.md). **DigitalOcean's database certificate is
+> signed by its own CA, which Node does not trust: the API and worker connect only with
+> `DATABASE_CA_CERT` set (§9.6).**
 
 ### 9.1 The layout
 
@@ -377,7 +377,8 @@ docker run --rm -it -e ADMIN_DATABASE_URL -v "${PWD}:/repo:ro" postgres:16 bash 
 
 (`-e ADMIN_DATABASE_URL` with no value passes it from your session, so it is neither on the command line
 nor in a file. The script never prints it or any password. Add `-v C:\path\ca.crt:/ca.crt:ro -e
-DB_CA_CERT=/ca.crt` to verify the server's certificate with DigitalOcean's CA.)
+DB_CA_CERT=/ca.crt` to verify the server's certificate with DigitalOcean's CA; for `bootstrap` it also writes the app's
+`DATABASE_CA_CERT` for you.)
 
 What it checks and what each answer means:
 
@@ -451,7 +452,8 @@ question. There is no `web` image in this layout: Vercel builds the web app from
 
 `deploy/do-app-platform.yaml` is a template (secrets are `@@NAME@@`). Fill in the rest of the secrets
 file (`WEB_URL`, `API_URL`, `EMAIL_FROM`, `RESEND_API_KEY`, the Spaces bucket and keys, `CRM_VERSION`; the
-bootstrap wrote the database URLs, `AUTH_SECRET` and the Spaces endpoint), then:
+bootstrap wrote the database URLs, `AUTH_SECRET`, the Spaces endpoint and, if it was given the CA file,
+`DATABASE_CA_CERT`; otherwise fill that in, see TLS below), then:
 
 ```bash
 deploy/render-do-app-spec.sh --check deploy/do-app.secrets.env            # validate only, prints nothing secret
@@ -461,18 +463,30 @@ deploy/render-do-app-spec.sh deploy/do-app.secrets.env | doctl apps update <app-
 
 The rendered spec exists only on the pipe. App Platform encrypts every `SECRET` on first submission.
 
-**TLS to Postgres (blocks the first real deployment).** The database URLs the bootstrap writes carry
-`sslmode=require`. The installed node-postgres reads that as full verification, and DigitalOcean's
-certificate is signed by a private CA, so the API will not connect (reproduced locally against a
-self-signed server). Run, from a machine on the cluster's Trusted Sources, with the `crm_app` URL:
+**TLS to Postgres.** DigitalOcean's database certificate is signed by DigitalOcean's own CA, which Node
+does not trust, and node-postgres reads `sslmode=require` as full verification, so without help the API
+and worker refuse to connect (reproduced against a local private-CA server). The fix is
+`DATABASE_CA_CERT`: the cluster's CA certificate, which the app then verifies the server against, hostname
+included (ADR-0042, `packages/db/src/tls.ts`). To set it:
+
+1. In the DigitalOcean console, on the cluster's page, download its **CA certificate** (`ca-certificate.crt`).
+2. Its value is the base64 of that file on one line: `base64 -w0 ca-certificate.crt`. (`verify-managed-postgres.sh
+bootstrap` writes it for you when it was given the file as `DB_CA_CERT`, §9.3.) It is a public
+   certificate, not a secret, and `DATABASE_CA_CERT` is in the secrets file only because that is where
+   the renderer reads its inputs; the renderer refuses a value that is not a certificate.
+3. Test it **before** deploying, the way the API will connect, from a machine on the cluster's Trusted
+   Sources, with the `crm_app` URL (the URL's `sslmode` is ignored while the CA is set):
 
 ```bash
-DATABASE_URL='<the crm_app URL>' pnpm --filter @crm/db exec node ../../deploy/check-app-connection.mjs
+pnpm --filter @crm/db build
+DATABASE_URL='<the crm_app URL>' DATABASE_CA_CERT="$(base64 -w0 ca-certificate.crt)" node deploy/check-app-connection.mjs
 ```
 
-`PASS` twice means the connection verifies and the role is right. A TLS `FAIL` means decide ADR-0042's
-open question 1 (the recommended change is small and lives in `packages/db`); do not "fix" it with
-`sslmode=no-verify`, which encrypts to whoever answers.
+`PASS` three times means the connection verifies, the session is encrypted, and the role is right. A TLS
+`FAIL` names which of three things is wrong: no CA set, the wrong CA, or a hostname the certificate does
+not list (use the hostname the console shows, not an IP address or an alias). Do not "fix" any of them
+with `sslmode=no-verify`, which encrypts to whoever answers. If the CA is ever rotated, change the one
+value and redeploy; nothing is rebuilt.
 
 ### 9.7 Connections
 
@@ -599,7 +613,8 @@ Sign-in with Google, if enabled, sends the user to Google; it is off unless `GOO
 `CREATEDB` and `BYPASSRLS`, password authentication over a network connection): the bootstrap as shipped
 (it fails at line 133, as predicted), the ADR-0043 fix, the whole `probe`, `bootstrap`, `audit` and the
 development-password check, the secret-leak check on the scripts' output, the API and worker refusing
-to start as a `BYPASSRLS` role and starting as the real roles, the TLS failure against a self-signed server,
+to start as a `BYPASSRLS` role and starting as the real roles, verified TLS to a real Postgres with a private CA (right CA, base64 form, wrong CA, wrong host, a
+URL that still says `sslmode=require`, the migration runner), the same through `check-app-connection.mjs`,
 the spec renderer (valid YAML, no leftover placeholder, no database URL outside a secret, `doadmin`
 refused), and the web build command.
 
@@ -609,8 +624,10 @@ is the first thing to run, and it is cheap); that the Bangalore endpoint is `blr
 and Spaces accepts path-style requests signed as `us-east-1` (from DigitalOcean's SDK examples, not
 tried); that the `PRE_DEPLOY` job's image `CMD` is used as written; that Vercel accepts the
 `vercel.json` and builds there as it did locally; the `x-vercel-id` format; the connection budget on the
-plan you choose; that Trusted Sources, VPC and the pooler behave as §9.2 and §9.7 assume.
+plan you choose; that DigitalOcean's certificate names the host in its connection string (`check-app-connection.mjs` tests
+it); that Trusted Sources, VPC and the pooler behave as §9.2 and §9.7 assume.
 
-**Known gaps specific to this deployment:** the TLS question above (blocking); one API instance only until
+**Known gaps specific to this deployment:** TLS has not met DigitalOcean's real certificate (that it names
+the hostname the console gives is the one thing left to check, §9.6); one API instance only until
 rate limits are shared; the web proxy does not forward the end user's IP, so per-IP limits and the audit
 log's address are Vercel's, not the user's (ADR-0042); the worker logs a harmless Redis warning.
