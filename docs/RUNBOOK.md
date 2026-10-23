@@ -8,34 +8,60 @@ procedures first and reasons second. The reasons are in the ADRs it links.
 > deployed, and no pilot has used it. Treat the first real deployment as a second drill and correct
 > this document where it is wrong.
 
-## 0. Read this before choosing a database
+## 0. Choosing a database: what a superuser buys
 
-**The database must allow a superuser to run `packages/db/sql/bootstrap/01-extensions-and-roles.sql`.**
+**The product runs on any Postgres 16 you can create roles and extensions in. It does not require a
+superuser** (a decision, ADR-0041 §1). A superuser buys one thing, and it matters only for large
+companies.
 
-Global search relies on two functions being marked `LEAKPROOF` (ADR-0028 §7), and only a superuser
-can mark a function. Without them Postgres cannot use the search indexes under row-level security.
-Measured at a million contacts, with the marks removed:
+Global search and a list's search box rely on two functions being marked `LEAKPROOF`
+(`ts_match_vq`, `word_similarity_op`; ADR-0028 §7), which only a superuser can do. The bootstrap script
+(`packages/db/sql/bootstrap/01-extensions-and-roles.sql`) tries, and if it may not it prints a warning
+and carries on. With the marks, search is fast. Without them it is fast for a common word and slow for a
+word that matches little, which is what a typo is. Measured at a million contacts (PERF.md §5):
 
-| Search                      | With the marks |    Without |
-| --------------------------- | -------------: | ---------: |
-| A common surname (everyone) |          0.1 s |      0.1 s |
-| A rare term (everyone)      |          0.3 s | **13.6 s** |
-| A typo (everyone)           |          0.4 s | **31.6 s** |
-| A common surname (a rep)    |          0.4 s |      0.4 s |
-| A typo (a rep)              |          0.2 s |  **6.0 s** |
+| Search                                 | With the marks |                                                Without |
+| -------------------------------------- | -------------: | -----------------------------------------------------: |
+| A common word (list or palette)        |  0.1 to 0.15 s |                                         0.15 to 0.17 s |
+| A word that matches nothing, in a list |         0.09 s | 29 s, **now stopped at 2 s** with `503 SEARCH_TIMEOUT` |
+| A rare term or a typo, in the palette  |          0.3 s |                   2.2 to 8.3 s, **now stopped at 2 s** |
 
-Most managed Postgres services (AWS RDS and Aurora, Google Cloud SQL, Azure Database, Supabase, Neon)
-do not give you a real superuser, and I have not verified that any of them lets you mark a function
-leakproof. **Confirm with the provider before choosing one.** Options if it cannot be done:
+**Why that is tolerable:** every search statement runs under a two-second limit (inside a savepoint, so
+the request survives), and past it the answer is a clear "that search is too broad, try a more specific
+one", not a connection held for half a minute. So on a database without the marks, a mistyped search
+returns an error after two seconds; nothing else is affected. How many companies reach the size where
+that is common has not been measured: at a million contacts it is every miss, at fifty thousand it is not
+noticeable (the plan reads a tenth of the index).
 
-1. Run Postgres yourself (a VM or Kubernetes with a persistent volume) and take on its backups,
-   patching and failover. This is the supported path today.
-2. Use a provider that does grant it (ask for it by name: "can a customer run
-   `ALTER FUNCTION ts_match_vq(tsvector, tsquery) LEAKPROOF`?").
-3. Move search out of Postgres (Meilisearch is the planned swap, behind `SearchProvider`). That is a
-   build, not a configuration change, and nothing here prepares for it beyond the interface.
+**What to do about it, in order:**
+
+1. **Do nothing** while companies are small. Check the marks only if someone reports slow searches:
+   `select proname, proleakproof from pg_proc where proname in ('ts_match_vq', 'word_similarity_op')`.
+2. **If your provider lets a superuser (or an equivalent) run it**, run the two statements from the
+   bootstrap script and the problem goes away. Ask the provider by name: "can a customer run
+   `ALTER FUNCTION ts_match_vq(tsvector, tsquery) LEAKPROOF`?". I have not verified that any of the usual
+   managed services (RDS, Aurora, Cloud SQL, Azure Database, Supabase, Neon) does or does not.
+3. **The planned remedy is another engine behind `SearchProvider`**, Meilisearch being the one named in
+   CLAUDE.md §2. That is a build, not a configuration change, but it is a bounded one, because the
+   seam is real rather than nominal:
+   - the interface is `packages/core/src/search/index.ts` (`search`, `matchRecordIds`, `index`, `remove`,
+     `clear`) and carries no SQL, tsquery or index name;
+   - **a provider is acceptable when it passes `describeSearchProviderContract`**
+     (`packages/core/src/search/provider-contract.ts`, 16 behaviours: word-prefix matching, every word
+     must match, newest first, limits and truncation, tenant isolation, record scope, field permissions,
+     removal, idempotent indexing, hostile input). `packages/db/src/search/provider.contract.spec.ts` is
+     the template: hand the same suite your own harness;
+   - the five record modules, the exports and the palette all reach search only through
+     `SEARCH_PROVIDER` (`apps/api/src/platform/search/search.tokens.ts`, provided in
+     `platform.module.ts`); swapping the engine is that one line, plus the worker's handlers, which
+     already take a `SearchProvider`;
+   - `pnpm db:reindex` rebuilds any engine's index from the records through the same interface;
+   - what a new engine must still decide: tenant isolation without a shared transaction (ADR-0028 §6:
+     it ignores the handle and must enforce `tenantId` itself), eventual consistency (the harness has a
+     `settle` hook), and how it keeps `ownerId` fresh when a record is reassigned.
 
 Nothing else in the product needs a superuser. The migrations run as `crm_migrator`, which is not one.
+Creating the roles needs the ability to create roles (on a managed service, its administrative role).
 
 ## 1. What runs where
 
@@ -62,7 +88,8 @@ its value. If one will not start, read its log first: the answer is in it. The r
 1. **Provision** Postgres 16 (see §0), an S3-compatible bucket (private, no public ACLs), a Resend
    account with the sending domain verified (SPF and DKIM, or mail is not delivered), and DNS for the
    app and API hosts.
-2. **Create the roles and extensions**, once, as a superuser, with real passwords:
+2. **Create the roles and extensions**, once, as a role that may create them (a superuser, or a managed
+   service's administrative role), with real passwords:
    `packages/db/sql/bootstrap/01-extensions-and-roles.sql`. The file creates the five roles
    (`crm_migrator`, `crm_app`, `crm_auth`, `crm_worker`, `crm_erasure`) with **development**
    passwords: copy it, replace each password with a generated one, and run the copy. Never run the
@@ -103,9 +130,9 @@ Measured on one laptop (API and Postgres in Docker sharing 12 cores; the load ge
 machine), against 1,000,000 contacts in one company, 5.6 million search rows and 1,000,000 audit rows
 (full numbers in [PERF.md](PERF.md)):
 
-- **One API process sustains about 30 requests/s of mixed traffic** at a p95 of about 210 ms. That
-  is roughly 100 to 150 active users. At 40 requests/s the tail degrades (p95 about 0.9 s); at 50 it
-  collapses.
+- **One API process sustains about 40 requests/s of mixed traffic comfortably** (p95 125 ms), roughly
+  120 to 200 active people, and holds 60 at a p95 near 370 ms. At 80 it queues (a request waits
+  seconds); at 100 it fails.
 - **When it collapses it answers `503 SERVICE_BUSY` with `Retry-After: 2`**, not a generic 500. The
   cause is the database connection pool (`DATABASE_POOL_MAX`, default 10) running out. The web
   client retries 5xx responses with backoff.
@@ -114,9 +141,10 @@ machine), against 1,000,000 contacts in one company, 5.6 million search rows and
   instances (the API logs a warning at startup when `REDIS_URL` is unset). Setting
   `DATABASE_POOL_MAX` higher helps only if Postgres has the connections to give: size the database's
   `max_connections` to instances x pool.
-- A single slow endpoint can still consume the whole pool. The one known case, free-text `q` on a list
-  with a term that matches nothing, is described in PERF.md §5 and is a **decision waiting to be
-  made**, not something solved.
+- A single slow endpoint can still consume the pool. Search was the case that did (3 to 31 seconds
+  per request at a million contacts); it is now fast where the `LEAKPROOF` marks exist and **capped at
+  two seconds per search** where they do not (§0), so a mistyped search cannot hold a connection for
+  longer than that. Other endpoints have no such cap.
 
 Alert on: API 5xx rate; `SERVICE_BUSY` count; p95 latency per route; Postgres connections near
 `max_connections`; outbox backlog (rows in `outbox_events` with `processed_at` null and a due time in
@@ -220,8 +248,8 @@ own wait for the API once misread a healthy API as down for seven minutes (a Win
 
 **Everything is failing with 503s.** The database pool is exhausted. Check Postgres first (is it up,
 how many connections, any long-running statement: `select pid, now() - query_start, left(query, 80) from
-pg_stat_activity where state = 'active' order by 2 desc`). A slow free-text `q` or a search is the usual
-cause. Terminate the offending backend (`pg_terminate_backend`), then scale the API out if the load is
+pg_stat_activity where state = 'active' order by 2 desc`). A search that matches little on a
+database without the `LEAKPROOF` marks (§0) is the usual cause, though it is now capped at two seconds. Terminate the offending backend (`pg_terminate_backend`), then scale the API out if the load is
 real.
 
 **Nobody receives email.** Check the worker and API logs for `Email was not sent`: the line carries the
@@ -232,7 +260,7 @@ wrong. 429 or 5xx: Resend is limiting or down; sending retries.
 **Search is slow or times out.** First check the LEAKPROOF marks (§0):
 `select proname, proleakproof from pg_proc where proname in ('ts_match_vq', 'word_similarity_op')`,
 both must be `t`. A database restored into a new cluster from a dump **loses them**: they are not part
-of the dump of a user database, they are applied by the bootstrap script. Re-run it as a superuser.
+of the dump of a user database, they are applied by the bootstrap script. Re-run it as a superuser if the provider allows one (§0); if not, expect slow rare-word searches.
 
 **A user says they see data they should not.** Treat it as a security incident. Capture the request id
 from the response, pull the audit log (`/api/v1/audit-logs`), and confirm the role and field
@@ -258,9 +286,10 @@ env file; `.dockerignore` and `.gitignore` both exclude them.
 
 - **Rate limits are per process** until they move to Redis; scale-out multiplies them.
 - **`AUTH_SECRET` rotation signs everyone out and breaks MFA enrolments**; there is no key versioning.
-- **Free-text `q` on lists is an unindexed substring scan** and takes seconds for a term that matches
-  nothing at a million contacts (PERF.md §5).
-- **Search needs a superuser-marked database** (§0) until it is moved out of Postgres.
+- **A list's search matches words by their start, not substrings, and shows at most the 300 most
+  recently updated matches** (ADR-0041 §5); an export of a search refuses more than 5,000.
+- **Search without the `LEAKPROOF` marks is slow for a word that matches little** and is bounded by a
+  two-second limit (`503 SEARCH_TIMEOUT`), not fast (§0), until it is moved out of Postgres.
 - **Outbound mail has no idempotency key**, so a retry after an ambiguous failure can send a message
   twice.
 - **Nothing here has been run in production or against a managed Postgres.**
