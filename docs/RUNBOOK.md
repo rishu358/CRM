@@ -157,7 +157,41 @@ A failing check is a stop-ship for the restore procedure, not a note.
 
 ### 5.1 Last rehearsal
 
-DRILL_RESULTS_PLACEHOLDER
+2026-10-23, on the 1,000,000-contact database used for the load test (4.7 GB on disk, 5.6 million
+search rows, 1 million audit rows), Postgres 16.6 in Docker on a development laptop:
+
+| Step | Time |
+| --- | ---: |
+| `pg_dump -Fc` (421 MB file) | 73 s |
+| `pg_restore`, 4 parallel jobs | 247 s |
+| `ANALYZE` (a restore carries no planner statistics) | 22 s |
+| API start against the restored database | 10 s |
+| **Dump to serving traffic** | **about 6 minutes** |
+
+All 18 checks passed: row counts and checksums of every record table, RLS enabled and forced on all 35
+tables with a `tenant_id`, identical policies, grants, indexes, triggers and constraints, no role with
+`BYPASSRLS`, the application role seeing its own tenant's 1,000,000 contacts and **none** with another
+tenant's id or with no tenant set, the migration version, a sign-in with an original password, and a
+list.
+
+What this does and does not tell you:
+
+- It is a **logical** restore of a database that fits in cache, on fast local disk. A managed instance's
+  PITR restore will be slower to start and is not covered. The RTO of 4 hours has a lot of room at this
+  size; the number to watch is how it grows with data (dump and restore were roughly linear in size).
+- **The cross-tenant 404 check was skipped**: only one company in this database holds contacts, so
+  there was no foreign id to request. The same property is proved by the RLS checks and by the security
+  suite; the drill prints "skipped" rather than passing silently. Seed a second company to make it run.
+- The **RPO of 15 minutes is not demonstrated** by a logical dump (it is as old as the last dump). It is
+  the provider's continuous archiving that has to deliver it, and that has not been exercised.
+
+Three things the drill found while it was being written, now part of the procedure and the script: the
+two search functions' `LEAKPROOF` marks are **not** carried by a dump (they come from the bootstrap
+script, so a restore that skips it is silently slow, and the drill now checks for them); a restored
+database has **no planner statistics** until `ANALYZE` (47 of 58 tables had none ten minutes after the
+restore, with autovacuum competing for I/O), so the procedure analyses before traffic; and the script's
+own wait for the API once misread a healthy API as down for seven minutes (a Windows shell setting broke
+`curl`'s output), a reminder that a drill's failure is as likely to be the drill as the restore.
 
 ### Restoring after a loss, step by step
 
@@ -168,14 +202,18 @@ DRILL_RESULTS_PLACEHOLDER
    over the broken one: you lose the evidence and the way back.
 4. **Roles first.** A dump does not carry roles. On a new cluster run the bootstrap script (with real
    passwords, as in §2.2) before `pg_restore`, or ownership and grants fail to apply.
-5. **Run the checks**: `deploy/backup-drill.sh` against the restored database, or at least: counts,
-   `select count(*) from pg_class where relrowsecurity and relforcerowsecurity`, the migration count.
-6. **Point the apps at it** (change `DATABASE_*_URL`), start the worker first, then the API, then the
+5. **`ANALYZE`** (`vacuumdb --analyze-only`, or `psql -c analyze`): 22 seconds at 4.7 GB. A restore
+   carries no planner statistics, and traffic sent before they exist gets bad plans.
+6. **Run the checks**: `deploy/backup-drill.sh` against the restored database, or at least: counts,
+   `select count(*) from pg_class where relrowsecurity and relforcerowsecurity` (35 today), the
+   migration count, and `select proname, proleakproof from pg_proc where proname in ('ts_match_vq',
+   'word_similarity_op')` (both `t`, or search is slow, §0).
+7. **Point the apps at it** (change `DATABASE_*_URL`), start the worker first, then the API, then the
    web.
-7. **Re-run the outbox** is not needed: unprocessed events in the restored table are processed as the
+8. **Nothing needs re-running**: unprocessed outbox events in the restored table are processed as the
    worker starts, and every handler is idempotent (CLAUDE.md §6). Search is a projection and can be
-   rebuilt: `pnpm db:reindex`.
-8. **Tell the customers** what time they are restored to. Anything they wrote after it is gone; there
+   rebuilt if it is suspect: `pnpm db:reindex`.
+9. **Tell the customers** what time they are restored to. Anything they wrote after it is gone; there
    is no merge.
 
 ## 6. Incidents

@@ -35,8 +35,10 @@
 set -u -o pipefail
 
 # Git Bash on Windows rewrites a path-looking argument (`/tmp/x`) into a Windows one before docker
-# sees it. Harmless anywhere else.
-export MSYS_NO_PATHCONV=1
+# sees it, so the docker commands that name a path inside the container are run through `dx`. It must
+# NOT be exported for the whole script: it also stops `/dev/null` being translated for the native
+# Windows curl, which then fails to write its output and reads as "the API is not up".
+dx() { MSYS_NO_PATHCONV=1 docker exec "$@"; }
 
 SOURCE_DB="${1:-crm_perf}"
 CONTAINER="${DRILL_CONTAINER:-crm-postgres}"
@@ -58,7 +60,7 @@ now() { date +%s; }
 cleanup() {
   # DRILL_KEEP=1 leaves the restored database in place, to look at what a failure left behind.
   if [ "${DRILL_KEEP:-}" = "1" ]; then echo "  (kept $DRILL_DB)"; return; fi
-  docker exec "$CONTAINER" rm -f "$DUMP_IN_CONTAINER" > /dev/null 2>&1
+  dx "$CONTAINER" rm -f "$DUMP_IN_CONTAINER" > /dev/null 2>&1
   if [ -n "${API_PID:-}" ]; then kill "$API_PID" > /dev/null 2>&1; fi
   # On Windows the shell's pid is not always node's: make sure nothing is left listening on the drill port.
   if command -v powershell > /dev/null 2>&1; then
@@ -130,9 +132,9 @@ step "Dump"
 t0=$(now)
 # Custom format, compressed, parallel-restorable. Ownership and privileges are KEPT: the grants are
 # part of the security model (column-level UPDATE on field_definitions, no DELETE on audit_logs).
-docker exec "$CONTAINER" pg_dump -U "$SUPER" -d "$SOURCE_DB" -Fc -Z 6 -f "$DUMP_IN_CONTAINER" || { echo "dump failed"; exit 2; }
+dx "$CONTAINER" pg_dump -U "$SUPER" -d "$SOURCE_DB" -Fc -Z 6 -f "$DUMP_IN_CONTAINER" || { echo "dump failed"; exit 2; }
 dump_seconds=$(( $(now) - t0 ))
-dump_size=$(docker exec "$CONTAINER" sh -c "du -h $DUMP_IN_CONTAINER | cut -f1")
+dump_size=$(dx "$CONTAINER" sh -c "du -h $DUMP_IN_CONTAINER | cut -f1")
 echo "  dump: ${dump_seconds}s, $dump_size"
 
 step "Restore into a new database ($DRILL_DB)"
@@ -146,10 +148,19 @@ if [ -f "$REPO/packages/db/sql/bootstrap/01-extensions-and-roles.sql" ]; then
     < "$REPO/packages/db/sql/bootstrap/01-extensions-and-roles.sql" > /dev/null 2>&1
 fi
 t0=$(now)
-docker exec "$CONTAINER" pg_restore -U "$SUPER" -d "$DRILL_DB" -j "$JOBS" --exit-on-error "$DUMP_IN_CONTAINER" 2> /tmp/drill-restore.err
+dx "$CONTAINER" pg_restore -U "$SUPER" -d "$DRILL_DB" -j "$JOBS" --exit-on-error "$DUMP_IN_CONTAINER" 2> /tmp/drill-restore.err
 restore_status=$?
 restore_seconds=$(( $(now) - t0 ))
 if [ "$restore_status" -eq 0 ]; then pass "pg_restore finished without error in ${restore_seconds}s"; else fail "pg_restore failed (see /tmp/drill-restore.err)"; head -5 /tmp/drill-restore.err; fi
+
+# A restore carries the data and the structure but not the planner statistics, so until autovacuum
+# gets round to it (it had analysed 11 of 58 tables ten minutes after the last restore) every plan is a
+# guess and autovacuum competes with live traffic. Doing it explicitly, before traffic, is part of the
+# procedure being rehearsed.
+t0=$(now)
+psql_drill -c "analyze" > /dev/null
+analyze_seconds=$(( $(now) - t0 ))
+echo "  analyze: ${analyze_seconds}s"
 
 step "1. The data"
 fingerprint_sql | psql_drill > /tmp/drill-dst-counts.txt
@@ -163,6 +174,12 @@ if diff -q /tmp/drill-src-rls.txt /tmp/drill-dst-rls.txt > /dev/null; then pass 
 total=$(grep '^tenant_tables_total|' /tmp/drill-dst-rls.txt | cut -d'|' -f2)
 forced=$(grep '^rls_enabled_and_forced|' /tmp/drill-dst-rls.txt | cut -d'|' -f2)
 if [ -n "$total" ] && [ "$total" = "$forced" ]; then pass "row-level security is enabled and forced on all $total tables with a tenant_id"; else fail "RLS enabled+forced on $forced of $total tenant tables"; fi
+# A dump of a user database does not carry changes to built-in functions, so these two marks (which global
+# search cannot use its indexes without, ADR-0028 §7) exist in the restored database only because the
+# bootstrap script was applied to it. A restore that skips that step passes every other check and then
+# answers a rare search in thirteen seconds.
+leakproof=$(psql_drill -c "select count(*) from pg_proc where proname in ('ts_match_vq', 'word_similarity_op') and proleakproof")
+if [ "$leakproof" = "2" ]; then pass "the two search operators are marked LEAKPROOF in the restored database"; else fail "search operators are not LEAKPROOF after the restore ($leakproof of 2): apply the bootstrap script as a superuser"; fi
 bypass=$(psql_drill -c "select count(*) from pg_roles where rolname like 'crm\\_%' and (rolbypassrls or rolsuper)")
 if [ "$bypass" = "0" ]; then pass "no application role has BYPASSRLS or superuser"; else fail "$bypass application role(s) can bypass row-level security"; fi
 
@@ -225,6 +242,8 @@ elif [ -n "${DRILL_API_ENV:-}" ] && [ -f "$DRILL_API_ENV" ]; then
     if [ -n "$foreign" ]; then
       code=$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $token" "http://localhost:$API_PORT/api/v1/contacts/$foreign")
       if [ "$code" = "404" ]; then pass "another tenant's contact answers 404, not 403 and not data"; else fail "another tenant's contact answered $code"; fi
+    else
+      echo "  skipped: no second tenant holds contacts, so there is no foreign id to ask for"
     fi
   else
     fail "the API did not come up on the restored database (see /tmp/drill-api.log)"
@@ -235,5 +254,5 @@ else
 fi
 
 step "Result"
-echo "  dump ${dump_seconds}s ($dump_size), restore ${restore_seconds}s, database $size, jobs $JOBS"
+echo "  dump ${dump_seconds}s ($dump_size), restore ${restore_seconds}s, analyze ${analyze_seconds}s, database $size, jobs $JOBS"
 if [ "$failures" -eq 0 ]; then echo "  DRILL PASSED"; exit 0; else echo "  DRILL FAILED: $failures check(s)"; exit 1; fi
