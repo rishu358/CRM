@@ -90,8 +90,8 @@ host is a warning. This was a warning in ADR-0041 §8; it was changed because a 
 ## Consequences
 
 - **One more request-path dependency, softened.** Every request now makes one Redis call in `onRequest` (the
-  address) and, if authenticated, one in the guard (user and tenant together). Measured cost is in
-  `docs/PERF.md` §8. A Redis outage degrades limits; it does not degrade availability.
+  address) and, if authenticated, one in the guard (user and tenant together). Measured: about 2 to 3 ms per request, and a
+  likely loss of some of the ceiling near 40 req/s that this machine could not resolve (`docs/PERF.md` §8). A Redis outage degrades limits; it does not degrade availability.
 - **The limits are fixed windows**, so a caller can send up to twice the limit across a window boundary. That is
   how they behaved before. A sliding window or token bucket is a change to the Lua script, not to the callers.
 - **Eviction resets a limit.** Counters live in Redis as ordinary keys with an expiry; an instance that evicts
