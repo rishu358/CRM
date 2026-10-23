@@ -29,7 +29,13 @@ const envSchema = z
     DATABASE_AUTH_URL: z.string().min(1).optional(),
     DATABASE_POOL_MAX: z.coerce.number().int().positive().max(100).default(10),
 
+    // Where rate limits are counted so every API instance spends from one budget (ADR-0042). Without
+    // it each instance counts alone; production refuses to start that way unless told it is one instance.
     REDIS_URL: z.string().optional(),
+    RATE_LIMIT_ALLOW_PER_PROCESS: z
+      .enum(['true', 'false'])
+      .default('false')
+      .transform((value) => value === 'true'),
 
     // 32 bytes minimum. Short secrets are the usual way session signing fails
     // quietly, so this is a hard floor rather than a warning.
@@ -62,6 +68,9 @@ const envSchema = z
 
     RATE_LIMIT_WINDOW_SECONDS: z.coerce.number().int().positive().default(60),
     RATE_LIMIT_MAX_PER_USER: z.coerce.number().int().positive().default(300),
+    // Everything one address sends, signed in or not: the pre-authentication ceiling, so it is sized for
+    // an office behind one NAT address rather than for one person.
+    RATE_LIMIT_MAX_PER_IP: z.coerce.number().int().positive().default(1000),
     RATE_LIMIT_MAX_PER_TENANT: z.coerce.number().int().positive().default(3000),
 
     LOG_LEVEL: z.enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal']).default('info'),
@@ -100,6 +109,7 @@ function productionInput(env: ApiEnv): ProductionConfigInput {
     corsOrigins: env.CORS_ORIGINS,
     databaseUrls: { DATABASE_URL: env.DATABASE_URL, DATABASE_AUTH_URL: env.DATABASE_AUTH_URL },
     redisUrl: env.REDIS_URL,
+    perProcessRateLimitsAllowed: env.RATE_LIMIT_ALLOW_PER_PROCESS,
   };
 }
 

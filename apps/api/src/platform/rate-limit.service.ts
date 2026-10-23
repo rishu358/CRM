@@ -1,66 +1,86 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { RateLimitedError } from '@crm/core';
 import { API_ENV_TOKEN, type ApiEnv } from '../config/env.js';
+import {
+  RATE_LIMIT_COUNTER,
+  hitOnce,
+  rateLimitKey,
+  type RateLimitCounter,
+} from './rate-limit/counter.js';
 
 /**
- * Per-tenant rate limiting (CLAUDE.md §5.14).
+ * Per-user and per-tenant rate limits (CLAUDE.md §5.14, ADR-0042).
  *
- * The per-user and per-IP limits are handled by @fastify/rate-limit at the edge.
- * This covers the case those miss: one tenant, many users and many addresses,
- * collectively hammering the API. It runs **after** the actor is resolved, so
- * the tenant is the one membership proved — not a header a caller could spoof
- * to burn through somebody else's budget.
+ * Both run **after** the actor is resolved, so the user and the tenant are the ones the session and the
+ * membership proved, not a header a caller could spoof to spend somebody else's budget. They share one
+ * round trip to the counter.
  *
- * ## Known limitation
+ * The user limit used to live in a plugin that ran before authentication, where there was no user, so
+ * it limited the address instead: an office behind one NAT address shared one budget and one person on
+ * two addresses had two. It is checked here for the reason the tenant limit is.
  *
- * The counters live in this process. That is a real limit for a single
- * instance and no limit at all across several, so this must move to Redis
- * before the API is scaled horizontally. It is written behind an interface for
- * exactly that reason; the Redis implementation replaces `InMemoryCounter`
- * without touching callers.
+ * The counter is Redis when `REDIS_URL` is set, so the budget holds across every API instance, and
+ * this process's own counts when it is not or when Redis cannot be reached (`FallbackCounter`).
  */
-export interface RateLimitCounter {
-  /** Increment the window for `key` and return the new count. */
-  hit(key: string, windowSeconds: number): number;
-}
-
-export class InMemoryCounter implements RateLimitCounter {
-  private readonly windows = new Map<string, { count: number; resetAt: number }>();
-
-  hit(key: string, windowSeconds: number): number {
-    const now = Date.now();
-    const existing = this.windows.get(key);
-
-    if (existing === undefined || existing.resetAt <= now) {
-      this.windows.set(key, { count: 1, resetAt: now + windowSeconds * 1000 });
-      this.sweep(now);
-      return 1;
-    }
-
-    existing.count += 1;
-    return existing.count;
-  }
-
-  /** Drop expired windows so a long-running process does not grow unbounded. */
-  private sweep(now: number): void {
-    if (this.windows.size < 10_000) return;
-    for (const [key, window] of this.windows) {
-      if (window.resetAt <= now) this.windows.delete(key);
-    }
-  }
-}
-
 @Injectable()
-export class TenantRateLimitService {
-  private readonly counter: RateLimitCounter = new InMemoryCounter();
+export class ActorRateLimitService {
+  constructor(
+    @Inject(RATE_LIMIT_COUNTER) private readonly counter: RateLimitCounter,
+    @Inject(API_ENV_TOKEN) private readonly env: ApiEnv,
+  ) {}
 
-  constructor(@Inject(API_ENV_TOKEN) private readonly env: ApiEnv) {}
+  /** Record a request for this user and tenant, or throw 429. */
+  async check(actor: { readonly userId: string; readonly tenantId: string }): Promise<void> {
+    const windowSeconds = this.env.RATE_LIMIT_WINDOW_SECONDS;
+    const [user, tenant] = await this.counter.hitMany([
+      { key: rateLimitKey('user', actor.userId), windowSeconds },
+      { key: rateLimitKey('tenant', actor.tenantId), windowSeconds },
+    ]);
+    if (user === undefined || tenant === undefined) {
+      throw new Error('A rate limit counter answered fewer hits than it was asked for');
+    }
 
-  /** Record a request for this tenant, or throw 429. */
-  check(tenantId: string): void {
-    const count = this.counter.hit(`tenant:${tenantId}`, this.env.RATE_LIMIT_WINDOW_SECONDS);
-    if (count > this.env.RATE_LIMIT_MAX_PER_TENANT) {
-      throw new RateLimitedError('This workspace has made too many requests. Try again shortly.');
+    // The messages say whose budget it is and nothing else: not the ceiling, not what is left.
+    if (tenant.count > this.env.RATE_LIMIT_MAX_PER_TENANT) {
+      throw new RateLimitedError(
+        'This workspace has made too many requests. Try again shortly.',
+        tenant.retryAfterSeconds,
+      );
+    }
+    if (user.count > this.env.RATE_LIMIT_MAX_PER_USER) {
+      throw new RateLimitedError(
+        'You are sending requests too quickly. Try again shortly.',
+        user.retryAfterSeconds,
+      );
+    }
+  }
+}
+
+/**
+ * What one address may send before anything is known about the caller.
+ *
+ * This is the only limit that applies to a request with no valid session, which is also what a flood
+ * of requests with made-up tokens looks like (each one costs a session lookup). It is sized for an
+ * office behind one address, not for one person; the user limit above is the one that is.
+ */
+@Injectable()
+export class AddressRateLimitService {
+  constructor(
+    @Inject(RATE_LIMIT_COUNTER) private readonly counter: RateLimitCounter,
+    @Inject(API_ENV_TOKEN) private readonly env: ApiEnv,
+  ) {}
+
+  async check(address: string): Promise<void> {
+    const hit = await hitOnce(
+      this.counter,
+      rateLimitKey('ip', address),
+      this.env.RATE_LIMIT_WINDOW_SECONDS,
+    );
+    if (hit.count > this.env.RATE_LIMIT_MAX_PER_IP) {
+      throw new RateLimitedError(
+        'Too many requests from this address. Try again shortly.',
+        hit.retryAfterSeconds,
+      );
     }
   }
 }

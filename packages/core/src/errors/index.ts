@@ -187,7 +187,11 @@ export class SearchTimeoutError extends DomainError {
 }
 
 export class RateLimitedError extends DomainError {
-  constructor(message = 'Too many requests') {
+  constructor(
+    message = 'Too many requests',
+    /** Whole seconds until the limit's window ends. Sent as `Retry-After`, never in the body. */
+    readonly retryAfterSeconds?: number,
+  ) {
     super(ErrorCode.RATE_LIMITED, message, 429);
   }
 }

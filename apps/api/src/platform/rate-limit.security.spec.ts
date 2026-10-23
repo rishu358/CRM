@@ -79,8 +79,8 @@ describe('a refused request', () => {
 
 describe('the per-address limit', () => {
   let limited: ApiHarness;
-  const health = (remoteAddress: string) =>
-    request(limited, { method: 'GET', url: '/api/v1/health', remoteAddress });
+  const unauthenticated = (remoteAddress: string) =>
+    request(limited, { method: 'GET', url: '/api/v1/auth/me', remoteAddress });
 
   beforeAll(async () => {
     limited = await startApiHarness(inject('dbUrls'), {
@@ -96,8 +96,34 @@ describe('the per-address limit', () => {
 
   it('bounds what one address can send before it has signed in, and not another address', async () => {
     const first: number[] = [];
-    for (let i = 0; i < 4; i += 1) first.push((await health(ONE)).status);
-    expect(first).toEqual([200, 200, 200, 429]);
-    expect((await health(TWO)).status).toBe(200);
+    for (let i = 0; i < 4; i += 1) first.push((await unauthenticated(ONE)).status);
+    // Not signed in, so the first three are refused for that and the fourth for volume.
+    expect(first).toEqual([401, 401, 401, 429]);
+    expect((await unauthenticated(TWO)).status).toBe(401);
+  });
+  it('counts requests with a made-up token too: each one costs a session lookup', async () => {
+    const THREE = '203.0.113.30';
+    const statuses: number[] = [];
+    for (let i = 0; i < 4; i += 1) {
+      const response = await request(limited, {
+        method: 'GET',
+        url: '/api/v1/auth/me',
+        token: 'a'.repeat(43),
+        remoteAddress: THREE,
+      });
+      statuses.push(response.status);
+    }
+    expect(statuses).toEqual([401, 401, 401, 429]);
+  });
+
+  it('does not limit the health route, which a load balancer polls and which must keep answering', async () => {
+    for (let i = 0; i < 10; i += 1) {
+      const response = await request(limited, {
+        method: 'GET',
+        url: '/api/v1/health',
+        remoteAddress: '203.0.113.40',
+      });
+      expect(response.status).toBe(200);
+    }
   });
 });
