@@ -130,6 +130,8 @@ for (const objectType of ['account', 'contact', 'lead', 'deal', 'activity'] as c
 const importExportDeps = {
   db: client.db,
   storage: createStorageProvider(env, env.NODE_ENV),
+  // The same seam a list's search box uses (ADR-0041 §5); the one line that changes with the engine.
+  search: new PostgresSearchProvider(),
   logger,
 };
 

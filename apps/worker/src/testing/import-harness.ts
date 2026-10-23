@@ -12,6 +12,7 @@ import {
   type ImportDuplicateMode,
   type ImportJob,
   type ImportMappingEntry,
+  PostgresSearchProvider,
 } from '@crm/db';
 import { provisionAsApp } from './provision.js';
 import { Fixtures, typedPool, type TestDbUrls, type TypedPool } from '@crm/db/testing';
@@ -127,7 +128,7 @@ export async function startImportHarness(
   const provisioned = await provisionAsApp(urls.app, tenantId);
   const roleIds = provisioned.roleIdsByName;
 
-  const deps = { db: db.db, storage, logger };
+  const deps = { db: db.db, storage, search: new PostgresSearchProvider(), logger };
   const relay = new OutboxRelay(db.db, { logger, batchSize: 100 })
     .on('import.uploaded.v1', analyzeImport(deps))
     .on('import.started.v1', stageImport(deps))

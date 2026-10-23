@@ -1,5 +1,5 @@
 import { formatMinor, type ExportableObjectType } from '@crm/core';
-import { and, asc, desc, eq, getTableColumns, isNull, or, sql, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, getTableColumns, isNull, sql, type SQL } from 'drizzle-orm';
 import type { Tx } from '../client.js';
 import { accounts, contacts, deals, leads } from '../schema/crm.js';
 
@@ -40,13 +40,6 @@ export interface ObjectDescriptor {
   readonly customFields: SQL;
   readonly ownerId: SQL;
   readonly id: SQL;
-  /** The searchable field keys, which a free-text search may look in. */
-  readonly searchKeys: readonly string[];
-  /**
-   * Free-text search over `readable` columns only: what a caller may search is what they may read
-   * (CLAUDE.md §5.4). With none readable the predicate is false.
-   */
-  search(pattern: string, readable: readonly string[]): SQL;
   /**
    * The expression a row is matched to an existing record on.
    *
@@ -114,7 +107,6 @@ function defineDescriptor(
   table: RecordTable,
   options: {
     columns: ColumnMap;
-    searchColumns: ColumnMap;
     match?: ColumnMap;
     exportValue?: (row: RecordRow, key: string) => unknown;
     extraExportColumns?: readonly { key: string; label: string }[];
@@ -130,14 +122,6 @@ function defineDescriptor(
     customFields: sql`${t.customFields}`,
     ownerId: sql`${t.ownerId}`,
     id: sql`${t.id}`,
-    searchKeys: Object.keys(options.searchColumns),
-    search(pattern, readable) {
-      const parts = readable.map((key) => {
-        const column = options.searchColumns[key];
-        return column === undefined ? undefined : like(column, pattern);
-      });
-      return or(...parts) ?? sql`false`;
-    },
     matchExpression(field) {
       const expression = options.match?.[field];
       if (expression === undefined) throw new Error(`${objectType} cannot be matched on ${field}`);
@@ -217,11 +201,6 @@ function defineDescriptor(
 
 const LIKE_ESCAPE = '!';
 
-/** Same escape the list's search box uses: `!`, so no backslash has to survive three layers. */
-function like(expression: SQL, pattern: string): SQL {
-  return sql`${expression} ilike ${pattern} escape ${LIKE_ESCAPE}`;
-}
-
 const CONTACT = defineDescriptor('contact', contacts, {
   columns: {
     first_name: sql`${contacts.firstName}`,
@@ -235,12 +214,6 @@ const CONTACT = defineDescriptor('contact', contacts, {
     owner_id: sql`${contacts.ownerId}`,
     created_at: sql`${contacts.createdAt}`,
     updated_at: sql`${contacts.updatedAt}`,
-  },
-  searchColumns: {
-    first_name: sql`${contacts.firstName}`,
-    last_name: sql`${contacts.lastName}`,
-    email: sql`${contacts.email}::text`,
-    phone: sql`${contacts.phone}`,
   },
   match: { email: sql`${contacts.email}::text`, phone: sql`${contacts.phone}` },
   extraExportColumns: [{ key: 'account_id', label: 'Account ID' }],
@@ -261,12 +234,6 @@ const ACCOUNT = defineDescriptor('account', accounts, {
     owner_id: sql`${accounts.ownerId}`,
     created_at: sql`${accounts.createdAt}`,
     updated_at: sql`${accounts.updatedAt}`,
-  },
-  searchColumns: {
-    name: sql`${accounts.name}`,
-    domain: sql`${accounts.domain}`,
-    email: sql`${accounts.email}::text`,
-    phone: sql`${accounts.phone}`,
   },
   exportValue: (row, key) =>
     key === 'annual_revenue'
@@ -292,13 +259,6 @@ const LEAD = defineDescriptor('lead', leads, {
     created_at: sql`${leads.createdAt}`,
     updated_at: sql`${leads.updatedAt}`,
   },
-  searchColumns: {
-    first_name: sql`${leads.firstName}`,
-    last_name: sql`${leads.lastName}`,
-    company: sql`${leads.company}`,
-    email: sql`${leads.email}::text`,
-    phone: sql`${leads.phone}`,
-  },
   match: { email: sql`${leads.email}::text`, phone: sql`${leads.phone}` },
   extraExportColumns: [{ key: 'converted_at', label: 'Converted at' }],
 });
@@ -319,7 +279,6 @@ const DEAL = defineDescriptor('deal', deals, {
     created_at: sql`${deals.createdAt}`,
     updated_at: sql`${deals.updatedAt}`,
   },
-  searchColumns: { name: sql`${deals.name}` },
   exportValue: (row, key) =>
     key === 'amount' ? money(row['amountMinor'], row['currency']) : undefined,
   extraExportColumns: [

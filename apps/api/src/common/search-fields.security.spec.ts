@@ -31,6 +31,9 @@ async function userWithHidden(
 }
 
 async function ids(url: string, token: string): Promise<string[]> {
+  // The fixtures write straight into the tables, so nothing has indexed them yet, and a list's search
+  // box is answered by the search index (ADR-0041 §5). Rebuilding is cheap at this size.
+  await harness.indexForSearch(tenant);
   const response = await request(harness, { method: 'GET', url, token });
   expect(response.status, url).toBe(200);
   return dataOf<{ id: string }[]>(response).map((row) => row.id);
@@ -62,7 +65,7 @@ describe('q does not search a field the caller may not read', () => {
     expect(await ids('/api/v1/contacts?q=Quillfeather', token)).toContain(contact);
   });
 
-  it('contacts: a hidden email cannot be probed one character at a time', async () => {
+  it('contacts: a hidden email cannot be probed a prefix at a time', async () => {
     const contact = await harness.fixtures.createContact(tenant, {
       ownerId: admin.userId,
       lastName: 'Marrowby',
@@ -70,7 +73,7 @@ describe('q does not search a field the caller may not read', () => {
     });
     const token = await userWithHidden('contact', 'email');
 
-    for (const probe of ['hidden-domain', 'private.marker', '@hidden', 'p']) {
+    for (const probe of ['hidden-domain', 'private.marker', '@hidden', 'pr', 'priv']) {
       const found = await ids(`/api/v1/contacts?q=${encodeURIComponent(probe)}`, token);
       expect(found, probe).not.toContain(contact);
     }

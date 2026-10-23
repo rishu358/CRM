@@ -2,15 +2,20 @@ import {
   can,
   canReadField,
   EXPORT_LIMITS,
+  EXPORT_MATCH_LIMIT,
   formatCell,
+  isUsableSearchTerm,
   newId,
+  searchableFieldKeys,
   toExportCell,
   ValidationError,
   type Actor,
   type ExportableObjectType,
   type FieldDefinition,
   type ObjectType,
+  type SearchProvider,
   type StorageProvider,
+  type Uuid,
 } from '@crm/core';
 import {
   auditLogs,
@@ -59,6 +64,8 @@ import type { EventHandler, ExhaustedHandler, OutboxRow } from '../relay.js';
 export interface ExportDeps {
   readonly db: Database;
   readonly storage: StorageProvider;
+  /** Which records match an export's search (ADR-0041 §5): the same seam a list's search box uses. */
+  readonly search: SearchProvider<Tx>;
   readonly logger: Logger;
 }
 
@@ -198,11 +205,38 @@ export function runExport(deps: ExportDeps): EventHandler {
       // backoff would only leave the job "running" for minutes before it fails
       // anyway. Deterministic errors end the job now; only the transient ones
       // (storage, database) are left to the relay's retries.
+      // A searched export is the list's search made permanent: the same seam, the same words, the same
+      // four scoping rules. It reads more records than a list may (a background job has no page to fill)
+      // and is refused, not silently cut, when the search matches more than that.
+      let matchedIds: readonly string[] | undefined;
+      const term = job.query.q;
+      if (term !== undefined && isUsableSearchTerm(term)) {
+        const matches = await deps.search.matchRecordIds(tx, {
+          tenantId: job.tenantId as Uuid,
+          term,
+          scope: {
+            objectType,
+            constraint: decision.constraint,
+            fieldKeys: searchableFieldKeys(objectType).filter((key) =>
+              canReadField(actor, objectType, key),
+            ),
+          },
+          limit: EXPORT_MATCH_LIMIT,
+        });
+        if (matches.truncated) {
+          await failExport(
+            tx,
+            job,
+            `This search matches more than ${String(EXPORT_MATCH_LIMIT)} records. Narrow it with filters, then export again.`,
+          );
+          return;
+        }
+        matchedIds = matches.recordIds;
+      }
+
       let plan: ExportQueryPlan;
       try {
-        plan = planExportQuery(objectType, fields, job.query, decision.constraint, (key) =>
-          canReadField(actor, objectType, key),
-        );
+        plan = planExportQuery(objectType, fields, job.query, decision.constraint, matchedIds);
       } catch (error) {
         if (!(error instanceof ValidationError)) throw error;
         await failExport(

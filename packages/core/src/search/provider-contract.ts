@@ -236,6 +236,36 @@ export function describeSearchProviderContract<Ctx>(
         ]);
       });
 
+      it('finds a record by the full email address or the digits of the phone number typed', async () => {
+        // The two things people most often type into a CRM's search box. Both are single tokens in a
+        // full-text index, so an engine that splits them into words would match neither.
+        const t = await tenant();
+        const record = doc('contact', {
+          fields: {
+            last_name: 'Reachable',
+            email: 'jane.doe@acme.example',
+            phone: '+919876543210',
+          },
+        });
+        const other = doc('contact', {
+          fields: {
+            last_name: 'Elsewhere',
+            email: 'someone.else@other.example',
+            phone: '+911111111111',
+          },
+        });
+        await index(t, record, other);
+        expect(
+          (await match(t, 'jane.doe@acme.example', scope('contact', CONTACT_FIELDS))).recordIds,
+        ).toEqual([record.recordId]);
+        expect(
+          (await match(t, '919876543210', scope('contact', CONTACT_FIELDS))).recordIds,
+        ).toEqual([record.recordId]);
+        expect(
+          (await match(t, '+919876543210', scope('contact', CONTACT_FIELDS))).recordIds,
+        ).toEqual([record.recordId]);
+      });
+
       it('returns the most recently updated first', async () => {
         const t = await tenant();
         const oldest = doc('contact', {

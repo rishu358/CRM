@@ -207,9 +207,11 @@ export function planQuery(
   query: {
     readonly filters: readonly QueryFilter[];
     readonly sort?: { readonly field: string; readonly direction: 'asc' | 'desc' } | undefined;
-    readonly q?: string | undefined;
-    /** The searchable fields the caller may read; `q` looks in these and no others. */
-    readonly searchFields?: readonly string[] | undefined;
+    /**
+     * Restrict to these records, as the search seam returned them for the export's `q`
+     * (ADR-0041 §5). `undefined` is not searched; an empty list is searched and found nothing.
+     */
+    readonly matchedIds?: readonly string[] | undefined;
   },
   constraint: RecordConstraint,
 ): QueryPlan {
@@ -223,8 +225,15 @@ export function planQuery(
     where.push(filterToSql(filter, resolveColumn(objectType, descriptor, filter.field, fields)));
   }
 
-  if (query.q !== undefined && query.q !== '') {
-    where.push(descriptor.search(`%${escapeLikePattern(query.q)}%`, query.searchFields ?? []));
+  if (query.matchedIds !== undefined) {
+    where.push(
+      query.matchedIds.length === 0
+        ? sql`false`
+        : sql`${descriptor.id} in (${sql.join(
+            query.matchedIds.map((id) => sql`${id}::uuid`),
+            sql`, `,
+          )})`,
+    );
   }
 
   const sort = query.sort ?? { field: 'created_at', direction: 'asc' as const };
