@@ -24,6 +24,8 @@ const envSchema = z
     DATABASE_ERASURE_URL: z.string().min(1).optional(),
     DATABASE_URL: z.string().min(1),
     DATABASE_POOL_MAX: z.coerce.number().int().positive().max(100).default(5),
+    // The managed provider's CA certificate, PEM or base64 of it (packages/db/src/tls.ts, ADR-0042).
+    DATABASE_CA_CERT: z.string().optional(),
     OUTBOX_POLL_INTERVAL_MS: z.coerce.number().int().positive().default(1000),
     OUTBOX_BATCH_SIZE: z.coerce.number().int().positive().max(500).default(50),
     /** Where a digest email points people back to. */

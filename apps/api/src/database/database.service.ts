@@ -28,10 +28,12 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
   constructor(private readonly env: ApiEnv) {
     this.appClient = createDbClient({
       connectionString: env.DATABASE_URL,
+      caCert: env.DATABASE_CA_CERT,
       maxConnections: env.DATABASE_POOL_MAX,
     });
     this.authClient = createDbClient({
       connectionString: env.DATABASE_AUTH_URL ?? env.DATABASE_URL,
+      caCert: env.DATABASE_CA_CERT,
       // Session lookups are short; a small pool is plenty and limits blast radius.
       maxConnections: Math.max(2, Math.floor(env.DATABASE_POOL_MAX / 4)),
     });

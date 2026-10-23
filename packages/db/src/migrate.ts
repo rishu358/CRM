@@ -12,7 +12,7 @@ loadRootEnvFile();
 const env = loadDbEnv();
 const connectionString = env.DATABASE_MIGRATION_URL ?? env.DATABASE_URL;
 
-const result = await runMigrations(connectionString, migrationsDir);
+const result = await runMigrations(connectionString, migrationsDir, env.DATABASE_CA_CERT);
 
 if (result.applied.length === 0) {
   console.warn(`No new migrations. ${result.skipped.length} already applied.`);

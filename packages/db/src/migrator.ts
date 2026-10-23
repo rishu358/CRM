@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import pg from 'pg';
+import { poolConnectionConfig } from './tls.js';
 
 /**
  * Migration runner.
@@ -28,8 +29,9 @@ function checksum(contents: string): string {
 export async function runMigrations(
   connectionString: string,
   migrationsDir: string,
+  caCert?: string,
 ): Promise<MigrationResult> {
-  const client = new pg.Client({ connectionString });
+  const client = new pg.Client(poolConnectionConfig(connectionString, caCert));
   await client.connect();
 
   try {

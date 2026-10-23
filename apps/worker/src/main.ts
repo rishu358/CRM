@@ -41,6 +41,7 @@ for (const warning of productionWarnings(env)) logger.warn(warning);
 
 const client = createDbClient({
   connectionString: env.DATABASE_WORKER_URL ?? env.DATABASE_URL,
+  caCert: env.DATABASE_CA_CERT,
   maxConnections: env.DATABASE_POOL_MAX,
 });
 
@@ -219,7 +220,11 @@ relay.onExhausted('data_export.requested.v1', failDataExportOnExhaustion(archive
 const erasureClient =
   env.DATABASE_ERASURE_URL === undefined
     ? null
-    : createDbClient({ connectionString: env.DATABASE_ERASURE_URL, maxConnections: 2 });
+    : createDbClient({
+        connectionString: env.DATABASE_ERASURE_URL,
+        caCert: env.DATABASE_CA_CERT,
+        maxConnections: 2,
+      });
 
 const erasureDeps = { db: client.db, erasureDb: erasureClient?.db ?? null, logger };
 relay.on('erasure.requested.v1', runErasure(erasureDeps));

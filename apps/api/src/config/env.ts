@@ -28,6 +28,8 @@ const envSchema = z
     DATABASE_URL: z.string().min(1),
     DATABASE_AUTH_URL: z.string().min(1).optional(),
     DATABASE_POOL_MAX: z.coerce.number().int().positive().max(100).default(10),
+    // The managed provider's CA certificate, PEM or base64 of it (packages/db/src/tls.ts, ADR-0042).
+    DATABASE_CA_CERT: z.string().optional(),
 
     REDIS_URL: z.string().optional(),
 

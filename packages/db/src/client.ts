@@ -2,6 +2,7 @@ import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { sql } from 'drizzle-orm';
 import pg from 'pg';
 import * as schema from './schema/index.js';
+import { poolConnectionConfig } from './tls.js';
 
 /**
  * Database access (ADR-0002).
@@ -25,6 +26,11 @@ export interface TenantContext {
 
 export interface DbClientOptions {
   readonly connectionString: string;
+  /**
+   * The provider's CA certificate, for a managed Postgres whose certificate Node does not trust
+   * (see `tls.ts`). Verification stays on; unset leaves the driver's own rules untouched.
+   */
+  readonly caCert?: string | undefined;
   readonly maxConnections?: number;
   /** Fail fast rather than queueing behind a saturated pool. */
   readonly connectionTimeoutMillis?: number;
@@ -42,7 +48,7 @@ export interface DbClient {
 
 export function createDbClient(options: DbClientOptions): DbClient {
   const pool = new pg.Pool({
-    connectionString: options.connectionString,
+    ...poolConnectionConfig(options.connectionString, options.caCert),
     max: options.maxConnections ?? 10,
     connectionTimeoutMillis: options.connectionTimeoutMillis ?? 5_000,
     // Recycle idle connections so a long-lived process does not pin a backend

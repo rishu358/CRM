@@ -15,6 +15,8 @@ const envSchema = z.object({
   /** The outbox relay connects as crm_worker. */
   DATABASE_WORKER_URL: z.string().min(1).optional(),
   DATABASE_POOL_MAX: z.coerce.number().int().positive().max(100).default(10),
+  /** The managed provider's CA certificate: PEM, or base64 of it. See `tls.ts`. */
+  DATABASE_CA_CERT: z.string().optional(),
 });
 
 export type DbEnv = z.infer<typeof envSchema>;
