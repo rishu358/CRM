@@ -1,12 +1,6 @@
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
-import {
-  newId,
-  type SearchDocument,
-  type SearchObjectScope,
-  type SearchWeight,
-  type Uuid,
-} from '@crm/core';
+import { newId, type SearchDocument, type SearchObjectScope, type Uuid } from '@crm/core';
 import { createDbClient, withTenant, type DbClient } from '../client.js';
 import { Fixtures } from '../testing/fixtures.js';
 import { PostgresSearchProvider, recordMatchDocumentCap } from './postgres.js';
@@ -36,7 +30,7 @@ function contact(fields: Record<string, string>, updatedAt: Date): SearchDocumen
     fields: Object.entries(fields).map(([fieldKey, value]) => ({
       fieldKey,
       value,
-      weight: 'A' as SearchWeight,
+      weight: 'A',
     })),
   };
 }
