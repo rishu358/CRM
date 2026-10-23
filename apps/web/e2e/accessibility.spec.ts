@@ -68,7 +68,8 @@ function structuralFindings(): string[] {
       element.closest('[hidden], [aria-hidden="true"], [inert]') === null
     );
   };
-  const textOf = (element: Element): string => (element.textContent ?? '').replace(/\s+/g, ' ').trim();
+  const textOf = (element: Element): string =>
+    (element.textContent ?? '').replace(/\s+/g, ' ').trim();
 
   /** The accessible name, by the rules that matter here (not the whole accname algorithm). */
   const nameOf = (element: Element): string => {
@@ -94,39 +95,51 @@ function structuralFindings(): string[] {
         .join(' ')
         .trim();
       if (labels !== '') return labels;
-      if (element instanceof HTMLInputElement && ['button', 'submit', 'reset'].includes(element.type)) {
+      if (
+        element instanceof HTMLInputElement &&
+        ['button', 'submit', 'reset'].includes(element.type)
+      ) {
         return element.value.trim();
       }
     }
     const own = textOf(element);
     if (own !== '') return own;
     const img = element.querySelector('img[alt]');
-    if (img !== null && (img.getAttribute('alt') ?? '').trim() !== '') return img.getAttribute('alt')!.trim();
+    if (img !== null && (img.getAttribute('alt') ?? '').trim() !== '')
+      return img.getAttribute('alt')!.trim();
     const svgTitle = element.querySelector('svg title');
     if (svgTitle !== null && textOf(svgTitle) !== '') return textOf(svgTitle);
     return (element.getAttribute('title') ?? '').trim();
   };
 
   // Names.
-  for (const element of document.querySelectorAll('button, [role="button"], a[href], [role="link"]')) {
-    if (visible(element) && nameOf(element) === '') findings.push(`no accessible name: ${describe(element)}`);
+  for (const element of document.querySelectorAll(
+    'button, [role="button"], a[href], [role="link"]',
+  )) {
+    if (visible(element) && nameOf(element) === '')
+      findings.push(`no accessible name: ${describe(element)}`);
   }
   for (const element of document.querySelectorAll('input, select, textarea')) {
     if (element instanceof HTMLInputElement && ['hidden'].includes(element.type)) continue;
     if (visible(element) && nameOf(element) === '') findings.push(`no label: ${describe(element)}`);
   }
   for (const element of document.querySelectorAll('img')) {
-    if (visible(element) && !element.hasAttribute('alt')) findings.push(`image without alt: ${describe(element)}`);
+    if (visible(element) && !element.hasAttribute('alt'))
+      findings.push(`image without alt: ${describe(element)}`);
   }
 
   // Document.
-  if ((document.documentElement.lang ?? '').trim() === '') findings.push('the document has no language');
+  if ((document.documentElement.lang ?? '').trim() === '')
+    findings.push('the document has no language');
   if (document.title.trim() === '') findings.push('the page has no title');
 
   // Landmarks and headings.
   const mains = Array.from(document.querySelectorAll('main, [role="main"]')).filter(visible);
-  if (mains.length !== 1) findings.push(`expected one main landmark, found ${String(mains.length)}`);
-  if (Array.from(document.querySelectorAll('nav, [role="navigation"]')).filter(visible).length === 0) {
+  if (mains.length !== 1)
+    findings.push(`expected one main landmark, found ${String(mains.length)}`);
+  if (
+    Array.from(document.querySelectorAll('nav, [role="navigation"]')).filter(visible).length === 0
+  ) {
     findings.push('no navigation landmark');
   }
   const headings = Array.from(document.querySelectorAll('h1, h2, h3, h4, h5, h6')).filter(visible);
@@ -136,7 +149,9 @@ function structuralFindings(): string[] {
   for (const heading of headings) {
     const level = Number(heading.tagName.slice(1));
     if (previous !== 0 && level > previous + 1) {
-      findings.push(`heading level jumps from h${String(previous)} to h${String(level)}: "${textOf(heading).slice(0, 40)}"`);
+      findings.push(
+        `heading level jumps from h${String(previous)} to h${String(level)}: "${textOf(heading).slice(0, 40)}"`,
+      );
     }
     previous = level;
   }
@@ -148,16 +163,17 @@ function structuralFindings(): string[] {
     seen.add(element.id);
   }
   for (const element of document.querySelectorAll('[tabindex]')) {
-    if (Number(element.getAttribute('tabindex')) > 0) findings.push(`positive tabindex: ${describe(element)}`);
+    if (Number(element.getAttribute('tabindex')) > 0)
+      findings.push(`positive tabindex: ${describe(element)}`);
   }
   return findings;
 }
 
 /** Text contrast (1.4.3), from computed colours: the ratio of each visible text run to what is behind it. */
-function contrastFindings(): string[] {
+function contrastFindings(): { checked: number; findings: string[] } {
   type Rgba = [number, number, number, number];
   const canvas = document.createElement('canvas').getContext('2d');
-  if (canvas === null) return ['no canvas to resolve colours with'];
+  if (canvas === null) return { checked: 0, findings: ['no canvas to resolve colours with'] };
 
   /** Resolve any CSS colour (including `oklch()` / `color-mix()`) to sRGB through a 1x1 canvas. */
   const resolve = (value: string): Rgba => {
@@ -205,21 +221,31 @@ function contrastFindings(): string[] {
   };
 
   const findings: string[] = [];
+  let examined = 0;
   const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
   const checked = new Set<Element>();
   for (let node = walker.nextNode(); node !== null; node = walker.nextNode()) {
     const element = node.parentElement;
-    if (element === null || checked.has(element) || (node.textContent ?? '').trim() === '') continue;
+    if (element === null || checked.has(element) || (node.textContent ?? '').trim() === '')
+      continue;
     checked.add(element);
-    if (element.closest('script, style, noscript, [hidden], [aria-hidden="true"]') !== null) continue;
+    if (element.closest('script, style, noscript, [hidden], [aria-hidden="true"]') !== null)
+      continue;
     const style = getComputedStyle(element);
     const box = element.getBoundingClientRect();
-    if (style.visibility === 'hidden' || style.display === 'none' || box.width === 0 || box.height === 0) continue;
+    if (
+      style.visibility === 'hidden' ||
+      style.display === 'none' ||
+      box.width === 0 ||
+      box.height === 0
+    )
+      continue;
     // Disabled controls are exempt from 1.4.3.
     if (element.closest(':disabled, [aria-disabled="true"]') !== null) continue;
 
     const background = backgroundOf(element);
     if (background === null) continue;
+    examined += 1;
     let foreground = resolve(style.color);
     // Opacity of the element and its ancestors dims the text.
     let opacity = 1;
@@ -236,10 +262,12 @@ function contrastFindings(): string[] {
     const got = ratio(painted, background);
     if (got < needed) {
       const text = (node.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 40);
-      findings.push(`contrast ${got.toFixed(2)}:1 (needs ${String(needed)}:1) for "${text}" in <${element.tagName.toLowerCase()}>`);
+      findings.push(
+        `contrast ${got.toFixed(2)}:1 (needs ${String(needed)}:1) for "${text}" in <${element.tagName.toLowerCase()}>`,
+      );
     }
   }
-  return findings;
+  return { checked: examined, findings };
 }
 
 for (const scheme of ['light', 'dark'] as const) {
@@ -252,7 +280,8 @@ for (const scheme of ['light', 'dark'] as const) {
       for (const path of PAGES) {
         await page.goto(path);
         await page.waitForLoadState('networkidle');
-        for (const finding of await page.evaluate(structuralFindings)) problems.push(`${path}: ${finding}`);
+        for (const finding of await page.evaluate(structuralFindings))
+          problems.push(`${path}: ${finding}`);
       }
       expect(problems).toEqual([]);
     });
@@ -263,7 +292,10 @@ for (const scheme of ['light', 'dark'] as const) {
       for (const path of PAGES) {
         await page.goto(path);
         await page.waitForLoadState('networkidle');
-        for (const finding of await page.evaluate(contrastFindings)) problems.push(`${path}: ${finding}`);
+        const { checked, findings } = await page.evaluate(contrastFindings);
+        // A check that examined nothing passes everything: demand it looked at real text.
+        if (checked < 10) problems.push(`${path}: only ${String(checked)} text runs were examined`);
+        for (const finding of findings) problems.push(`${path}: ${finding}`);
       }
       expect(problems).toEqual([]);
     });
@@ -271,7 +303,9 @@ for (const scheme of ['light', 'dark'] as const) {
 }
 
 test.describe('keyboard', () => {
-  test('the sign-in form is reachable and operable from the keyboard alone, with focus shown', async ({ page }) => {
+  test('the sign-in form is reachable and operable from the keyboard alone, with focus shown', async ({
+    page,
+  }) => {
     await page.goto('/sign-in');
     const stops: string[] = [];
     const unseen: string[] = [];
@@ -315,7 +349,8 @@ test.describe('keyboard', () => {
       await page.waitForLoadState('networkidle');
       const count = await page.evaluate(
         () =>
-          document.querySelectorAll('a[href], button, input, select, textarea, [tabindex="0"]').length,
+          document.querySelectorAll('a[href], button, input, select, textarea, [tabindex="0"]')
+            .length,
       );
       for (let press = 0; press < Math.min(count, 40); press += 1) {
         await page.keyboard.press('Tab');
@@ -323,7 +358,8 @@ test.describe('keyboard', () => {
           const element = document.activeElement;
           if (element === null || element === document.body) return null;
           const style = getComputedStyle(element);
-          const outlined = style.outlineStyle !== 'none' && Number.parseFloat(style.outlineWidth) > 0;
+          const outlined =
+            style.outlineStyle !== 'none' && Number.parseFloat(style.outlineWidth) > 0;
           return {
             shown: outlined || style.boxShadow !== 'none',
             label: `${element.tagName.toLowerCase()} "${(element.textContent ?? '').trim().slice(0, 30)}"`,
@@ -333,5 +369,52 @@ test.describe('keyboard', () => {
       }
     }
     expect(unseen).toEqual([]);
+  });
+});
+
+test.describe('the checks catch what they claim to', () => {
+  // Without these a clean result could mean "the page is fine" or "the checker is blind".
+  test('contrast: flags grey on white and passes black on white, in the same page', async ({
+    page,
+  }) => {
+    await page.setContent(
+      '<body style="background:#fff"><p id="bad" style="color:#999">Low contrast text here</p>' +
+        '<p id="good" style="color:#000">High contrast text here</p></body>',
+    );
+    const { findings } = await page.evaluate(contrastFindings);
+    expect(findings.some((finding) => finding.includes('Low contrast'))).toBe(true);
+    expect(findings.some((finding) => finding.includes('High contrast'))).toBe(false);
+  });
+
+  test('contrast: sees through opacity and dark backgrounds', async ({ page }) => {
+    await page.setContent(
+      '<body style="background:#111"><p style="color:#222">Dark on dark</p>' +
+        '<p style="color:#fff;opacity:0.2">Faded white</p></body>',
+    );
+    const { findings } = await page.evaluate(contrastFindings);
+    expect(findings.filter((finding) => /Dark on dark|Faded white/.test(finding))).toHaveLength(2);
+  });
+
+  test('structure: flags an unlabelled input, a nameless button, a skipped heading and a missing language', async ({
+    page,
+  }) => {
+    await page.setContent(
+      '<html><head><title>t</title></head><body><main><h1>One</h1><h3>Skipped</h3>' +
+        '<input id="x"><button></button><img src="data:image/gif;base64,R0lGODlhAQABAAAAACw="></main></body></html>',
+    );
+    const findings = (await page.evaluate(structuralFindings)).join(' | ');
+    expect(findings).toContain('no label');
+    expect(findings).toContain('no accessible name');
+    expect(findings).toContain('heading level jumps');
+    expect(findings).toContain('image without alt');
+    expect(findings).toContain('no navigation landmark');
+  });
+
+  test('structure: a labelled, well-formed page has no findings', async ({ page }) => {
+    await page.setContent(
+      '<html lang="en"><head><title>Fine</title></head><body><nav><a href="/x">Home</a></nav><main><h1>One</h1><h2>Two</h2>' +
+        '<label for="e">Email</label><input id="e"><button>Save</button></main></body></html>',
+    );
+    expect(await page.evaluate(structuralFindings)).toEqual([]);
   });
 });
