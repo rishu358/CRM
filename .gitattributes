@@ -1,0 +1,3 @@
+deploy/verify-managed-postgres.sh text eol=lf
+deploy/render-do-app-spec.sh text eol=lf
+deploy/check-app-connection.mjs text eol=lf
