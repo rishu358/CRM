@@ -77,11 +77,21 @@ export function AccountsPage() {
       return (
         <ErrorState
           title={t('accounts.error.title')}
-          description={t('accounts.error.description')}
+          description={
+            query.error.code === 'SEARCH_TIMEOUT'
+              ? t('list.searchTooBroad')
+              : t('accounts.error.description')
+          }
           action={
-            <Button variant="outline" onClick={() => void query.refetch()}>
-              {t('common.retry')}
-            </Button>
+            query.error.code === 'SEARCH_TIMEOUT' ? (
+              <Button variant="outline" onClick={() => setSearch('')}>
+                {t('common.clearSearch')}
+              </Button>
+            ) : (
+              <Button variant="outline" onClick={() => void query.refetch()}>
+                {t('common.retry')}
+              </Button>
+            )
           }
         />
       );

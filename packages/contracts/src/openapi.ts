@@ -72,6 +72,7 @@ const STATUS_BY_ERROR_CODE: Readonly<Record<ErrorCode, number>> = {
   [ErrorCode.RATE_LIMITED]: 429,
   [ErrorCode.INTERNAL]: 500,
   [ErrorCode.SERVICE_BUSY]: 503,
+  [ErrorCode.SEARCH_TIMEOUT]: 503,
 };
 
 /** A one-line gloss per status, so the document reads without the code table. */

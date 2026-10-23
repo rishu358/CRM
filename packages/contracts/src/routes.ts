@@ -322,7 +322,11 @@ function standardObjectRoutes(object: {
       summary: `List ${plural}`,
       description:
         'Keyset-paginated. `sort`, `filter` and `fields` are validated against the ' +
-        "tenant's field metadata, so a custom field is filterable the moment it exists.",
+        "tenant's field metadata, so a custom field is filterable the moment it exists. " +
+        '`q` matches whole words by their start, every word must match, and it only looks in ' +
+        'fields the caller may read (ADR-0041 §5). It narrows the list to at most the 300 ' +
+        'most recently updated matches; `meta.truncated` says when there were more. A search ' +
+        'that cannot be answered in time is a 503 `SEARCH_TIMEOUT`.',
       auth: 'session',
       query: object.listQuery,
       response: {
@@ -332,7 +336,7 @@ function standardObjectRoutes(object: {
         description: `A page of ${plural}.`,
         data: object.record,
       },
-      errors: [],
+      errors: [ErrorCode.SEARCH_TIMEOUT],
     },
     {
       method: 'GET',
@@ -1419,7 +1423,7 @@ const searchRoutes: RouteDefinition[] = [
       description: 'The best matches, already ranked.',
       data: searchResultSchema.array(),
     },
-    errors: [],
+    errors: [ErrorCode.SEARCH_TIMEOUT],
   },
 ];
 

@@ -17,6 +17,7 @@ import { and, eq, inArray, or, sql, type SQL } from 'drizzle-orm';
 import type { Tx } from '../client.js';
 import { constraintToSql } from '../record-scope.js';
 import { searchDocuments } from '../schema/search.js';
+import { DEFAULT_SEARCH_TIMEOUT_MS, withSearchTimeout } from './timeout.js';
 
 /**
  * Global search on Postgres: full-text, with pg_trgm behind it (ADR-0028).
@@ -45,7 +46,21 @@ import { searchDocuments } from '../schema/search.js';
  * would also quietly break the result count.
  */
 export class PostgresSearchProvider implements SearchProvider<Tx> {
-  async search(tx: Tx, request: SearchRequest): Promise<readonly SearchHit[]> {
+  /**
+   * @param statementTimeoutMs how long one search may run before it is refused with a
+   *   `SearchTimeoutError` (ADR-0041 §1). Only a test has a reason to change it.
+   */
+  constructor(private readonly options: { readonly statementTimeoutMs?: number } = {}) {}
+
+  private get timeoutMs(): number {
+    return this.options.statementTimeoutMs ?? DEFAULT_SEARCH_TIMEOUT_MS;
+  }
+
+  search(tx: Tx, request: SearchRequest): Promise<readonly SearchHit[]> {
+    return withSearchTimeout(tx, this.timeoutMs, (inner) => this.searchWithin(inner, request));
+  }
+
+  private async searchWithin(tx: Tx, request: SearchRequest): Promise<readonly SearchHit[]> {
     const terms = usableTerms(request.term);
     const scopes = request.scopes.filter((scope) => scope.fieldKeys.length > 0);
     if (terms.length === 0 || scopes.length === 0) return [];
@@ -72,7 +87,11 @@ export class PostgresSearchProvider implements SearchProvider<Tx> {
    * does. Both read at most `recordMatchDocumentCap` index rows, newest first, so the cost of a list's
    * search box is bounded by the cap and not by how many records a broad word matches.
    */
-  async matchRecordIds(tx: Tx, request: RecordMatchRequest): Promise<RecordMatches> {
+  matchRecordIds(tx: Tx, request: RecordMatchRequest): Promise<RecordMatches> {
+    return withSearchTimeout(tx, this.timeoutMs, (inner) => this.matchWithin(inner, request));
+  }
+
+  private async matchWithin(tx: Tx, request: RecordMatchRequest): Promise<RecordMatches> {
     const terms = usableTerms(request.term);
     if (terms.length === 0 || request.scope.fieldKeys.length === 0) {
       return { recordIds: [], truncated: false };

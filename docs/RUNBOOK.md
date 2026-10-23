@@ -16,13 +16,13 @@ Global search relies on two functions being marked `LEAKPROOF` (ADR-0028 §7), a
 can mark a function. Without them Postgres cannot use the search indexes under row-level security.
 Measured at a million contacts, with the marks removed:
 
-| Search | With the marks | Without |
-| --- | ---: | ---: |
-| A common surname (everyone) | 0.1 s | 0.1 s |
-| A rare term (everyone) | 0.3 s | **13.6 s** |
-| A typo (everyone) | 0.4 s | **31.6 s** |
-| A common surname (a rep) | 0.4 s | 0.4 s |
-| A typo (a rep) | 0.2 s | **6.0 s** |
+| Search                      | With the marks |    Without |
+| --------------------------- | -------------: | ---------: |
+| A common surname (everyone) |          0.1 s |      0.1 s |
+| A rare term (everyone)      |          0.3 s | **13.6 s** |
+| A typo (everyone)           |          0.4 s | **31.6 s** |
+| A common surname (a rep)    |          0.4 s |      0.4 s |
+| A typo (a rep)              |          0.2 s |  **6.0 s** |
 
 Most managed Postgres services (AWS RDS and Aurora, Google Cloud SQL, Azure Database, Supabase, Neon)
 do not give you a real superuser, and I have not verified that any of them lets you mark a function
@@ -39,13 +39,13 @@ Nothing else in the product needs a superuser. The migrations run as `crm_migrat
 
 ## 1. What runs where
 
-| Piece | Image target | Needs |
-| --- | --- | --- |
-| API | `api` | Postgres (`crm_app`, `crm_auth`), the object store, Resend, optionally Redis |
-| Worker | `worker` | Postgres (`crm_worker`, optionally `crm_erasure`), the object store, Resend |
-| Web | `web` | The API (private network) and nothing else |
-| Migrations | `migrate` | Postgres as `crm_migrator`. A one-shot job, not a service |
-| TLS and routing | Caddy (example) | Ports 80 and 443 |
+| Piece           | Image target    | Needs                                                                        |
+| --------------- | --------------- | ---------------------------------------------------------------------------- |
+| API             | `api`           | Postgres (`crm_app`, `crm_auth`), the object store, Resend, optionally Redis |
+| Worker          | `worker`        | Postgres (`crm_worker`, optionally `crm_erasure`), the object store, Resend  |
+| Web             | `web`           | The API (private network) and nothing else                                   |
+| Migrations      | `migrate`       | Postgres as `crm_migrator`. A one-shot job, not a service                    |
+| TLS and routing | Caddy (example) | Ports 80 and 443                                                             |
 
 Postgres 16, Redis and the object store are **managed services**, not containers in the compose file
 (CLAUDE.md §2). `deploy/docker-compose.prod.example.yml` shows one host's layout and is an example to
@@ -126,12 +126,12 @@ the past); disk on the database volume.
 
 **Objectives (MVP_SPEC §9):** RPO 15 minutes, RTO 4 hours.
 
-| Layer | What protects it | Recovers to |
-| --- | --- | --- |
-| Postgres | The provider's continuous archiving and point-in-time recovery, **plus** a daily logical dump (`pg_dump -Fc`) kept in a bucket in another account or region | Any second within the retention window (PITR); the last dump (logical) |
-| Object store | Bucket versioning and a lifecycle rule that keeps previous versions 30 days | A deleted or overwritten file |
-| Secrets | Your secret manager's own history | The previous value |
-| Configuration | This repository and the env file's source of truth | Any release |
+| Layer         | What protects it                                                                                                                                            | Recovers to                                                            |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| Postgres      | The provider's continuous archiving and point-in-time recovery, **plus** a daily logical dump (`pg_dump -Fc`) kept in a bucket in another account or region | Any second within the retention window (PITR); the last dump (logical) |
+| Object store  | Bucket versioning and a lifecycle rule that keeps previous versions 30 days                                                                                 | A deleted or overwritten file                                          |
+| Secrets       | Your secret manager's own history                                                                                                                           | The previous value                                                     |
+| Configuration | This repository and the env file's source of truth                                                                                                          | Any release                                                            |
 
 PITR is the provider's feature and is drilled through its console (restore to a new instance at a
 chosen time, point a staging stack at it, run the checks below). The logical dump is the one this
@@ -160,13 +160,13 @@ A failing check is a stop-ship for the restore procedure, not a note.
 2026-10-23, on the 1,000,000-contact database used for the load test (4.7 GB on disk, 5.6 million
 search rows, 1 million audit rows), Postgres 16.6 in Docker on a development laptop:
 
-| Step | Time |
-| --- | ---: |
-| `pg_dump -Fc` (421 MB file) | 73 s |
-| `pg_restore`, 4 parallel jobs | 247 s |
-| `ANALYZE` (a restore carries no planner statistics) | 22 s |
-| API start against the restored database | 10 s |
-| **Dump to serving traffic** | **about 6 minutes** |
+| Step                                                |                Time |
+| --------------------------------------------------- | ------------------: |
+| `pg_dump -Fc` (421 MB file)                         |                73 s |
+| `pg_restore`, 4 parallel jobs                       |               247 s |
+| `ANALYZE` (a restore carries no planner statistics) |                22 s |
+| API start against the restored database             |                10 s |
+| **Dump to serving traffic**                         | **about 6 minutes** |
 
 All 18 checks passed: row counts and checksums of every record table, RLS enabled and forced on all 35
 tables with a `tenant_id`, identical policies, grants, indexes, triggers and constraints, no role with
@@ -207,7 +207,7 @@ own wait for the API once misread a healthy API as down for seven minutes (a Win
 6. **Run the checks**: `deploy/backup-drill.sh` against the restored database, or at least: counts,
    `select count(*) from pg_class where relrowsecurity and relforcerowsecurity` (35 today), the
    migration count, and `select proname, proleakproof from pg_proc where proname in ('ts_match_vq',
-   'word_similarity_op')` (both `t`, or search is slow, §0).
+'word_similarity_op')` (both `t`, or search is slow, §0).
 7. **Point the apps at it** (change `DATABASE_*_URL`), start the worker first, then the API, then the
    web.
 8. **Nothing needs re-running**: unprocessed outbox events in the restored table are processed as the
@@ -243,13 +243,13 @@ of it between exposure and rotation.
 
 ## 7. Secrets and rotation
 
-| Secret | Held by | Rotating it |
-| --- | --- | --- |
-| `AUTH_SECRET` | API | **Signs everyone out** (cookies are signed with it) **and makes enrolled authenticator secrets unreadable** (MFA secrets are encrypted with it). Rotate only with a plan: announce it, and expect every MFA user to re-enrol. There is no dual-key rotation yet. |
-| Database passwords (five roles) | API, worker, migrate | `ALTER ROLE … PASSWORD`, update the env, restart. No downtime if done role by role behind a rolling restart. |
-| `RESEND_API_KEY` | API, worker | Create a new key in Resend, set it, restart, delete the old key. |
-| Object store keys | API, worker | Create a new key pair, set both, restart, delete the old pair. |
-| `GOOGLE_CLIENT_SECRET` | API | Rotate in the Google console, set, restart. |
+| Secret                          | Held by              | Rotating it                                                                                                                                                                                                                                                      |
+| ------------------------------- | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `AUTH_SECRET`                   | API                  | **Signs everyone out** (cookies are signed with it) **and makes enrolled authenticator secrets unreadable** (MFA secrets are encrypted with it). Rotate only with a plan: announce it, and expect every MFA user to re-enrol. There is no dual-key rotation yet. |
+| Database passwords (five roles) | API, worker, migrate | `ALTER ROLE … PASSWORD`, update the env, restart. No downtime if done role by role behind a rolling restart.                                                                                                                                                     |
+| `RESEND_API_KEY`                | API, worker          | Create a new key in Resend, set it, restart, delete the old key.                                                                                                                                                                                                 |
+| Object store keys               | API, worker          | Create a new key pair, set both, restart, delete the old pair.                                                                                                                                                                                                   |
+| `GOOGLE_CLIENT_SECRET`          | API                  | Rotate in the Google console, set, restart.                                                                                                                                                                                                                      |
 
 Never put a secret in the repository, an image layer, a log line or a ticket. The images contain no
 env file; `.dockerignore` and `.gitignore` both exclude them.

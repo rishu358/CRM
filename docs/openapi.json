@@ -482,7 +482,7 @@
         "tags": [
           "Accounts"
         ],
-        "description": "Keyset-paginated. `sort`, `filter` and `fields` are validated against the tenant's field metadata, so a custom field is filterable the moment it exists.",
+        "description": "Keyset-paginated. `sort`, `filter` and `fields` are validated against the tenant's field metadata, so a custom field is filterable the moment it exists. `q` matches whole words by their start, every word must match, and it only looks in fields the caller may read (ADR-0041 §5). It narrows the list to at most the 300 most recently updated matches; `meta.truncated` says when there were more. A search that cannot be answered in time is a 503 `SEARCH_TIMEOUT`.",
         "parameters": [
           {
             "name": "cursor",
@@ -615,7 +615,7 @@
             }
           },
           "503": {
-            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SEARCH_TIMEOUT`, `SERVICE_BUSY`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1074,7 +1074,7 @@
         "tags": [
           "Activities"
         ],
-        "description": "Keyset-paginated. `sort`, `filter` and `fields` are validated against the tenant's field metadata, so a custom field is filterable the moment it exists.",
+        "description": "Keyset-paginated. `sort`, `filter` and `fields` are validated against the tenant's field metadata, so a custom field is filterable the moment it exists. `q` matches whole words by their start, every word must match, and it only looks in fields the caller may read (ADR-0041 §5). It narrows the list to at most the 300 most recently updated matches; `meta.truncated` says when there were more. A search that cannot be answered in time is a 503 `SEARCH_TIMEOUT`.",
         "parameters": [
           {
             "name": "cursor",
@@ -1254,7 +1254,7 @@
             }
           },
           "503": {
-            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SEARCH_TIMEOUT`, `SERVICE_BUSY`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4363,7 +4363,7 @@
         "tags": [
           "Contacts"
         ],
-        "description": "Keyset-paginated. `sort`, `filter` and `fields` are validated against the tenant's field metadata, so a custom field is filterable the moment it exists.",
+        "description": "Keyset-paginated. `sort`, `filter` and `fields` are validated against the tenant's field metadata, so a custom field is filterable the moment it exists. `q` matches whole words by their start, every word must match, and it only looks in fields the caller may read (ADR-0041 §5). It narrows the list to at most the 300 most recently updated matches; `meta.truncated` says when there were more. A search that cannot be answered in time is a 503 `SEARCH_TIMEOUT`.",
         "parameters": [
           {
             "name": "cursor",
@@ -4496,7 +4496,7 @@
             }
           },
           "503": {
-            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SEARCH_TIMEOUT`, `SERVICE_BUSY`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -5686,7 +5686,7 @@
         "tags": [
           "Deals"
         ],
-        "description": "Keyset-paginated. `sort`, `filter` and `fields` are validated against the tenant's field metadata, so a custom field is filterable the moment it exists.",
+        "description": "Keyset-paginated. `sort`, `filter` and `fields` are validated against the tenant's field metadata, so a custom field is filterable the moment it exists. `q` matches whole words by their start, every word must match, and it only looks in fields the caller may read (ADR-0041 §5). It narrows the list to at most the 300 most recently updated matches; `meta.truncated` says when there were more. A search that cannot be answered in time is a 503 `SEARCH_TIMEOUT`.",
         "parameters": [
           {
             "name": "cursor",
@@ -5819,7 +5819,7 @@
             }
           },
           "503": {
-            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SEARCH_TIMEOUT`, `SERVICE_BUSY`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -8770,7 +8770,7 @@
         "tags": [
           "Leads"
         ],
-        "description": "Keyset-paginated. `sort`, `filter` and `fields` are validated against the tenant's field metadata, so a custom field is filterable the moment it exists.",
+        "description": "Keyset-paginated. `sort`, `filter` and `fields` are validated against the tenant's field metadata, so a custom field is filterable the moment it exists. `q` matches whole words by their start, every word must match, and it only looks in fields the caller may read (ADR-0041 §5). It narrows the list to at most the 300 most recently updated matches; `meta.truncated` says when there were more. A search that cannot be answered in time is a 503 `SEARCH_TIMEOUT`.",
         "parameters": [
           {
             "name": "cursor",
@@ -8903,7 +8903,7 @@
             }
           },
           "503": {
-            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SEARCH_TIMEOUT`, `SERVICE_BUSY`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -12409,7 +12409,7 @@
             }
           },
           "503": {
-            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SEARCH_TIMEOUT`, `SERVICE_BUSY`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -17347,6 +17347,9 @@
               },
               "hasMore": {
                 "type": "boolean"
+              },
+              "truncated": {
+                "type": "boolean"
               }
             },
             "required": [
@@ -17826,6 +17829,9 @@
               },
               "hasMore": {
                 "type": "boolean"
+              },
+              "truncated": {
+                "type": "boolean"
               }
             },
             "required": [
@@ -18091,6 +18097,9 @@
                 ]
               },
               "hasMore": {
+                "type": "boolean"
+              },
+              "truncated": {
                 "type": "boolean"
               }
             },
@@ -18587,6 +18596,9 @@
                 ]
               },
               "hasMore": {
+                "type": "boolean"
+              },
+              "truncated": {
                 "type": "boolean"
               }
             },
@@ -19090,6 +19102,9 @@
                 ]
               },
               "hasMore": {
+                "type": "boolean"
+              },
+              "truncated": {
                 "type": "boolean"
               }
             },
@@ -20436,6 +20451,9 @@
               },
               "hasMore": {
                 "type": "boolean"
+              },
+              "truncated": {
+                "type": "boolean"
               }
             },
             "required": [
@@ -20858,6 +20876,9 @@
                 ]
               },
               "hasMore": {
+                "type": "boolean"
+              },
+              "truncated": {
                 "type": "boolean"
               }
             },
@@ -22366,6 +22387,9 @@
                 ]
               },
               "hasMore": {
+                "type": "boolean"
+              },
+              "truncated": {
                 "type": "boolean"
               }
             },
@@ -24129,6 +24153,9 @@
               },
               "hasMore": {
                 "type": "boolean"
+              },
+              "truncated": {
+                "type": "boolean"
               }
             },
             "required": [
@@ -25801,6 +25828,9 @@
               "hasMore": {
                 "type": "boolean"
               },
+              "truncated": {
+                "type": "boolean"
+              },
               "unread": {
                 "type": "integer",
                 "minimum": 0,
@@ -26500,6 +26530,9 @@
                 ]
               },
               "hasMore": {
+                "type": "boolean"
+              },
+              "truncated": {
                 "type": "boolean"
               }
             },

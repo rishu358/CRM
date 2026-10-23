@@ -175,11 +175,18 @@ total=$(grep '^tenant_tables_total|' /tmp/drill-dst-rls.txt | cut -d'|' -f2)
 forced=$(grep '^rls_enabled_and_forced|' /tmp/drill-dst-rls.txt | cut -d'|' -f2)
 if [ -n "$total" ] && [ "$total" = "$forced" ]; then pass "row-level security is enabled and forced on all $total tables with a tenant_id"; else fail "RLS enabled+forced on $forced of $total tenant tables"; fi
 # A dump of a user database does not carry changes to built-in functions, so these two marks (which global
-# search cannot use its indexes without, ADR-0028 §7) exist in the restored database only because the
-# bootstrap script was applied to it. A restore that skips that step passes every other check and then
-# answers a rare search in thirteen seconds.
-leakproof=$(psql_drill -c "select count(*) from pg_proc where proname in ('ts_match_vq', 'word_similarity_op') and proleakproof")
-if [ "$leakproof" = "2" ]; then pass "the two search operators are marked LEAKPROOF in the restored database"; else fail "search operators are not LEAKPROOF after the restore ($leakproof of 2): apply the bootstrap script as a superuser"; fi
+# search is fast without only on a database that has them, ADR-0028 §7) exist in the restored database only
+# because the bootstrap script was applied to it. They are best effort (ADR-0041 §1): a database that cannot
+# have them still runs the product, just with slow rare and misspelled searches. So the drill demands them
+# of the restore exactly when the source has them, and says so when neither does.
+marks_sql="select count(*) from pg_proc where proname in ('ts_match_vq', 'word_similarity_op') and proleakproof"
+source_marks=$(psql_src -c "$marks_sql")
+leakproof=$(psql_drill -c "$marks_sql")
+if [ "$source_marks" = "2" ]; then
+  if [ "$leakproof" = "2" ]; then pass "the two search operators are marked LEAKPROOF in the restored database, as in the source"; else fail "the source has the LEAKPROOF marks and the restored database does not ($leakproof of 2): apply the bootstrap script"; fi
+else
+  echo "  note: the source database does not have the LEAKPROOF marks either (RUNBOOK section 0): search is slower on large companies, by design"
+fi
 bypass=$(psql_drill -c "select count(*) from pg_roles where rolname like 'crm\\_%' and (rolbypassrls or rolsuper)")
 if [ "$bypass" = "0" ]; then pass "no application role has BYPASSRLS or superuser"; else fail "$bypass application role(s) can bypass row-level security"; fi
 
