@@ -1,4 +1,5 @@
-import { createDbClient, PostgresSearchProvider, withTenant } from '@crm/db';
+import { assertConnectedRoles } from '@crm/core';
+import { createDbClient, PostgresSearchProvider, readPoolRole, withTenant } from '@crm/db';
 import { createStorageProvider } from '@crm/storage';
 import { pino } from 'pino';
 import { loadWorkerEnv, productionWarnings } from './env.js';
@@ -225,6 +226,25 @@ relay.on('erasure.requested.v1', runErasure(erasureDeps));
 relay.on('erasure.claimed.v1', runErasureRedaction(erasureDeps));
 relay.onExhausted('erasure.requested.v1', failErasureOnExhaustion(erasureDeps));
 relay.onExhausted('erasure.claimed.v1', failErasureOnExhaustion(erasureDeps));
+
+// In production, refuse to run as a role that can bypass row-level security (CLAUDE.md §5.1): the
+// administrative role of a managed database does, and the worker holds the widest reads we grant.
+// Development and tests run as the roles the bootstrap built and are not asked.
+if (env.NODE_ENV === 'production') {
+  try {
+    assertConnectedRoles({
+      [env.DATABASE_WORKER_URL === undefined ? 'DATABASE_URL' : 'DATABASE_WORKER_URL']:
+        await readPoolRole(client.pool),
+      ...(erasureClient === null
+        ? {}
+        : { DATABASE_ERASURE_URL: await readPoolRole(erasureClient.pool) }),
+    });
+  } catch (error) {
+    logger.fatal({ err: error }, 'Worker refused to start');
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    process.exit(1);
+  }
+}
 
 let running = true;
 

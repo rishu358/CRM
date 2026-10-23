@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
+  assertConnectedRoles,
   assertProductionConfig,
+  connectedRoleProblems,
   productionConfigProblems,
   type ProductionConfigInput,
 } from './production.js';
@@ -197,5 +199,51 @@ describe('production configuration', () => {
     expect(assertProductionConfig({ ...GOOD, redisUrl: undefined })).toHaveLength(1);
     expect(assertProductionConfig(GOOD)).toEqual([]);
     expect(() => assertProductionConfig({ nodeEnv: 'development' })).not.toThrow();
+  });
+});
+
+describe('the managed-database admin role', () => {
+  it('is refused by name, whatever its password', () => {
+    const report = productionConfigProblems({
+      ...GOOD,
+      databaseUrls: { DATABASE_URL: 'postgres://doadmin:Zk3pQ8vLm2Xr@db.example.io:25060/crm' },
+    });
+    expect(report.problems.join(' | ')).toContain(
+      'DATABASE_URL connects as the managed-database admin role',
+    );
+  });
+});
+
+describe('what the database says the connected role is', () => {
+  const app = { name: 'crm_app', superuser: false, bypassRls: false };
+
+  it('accepts a role that cannot bypass row-level security', () => {
+    expect(connectedRoleProblems('DATABASE_URL', app)).toEqual([]);
+    expect(() => assertConnectedRoles({ DATABASE_URL: app })).not.toThrow();
+  });
+
+  it('refuses BYPASSRLS, a superuser, and both, naming the variable and the role', () => {
+    expect(
+      connectedRoleProblems('DATABASE_URL', { ...app, name: 'doadmin', bypassRls: true }),
+    ).toEqual(['DATABASE_URL connects as role "doadmin", which has BYPASSRLS']);
+    expect(connectedRoleProblems('DATABASE_AUTH_URL', { ...app, superuser: true })).toEqual([
+      'DATABASE_AUTH_URL connects as role "crm_app", which is a superuser',
+    ]);
+    expect(
+      connectedRoleProblems('X', { name: 'postgres', superuser: true, bypassRls: true }),
+    ).toHaveLength(2);
+  });
+
+  it('reports every offending connection at once and nothing else', () => {
+    const attempt = () =>
+      assertConnectedRoles({
+        DATABASE_URL: app,
+        DATABASE_AUTH_URL: { name: 'doadmin', superuser: false, bypassRls: true },
+        DATABASE_WORKER_URL: { name: 'postgres', superuser: true, bypassRls: true },
+      });
+    expect(attempt).toThrow(/Refusing to start: a database connection can bypass/);
+    expect(attempt).toThrow(/DATABASE_AUTH_URL.*doadmin/);
+    expect(attempt).toThrow(/DATABASE_WORKER_URL.*postgres/);
+    expect(attempt).not.toThrow(/DATABASE_URL connects/);
   });
 });

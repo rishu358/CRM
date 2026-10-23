@@ -111,6 +111,12 @@ function checkDatabaseUrl(name: string, value: string, problems: string[]): void
   if (user === 'postgres' || user === 'root' || user === 'admin') {
     problems.push(`${name} connects as a superuser; it must be the role built for it`);
   }
+  // DigitalOcean's administrative role is not a superuser but it does bypass row-level security,
+  // which is the same hole. The name check is the cheap early catch; `connectedRoleProblems`
+  // asks the database what the role really is, whatever it is called.
+  if (user === 'doadmin') {
+    problems.push(`${name} connects as the managed-database admin role, which bypasses RLS`);
+  }
   if (password === '') problems.push(`${name} has no password`);
   if (/(_dev|dev_|^dev$|password|changeme)/i.test(password)) {
     problems.push(`${name} has a development password`);
@@ -193,6 +199,33 @@ export function productionConfigProblems(input: ProductionConfigInput): Producti
   return { problems, warnings };
 }
 
+/** What the database says about the role a connection runs as (`pg_roles`). */
+export interface ConnectedRole {
+  readonly name: string;
+  readonly superuser: boolean;
+  readonly bypassRls: boolean;
+}
+
+/**
+ * Reasons a runtime connection must not run as this role (CLAUDE.md §5.1).
+ *
+ * Row-level security is the tenant wall, and a role with BYPASSRLS or SUPERUSER walks through it
+ * without being stopped or logged. Managed Postgres makes this one typo away: the connection
+ * string the provider shows first is the administrative role (DigitalOcean's `doadmin` bypasses
+ * RLS). `checkDatabaseUrl` catches the name; this catches the fact, so a renamed or newly
+ * privileged role is refused too. Names the variable and the role, never a password or a URL.
+ */
+export function connectedRoleProblems(variable: string, role: ConnectedRole): readonly string[] {
+  const problems: string[] = [];
+  if (role.superuser) {
+    problems.push(`${variable} connects as role "${role.name}", which is a superuser`);
+  }
+  if (role.bypassRls) {
+    problems.push(`${variable} connects as role "${role.name}", which has BYPASSRLS`);
+  }
+  return problems;
+}
+
 /** Throws one error naming every problem, for an app to call before it listens. */
 export function assertProductionConfig(input: ProductionConfigInput): readonly string[] {
   const report = productionConfigProblems(input);
@@ -202,4 +235,19 @@ export function assertProductionConfig(input: ProductionConfigInput): readonly s
     );
   }
   return report.warnings;
+}
+
+/**
+ * Throws if any connection runs as a role that can bypass row-level security. `roles` is keyed by
+ * the variable that configured each connection, for the message.
+ */
+export function assertConnectedRoles(roles: Readonly<Record<string, ConnectedRole>>): void {
+  const problems = Object.entries(roles).flatMap(([variable, role]) =>
+    connectedRoleProblems(variable, role),
+  );
+  if (problems.length > 0) {
+    throw new Error(
+      `Refusing to start: a database connection can bypass row-level security:\n - ${problems.join('\n - ')}`,
+    );
+  }
 }

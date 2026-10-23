@@ -114,3 +114,29 @@ export function withoutTenant<T>(db: Database, work: (tx: Tx) => Promise<T>): Pr
 }
 
 export { schema };
+
+/** What the database says about the role a pool's connections run as. */
+export interface PoolRole {
+  readonly name: string;
+  readonly superuser: boolean;
+  readonly bypassRls: boolean;
+}
+
+/**
+ * Asks the server who this pool really is, for the startup check that refuses a role that can
+ * walk through row-level security (CLAUDE.md §5.1). It reads the catalog rather than trusting
+ * the connection string: the name in a URL says what someone meant, `pg_roles` says what the
+ * role can do. Touches no tenant data, so it needs no tenant context.
+ */
+export async function readPoolRole(pool: pg.Pool): Promise<PoolRole> {
+  const result = await pool.query<{ name: string; superuser: boolean; bypassrls: boolean }>(
+    `select r.rolname as name, r.rolsuper as superuser, r.rolbypassrls as bypassrls
+       from pg_roles r
+      where r.rolname = current_user`,
+  );
+  const row = result.rows[0];
+  // current_user always has a pg_roles row; an empty answer means we cannot say what we are, and
+  // not knowing is not a pass.
+  if (row === undefined) throw new Error('Could not read the connected database role');
+  return { name: row.name, superuser: row.superuser, bypassRls: row.bypassrls };
+}
