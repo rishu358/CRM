@@ -206,6 +206,9 @@ export function DealsPage() {
           }
         >
           {listed.length} {t('deals.count')}
+          {(list.data?.pages ?? []).some((page) => page.meta.truncated === true)
+            ? ` · ${t('list.truncated')}`
+            : ''}
         </ListFooter>
       </div>
     );

@@ -89,7 +89,7 @@ export const api = {
 
 export interface ListEnvelope<T> {
   readonly data: T[];
-  readonly meta: { nextCursor: string | null; hasMore: boolean };
+  readonly meta: { nextCursor: string | null; hasMore: boolean; truncated?: boolean };
 }
 
 export interface ItemEnvelope<T> {

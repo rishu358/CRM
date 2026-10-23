@@ -81,9 +81,26 @@ CREATE EXTENSION IF NOT EXISTS btree_gin;
 -- Superuser-only, which is why it lives here and not in a migration:
 -- crm_migrator is deliberately not a superuser and does not own these
 -- functions. Idempotent, like everything else in this file.
+--
+-- BEST EFFORT, NOT REQUIRED (ADR-0041 §1). Most managed Postgres services do
+-- not give the customer a real superuser, and a database that cannot run these
+-- two statements must still be able to run the product. Search then works but
+-- reads far more of the index: measured at a million contacts, a rare or
+-- misspelled term took 13 to 31 seconds instead of under half a second. The
+-- statements are therefore wrapped so that a missing privilege is a loud
+-- warning, not a failed bootstrap, and the remedy is to move search to an
+-- engine behind `SearchProvider` rather than to ask for a more privileged
+-- database. docs/RUNBOOK.md section 0 has the numbers.
 -- ---------------------------------------------------------------------------
-ALTER FUNCTION ts_match_vq(tsvector, tsquery) LEAKPROOF;
-ALTER FUNCTION word_similarity_op(text, text) LEAKPROOF;
+DO $$
+BEGIN
+  ALTER FUNCTION ts_match_vq(tsvector, tsquery) LEAKPROOF;
+  ALTER FUNCTION word_similarity_op(text, text) LEAKPROOF;
+EXCEPTION
+  WHEN insufficient_privilege THEN
+    RAISE WARNING 'Could not mark ts_match_vq and word_similarity_op LEAKPROOF (this needs a superuser). Search still works, but rare-term and typo searches will be slow on large companies. See docs/RUNBOOK.md section 0.';
+END
+$$;
 
 DO $$
 DECLARE

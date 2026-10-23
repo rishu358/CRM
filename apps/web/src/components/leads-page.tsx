@@ -120,6 +120,9 @@ export function LeadsPage() {
           }
         >
           {leads.length} {t('leads.count')}
+          {(query.data?.pages ?? []).some((page) => page.meta.truncated === true)
+            ? ` · ${t('list.truncated')}`
+            : ''}
         </ListFooter>
       </div>
     );

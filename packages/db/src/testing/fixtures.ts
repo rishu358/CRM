@@ -564,7 +564,8 @@ export class Fixtures {
         options.ownerId ?? null,
         options.firstName ?? null,
         options.lastName ?? 'Sharma',
-        options.email ?? null,
+        // Lower case, as the contracts have always made it: migration 0020 makes the column refuse anything else.
+        options.email?.toLowerCase() ?? null,
         options.phone ?? null,
         options.accountId ?? null,
         JSON.stringify(options.customFields ?? {}),
@@ -612,7 +613,8 @@ export class Fixtures {
         options.firstName ?? null,
         options.lastName ?? 'Verma',
         options.company ?? null,
-        options.email ?? null,
+        // As above.
+        options.email?.toLowerCase() ?? null,
         options.phone ?? null,
         options.source ?? null,
         options.status ?? 'new',

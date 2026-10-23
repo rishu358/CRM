@@ -144,6 +144,9 @@ export function AccountsPage() {
           }
         >
           {accounts.length} {t('accounts.count')}
+          {(query.data?.pages ?? []).some((page) => page.meta.truncated === true)
+            ? ` · ${t('list.truncated')}`
+            : ''}
         </ListFooter>
       </div>
     );
