@@ -157,11 +157,21 @@ export function DealsPage() {
       return (
         <ErrorState
           title={t('deals.error.title')}
-          description={t('deals.error.description')}
+          description={
+            list.error.code === 'SEARCH_TIMEOUT'
+              ? t('list.searchTooBroad')
+              : t('deals.error.description')
+          }
           action={
-            <Button variant="outline" onClick={() => void list.refetch()}>
-              {t('common.retry')}
-            </Button>
+            list.error.code === 'SEARCH_TIMEOUT' ? (
+              <Button variant="outline" onClick={() => setSearch('')}>
+                {t('common.clearSearch')}
+              </Button>
+            ) : (
+              <Button variant="outline" onClick={() => void list.refetch()}>
+                {t('common.retry')}
+              </Button>
+            )
           }
         />
       );
@@ -206,6 +216,9 @@ export function DealsPage() {
           }
         >
           {listed.length} {t('deals.count')}
+          {(list.data?.pages ?? []).some((page) => page.meta.truncated === true)
+            ? ` · ${t('list.truncated')}`
+            : ''}
         </ListFooter>
       </div>
     );

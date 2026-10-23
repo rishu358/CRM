@@ -1,4 +1,4 @@
-import { newId } from '@crm/core';
+import { newId, type Uuid } from '@crm/core';
 import {
   createDbClient,
   exportJobs,
@@ -12,6 +12,8 @@ import {
   type ImportDuplicateMode,
   type ImportJob,
   type ImportMappingEntry,
+  PostgresSearchProvider,
+  reindexTenant,
 } from '@crm/db';
 import { provisionAsApp } from './provision.js';
 import { Fixtures, typedPool, type TestDbUrls, type TypedPool } from '@crm/db/testing';
@@ -98,6 +100,8 @@ export interface WorkerHarness {
   /** The text of a stored file, minus a leading BOM. */
   readText(key: string): string;
   contactsOf(tenantId?: string): Promise<Record<string, unknown>[]>;
+  /** Index what the fixtures wrote straight into the tables: a searched export reads the index (ADR-0041 §5). */
+  indexForSearch(tenantId?: string): Promise<number>;
   close(): Promise<void>;
 }
 
@@ -127,7 +131,7 @@ export async function startImportHarness(
   const provisioned = await provisionAsApp(urls.app, tenantId);
   const roleIds = provisioned.roleIdsByName;
 
-  const deps = { db: db.db, storage, logger };
+  const deps = { db: db.db, storage, search: new PostgresSearchProvider(), logger };
   const relay = new OutboxRelay(db.db, { logger, batchSize: 100 })
     .on('import.uploaded.v1', analyzeImport(deps))
     .on('import.started.v1', stageImport(deps))
@@ -166,6 +170,11 @@ export async function startImportHarness(
     relay,
     tenantId,
     roleIds,
+
+    indexForSearch: (target = tenantId) =>
+      withTenant(db.db, { tenantId: target, userId: null }, (tx) =>
+        reindexTenant(tx, target as Uuid, new PostgresSearchProvider()),
+      ),
 
     async user(roleName) {
       const roleId = roleIds.get(roleName);

@@ -77,6 +77,18 @@ export const ErrorCode = {
    * `FORBIDDEN`: they may edit roles, just not beyond their own reach (ADR-0033).
    */
   PERMISSION_ESCALATION: 'PERMISSION_ESCALATION',
+  /**
+   * The service is at capacity and could not take this request in time (every database
+   * connection was busy). Nothing is wrong with the request: the client waits (see
+   * `Retry-After`) and tries again, rather than reporting a failure or giving up.
+   */
+  SERVICE_BUSY: 'SERVICE_BUSY',
+  /**
+   * A search could not be answered within its time limit (ADR-0041 §1). Nothing is wrong with the
+   * request and waiting will not help: the client asks the person for a more specific search.
+   * Distinct from `SERVICE_BUSY`, whose remedy is to wait.
+   */
+  SEARCH_TIMEOUT: 'SEARCH_TIMEOUT',
   /** Unexpected failure. Details are logged, never returned. */
   INTERNAL: 'INTERNAL',
 } as const;
@@ -160,6 +172,16 @@ export class DuplicateRecordsError extends DomainError {
       'This looks like a record that already exists. Link to it, or confirm you want a new one.',
       409,
       details,
+    );
+  }
+}
+
+export class SearchTimeoutError extends DomainError {
+  constructor() {
+    super(
+      ErrorCode.SEARCH_TIMEOUT,
+      'That search is too broad to answer quickly. Try a more specific search.',
+      503,
     );
   }
 }

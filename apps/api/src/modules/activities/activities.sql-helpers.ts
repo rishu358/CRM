@@ -1,7 +1,7 @@
 import { ValidationError, type FieldDefinition, type RecordConstraint } from '@crm/core';
 import { sortableFieldKeys } from '@crm/core';
 import type { FilterOperator, ParsedFilter } from '@crm/contracts';
-import { activities, and, eq, inArray, isNull, or, sql, type SQL } from '@crm/db';
+import { activities, and, eq, inArray, isNull, sql, type SQL } from '@crm/db';
 import { constraintToSql as scopeToSql } from '../../common/record-scope.js';
 
 /**
@@ -128,11 +128,6 @@ export function filterToSql(filter: ParsedFilter, fields: readonly FieldDefiniti
  * wrong and slow. A proper body search belongs to the search provider
  * (MVP_SPEC M7), which indexes the extracted text.
  */
-export function searchToSql(term: string): SQL {
-  const pattern = `%${escapeLikePattern(term)}%`;
-  return or(sql`${activities.subject} ilike ${pattern} escape ${LIKE_ESCAPE}`)!;
-}
-
 /** Live records only. Soft-deleted rows live in the Recycle Bin. */
 export function notDeleted(): SQL {
   return isNull(activities.deletedAt);

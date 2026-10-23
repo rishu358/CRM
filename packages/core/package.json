@@ -31,6 +31,10 @@
       "types": "./dist/html/index.d.ts",
       "default": "./dist/html/index.js"
     },
+    "./search-contract": {
+      "types": "./dist/search/provider-contract.d.ts",
+      "default": "./dist/search/provider-contract.js"
+    },
     "./email": {
       "types": "./dist/email/index.d.ts",
       "default": "./dist/email/index.js"

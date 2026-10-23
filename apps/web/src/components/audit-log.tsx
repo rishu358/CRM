@@ -5,11 +5,11 @@ import {
   Button,
   Card,
   CardBody,
-  CardHeader,
   EmptyState,
   ErrorState,
   Input,
   NoPermissionState,
+  PageHeader,
   Select,
   Skeleton,
 } from '@crm/ui';
@@ -112,9 +112,9 @@ export function AuditLog() {
 
   return (
     <div className="space-y-4">
-      <Card>
-        <CardHeader title={t('audit.title')} description={t('audit.description')} />
+      <PageHeader title={t('audit.title')} description={t('audit.description')} />
 
+      <Card>
         {forbidden ? (
           <CardBody>
             <NoPermissionState

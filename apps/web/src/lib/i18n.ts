@@ -22,6 +22,11 @@ export const en = {
   'accounts.new': 'New account',
   'accounts.search': 'Search accounts',
   'accounts.searchPlaceholder': 'Name, domain, email or phone',
+  // A list's search matches whole words by their start, so `deep` finds Deepak but `eep` does not.
+  'list.searchTooBroad':
+    'That search is too broad to answer quickly. Try a more specific search, or clear it.',
+  'list.truncated':
+    'Showing the most recently updated matches only. Type more of the name to narrow it.',
   'accounts.empty.title': 'No accounts yet',
   'accounts.empty.description':
     'Accounts are the companies you sell to. Add your first one, or import a list.',

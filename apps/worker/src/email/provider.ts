@@ -1,4 +1,5 @@
 import type { EmailMessage, EmailProvider } from '@crm/core';
+import { createResendEmailProvider } from '@crm/outbound';
 import type { Logger } from 'pino';
 
 /**
@@ -51,11 +52,22 @@ export class MemoryEmailProvider implements EmailProvider {
   }
 }
 
-export function createEmailProvider(
-  kind: 'console' | 'memory',
-  nodeEnv: string,
-  logger: Logger,
-): EmailProvider {
+export interface EmailProviderConfig {
+  readonly kind: 'console' | 'memory' | 'resend';
+  readonly nodeEnv: string;
+  readonly logger: Logger;
+  readonly resendApiKey?: string | undefined;
+  readonly from: string;
+}
+
+export function createEmailProvider(config: EmailProviderConfig): EmailProvider {
+  const { kind, nodeEnv, logger } = config;
+  if (kind === 'resend') {
+    if (config.resendApiKey === undefined || config.resendApiKey === '') {
+      throw new Error('EMAIL_PROVIDER=resend requires RESEND_API_KEY');
+    }
+    return createResendEmailProvider({ apiKey: config.resendApiKey, from: config.from });
+  }
   if (nodeEnv === 'production') {
     throw new Error(
       `EMAIL_PROVIDER=${kind} cannot be used in production: digests would be ` +

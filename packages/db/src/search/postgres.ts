@@ -6,6 +6,8 @@ import {
   type SearchHit,
   type SearchObjectScope,
   type SearchProvider,
+  type RecordMatches,
+  type RecordMatchRequest,
   type SearchRecordRef,
   type SearchRequest,
   type SearchableObjectType,
@@ -15,6 +17,7 @@ import { and, eq, inArray, or, sql, type SQL } from 'drizzle-orm';
 import type { Tx } from '../client.js';
 import { constraintToSql } from '../record-scope.js';
 import { searchDocuments } from '../schema/search.js';
+import { DEFAULT_SEARCH_TIMEOUT_MS, withSearchTimeout } from './timeout.js';
 
 /**
  * Global search on Postgres: full-text, with pg_trgm behind it (ADR-0028).
@@ -43,7 +46,21 @@ import { searchDocuments } from '../schema/search.js';
  * would also quietly break the result count.
  */
 export class PostgresSearchProvider implements SearchProvider<Tx> {
-  async search(tx: Tx, request: SearchRequest): Promise<readonly SearchHit[]> {
+  /**
+   * @param statementTimeoutMs how long one search may run before it is refused with a
+   *   `SearchTimeoutError` (ADR-0041 §1). Only a test has a reason to change it.
+   */
+  constructor(private readonly options: { readonly statementTimeoutMs?: number } = {}) {}
+
+  private get timeoutMs(): number {
+    return this.options.statementTimeoutMs ?? DEFAULT_SEARCH_TIMEOUT_MS;
+  }
+
+  search(tx: Tx, request: SearchRequest): Promise<readonly SearchHit[]> {
+    return withSearchTimeout(tx, this.timeoutMs, (inner) => this.searchWithin(inner, request));
+  }
+
+  private async searchWithin(tx: Tx, request: SearchRequest): Promise<readonly SearchHit[]> {
     const terms = usableTerms(request.term);
     const scopes = request.scopes.filter((scope) => scope.fieldKeys.length > 0);
     if (terms.length === 0 || scopes.length === 0) return [];
@@ -61,6 +78,47 @@ export class PostgresSearchProvider implements SearchProvider<Tx> {
 
     const seen = new Set(matched.map((hit) => keyOf(hit)));
     return [...matched, ...fuzzy.filter((hit) => !seen.has(keyOf(hit)))].slice(0, request.limit);
+  }
+
+  /**
+   * The records of one object type matching every word of the query, newest first (ADR-0041 §5).
+   *
+   * Exact first; typo-tolerant only when nothing matched exactly, on the longest word, as the palette
+   * does. Both read at most `recordMatchDocumentCap` index rows, newest first, so the cost of a list's
+   * search box is bounded by the cap and not by how many records a broad word matches.
+   */
+  matchRecordIds(tx: Tx, request: RecordMatchRequest): Promise<RecordMatches> {
+    return withSearchTimeout(tx, this.timeoutMs, (inner) => this.matchWithin(inner, request));
+  }
+
+  private async matchWithin(tx: Tx, request: RecordMatchRequest): Promise<RecordMatches> {
+    const terms = usableTerms(request.term);
+    if (terms.length === 0 || request.scope.fieldKeys.length === 0) {
+      return { recordIds: [], truncated: false };
+    }
+    const visible = visibilityPredicate([request.scope]);
+    const cap = recordMatchDocumentCap(request.limit);
+
+    const exact = toMatches(
+      await tx.execute(recordMatchStatement(request.tenantId, terms, visible, request.limit, cap)),
+      request.limit,
+      cap,
+    );
+    if (exact.recordIds.length > 0 || exact.truncated) return exact;
+
+    return toMatches(
+      await tx.execute(
+        recordFuzzyMatchStatement(
+          request.tenantId,
+          longestTerm(terms),
+          visible,
+          request.limit,
+          cap,
+        ),
+      ),
+      request.limit,
+      cap,
+    );
   }
 
   /**
@@ -160,6 +218,35 @@ export class PostgresSearchProvider implements SearchProvider<Tx> {
 }
 
 /**
+ * How many matching index rows are ranked, at most (ADR-0028 §4, ADR-0041 §4).
+ *
+ * The cost of a search used to be proportional to **how many rows match**, not to how big the
+ * tenant is: every match had to be fetched from the heap and ranked before the best ten could be
+ * known. A surname shared by one record in sixty matches sixty-seven thousand rows at a million
+ * contacts, and measured that took 3 to 6 seconds, which is not a slow search but one that ties up
+ * a database connection long enough to starve everything else.
+ *
+ * So the matches are taken in order of `record_updated_at`, newest first, from an index in that
+ * order (`search_documents_recent_idx`), and only the first `SEARCH_CANDIDATE_CAP` are ranked.
+ * What that changes, and what it does not:
+ *
+ *   - A term that matches fewer rows than this (any selective term, which is nearly every query a
+ *     person types after a second keystroke) is **unchanged**: the planner still reads the
+ *     full-text index for it, and every match is ranked.
+ *   - A term that matches more is ranked among its most recently updated matches. For a broad term
+ *     nearly all matches rank alike, so "the best ten" was "the ten most recent of the best
+ *     weight" anyway; what is given up is an older, higher-weighted match beating a newer,
+ *     lower-weighted one. Typing a little more narrows it, and a palette is for exactly that.
+ *   - The cap applies **after** the visibility predicate (it is part of the same WHERE), so it
+ *     counts only rows the caller may see: a cap cannot be filled, or learned about, through rows
+ *     they may not.
+ *
+ * Six hundred is a few pages of a palette's worth of candidates: well above the ten that are shown
+ * and the handful of fields each record can match in, well below the thousands that cost seconds.
+ */
+export const SEARCH_CANDIDATE_CAP = 600;
+
+/**
  * The full-text statement, exported so a performance test can `EXPLAIN` the
  * exact query the provider runs rather than a hand-written lookalike.
  *
@@ -199,6 +286,8 @@ export function fullTextStatement(
       where tenant_id = ${tenantId}::uuid
         and search_vector @@ to_tsquery('simple', ${query})
         and (${visible})
+      order by record_updated_at desc, id desc
+      limit ${SEARCH_CANDIDATE_CAP}
     )
     select object_type,
            record_id,
@@ -226,21 +315,134 @@ export function fullTextStatement(
  */
 export function fuzzyStatement(tenantId: string, term: string, visible: SQL, limit: number): SQL {
   return sql`
+    with hits as (
+      select object_type,
+             record_id,
+             field_key,
+             value,
+             record_updated_at,
+             word_similarity(${term}, value) as similarity
+      from search_documents
+      where tenant_id = ${tenantId}::uuid
+        and ${term} <% value
+        and (${visible})
+      order by record_updated_at desc, id desc
+      limit ${SEARCH_CANDIDATE_CAP}
+    )
     select object_type,
            record_id,
-           max(word_similarity(${term}, value))::float8 as score,
-           (array_agg(field_key order by word_similarity(${term}, value) desc, field_key))[1]
-             as matched_field_key,
-           (array_agg(value order by word_similarity(${term}, value) desc, field_key))[1]
-             as matched_value
-    from search_documents
-    where tenant_id = ${tenantId}::uuid
-      and ${term} <% value
-      and (${visible})
+           max(similarity)::float8 as score,
+           (array_agg(field_key order by similarity desc, field_key))[1] as matched_field_key,
+           (array_agg(value order by similarity desc, field_key))[1] as matched_value
+    from hits
     group by object_type, record_id
     order by score desc, max(record_updated_at) desc, record_id desc
     limit ${limit}
   `;
+}
+
+/**
+ * How many index rows are read to find `limit` records. A record can match through several fields
+ * (a name in two columns, an address), so more rows than records are read; three per record covers
+ * every real shape without turning the cap back into a scan.
+ */
+export function recordMatchDocumentCap(limit: number): number {
+  return (limit + 1) * 3;
+}
+
+/**
+ * The records of one object type that match every word, newest first.
+ *
+ * The inner query is the one the palette uses for a broad term: the matching rows in
+ * `record_updated_at` order, taken from `search_documents_recent_idx` and stopped at the cap. A
+ * record has one row per field, so "john smith" has `john` in one row and `smith` in another and no
+ * row holds both; each row therefore carries which words it matched, and a record is kept when its
+ * rows between them matched them all.
+ *
+ * It always returns one row: the ids, and how many index rows were read. The count is how the caller
+ * knows the cap was reached, which it cannot learn from an empty list of ids.
+ */
+export function recordMatchStatement(
+  tenantId: string,
+  terms: readonly string[],
+  visible: SQL,
+  limit: number,
+  documentCap: number,
+): SQL {
+  const any = terms.map((term) => `${term}:*`).join(' | ');
+  const flags = sql.join(
+    terms.map(
+      (term, index) =>
+        sql`(search_vector @@ to_tsquery('simple', ${`${term}:*`})) as ${sql.raw(`m${String(index)}`)}`,
+    ),
+    sql`, `,
+  );
+  const all = sql.join(
+    terms.map((_term, index) => sql.raw(`bool_or(m${String(index)})`)),
+    sql` and `,
+  );
+
+  return sql`
+    with hits as (
+      select record_id, record_updated_at, id, ${flags}
+      from search_documents
+      where tenant_id = ${tenantId}::uuid
+        and search_vector @@ to_tsquery('simple', ${any})
+        and (${visible})
+      order by record_updated_at desc, id desc
+      limit ${documentCap}
+    ), matched as (
+      select record_id, max(record_updated_at) as updated
+      from hits
+      group by record_id
+      having ${all}
+      order by max(record_updated_at) desc, record_id desc
+      limit ${limit + 1}
+    )
+    select (select coalesce(array_agg(record_id order by updated desc, record_id desc), '{}'::uuid[])
+            from matched) as ids,
+           (select count(*)::int from hits) as candidates
+  `;
+}
+
+/** The typo-tolerant version, for one word, used only when nothing matched exactly. */
+export function recordFuzzyMatchStatement(
+  tenantId: string,
+  term: string,
+  visible: SQL,
+  limit: number,
+  documentCap: number,
+): SQL {
+  return sql`
+    with hits as (
+      select record_id, record_updated_at, id
+      from search_documents
+      where tenant_id = ${tenantId}::uuid
+        and ${term} <% value
+        and (${visible})
+      order by record_updated_at desc, id desc
+      limit ${documentCap}
+    ), matched as (
+      select record_id, max(record_updated_at) as updated
+      from hits
+      group by record_id
+      order by max(record_updated_at) desc, record_id desc
+      limit ${limit + 1}
+    )
+    select (select coalesce(array_agg(record_id order by updated desc, record_id desc), '{}'::uuid[])
+            from matched) as ids,
+           (select count(*)::int from hits) as candidates
+  `;
+}
+
+function toMatches(result: { rows: unknown[] }, limit: number, documentCap: number): RecordMatches {
+  const row = result.rows[0] as { ids: string[] | null; candidates: number } | undefined;
+  const ids = row?.ids ?? [];
+  return {
+    recordIds: ids.slice(0, limit) as Uuid[],
+    // More records than asked for, or the cap on rows read was reached (so there may be more).
+    truncated: ids.length > limit || (row?.candidates ?? 0) >= documentCap,
+  };
 }
 
 /**
@@ -274,7 +476,23 @@ export function visibilityPredicate(scopes: readonly SearchObjectScope[]): SQL {
   // `false` cannot happen — the caller drops an empty scope list — but a
   // predicate that defaults to "everything" if this were ever reached is not
   // a mistake worth leaving available.
-  return blocks.length === 0 ? sql`false` : or(...blocks)!;
+  if (blocks.length === 0) return sql`false`;
+  const any = or(...blocks)!;
+
+  // When every block is the same person's own records (a rep, on every object they may search),
+  // say so once, outside the OR as well as inside it. The result is identical, but only a condition
+  // at the top level can become an index condition: `search_documents_fts_idx` and
+  // `search_documents_trgm_idx` lead with `(tenant_id, owner_id)`, so a rep's search reads the
+  // rep's rows, a fortieth of the tenant, instead of fetching every match and discarding most of
+  // them (migration 0021, ADR-0041).
+  const owners = new Set<string>();
+  for (const scope of scopes) {
+    if (scope.constraint.kind === 'own') owners.add(scope.constraint.userId);
+    else return any;
+  }
+  const [only] = [...owners];
+  if (owners.size !== 1 || only === undefined) return any;
+  return sql`(${searchDocuments.ownerId} = ${only}::uuid and ${any})`;
 }
 
 /** Terms long enough to be worth an index probe. */

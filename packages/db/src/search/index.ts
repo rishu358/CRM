@@ -15,3 +15,5 @@ export {
 } from './postgres.js';
 export { buildSearchDocuments, liveRecordIds, MAX_INDEXED_VALUE_LENGTH } from './documents.js';
 export { reindexTenant } from './reindex.js';
+export { SEARCH_CANDIDATE_CAP } from './postgres.js';
+export { DEFAULT_SEARCH_TIMEOUT_MS, withSearchTimeout } from './timeout.js';

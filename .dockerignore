@@ -1,0 +1,23 @@
+# Keep the build context to what the build needs. Anything listed here never reaches an image
+# layer, which is the point for the first four: a secret or a repository history copied into a
+# layer is in the image for good (CLAUDE.md §5.8).
+.git
+.claude
+.env
+.env.*
+!.env.example
+
+node_modules
+**/node_modules
+**/dist
+**/.next
+**/.turbo
+**/coverage
+**/test-results
+**/playwright-report
+**/*.tsbuildinfo
+
+# Tests, tooling and notes the runtime does not read.
+**/e2e
+docs
+deploy/*.md

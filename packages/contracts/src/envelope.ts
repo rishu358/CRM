@@ -36,6 +36,12 @@ export const listMetaSchema = z.object({
    */
   nextCursor: z.string().nullable(),
   hasMore: z.boolean(),
+  /**
+   * Present, and true, only when the request had a search (`q`) and more records matched than a
+   * search may return (ADR-0041 §5). The list is then the most recently updated matches, not all of
+   * them; a client says so rather than letting the first few hundred pass for everything.
+   */
+  truncated: z.boolean().optional(),
 });
 
 export type ListMeta = z.infer<typeof listMetaSchema>;

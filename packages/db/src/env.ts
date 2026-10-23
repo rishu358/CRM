@@ -30,3 +30,15 @@ export function loadDbEnv(source: NodeJS.ProcessEnv = process.env): DbEnv {
   }
   return parsed.data;
 }
+
+/**
+ * Load-test tooling only (`src/perf`): a superuser connection to a **scratch** database, which
+ * the seed refuses to use unless its name says it is one. Kept out of `DbEnv` so no service ever
+ * sees, or can be configured with, a superuser URL.
+ */
+export function loadPerfEnv(source: NodeJS.ProcessEnv = process.env): {
+  adminUrl: string | undefined;
+} {
+  const value = source['PERF_ADMIN_URL'];
+  return { adminUrl: value === undefined || value === '' ? undefined : value };
+}

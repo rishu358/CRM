@@ -23,8 +23,11 @@ export function QueryProvider({ children }: { children: ReactNode }) {
             refetchOnWindowFocus: true,
             retry: (failureCount, error) => {
               // Retrying an authorization failure cannot succeed, and retrying
-              // a validation error just repeats the same rejection.
+              // a validation error just repeats the same rejection. A search that timed out
+              // will time out again, and each attempt holds a database connection for the
+              // whole limit (ADR-0041 §1).
               if (error instanceof ApiRequestError && error.status < 500) return false;
+              if (error instanceof ApiRequestError && error.code === 'SEARCH_TIMEOUT') return false;
               return failureCount < 2;
             },
           },

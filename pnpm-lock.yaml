@@ -53,6 +53,9 @@ importers:
       '@crm/db':
         specifier: workspace:^
         version: link:../../packages/db
+      '@crm/outbound':
+        specifier: workspace:^
+        version: link:../../packages/outbound
       '@crm/storage':
         specifier: workspace:^
         version: link:../../packages/storage
@@ -162,6 +165,9 @@ importers:
       '@tanstack/react-table':
         specifier: ^8.21.3
         version: 8.21.3(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+      dotenv:
+        specifier: ^18.0.8
+        version: 18.0.8
       next:
         specifier: '16'
         version: 16.4.2(@playwright/test@1.64.1)(@types/node@26.6.5)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
@@ -202,9 +208,6 @@ importers:
       autoprefixer:
         specifier: ^10.6.1
         version: 10.6.1(postcss@8.5.30)
-      dotenv:
-        specifier: ^18.0.8
-        version: 18.0.8
       postcss:
         specifier: ^8.5.30
         version: 8.5.30
@@ -229,6 +232,9 @@ importers:
       '@crm/db':
         specifier: workspace:^
         version: link:../../packages/db
+      '@crm/outbound':
+        specifier: workspace:^
+        version: link:../../packages/outbound
       '@crm/storage':
         specifier: workspace:^
         version: link:../../packages/storage
@@ -356,6 +362,9 @@ importers:
       '@better-auth/utils':
         specifier: 0.5.0
         version: 0.5.0
+      '@crm/core':
+        specifier: workspace:^
+        version: link:../core
       dotenv:
         specifier: ^18.0.8
         version: 18.0.8
@@ -372,9 +381,6 @@ importers:
       '@crm/config':
         specifier: workspace:^
         version: link:../config
-      '@crm/core':
-        specifier: workspace:^
-        version: link:../core
       '@testcontainers/postgresql':
         specifier: ^12.2.1
         version: 12.2.1
@@ -430,6 +436,9 @@ importers:
       '@aws-sdk/s3-request-presigner':
         specifier: ^3.726.1
         version: 3.1152.0
+      '@crm/core':
+        specifier: workspace:^
+        version: link:../core
       zod:
         specifier: ^4.6.7
         version: 4.6.7
@@ -437,9 +446,6 @@ importers:
       '@crm/config':
         specifier: workspace:^
         version: link:../config
-      '@crm/core':
-        specifier: workspace:^
-        version: link:../core
       '@types/node':
         specifier: ^26.6.5
         version: 26.6.5

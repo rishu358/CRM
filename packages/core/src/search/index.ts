@@ -246,6 +246,61 @@ export interface SearchHit {
 }
 
 /**
+ * Which records of one object type match a typed query, for a list or an export to narrow itself to
+ * (ADR-0041 §5).
+ *
+ * The palette wants the best few hits across everything; a list's search box wants **the records of
+ * this one object that match**, so the list can then apply its own sort, filters, scope and paging to
+ * them. Asking the engine for ids and letting the list do the rest is what keeps the list working
+ * whichever engine is underneath: a join between a list's table and an index only exists while the
+ * index is in the same database.
+ *
+ * The meaning, which every implementation must give (the conformance suite in
+ * `./provider-contract.ts` checks it):
+ *
+ *   - **Every word must match.** A record matches when each word of the query is the start of a word
+ *     in one of the fields the caller may read, and different words may match in different fields:
+ *     "john smith" finds the record with `john` in `first_name` and `smith` in `last_name`.
+ *   - **A word is a prefix**, so results appear as somebody types. A word does not *exactly* match in
+ *     the middle of another word: `ndeep` does not find `Sandeep` when anything else matches. (This
+ *     replaced a substring match, which could not be indexed under row-level security. When nothing
+ *     matches, typo tolerance may still bring such a record in: the Postgres provider's fuzzy pass
+ *     does, because `ndeep` is within a typo of `sandeep`.)
+ *   - **The four scoping rules apply while selecting**, exactly as for `search`: tenant, record scope,
+ *     field permissions, soft deletes.
+ *   - **Newest first**: by the record's `updatedAt`, then id. Not by relevance: for a filter, "which
+ *     records" matters and "which best" does not.
+ *   - **At most `limit` records**, and `truncated` says whether there were more. A caller must be
+ *     able to tell "these are all of them" from "these are the first of many".
+ *   - An engine may also tolerate typos; the Postgres one does so only when nothing matches exactly.
+ *     What it must never do is return a record the four scoping rules exclude.
+ */
+export interface RecordMatchRequest {
+  readonly tenantId: Uuid;
+  /** Raw, as typed. The provider tokenizes it with `searchTerms`. */
+  readonly term: string;
+  /** The caller's reach over the one object type being listed. */
+  readonly scope: SearchObjectScope;
+  /** The most records to return. */
+  readonly limit: number;
+}
+
+export interface RecordMatches {
+  readonly recordIds: readonly Uuid[];
+  /** There were more matching records than `limit`; these are the most recently updated ones. */
+  readonly truncated: boolean;
+}
+
+/** How many matching records a list's search box narrows to. A page is 50; this is a few pages' worth. */
+export const LIST_MATCH_LIMIT = 300;
+
+/**
+ * How many an export of a searched view may hold. It runs in a background job and has no page to fill,
+ * so it may cost more; past this it is refused, not silently cut (see the export handler).
+ */
+export const EXPORT_MATCH_LIMIT = 5000;
+
+/**
  * The seam (ADR-0009, ADR-0028).
  *
  * `Ctx` is whatever handle the implementation needs to do its work. The
@@ -259,6 +314,12 @@ export interface SearchHit {
 export interface SearchProvider<Ctx = unknown> {
   /** Results, best first, already filtered by tenant, scope and field access. */
   search(ctx: Ctx, request: SearchRequest): Promise<readonly SearchHit[]>;
+
+  /**
+   * The records of one object type that match, for a list or export to narrow itself to.
+   * See `RecordMatchRequest` for the meaning every implementation must give it.
+   */
+  matchRecordIds(ctx: Ctx, request: RecordMatchRequest): Promise<RecordMatches>;
 
   /**
    * Write or replace these records' documents.

@@ -514,6 +514,9 @@ describe('list', () => {
         currency: 'INR',
       });
     }
+    // Written straight into the table, so index it: a list's search box is answered by the search
+    // index (ADR-0041 §5).
+    await harness.indexForSearch(listTenant);
   });
 
   function list(query: string) {
@@ -564,8 +567,18 @@ describe('list', () => {
     const big = await list('filter=amount:gte:500000&limit=100');
     expect((big.body['data'] as unknown[]).length).toBe(3);
 
-    const named = await list('q=List%20deal%203');
-    expect((named.body['data'] as unknown[]).length).toBe(1);
+    // Words, by their start (ADR-0041 §5): every word must match, and each is a prefix.
+    const all = await list('q=List%20deal');
+    expect((all.body['data'] as unknown[]).length).toBe(7);
+    const prefix = await list('q=Lis');
+    expect((prefix.body['data'] as unknown[]).length).toBe(7);
+    const none = await list('q=nonexistentword');
+    expect((none.body['data'] as unknown[]).length).toBe(0);
+  });
+
+  it('matches a word by its start and not its middle: the substring match this replaced', async () => {
+    // `eal` was inside 'deal' and matched under the old ILIKE; a word is now matched from its start.
+    expect(((await list('q=eal')).body['data'] as unknown[]).length).toBe(0);
   });
 
   it('answers a malformed filter value with a 422, not a 500', async () => {

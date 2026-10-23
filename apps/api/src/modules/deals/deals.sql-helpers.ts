@@ -6,7 +6,7 @@ import {
   type RecordConstraint,
 } from '@crm/core';
 import type { FilterOperator, ParsedFilter } from '@crm/contracts';
-import { deals, isNull, or, sql, type SQL } from '@crm/db';
+import { deals, isNull, sql, type SQL } from '@crm/db';
 import { constraintToSql as scopeToSql } from '../../common/record-scope.js';
 
 /**
@@ -199,11 +199,6 @@ export function filterToSql(filter: ParsedFilter, fields: readonly FieldDefiniti
 }
 
 /** Free-text search: a deal is found by what it is called. */
-export function searchToSql(term: string): SQL {
-  const pattern = `%${escapeLikePattern(term)}%`;
-  return or(sql`${deals.name} ilike ${pattern} escape ${LIKE_ESCAPE}`)!;
-}
-
 /** Live records only. Soft-deleted rows live in the Recycle Bin (MVP_SPEC M4). */
 export function notDeleted(): SQL {
   return isNull(deals.deletedAt);

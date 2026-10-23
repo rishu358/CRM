@@ -209,7 +209,9 @@ P1: `record_lookup, formula, rollup, file`. Values are validated in `packages/co
 
 - `Ctrl/Cmd + K`: search across all permitted objects (name, email, phone, company) + quick actions ("New deal", "Go to settings").
 - Results respect RLS + record scope + field permissions.
-- Target: results in < 300 ms for 1M-record tenants.
+- Target: results in < 300 ms for 1M-record tenants. **Measured** at 1M contacts: p95 106 to 149 ms for a common word, 0.3 s for a rare one (`docs/PERF.md`).
+- **List search boxes (`q`) use the same index** (ADR-0041 §5): every word must match, each by its start (`ndeep` does not find `Sandeep`; a typo still does, by a near match when nothing matches exactly), newest first, at most 300, with `meta.truncated` when there were more. A one-character word narrows nothing. An export of a searched view is refused, not cut short, when the search matches more than 5,000 records. `q` only searches fields the caller may read.
+- A search that cannot be answered in two seconds is `503 SEARCH_TIMEOUT`, not a held connection (ADR-0041 §1).
 
 ### M8. Import / Export (P0)
 
@@ -290,7 +292,17 @@ are out of scope (ADR-0032).
 - [x] A server-initiated request cannot reach a private, loopback, link-local or metadata address, by any spelling, redirect or DNS answer, and production code cannot open a connection except through `OutboundHttp`. (`outbound.spec.ts` in `@crm/core`, `client.spec.ts` and `boundary.spec.ts` in `@crm/outbound`) _No caller yet._
 - [x] Every page of the web app carries a nonce-based CSP that the browser enforces and that no product page violates; HSTS is sent in production. (`csp.spec.ts`, `e2e/hardening.spec.ts`)
 - [x] The credential proxy cannot be made to forward outside `/api/v1`. (`proxy-path.spec.ts`, `e2e/hardening.spec.ts`)
-- [ ] Load test with 1M seeded records, accessibility pass, backup/restore drill, production deploy (Module B).
+      **Acceptance (Week 6 hardening, ADR-0041)**
+
+- [x] Load test with 1M seeded contacts through the real API, with p50/p95 per path and capacity under mixed traffic; every index defect it found is fixed. (`docs/PERF.md`; `pnpm perf:seed`, `pnpm perf:run`)
+- [x] A list's free-text `q` cannot read a field the caller may not see. (`apps/api/src/common/search-fields.security.spec.ts`)
+- [x] Search is swappable: a vendor-neutral conformance suite passes against the Postgres provider. (`@crm/core/search-contract`, `provider.contract.spec.ts`)
+- [x] The product runs on a Postgres without a superuser; a slow search is bounded at two seconds. (`bootstrap.nonsuperuser.spec.ts`, `timeout.spec.ts`; `docs/RUNBOOK.md` §0)
+- [x] Production refuses to start with development values. (`packages/core/src/config/production.ts`, 43 tests)
+- [x] Backup and restore drill run at 1M contacts: restored database passes 18 checks (RLS forced, isolation, grants, API boots, original password signs in); about six minutes. (`deploy/backup-drill.sh`, `docs/RUNBOOK.md` §5.1)
+- [x] Accessibility pass on twelve screens, light and dark, keyboard and contrast, with self-tests that plant violations. (`apps/web/e2e/accessibility.spec.ts`, `docs/ACCESSIBILITY.md`) _Not a substitute for a screen-reader review by a person._
+- [x] Deploy artifacts: Dockerfile (api, worker, web, migrate), production compose and Caddy examples, production env template, Resend email adapter through the guarded client. (`deploy/`)
+- [ ] Actual production deployment and pilot onboarding (out of scope for Module B).
 
 ## 9. Non-Functional Requirements
 

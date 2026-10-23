@@ -1,9 +1,18 @@
 import { parseFilter, parseSort } from '@crm/contracts';
-import { newId, QUERY_COLUMNS, type ExportableObjectType, type RecordConstraint } from '@crm/core';
+import {
+  EXPORT_MATCH_LIMIT,
+  isUsableSearchTerm,
+  newId,
+  QUERY_COLUMNS,
+  searchableFieldKeys,
+  type ExportableObjectType,
+  type RecordConstraint,
+} from '@crm/core';
 import {
   createDbClient,
   loadFieldDefinitions,
   planQuery,
+  PostgresSearchProvider,
   selectPlanPage,
   withTenant,
   type DbClient,
@@ -176,6 +185,10 @@ beforeAll(async () => {
       ],
     );
   }
+
+  // The rows above were written straight into the tables, so nothing has indexed them, and a list's
+  // search box (and an export's) is now answered by the search index (ADR-0041 §5).
+  await harness.indexForSearch(tenantId);
 });
 
 afterAll(async () => {
@@ -239,13 +252,25 @@ async function viaExport(
         if (parsed === null) throw new Error('malformed');
         return parsed;
       });
+      // As the export handler does: the search is answered by the seam, and the plan narrows to its ids.
+      const matchedIds =
+        query.q === undefined || !isUsableSearchTerm(query.q)
+          ? undefined
+          : (
+              await new PostgresSearchProvider().matchRecordIds(tx, {
+                tenantId: tenantId as never,
+                term: query.q,
+                scope: { objectType, constraint, fieldKeys: searchableFieldKeys(objectType) },
+                limit: EXPORT_MATCH_LIMIT,
+              })
+            ).recordIds;
       const plan = planQuery(
         objectType,
         fields,
         {
           filters,
           sort: query.sort === undefined ? undefined : parseSort(query.sort),
-          q: query.q,
+          matchedIds,
         },
         constraint,
       );
@@ -330,7 +355,7 @@ describe('contacts: the export returns what the list returns, in the same order'
     ['timestamp comparison', { filter: ['created_at:gte:2000-01-01'] }],
     ['two filters together', { filter: ['title:eq:CTO', 'email:contains:beta'] }],
     ['search', { q: 'chen' }],
-    ['search with a filter', { q: 'a', filter: ['title:is_not_null:'] }],
+    ['search with a filter', { q: 'ba', filter: ['title:is_not_null:'] }],
   ];
   it.each(filters)('%s', async (name, query) => {
     const count = await expectParity('contact', query);
@@ -364,7 +389,7 @@ describe('contacts: the export returns what the list returns, in the same order'
 describe('record scope is the same constraint, applied the same way', () => {
   it('an `own`-scope user sees the same rows in a list and in an export', async () => {
     const own: RecordConstraint = { kind: 'own', userId: rep.userId as never };
-    for (const query of [{}, { sort: '-title' }, { filter: ['title:neq:CEO'] }, { q: 'a' }]) {
+    for (const query of [{}, { sort: '-title' }, { filter: ['title:neq:CEO'] }, { q: 'ba' }]) {
       const count = await expectParity('contact', query, {
         token: rep.token,
         userId: rep.userId,

@@ -2,7 +2,7 @@ import { newId, type SearchObjectScope, type Uuid } from '@crm/core';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
 import { createDbClient, withTenant, type DbClient } from './client.js';
-import { fullTextStatement, fuzzyStatement } from './search/postgres.js';
+import { SEARCH_CANDIDATE_CAP, fullTextStatement, fuzzyStatement } from './search/postgres.js';
 import { PostgresSearchProvider } from './search/postgres.js';
 import { visibilityPredicate } from './search/postgres.js';
 import { Fixtures } from './testing/fixtures.js';
@@ -101,13 +101,19 @@ afterAll(async () => {
  * thousands, addresses share a domain — because selectivity is the whole
  * subject and uniformly unique tokens would make every query look fast.
  */
+/**
+ * A team of forty, so a rep's own records are a fortieth of the tenant, as in production. One owner
+ * for every row would make `owner_id` either everything or (for a stranger) nothing, and the
+ * planner's choice about an index on it means something only in between.
+ */
+const OWNERS = Array.from({ length: 40 }, () => newId());
+
 async function seed(tenant: string, count: number): Promise<void> {
-  const ownerId = newId();
   await superuserPool.query(
     `insert into search_documents
        (id, tenant_id, object_type, record_id, field_key, owner_id, value, weight,
         record_updated_at)
-     select gen_random_uuid(), $1, 'contact', record_id, field.key, $2, field.value,
+     select gen_random_uuid(), $1, 'contact', record_id, field.key, ($2::uuid[])[1 + (r.n % 40)], field.value,
             field.weight, now()
      from (
        select n, gen_random_uuid() as record_id from generate_series(1, $3) as n
@@ -122,7 +128,7 @@ async function seed(tenant: string, count: number): Promise<void> {
        ('email', 'person' || r.n::text || '@firm' || (r.n % 500)::text || '.example', 'B'),
        ('phone', '+9190' || lpad(r.n::text, 8, '0'), 'C')
      ) as field(key, value, weight)`,
-    [tenant, ownerId, count],
+    [tenant, OWNERS, count],
   );
 }
 
@@ -243,13 +249,117 @@ describe('the query plan', () => {
   it('still reads the index when a rep record scope narrows the query', async () => {
     // The owner predicate is a filter on top of the index scan, not a reason
     // to abandon it. A rep's palette must not be slower than an admin's.
-    const scopes = OWN_SCOPE(newId());
+    const scopes = OWN_SCOPE(OWNERS[0]!);
     const plan = await planFor(
       fullTextStatement(tenantId, ['surname1234'], visibilityPredicate(scopes), 10),
     );
 
     expect(plan).toContain('search_documents_fts_idx');
     expect(plan).not.toContain('"Node Type":"Seq Scan"');
+  });
+
+  it('makes the rep own-scope owner an index condition, so a rep reads their own rows', async () => {
+    // Measured at a million contacts: a rep's common-surname search took 1.5 to 3 s when the owner
+    // was a filter applied after every match was fetched, and about 0.15 s when it is part of the
+    // index condition. The owner only becomes one if it is stated outside the OR of per-object
+    // blocks as well as inside it (migration 0021, ADR-0041).
+    const plan = await planFor(
+      fullTextStatement(tenantId, ['surname1234'], visibilityPredicate(OWN_SCOPE(OWNERS[0]!)), 10),
+    );
+    const conditions = [...plan.matchAll(/"Index Cond":"([^"]*)"/g)].map((match) => match[1] ?? '');
+    expect(conditions.some((condition) => condition.includes('owner_id'))).toBe(true);
+  });
+
+  it('does not invent an owner condition when any object is searched at wider scope', async () => {
+    // One block `all`, one `own`: the wider block must still match other people's rows.
+    const mixed: readonly SearchObjectScope[] = [
+      ...WIDE_OPEN,
+      { ...OWN_SCOPE(OWNERS[0]!)[0]!, objectType: 'account' },
+    ];
+    const plan = await planFor(
+      fullTextStatement(tenantId, ['surname1234'], visibilityPredicate(mixed), 10),
+    );
+    const conditions = [...plan.matchAll(/"Index Cond":"([^"]*)"/g)].map((match) => match[1] ?? '');
+    expect(conditions.every((condition) => !condition.includes('owner_id'))).toBe(true);
+    // And the wide block still finds the (differently owned) contacts.
+    const hits = await search('Surname1234', mixed);
+    expect(hits.length).toBeGreaterThan(0);
+  });
+});
+
+describe('a broad term is bounded', () => {
+  // 20 first names over 50,000 records: each name is 2,500 index rows, far above the cap.
+  const broad = ['anjali'];
+
+  it('can walk the matches newest first from the recency index and stop at the cap', async () => {
+    // At fifty thousand records a broad term matches 2,500 rows and the planner is right to prefer the
+    // bitmap scan; the recency index wins where it matters, at hundreds of thousands (measured at a
+    // million contacts: 5.7 s down to 0.18 s). So this steers the planner to it and asserts what the
+    // index must be able to do: serve the statement's own ordering, so the scan stops at the cap
+    // rather than reading every match.
+    const plan = await withTenant(worker.db, { tenantId, userId: null }, async (tx) => {
+      await tx.execute(sql`set local enable_bitmapscan = off`);
+      await tx.execute(sql`set local enable_seqscan = off`);
+      const result = await tx.execute(
+        sql`explain (analyze, format json) ${fullTextStatement(tenantId, broad, visibilityPredicate(WIDE_OPEN), 10)}`,
+      );
+      return JSON.stringify((result.rows as unknown as { 'QUERY PLAN': unknown }[])[0]);
+    });
+    expect(plan).toContain('search_documents_recent_idx');
+
+    // Every node of the plan, flattened.
+    interface PlanNode {
+      'Node Type'?: string;
+      'Index Name'?: string;
+      'Actual Rows'?: number;
+      'Sort Key'?: string[];
+      Plans?: PlanNode[];
+    }
+    const nodes: PlanNode[] = [];
+    const walk = (node: PlanNode): void => {
+      nodes.push(node);
+      for (const child of node.Plans ?? []) walk(child);
+    };
+    walk((JSON.parse(plan) as { 'QUERY PLAN': { Plan: PlanNode }[] })['QUERY PLAN'][0]!.Plan);
+
+    // The index already delivers the matches in the statement's order, so nothing sorts them all...
+    const sortsEveryMatch = nodes.some((node) =>
+      (node['Sort Key'] ?? []).some((key) => key.startsWith('search_documents.record_updated_at')),
+    );
+    expect(sortsEveryMatch).toBe(false);
+    // ...and the walk stops at the cap instead of reading every match.
+    const walked = nodes.find((node) => node['Index Name'] === 'search_documents_recent_idx');
+    expect(walked?.['Actual Rows']).toBeLessThanOrEqual(SEARCH_CANDIDATE_CAP);
+  });
+
+  it('never ranks more than the cap, however many rows match', async () => {
+    const result = await withTenant(worker.db, { tenantId, userId: null }, (tx) =>
+      // A limit above the cap, so what bounds the answer is the cap and not the limit.
+      tx.execute(fullTextStatement(tenantId, broad, visibilityPredicate(WIDE_OPEN), 10_000)),
+    );
+    expect(result.rows.length).toBe(SEARCH_CANDIDATE_CAP);
+  });
+
+  it('leaves a selective term exactly as it was: every match is ranked', async () => {
+    // `Surname1234` is 25 rows, well under the cap, so nothing may be dropped.
+    const result = await withTenant(worker.db, { tenantId, userId: null }, (tx) =>
+      tx.execute(
+        fullTextStatement(tenantId, ['surname1234'], visibilityPredicate(WIDE_OPEN), 10_000),
+      ),
+    );
+    expect(result.rows.length).toBe(RECORDS / 2000);
+  });
+
+  it('answers a broad term inside the budget', async () => {
+    const elapsed = await medianMs(() => search('Anjali'));
+    expect(elapsed).toBeLessThan(BUDGET_MS);
+  });
+
+  it('bounds the fuzzy pass the same way', async () => {
+    const result = await withTenant(worker.db, { tenantId, userId: null }, (tx) =>
+      tx.execute(fuzzyStatement(tenantId, 'anjalli', visibilityPredicate(WIDE_OPEN), 10_000)),
+    );
+    expect(result.rows.length).toBeLessThanOrEqual(SEARCH_CANDIDATE_CAP);
   });
 });
 
@@ -274,7 +384,7 @@ describe('the latency budget', () => {
   });
 
   it('answers a rep own-scope query inside the budget', async () => {
-    const elapsed = await medianMs(() => search('Surname1234', OWN_SCOPE(newId())));
+    const elapsed = await medianMs(() => search('Surname1234', OWN_SCOPE(OWNERS[0]!)));
     expect(elapsed).toBeLessThan(BUDGET_MS);
   });
 

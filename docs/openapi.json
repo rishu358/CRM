@@ -134,6 +134,16 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -221,6 +231,16 @@
           },
           "500": {
             "description": "Unexpected failure. Quote `requestId` when reporting it. `error.code` is one of: `INTERNAL`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -337,6 +357,16 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -431,6 +461,16 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -442,7 +482,7 @@
         "tags": [
           "Accounts"
         ],
-        "description": "Keyset-paginated. `sort`, `filter` and `fields` are validated against the tenant's field metadata, so a custom field is filterable the moment it exists.",
+        "description": "Keyset-paginated. `sort`, `filter` and `fields` are validated against the tenant's field metadata, so a custom field is filterable the moment it exists. `q` matches whole words by their start, every word must match, and it only looks in fields the caller may read (ADR-0041 §5). It narrows the list to at most the 300 most recently updated matches; `meta.truncated` says when there were more. A search that cannot be answered in time is a 503 `SEARCH_TIMEOUT`.",
         "parameters": [
           {
             "name": "cursor",
@@ -573,6 +613,16 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SEARCH_TIMEOUT`, `SERVICE_BUSY`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       },
@@ -655,6 +705,16 @@
           },
           "500": {
             "description": "Unexpected failure. Quote `requestId` when reporting it. `error.code` is one of: `INTERNAL`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -769,6 +829,16 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       },
@@ -854,6 +924,16 @@
           },
           "500": {
             "description": "Unexpected failure. Quote `requestId` when reporting it. `error.code` is one of: `INTERNAL`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -973,6 +1053,16 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -984,7 +1074,7 @@
         "tags": [
           "Activities"
         ],
-        "description": "Keyset-paginated. `sort`, `filter` and `fields` are validated against the tenant's field metadata, so a custom field is filterable the moment it exists.",
+        "description": "Keyset-paginated. `sort`, `filter` and `fields` are validated against the tenant's field metadata, so a custom field is filterable the moment it exists. `q` matches whole words by their start, every word must match, and it only looks in fields the caller may read (ADR-0041 §5). It narrows the list to at most the 300 most recently updated matches; `meta.truncated` says when there were more. A search that cannot be answered in time is a 503 `SEARCH_TIMEOUT`.",
         "parameters": [
           {
             "name": "cursor",
@@ -1162,6 +1252,16 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SEARCH_TIMEOUT`, `SERVICE_BUSY`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       },
@@ -1234,6 +1334,16 @@
           },
           "500": {
             "description": "Unexpected failure. Quote `requestId` when reporting it. `error.code` is one of: `INTERNAL`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1348,6 +1458,16 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       },
@@ -1433,6 +1553,16 @@
           },
           "500": {
             "description": "Unexpected failure. Quote `requestId` when reporting it. `error.code` is one of: `INTERNAL`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1552,6 +1682,16 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -1656,6 +1796,16 @@
           },
           "500": {
             "description": "Unexpected failure. Quote `requestId` when reporting it. `error.code` is one of: `INTERNAL`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1768,6 +1918,16 @@
           },
           "500": {
             "description": "Unexpected failure. Quote `requestId` when reporting it. `error.code` is one of: `INTERNAL`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1905,6 +2065,16 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       },
@@ -2005,6 +2175,16 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -2085,6 +2265,16 @@
           },
           "500": {
             "description": "Unexpected failure. Quote `requestId` when reporting it. `error.code` is one of: `INTERNAL`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2177,6 +2367,16 @@
           },
           "500": {
             "description": "Unexpected failure. Quote `requestId` when reporting it. `error.code` is one of: `INTERNAL`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2288,6 +2488,16 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -2385,6 +2595,16 @@
           },
           "500": {
             "description": "Unexpected failure. Quote `requestId` when reporting it. `error.code` is one of: `INTERNAL`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2584,6 +2804,16 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -2666,6 +2896,16 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -2729,6 +2969,16 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -2768,6 +3018,16 @@
           },
           "500": {
             "description": "Unexpected failure. Quote `requestId` when reporting it. `error.code` is one of: `INTERNAL`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2853,6 +3113,16 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -2917,6 +3187,16 @@
           },
           "500": {
             "description": "Unexpected failure. Quote `requestId` when reporting it. `error.code` is one of: `INTERNAL`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2995,6 +3275,16 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -3062,6 +3352,16 @@
           },
           "500": {
             "description": "Unexpected failure. Quote `requestId` when reporting it. `error.code` is one of: `INTERNAL`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3144,6 +3444,16 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -3209,6 +3519,16 @@
           },
           "500": {
             "description": "Unexpected failure. Quote `requestId` when reporting it. `error.code` is one of: `INTERNAL`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3299,6 +3619,16 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -3355,6 +3685,16 @@
           },
           "500": {
             "description": "Unexpected failure. Quote `requestId` when reporting it. `error.code` is one of: `INTERNAL`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3421,6 +3761,16 @@
           },
           "500": {
             "description": "Unexpected failure. Quote `requestId` when reporting it. `error.code` is one of: `INTERNAL`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3515,6 +3865,16 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       },
@@ -3578,6 +3938,16 @@
           },
           "500": {
             "description": "Unexpected failure. Quote `requestId` when reporting it. `error.code` is one of: `INTERNAL`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3650,6 +4020,16 @@
           },
           "500": {
             "description": "Unexpected failure. Quote `requestId` when reporting it. `error.code` is one of: `INTERNAL`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3740,6 +4120,16 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -3804,6 +4194,16 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -3860,6 +4260,16 @@
           },
           "500": {
             "description": "Unexpected failure. Quote `requestId` when reporting it. `error.code` is one of: `INTERNAL`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3932,6 +4342,16 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -3943,7 +4363,7 @@
         "tags": [
           "Contacts"
         ],
-        "description": "Keyset-paginated. `sort`, `filter` and `fields` are validated against the tenant's field metadata, so a custom field is filterable the moment it exists.",
+        "description": "Keyset-paginated. `sort`, `filter` and `fields` are validated against the tenant's field metadata, so a custom field is filterable the moment it exists. `q` matches whole words by their start, every word must match, and it only looks in fields the caller may read (ADR-0041 §5). It narrows the list to at most the 300 most recently updated matches; `meta.truncated` says when there were more. A search that cannot be answered in time is a 503 `SEARCH_TIMEOUT`.",
         "parameters": [
           {
             "name": "cursor",
@@ -4074,6 +4494,16 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SEARCH_TIMEOUT`, `SERVICE_BUSY`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       },
@@ -4146,6 +4576,16 @@
           },
           "500": {
             "description": "Unexpected failure. Quote `requestId` when reporting it. `error.code` is one of: `INTERNAL`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4260,6 +4700,16 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       },
@@ -4345,6 +4795,16 @@
           },
           "500": {
             "description": "Unexpected failure. Quote `requestId` when reporting it. `error.code` is one of: `INTERNAL`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4464,6 +4924,16 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -4529,6 +4999,16 @@
           },
           "500": {
             "description": "Unexpected failure. Quote `requestId` when reporting it. `error.code` is one of: `INTERNAL`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4608,6 +5088,16 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -4673,6 +5163,16 @@
           },
           "500": {
             "description": "Unexpected failure. Quote `requestId` when reporting it. `error.code` is one of: `INTERNAL`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4764,6 +5264,16 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -4829,6 +5339,16 @@
           },
           "500": {
             "description": "Unexpected failure. Quote `requestId` when reporting it. `error.code` is one of: `INTERNAL`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4928,6 +5448,16 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -5014,6 +5544,16 @@
           },
           "500": {
             "description": "Unexpected failure. Quote `requestId` when reporting it. `error.code` is one of: `INTERNAL`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -5125,6 +5665,16 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -5136,7 +5686,7 @@
         "tags": [
           "Deals"
         ],
-        "description": "Keyset-paginated. `sort`, `filter` and `fields` are validated against the tenant's field metadata, so a custom field is filterable the moment it exists.",
+        "description": "Keyset-paginated. `sort`, `filter` and `fields` are validated against the tenant's field metadata, so a custom field is filterable the moment it exists. `q` matches whole words by their start, every word must match, and it only looks in fields the caller may read (ADR-0041 §5). It narrows the list to at most the 300 most recently updated matches; `meta.truncated` says when there were more. A search that cannot be answered in time is a 503 `SEARCH_TIMEOUT`.",
         "parameters": [
           {
             "name": "cursor",
@@ -5267,6 +5817,16 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SEARCH_TIMEOUT`, `SERVICE_BUSY`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       },
@@ -5349,6 +5909,16 @@
           },
           "500": {
             "description": "Unexpected failure. Quote `requestId` when reporting it. `error.code` is one of: `INTERNAL`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -5463,6 +6033,16 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       },
@@ -5548,6 +6128,16 @@
           },
           "500": {
             "description": "Unexpected failure. Quote `requestId` when reporting it. `error.code` is one of: `INTERNAL`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -5667,6 +6257,16 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -5754,6 +6354,16 @@
           },
           "500": {
             "description": "Unexpected failure. Quote `requestId` when reporting it. `error.code` is one of: `INTERNAL`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -5849,6 +6459,16 @@
           },
           "500": {
             "description": "Unexpected failure. Quote `requestId` when reporting it. `error.code` is one of: `INTERNAL`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -5956,6 +6576,16 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -6049,6 +6679,16 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -6124,6 +6764,16 @@
           },
           "500": {
             "description": "Unexpected failure. Quote `requestId` when reporting it. `error.code` is one of: `INTERNAL`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -6217,6 +6867,16 @@
           },
           "500": {
             "description": "Unexpected failure. Quote `requestId` when reporting it. `error.code` is one of: `INTERNAL`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -6328,6 +6988,16 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -6428,6 +7098,16 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       },
@@ -6511,6 +7191,16 @@
           },
           "500": {
             "description": "Unexpected failure. Quote `requestId` when reporting it. `error.code` is one of: `INTERNAL`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -6632,6 +7322,16 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -6714,6 +7414,16 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -6767,6 +7477,16 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -6813,6 +7533,16 @@
           },
           "500": {
             "description": "Unexpected failure. Quote `requestId` when reporting it. `error.code` is one of: `INTERNAL`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -6915,6 +7645,16 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       },
@@ -6988,6 +7728,16 @@
           },
           "500": {
             "description": "Unexpected failure. Quote `requestId` when reporting it. `error.code` is one of: `INTERNAL`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -7082,6 +7832,16 @@
           },
           "500": {
             "description": "Unexpected failure. Quote `requestId` when reporting it. `error.code` is one of: `INTERNAL`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -7186,6 +7946,16 @@
           },
           "500": {
             "description": "Unexpected failure. Quote `requestId` when reporting it. `error.code` is one of: `INTERNAL`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -7307,6 +8077,16 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -7411,6 +8191,16 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -7489,6 +8279,16 @@
           },
           "500": {
             "description": "Unexpected failure. Quote `requestId` when reporting it. `error.code` is one of: `INTERNAL`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -7586,6 +8386,16 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -7672,6 +8482,16 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -7740,6 +8560,16 @@
           },
           "500": {
             "description": "Unexpected failure. Quote `requestId` when reporting it. `error.code` is one of: `INTERNAL`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -7838,6 +8668,16 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -7909,6 +8749,16 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -7920,7 +8770,7 @@
         "tags": [
           "Leads"
         ],
-        "description": "Keyset-paginated. `sort`, `filter` and `fields` are validated against the tenant's field metadata, so a custom field is filterable the moment it exists.",
+        "description": "Keyset-paginated. `sort`, `filter` and `fields` are validated against the tenant's field metadata, so a custom field is filterable the moment it exists. `q` matches whole words by their start, every word must match, and it only looks in fields the caller may read (ADR-0041 §5). It narrows the list to at most the 300 most recently updated matches; `meta.truncated` says when there were more. A search that cannot be answered in time is a 503 `SEARCH_TIMEOUT`.",
         "parameters": [
           {
             "name": "cursor",
@@ -8051,6 +8901,16 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SEARCH_TIMEOUT`, `SERVICE_BUSY`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       },
@@ -8133,6 +8993,16 @@
           },
           "500": {
             "description": "Unexpected failure. Quote `requestId` when reporting it. `error.code` is one of: `INTERNAL`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -8247,6 +9117,16 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       },
@@ -8332,6 +9212,16 @@
           },
           "500": {
             "description": "Unexpected failure. Quote `requestId` when reporting it. `error.code` is one of: `INTERNAL`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -8451,6 +9341,16 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -8537,6 +9437,16 @@
           },
           "500": {
             "description": "Unexpected failure. Quote `requestId` when reporting it. `error.code` is one of: `INTERNAL`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -8658,6 +9568,16 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -8733,6 +9653,16 @@
           },
           "500": {
             "description": "Unexpected failure. Quote `requestId` when reporting it. `error.code` is one of: `INTERNAL`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -8830,6 +9760,16 @@
           },
           "500": {
             "description": "Unexpected failure. Quote `requestId` when reporting it. `error.code` is one of: `INTERNAL`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -8951,6 +9891,16 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -9048,6 +9998,16 @@
           },
           "500": {
             "description": "Unexpected failure. Quote `requestId` when reporting it. `error.code` is one of: `INTERNAL`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -9153,6 +10113,16 @@
           },
           "500": {
             "description": "Unexpected failure. Quote `requestId` when reporting it. `error.code` is one of: `INTERNAL`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -9274,6 +10244,16 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -9360,6 +10340,16 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -9424,6 +10414,16 @@
           },
           "500": {
             "description": "Unexpected failure. Quote `requestId` when reporting it. `error.code` is one of: `INTERNAL`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -9503,6 +10503,16 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -9568,6 +10578,16 @@
           },
           "500": {
             "description": "Unexpected failure. Quote `requestId` when reporting it. `error.code` is one of: `INTERNAL`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -9647,6 +10667,16 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -9712,6 +10742,16 @@
           },
           "500": {
             "description": "Unexpected failure. Quote `requestId` when reporting it. `error.code` is one of: `INTERNAL`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -9799,6 +10839,16 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -9845,6 +10895,16 @@
           },
           "500": {
             "description": "Unexpected failure. Quote `requestId` when reporting it. `error.code` is one of: `INTERNAL`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -9944,6 +11004,16 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -10036,6 +11106,16 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -10100,6 +11180,16 @@
           },
           "500": {
             "description": "Unexpected failure. Quote `requestId` when reporting it. `error.code` is one of: `INTERNAL`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -10185,6 +11275,16 @@
           },
           "500": {
             "description": "Unexpected failure. Quote `requestId` when reporting it. `error.code` is one of: `INTERNAL`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -10295,6 +11395,16 @@
           },
           "500": {
             "description": "Unexpected failure. Quote `requestId` when reporting it. `error.code` is one of: `INTERNAL`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -10431,6 +11541,16 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -10496,6 +11616,16 @@
           },
           "500": {
             "description": "Unexpected failure. Quote `requestId` when reporting it. `error.code` is one of: `INTERNAL`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -10603,6 +11733,16 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -10700,6 +11840,16 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       },
@@ -10785,6 +11935,16 @@
           },
           "500": {
             "description": "Unexpected failure. Quote `requestId` when reporting it. `error.code` is one of: `INTERNAL`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -10897,6 +12057,16 @@
           },
           "500": {
             "description": "Unexpected failure. Quote `requestId` when reporting it. `error.code` is one of: `INTERNAL`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -11018,6 +12188,16 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -11122,6 +12302,16 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -11217,6 +12407,16 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SEARCH_TIMEOUT`, `SERVICE_BUSY`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -11282,6 +12482,16 @@
           },
           "500": {
             "description": "Unexpected failure. Quote `requestId` when reporting it. `error.code` is one of: `INTERNAL`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -11389,6 +12599,16 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -11469,6 +12689,16 @@
           },
           "500": {
             "description": "Unexpected failure. Quote `requestId` when reporting it. `error.code` is one of: `INTERNAL`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -11588,6 +12818,16 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -11692,6 +12932,16 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -11757,6 +13007,16 @@
           },
           "500": {
             "description": "Unexpected failure. Quote `requestId` when reporting it. `error.code` is one of: `INTERNAL`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -11837,6 +13097,16 @@
           },
           "500": {
             "description": "Unexpected failure. Quote `requestId` when reporting it. `error.code` is one of: `INTERNAL`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -16077,6 +17347,9 @@
               },
               "hasMore": {
                 "type": "boolean"
+              },
+              "truncated": {
+                "type": "boolean"
               }
             },
             "required": [
@@ -16556,6 +17829,9 @@
               },
               "hasMore": {
                 "type": "boolean"
+              },
+              "truncated": {
+                "type": "boolean"
               }
             },
             "required": [
@@ -16821,6 +18097,9 @@
                 ]
               },
               "hasMore": {
+                "type": "boolean"
+              },
+              "truncated": {
                 "type": "boolean"
               }
             },
@@ -17317,6 +18596,9 @@
                 ]
               },
               "hasMore": {
+                "type": "boolean"
+              },
+              "truncated": {
                 "type": "boolean"
               }
             },
@@ -17820,6 +19102,9 @@
                 ]
               },
               "hasMore": {
+                "type": "boolean"
+              },
+              "truncated": {
                 "type": "boolean"
               }
             },
@@ -19166,6 +20451,9 @@
               },
               "hasMore": {
                 "type": "boolean"
+              },
+              "truncated": {
+                "type": "boolean"
               }
             },
             "required": [
@@ -19588,6 +20876,9 @@
                 ]
               },
               "hasMore": {
+                "type": "boolean"
+              },
+              "truncated": {
                 "type": "boolean"
               }
             },
@@ -21096,6 +22387,9 @@
                 ]
               },
               "hasMore": {
+                "type": "boolean"
+              },
+              "truncated": {
                 "type": "boolean"
               }
             },
@@ -22859,6 +24153,9 @@
               },
               "hasMore": {
                 "type": "boolean"
+              },
+              "truncated": {
+                "type": "boolean"
               }
             },
             "required": [
@@ -24531,6 +25828,9 @@
               "hasMore": {
                 "type": "boolean"
               },
+              "truncated": {
+                "type": "boolean"
+              },
               "unread": {
                 "type": "integer",
                 "minimum": 0,
@@ -25230,6 +26530,9 @@
                 ]
               },
               "hasMore": {
+                "type": "boolean"
+              },
+              "truncated": {
                 "type": "boolean"
               }
             },

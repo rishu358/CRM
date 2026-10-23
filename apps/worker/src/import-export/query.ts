@@ -26,6 +26,8 @@ export function planExportQuery(
     q?: string | undefined;
   },
   constraint: RecordConstraint,
+  /** The records the search seam matched for `query.q`; `undefined` when it was not searched. */
+  matchedIds: readonly string[] | undefined,
 ): ExportQueryPlan {
   const filters = (query.filter ?? []).map((raw) => {
     const parsed = parseFilter(raw);
@@ -41,7 +43,7 @@ export function planExportQuery(
     {
       filters,
       sort: query.sort === undefined ? undefined : parseSort(query.sort),
-      q: query.q,
+      matchedIds,
     },
     constraint,
   );

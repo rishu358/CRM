@@ -6,7 +6,7 @@ import {
   type RecordConstraint,
 } from '@crm/core';
 import type { FilterOperator, ParsedFilter } from '@crm/contracts';
-import { accounts, isNull, or, sql, type SQL } from '@crm/db';
+import { accounts, isNull, sql, type SQL } from '@crm/db';
 import { constraintToSql as scopeToSql } from '../../common/record-scope.js';
 
 /**
@@ -231,16 +231,6 @@ export function filterToSql(filter: ParsedFilter, fields: readonly FieldDefiniti
  * they half-remember. GSTIN and website are deliberately out: nobody searches
  * by either, and every column added here costs a scan.
  */
-export function searchToSql(term: string): SQL {
-  const pattern = `%${escapeLikePattern(term)}%`;
-  return or(
-    sql`${accounts.name} ilike ${pattern} escape ${LIKE_ESCAPE}`,
-    sql`${accounts.domain} ilike ${pattern} escape ${LIKE_ESCAPE}`,
-    sql`${accounts.email}::text ilike ${pattern} escape ${LIKE_ESCAPE}`,
-    sql`${accounts.phone} ilike ${pattern} escape ${LIKE_ESCAPE}`,
-  )!;
-}
-
 /** Live records only. Soft-deleted rows live in the Recycle Bin (MVP_SPEC M4). */
 export function notDeleted(): SQL {
   return isNull(accounts.deletedAt);

@@ -49,6 +49,10 @@ export const searchDocuments = pgTable(
       table.recordId,
       table.fieldKey,
     ),
+    // Migration 0021 (ADR-0041): both GIN indexes lead with `(tenant_id, owner_id)`, so an
+    // own-scope search reads only its own rows, and `search_documents_recent_idx (tenant_id,
+    // record_updated_at desc, id desc)` lets a broad term stop after `SEARCH_CANDIDATE_CAP`
+    // matches instead of ranking every one.
     // The two GIN indexes the latency budget depends on are declared in the
     // migration and nowhere else: Drizzle cannot express
     // `gin (tenant_id, search_vector)` or `gin_trgm_ops`, and a half-expressed

@@ -12,7 +12,7 @@ import type { SearchQuery, SearchResult } from '@crm/contracts';
 import type { Tx } from '@crm/db';
 import { DatabaseService } from '../../database/database.service.js';
 import { SearchLabelsService } from './search-labels.service.js';
-import { SEARCH_PROVIDER, type ApiSearchProvider } from './search.provider.js';
+import { SEARCH_PROVIDER, type ApiSearchProvider } from '../../platform/search/search.tokens.js';
 import { serializeSearchResults } from './search.serializer.js';
 
 /**

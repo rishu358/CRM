@@ -15,6 +15,7 @@ import {
   type Actor,
   type ActivityType,
   type FieldDefinition,
+  type RecordConstraint,
   type LinkTargetType,
 } from '@crm/core';
 import { sanitizeRichText } from '@crm/core/html';
@@ -30,6 +31,8 @@ import {
 } from '@crm/contracts';
 import { recordRefFor, type Activity as ActivityRow, type Tx } from '@crm/db';
 import { assertFiltersReadable, assertSortable } from '../../common/field-queries.js';
+import { searchForList } from '../../common/record-search.js';
+import { SEARCH_PROVIDER, type ApiSearchProvider } from '../../platform/search/search.tokens.js';
 import { DatabaseService } from '../../database/database.service.js';
 import { AuditService, diffChanges } from '../../platform/audit.service.js';
 import { FieldMetadataService } from '../../platform/field-metadata.service.js';
@@ -74,6 +77,7 @@ export class ActivitiesService {
     @Inject(FieldMetadataService) private readonly fieldMetadata: FieldMetadataService,
     @Inject(AuditService) private readonly audit: AuditService,
     @Inject(OutboxService) private readonly outbox: OutboxService,
+    @Inject(SEARCH_PROVIDER) private readonly search: ApiSearchProvider,
   ) {}
 
   async list(
@@ -81,7 +85,7 @@ export class ActivitiesService {
     query: ActivityListQuery,
   ): Promise<{
     data: SerializedActivity[];
-    meta: { nextCursor: string | null; hasMore: boolean };
+    meta: { nextCursor: string | null; hasMore: boolean; truncated?: boolean };
   }> {
     const decision = assertCan(actor, 'read', { objectType: 'activity' });
 
@@ -114,13 +118,18 @@ export class ActivitiesService {
         linkedTo = { objectType: query.objectType, recordId: query.recordId };
       }
 
+      const constraint: RecordConstraint = decision.allowed
+        ? decision.constraint
+        : { kind: 'own', userId: actor.userId };
+      const matched = await searchForList(this.search, tx, actor, 'activity', constraint, query.q);
+
       const result = await this.repository.list(tx, actor.tenantId, {
-        constraint: decision.allowed ? decision.constraint : { kind: 'own', userId: actor.userId },
+        constraint,
         limit: query.limit,
         cursor: query.cursor,
         sort,
         filters,
-        search: query.q,
+        matchedIds: matched.matchedIds,
         fields,
         linkedTo,
         status: query.status,
@@ -131,7 +140,11 @@ export class ActivitiesService {
 
       return {
         data: serializeActivities(actor, result.rows, fields, links),
-        meta: { nextCursor: result.nextCursor, hasMore: result.hasMore },
+        meta: {
+          nextCursor: result.nextCursor,
+          hasMore: result.hasMore,
+          ...(matched.truncated ? { truncated: true } : {}),
+        },
       };
     });
   }

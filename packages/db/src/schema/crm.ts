@@ -108,8 +108,10 @@ export const contacts = pgTable(
     index('contacts_tenant_owner_idx').on(table.tenantId, table.ownerId),
     index('contacts_tenant_account_idx').on(table.tenantId, table.accountId),
     // Duplicate detection on create and import (MVP_SPEC M4).
-    index('contacts_tenant_email_idx')
-      .on(table.tenantId, table.email)
+    // On `email::text`, not on `email`: `citext` equality is not leakproof, so under RLS an
+    // index on the column itself is never used (migration 0020, ADR-0041).
+    index('contacts_tenant_email_text_idx')
+      .on(table.tenantId, sql`(${table.email}::text)`)
       .where(sql`${table.deletedAt} is null`),
     index('contacts_tenant_phone_idx')
       .on(table.tenantId, table.phone)
@@ -171,8 +173,8 @@ export const leads = pgTable(
       .on(table.tenantId, table.convertedContactId)
       .where(sql`${table.convertedContactId} is not null`),
     // Duplicate detection on create and on conversion (MVP_SPEC M4, ADR-0023).
-    index('leads_tenant_email_idx')
-      .on(table.tenantId, table.email)
+    index('leads_tenant_email_text_idx')
+      .on(table.tenantId, sql`(${table.email}::text)`)
       .where(sql`${table.deletedAt} is null`),
     index('leads_tenant_phone_idx')
       .on(table.tenantId, table.phone)

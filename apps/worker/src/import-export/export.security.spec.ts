@@ -453,6 +453,8 @@ describe('filters, sort, search and paging', () => {
       `Alpha-${tag}`,
     ]);
 
+    // Written straight into the table, so index it: a searched export is answered by the index.
+    await h.indexForSearch();
     const searched = await exportCsv(owner, { q: `Alpha-${tag}` });
     expect(searched.rows.map((row) => row['Last name'])).toEqual([`Alpha-${tag}`]);
   });

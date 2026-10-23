@@ -17,6 +17,7 @@ import {
   type Actor,
   type DealStageState,
   type FieldDefinition,
+  type RecordConstraint,
 } from '@crm/core';
 import {
   parseFilter,
@@ -33,6 +34,8 @@ import {
 import { recordRefFor, type Deal as DealRow, type Tx } from '@crm/db';
 import { isConstraintViolation } from '../../common/db-errors.js';
 import { assertFiltersReadable, assertSortable } from '../../common/field-queries.js';
+import { searchForList } from '../../common/record-search.js';
+import { SEARCH_PROVIDER, type ApiSearchProvider } from '../../platform/search/search.tokens.js';
 import { DatabaseService } from '../../database/database.service.js';
 import { AuditService, diffChanges } from '../../platform/audit.service.js';
 import { CurrencyConverter } from '../../platform/exchange-rates/currency-converter.service.js';
@@ -105,12 +108,16 @@ export class DealsService {
     @Inject(AccountsService) private readonly accounts: AccountsService,
     @Inject(ContactsService) private readonly contacts: ContactsService,
     @Inject(CurrencyConverter) private readonly converter: CurrencyConverter,
+    @Inject(SEARCH_PROVIDER) private readonly search: ApiSearchProvider,
   ) {}
 
   async list(
     actor: Actor,
     query: DealListQuery,
-  ): Promise<{ data: SerializedDeal[]; meta: { nextCursor: string | null; hasMore: boolean } }> {
+  ): Promise<{
+    data: SerializedDeal[];
+    meta: { nextCursor: string | null; hasMore: boolean; truncated?: boolean };
+  }> {
     // Collection-level check. The returned constraint becomes a WHERE clause,
     // so `own` scope never fetches another rep's rows in the first place.
     const decision = assertCan(actor, 'read', { objectType: 'deal' });
@@ -132,13 +139,18 @@ export class DealsService {
       });
       assertFiltersReadable(actor, 'deal', filters);
 
+      const constraint: RecordConstraint = decision.allowed
+        ? decision.constraint
+        : { kind: 'own', userId: actor.userId };
+      const matched = await searchForList(this.search, tx, actor, 'deal', constraint, query.q);
+
       const result = await this.repository.list(tx, actor.tenantId, {
-        constraint: decision.allowed ? decision.constraint : { kind: 'own', userId: actor.userId },
+        constraint,
         limit: query.limit,
         cursor: query.cursor,
         sort,
         filters,
-        search: query.q,
+        matchedIds: matched.matchedIds,
         fields,
       });
 
@@ -150,7 +162,11 @@ export class DealsService {
 
       return {
         data: serializeDeals(actor, result.rows, fields, people),
-        meta: { nextCursor: result.nextCursor, hasMore: result.hasMore },
+        meta: {
+          nextCursor: result.nextCursor,
+          hasMore: result.hasMore,
+          ...(matched.truncated ? { truncated: true } : {}),
+        },
       };
     });
   }

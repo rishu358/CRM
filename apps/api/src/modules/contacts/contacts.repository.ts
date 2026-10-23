@@ -19,10 +19,10 @@ import { decodeCursor, encodeCursor } from '../../common/cursor.js';
 import { keysetPredicate } from '../../common/keyset.js';
 import {
   constraintToSql,
+  emailIs,
   expressionForField,
   filterToSql,
   notDeleted,
-  searchToSql,
 } from './contacts.sql-helpers.js';
 
 /**
@@ -42,7 +42,11 @@ export interface ListOptions {
   readonly cursor?: string | undefined;
   readonly sort?: { field: string; direction: SortDirection } | undefined;
   readonly filters: readonly ParsedFilter[];
-  readonly search?: string | undefined;
+  /**
+   * Restrict the list to these records, from the search seam (`searchForList`). `undefined` is not
+   * searched; an empty list is searched and found nothing.
+   */
+  readonly matchedIds?: readonly string[] | undefined;
   readonly fields: readonly FieldDefinition[];
 }
 
@@ -68,8 +72,12 @@ export class ContactsRepository {
       predicates.push(filterToSql(filter, options.fields));
     }
 
-    if (options.search !== undefined && options.search.length > 0) {
-      predicates.push(searchToSql(options.search));
+    if (options.matchedIds !== undefined) {
+      predicates.push(
+        options.matchedIds.length === 0
+          ? sql`false`
+          : inArray(contacts.id, [...options.matchedIds]),
+      );
     }
 
     const cursor = options.cursor === undefined ? null : decodeCursor(options.cursor);
@@ -194,7 +202,7 @@ export class ContactsRepository {
     return tx
       .select()
       .from(contacts)
-      .where(and(eq(contacts.tenantId, tenantId), eq(contacts.email, email), notDeleted()))
+      .where(and(eq(contacts.tenantId, tenantId), emailIs(email), notDeleted()))
       .limit(5);
   }
 
@@ -214,7 +222,7 @@ export class ContactsRepository {
     limit: number,
   ): Promise<Contact[]> {
     const matches: SQL[] = [];
-    if (criteria.email !== undefined) matches.push(eq(contacts.email, criteria.email));
+    if (criteria.email !== undefined) matches.push(emailIs(criteria.email));
     if (criteria.phone !== undefined) matches.push(eq(contacts.phone, criteria.phone));
     if (matches.length === 0) return [];
 

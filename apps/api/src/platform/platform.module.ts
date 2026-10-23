@@ -1,4 +1,5 @@
 import { Global, Module } from '@nestjs/common';
+import { PostgresSearchProvider } from '@crm/db';
 import { createStorageProvider } from '@crm/storage';
 import { API_ENV_TOKEN, type ApiEnv } from '../config/env.js';
 import { AuditService } from './audit.service.js';
@@ -10,6 +11,7 @@ import { OutboxService } from './outbox.service.js';
 import { OwnershipRegistry } from './ownership.registry.js';
 import { TenantClock } from './tenant-clock.service.js';
 import { TenantRateLimitService } from './rate-limit.service.js';
+import { SEARCH_PROVIDER } from './search/search.tokens.js';
 import { STORAGE_PROVIDER } from './storage/storage.tokens.js';
 
 /**
@@ -30,6 +32,8 @@ import { STORAGE_PROVIDER } from './storage/storage.tokens.js';
     TenantClock,
     // The one line that changes when live rates arrive (ADR-0021, P1).
     { provide: EXCHANGE_RATE_SOURCE, useClass: ManualExchangeRateSource },
+    // The one line that changes when Postgres full-text is outgrown (CLAUDE.md §2, ADR-0009, ADR-0041).
+    { provide: SEARCH_PROVIDER, useClass: PostgresSearchProvider },
     // One line decides the vendor (ADR-0009). The API only signs URLs and reads
     // metadata through this; it never reads or writes a file's bytes (§5.12).
     {
@@ -47,6 +51,7 @@ import { STORAGE_PROVIDER } from './storage/storage.tokens.js';
     CurrencyConverter,
     TenantClock,
     STORAGE_PROVIDER,
+    SEARCH_PROVIDER,
   ],
 })
 export class PlatformModule {}

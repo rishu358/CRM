@@ -17,6 +17,7 @@
     "db:generate": "pnpm --filter @crm/db db:generate",
     "db:migrate": "pnpm --filter @crm/db db:migrate",
     "db:seed": "pnpm --filter @crm/db db:seed",
+    "db:reindex": "pnpm --filter @crm/db db:reindex",
     "openapi:generate": "tsx packages/contracts/scripts/write-openapi.mts",
     "openapi:check": "tsx packages/contracts/scripts/write-openapi.mts --check",
     "infra:up": "docker compose up -d && pnpm infra:bucket",

@@ -1,3 +1,8 @@
+import {
+  assertProductionConfig,
+  productionConfigProblems,
+  type ProductionConfigInput,
+} from '@crm/core';
 import { storageEnvShape } from '@crm/storage';
 import { z } from 'zod';
 
@@ -23,7 +28,8 @@ const envSchema = z
     OUTBOX_BATCH_SIZE: z.coerce.number().int().positive().max(500).default(50),
     /** Where a digest email points people back to. */
     WEB_URL: z.string().default('http://localhost:3000'),
-    EMAIL_PROVIDER: z.enum(['console', 'memory']).default('console'),
+    EMAIL_PROVIDER: z.enum(['console', 'memory', 'resend']).default('console'),
+    RESEND_API_KEY: z.string().optional(),
     EMAIL_FROM: z.string().default('no-reply@localhost'),
     /**
      * How long after the first notification a digest goes out (ADR-0025).
@@ -49,5 +55,32 @@ export function loadWorkerEnv(source: NodeJS.ProcessEnv = process.env): WorkerEn
       .join('; ');
     throw new Error(`Invalid worker environment: ${problems}`);
   }
+  // A production process with development settings does not start (ADR-0041).
+  assertProductionConfig(productionInput(parsed.data));
   return parsed.data;
+}
+
+function productionInput(env: WorkerEnv): ProductionConfigInput {
+  return {
+    nodeEnv: env.NODE_ENV,
+    scope: 'worker',
+    emailProvider: env.EMAIL_PROVIDER,
+    emailFrom: env.EMAIL_FROM,
+    resendApiKey: env.RESEND_API_KEY,
+    storageProvider: env.STORAGE_PROVIDER,
+    s3AccessKeyId: env.S3_ACCESS_KEY_ID,
+    s3SecretAccessKey: env.S3_SECRET_ACCESS_KEY,
+    s3PublicEndpoint: env.S3_PUBLIC_ENDPOINT,
+    webUrl: env.WEB_URL,
+    databaseUrls: {
+      DATABASE_URL: env.DATABASE_URL,
+      DATABASE_WORKER_URL: env.DATABASE_WORKER_URL,
+      DATABASE_ERASURE_URL: env.DATABASE_ERASURE_URL,
+    },
+  };
+}
+
+/** Things worth a log line at startup that are not reasons to refuse (production only). */
+export function productionWarnings(env: WorkerEnv): readonly string[] {
+  return productionConfigProblems(productionInput(env)).warnings;
 }

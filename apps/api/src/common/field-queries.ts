@@ -1,4 +1,11 @@
-import { canReadField, ValidationError, type Actor, type ObjectType } from '@crm/core';
+import {
+  canReadField,
+  searchableFieldKeys,
+  ValidationError,
+  type Actor,
+  type ObjectType,
+  type SearchableObjectType,
+} from '@crm/core';
 import type { ParsedFilter } from '@crm/contracts';
 
 /**
@@ -41,4 +48,14 @@ export function assertFiltersReadable(
       throw new ValidationError([{ path: filter.field, message: 'Unknown field' }]);
     }
   }
+}
+
+/**
+ * The searchable fields of an object that this actor may read.
+ *
+ * A free-text `q` matches against these columns, so it is a read of each (see above): a field the
+ * actor cannot read is not searched, rather than searched and hidden afterwards.
+ */
+export function readableSearchFields(actor: Actor, objectType: SearchableObjectType): string[] {
+  return searchableFieldKeys(objectType).filter((key) => canReadField(actor, objectType, key));
 }

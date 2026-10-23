@@ -1,7 +1,7 @@
 import { createDbClient, PostgresSearchProvider, withTenant } from '@crm/db';
 import { createStorageProvider } from '@crm/storage';
 import { pino } from 'pino';
-import { loadWorkerEnv } from './env.js';
+import { loadWorkerEnv, productionWarnings } from './env.js';
 import { createEmailProvider } from './email/provider.js';
 import { pruneActivityLinks } from './handlers/activities.js';
 import { pruneAttachments, purgeAttachment, verifyAttachment } from './handlers/attachments.js';
@@ -36,6 +36,7 @@ import { DEFAULT_MAX_ATTEMPTS, OutboxRelay } from './relay.js';
  */
 const env = loadWorkerEnv();
 const logger = pino({ level: env.LOG_LEVEL });
+for (const warning of productionWarnings(env)) logger.warn(warning);
 
 const client = createDbClient({
   connectionString: env.DATABASE_WORKER_URL ?? env.DATABASE_URL,
@@ -75,7 +76,13 @@ for (const objectType of ['account', 'contact', 'lead', 'deal', 'activity'] as c
  * scheduler.
  */
 const notificationOptions = {
-  email: createEmailProvider(env.EMAIL_PROVIDER, env.NODE_ENV, logger),
+  email: createEmailProvider({
+    kind: env.EMAIL_PROVIDER,
+    nodeEnv: env.NODE_ENV,
+    logger,
+    resendApiKey: env.RESEND_API_KEY,
+    from: env.EMAIL_FROM,
+  }),
   emailFrom: env.EMAIL_FROM,
   webUrl: env.WEB_URL,
   digestWindowMinutes: env.DIGEST_WINDOW_MINUTES,
@@ -123,6 +130,8 @@ for (const objectType of ['account', 'contact', 'lead', 'deal', 'activity'] as c
 const importExportDeps = {
   db: client.db,
   storage: createStorageProvider(env, env.NODE_ENV),
+  // The same seam a list's search box uses (ADR-0041 §5); the one line that changes with the engine.
+  search: new PostgresSearchProvider(),
   logger,
 };
 

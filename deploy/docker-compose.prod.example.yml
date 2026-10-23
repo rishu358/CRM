@@ -1,0 +1,118 @@
+# A production layout for ONE host, as an example to copy (ADR-0041, docs/RUNBOOK.md).
+#
+#   cp deploy/production.env.example deploy/production.env    # then fill in every value
+#   docker compose -f deploy/docker-compose.prod.example.yml --env-file deploy/production.env \
+#     --profile ops run --rm migrate                            # apply migrations first
+#   docker compose -f deploy/docker-compose.prod.example.yml --env-file deploy/production.env up -d
+#
+# What is NOT in here, on purpose:
+#   - Postgres, Redis and the object store. They are managed services in production (CLAUDE.md §2),
+#     because backups, point-in-time recovery, patching and failover are the reason to buy them.
+#     This file only points the apps at them.
+#   - Any secret. Every value is read from the env file you create, which is never committed
+#     (`.gitignore` covers `.env.*`, `.dockerignore` keeps it out of images).
+#
+# The API and the worker refuse to start if a value here is a development value (a default
+# secret, `console` email, memory storage, http or localhost URLs, the database superuser), and
+# say which variable is wrong. That check is the safety net, not a substitute for reading the
+# env example.
+
+name: crm
+
+x-app-env: &app-env
+  NODE_ENV: production
+  LOG_LEVEL: ${LOG_LEVEL:-info}
+  DATABASE_POOL_MAX: ${DATABASE_POOL_MAX:-10}
+  WEB_URL: ${WEB_URL:?set WEB_URL}
+  EMAIL_PROVIDER: resend
+  EMAIL_FROM: ${EMAIL_FROM:?set EMAIL_FROM}
+  RESEND_API_KEY: ${RESEND_API_KEY:?set RESEND_API_KEY}
+  STORAGE_PROVIDER: s3
+  S3_BUCKET: ${S3_BUCKET:?set S3_BUCKET}
+  S3_REGION: ${S3_REGION:?set S3_REGION}
+  S3_ENDPOINT: ${S3_ENDPOINT:-}
+  S3_PUBLIC_ENDPOINT: ${S3_PUBLIC_ENDPOINT:-}
+  S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:?set S3_ACCESS_KEY_ID}
+  S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:?set S3_SECRET_ACCESS_KEY}
+  S3_FORCE_PATH_STYLE: ${S3_FORCE_PATH_STYLE:-false}
+
+services:
+  api:
+    image: ${CRM_REGISTRY:-crm}/api:${CRM_VERSION:?set CRM_VERSION}
+    restart: unless-stopped
+    environment:
+      <<: *app-env
+      API_PORT: 3001
+      API_URL: ${API_URL:?set API_URL}
+      CORS_ORIGINS: ${WEB_URL}
+      AUTH_SECRET: ${AUTH_SECRET:?set AUTH_SECRET}
+      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL}
+      DATABASE_AUTH_URL: ${DATABASE_AUTH_URL:?set DATABASE_AUTH_URL}
+      REDIS_URL: ${REDIS_URL:-}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+    expose: ['3001']
+    read_only: true
+    tmpfs: ['/tmp']
+    cap_drop: ['ALL']
+    security_opt: ['no-new-privileges:true']
+    depends_on:
+      worker:
+        condition: service_started
+
+  worker:
+    image: ${CRM_REGISTRY:-crm}/worker:${CRM_VERSION:?set CRM_VERSION}
+    restart: unless-stopped
+    environment:
+      <<: *app-env
+      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL}
+      DATABASE_WORKER_URL: ${DATABASE_WORKER_URL:?set DATABASE_WORKER_URL}
+      DATABASE_ERASURE_URL: ${DATABASE_ERASURE_URL:-}
+    read_only: true
+    tmpfs: ['/tmp']
+    cap_drop: ['ALL']
+    security_opt: ['no-new-privileges:true']
+
+  web:
+    image: ${CRM_REGISTRY:-crm}/web:${CRM_VERSION:?set CRM_VERSION}
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      API_URL: http://api:3001
+      S3_PUBLIC_ENDPOINT: ${S3_PUBLIC_ENDPOINT:-}
+    expose: ['3000']
+    # Next writes its cache under .next at run time; everything else is read-only.
+    read_only: true
+    tmpfs: ['/tmp', '/repo/apps/web/.next/cache']
+    cap_drop: ['ALL']
+    security_opt: ['no-new-privileges:true']
+    depends_on:
+      api:
+        condition: service_healthy
+
+  # TLS and routing. Automatic certificates; the apps never see plain http from the internet.
+  proxy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports: ['80:80', '443:443']
+    environment:
+      APP_HOST: ${APP_HOST:?set APP_HOST}
+      API_HOST: ${API_HOST:?set API_HOST}
+    volumes:
+      - ./Caddyfile.example:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+    depends_on: [web, api]
+
+  # Run by hand before a release: `--profile ops run --rm migrate`. Holds the one credential that
+  # may change the schema, and only for as long as it runs.
+  migrate:
+    image: ${CRM_REGISTRY:-crm}/migrate:${CRM_VERSION:?set CRM_VERSION}
+    profiles: ['ops']
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL}
+      DATABASE_MIGRATION_URL: ${DATABASE_MIGRATION_URL:?set DATABASE_MIGRATION_URL}
+    restart: 'no'
+
+volumes:
+  caddy-data:
