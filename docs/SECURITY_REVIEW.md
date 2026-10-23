@@ -828,10 +828,17 @@ unlucky caller could do, and for what production would silently accept.
 | Does the product need a superuser?                                        | No (a decision). The marks are best effort; without them rare-word search is slow and bounded at two seconds. Measured numbers in `docs/PERF.md` and `docs/RUNBOOK.md` §0.                                                                                                                                                                                                                                                                                                                                         |
 | Accessibility                                                             | Automated pass on twelve screens in light and dark: one real defect (audit log without `h1`) fixed. A floor, not a review by a person.                                                                                                                                                                                                                                                                                                                                                                             |
 
-**How it was tested.** The q leak was mutation-checked by restoring it (7 of 7 new tests fail). The rest of this
-module's guards (production rules, Resend classification, search cap, timeout, `matchRecordIds`, email lookup) are
-covered by tests written with the code; a deliberate-break pass over them is recorded below when run.
-
+**How it was tested.** The `q` leak was mutation-checked by restoring it (7 of 7 new tests fail). The rest of this
+module's guards were then broken on purpose, 69 times: each production-config rule, the Resend adapter's pinning,
+key checks and retry classification, the search time limit, the candidate and document caps, `truncated`, the typo
+pass, the list's search wiring and the overload response, each of which must make a test fail. The first pass caught
+54; fifteen survivors were triaged. Thirteen were real gaps and now have tests (the list asking for 300 and passing
+`truncated` through, a one-character word narrowing nothing, the Resend port and host pins, a 3xx answer being a
+failure, the worker not being held to a CORS list, `memory` email being refused for delivering nothing, the document
+cap, a cut-short scan, no typo pass after one, the typo pass's own truncation, the fetch-one-more check). Two (the
+candidate caps) were killed by the run, not by a new test: the search mutations had been pointed at the wrong spec path,
+so they ran against none of the perf tests. One mutation ("fetch `limit + 5` ids instead of `limit + 1`") returns
+identical results and was replaced by "fetch `limit`". **All 69 are now caught.**
 **Found by the load test, in order of seriousness:** the `q` field-permission leak; exact email lookups reading the
 whole table; global search taking 3 to 6 s for a common word (and a rep paying as much as an administrator); list
 search reading the whole table for a typo (3.7 s); an API with no stated behaviour under overload. All fixed;
