@@ -119,4 +119,19 @@ describe('the typo-tolerant pass', () => {
     expect(result.recordIds).toEqual([]);
     expect(result.truncated).toBe(true);
   });
+  it('says there are more near matches than it returned, when there are', async () => {
+    const tenantId = await freshTenant();
+    await indexAll(
+      tenantId,
+      Array.from({ length: 4 }, (_, i) => contact({ last_name: 'Washington' }, minutesAgo(i + 1))),
+    );
+    // A misspelling: no word starts with it, so only the typo-tolerant pass can answer.
+    const result = await match(tenantId, 'washingtn', ['last_name'], 2);
+    expect(result.recordIds).toHaveLength(2);
+    expect(result.truncated).toBe(true);
+
+    const all = await match(tenantId, 'washingtn', ['last_name'], 4);
+    expect(all.recordIds).toHaveLength(4);
+    expect(all.truncated).toBe(false);
+  });
 });
