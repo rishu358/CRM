@@ -103,7 +103,7 @@ the same machine.
   endpoints, with the API process and Postgres each using about one core. The per-request fixed cost
   behind it (about 10 ms of API CPU and 10 ms of Postgres CPU for a trivial endpoint) has **not** been
   investigated and is the next thing to look at for capacity.
-- Scaling is by instances behind the proxy. Rate limits are still counted per process (§7).
+- Scaling is by instances behind the proxy. Rate limits are shared through Redis (§8).
 
 ## 4. What the load test found, and what changed
 
@@ -250,7 +250,8 @@ cannot hold a parallel vacuum of the large tables.
 
 ## 7. Known gaps
 
-- Rate limits are per process; with several API instances the effective limit is multiplied.
+- Sharing rate limits through Redis costs a little per request, and its effect on the tail under load was not
+  resolved on this machine (§8).
 - The per-request fixed cost (§3) is uninvestigated.
 - Without a superuser, search on a very large company is slow and bounded, not fast (§5).
 - A list's search shows at most the 300 most recently updated matches, and an export of a search refuses
@@ -258,3 +259,37 @@ cannot hold a parallel vacuum of the large tables.
 - The aggregating dashboards (leads by source 157 ms, overdue tasks 147 ms) grow with the data and have
   no cache; they are the first reads to cross 200 ms as a company grows past a million records.
 - Writes, imports, exports, many tenants and a browser are unmeasured.
+
+## 8. What sharing rate limits costs (ADR-0042)
+
+Every request now makes one or two Redis calls (the address, and for a signed-in request the user and tenant
+together). The same traffic was run against the 1M-contact database with the counters in the API process and with
+them in Redis (the compose Redis, on the same laptop, so a round trip is a loopback hop into Docker).
+
+**One request at a time** (contact: one record, p50): in the process 25.2 and 26.5 ms, Redis 28.1 and 28.5 ms. The
+other paths overlap within noise. That is **about 2 to 3 ms per request**, which is two round trips.
+
+**Under open-loop load**, all traffic, p50 / p95 / p99 in ms:
+
+| Rate     | Pass | In the process                 | In Redis                       |
+| -------- | ---- | ------------------------------ | ------------------------------ |
+| 20 req/s | 1    | 64 / 310 / 754                 | 83 / 3,204 / 4,747 (10 errors) |
+| 20 req/s | 2    | 73 / 1,056 / 1,368 (12 errors) | 50 / 144 / 381 (9 errors)      |
+| 30 req/s | 1    | 54 / 342 / 862                 | 56 / 304 / 520 (3 errors)      |
+| 30 req/s | 2    | 48 / 154 / 286 (6 errors)      | 48 / 134 / 196 (1 error)       |
+| 40 req/s | 1    | 49 / 169 / 355                 | 56 / 310 / 562                 |
+| 40 req/s | 2    | 50 / 175 / 346                 | 53 / 230 / 466                 |
+
+**How to read it, honestly.** The p50 moves by a few milliseconds, as the one-at-a-time figure says. The tails do not
+give an answer: at 20 and 30 req/s the in-process runs alone ranged from a p95 of 154 ms to 1,056 ms, as
+sessions sharing this machine started and stopped heavy work, and the Redis runs ranged from 134 ms to 3,204 ms. At
+40 req/s, where nothing else was disturbing it, both Redis passes were worse than both in-process passes (p95 230 to
+310 ms against 169 to 175 ms), which is what a small fixed cost per request looks like close to the API's ceiling. The
+errors in the lower-rate runs are the two-second search limit (§5) firing on a cold cache and a busy machine, in both
+modes. **What this supports:** a cost of about 2 to 3 ms per request, and a likely loss of some of the ceiling near
+40 req/s. **What it does not:** a figure for either, on a quiet machine or on separate hosts.
+
+**If it matters.** The easy saving is one round trip instead of two: the address count is made before the session is
+known, so it is a separate call; counting it in the same call as the user and tenant would need the check deferred
+into the guard for signed-in requests. Not done, because the cost has not been shown to need it. Re-measure on
+hardware that is doing nothing else before deciding.
