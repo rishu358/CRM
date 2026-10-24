@@ -20,6 +20,8 @@
     "db:reindex": "pnpm --filter @crm/db db:reindex",
     "openapi:generate": "tsx packages/contracts/scripts/write-openapi.mts",
     "openapi:check": "tsx packages/contracts/scripts/write-openapi.mts --check",
+    "hooks:install": "git config core.hooksPath .githooks",
+    "test:scripts": "node --test \"scripts/**/*.test.mjs\"",
     "infra:up": "docker compose up -d && pnpm infra:bucket",
     "infra:bucket": "tsx --env-file-if-exists=.env packages/storage/scripts/ensure-bucket.mts",
     "infra:down": "docker compose down",

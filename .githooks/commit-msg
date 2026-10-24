@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# commit-msg: Conventional Commits (CLAUDE.md §11.3). The rules live in one place,
+# scripts/check-commit-message.mjs, which CI also runs over a pull request's commits.
+exec node "$(git rev-parse --show-toplevel)/scripts/check-commit-message.mjs" --file "$1"

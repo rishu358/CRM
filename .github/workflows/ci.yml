@@ -87,6 +87,28 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm audit --audit-level=high
 
+  hygiene:
+    name: Secrets, commit messages, repository scripts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Every commit of every ref: gitleaks looks at what was ever committed, not only the tip,
+          # and the commit-message check needs the pull request's base branch.
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      # Fails closed: an error, an unreadable repository or zero commits scanned is a failure, never
+      # a pass (scripts/scan-secrets.sh says why). Rules and reviewed exceptions: .gitleaks.toml.
+      - name: Scan the full history for secrets
+        run: bash scripts/scan-secrets.sh
+      - name: Tests for the repository scripts
+        run: node --test "scripts/**/*.test.mjs"
+      - name: Commit messages follow Conventional Commits
+        if: github.event_name == 'pull_request'
+        run: node scripts/check-commit-message.mjs --range "origin/${{ github.base_ref }}..HEAD"
+
   build:
     name: Build
     runs-on: ubuntu-latest
