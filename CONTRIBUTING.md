@@ -11,6 +11,17 @@ Priorities, in order: **Security → Correctness → Speed/UX → Features.**
 
 Requires Node 24+, pnpm 9 and Docker. The current steps are in the [README](README.md#getting-started).
 
+**After every pull or merge that adds a workspace package, run `pnpm install`.** A new package exists in
+the tree but is linked into nobody's `node_modules` until you do, and the error is a `TS2307: Cannot find
+module '@crm/...'` that names whichever app imports it first, not the package that is missing. (This
+happened when `@crm/env` arrived, ADR-0044.)
+
+**A shared env file and the web app.** The web app refuses to start outside local development if its
+environment holds a secret meant for another process (`DATABASE_URL`, `AUTH_SECRET`, storage keys; see
+`docs/CONFIGURATION.md`). Scripts and test runners that start every process from one shared env file must
+set `APP_ENV=local` for the web process, or every page answers 500 with a message saying so. On a real
+deployment, give the web app only its own variables instead.
+
 Then, once per clone, turn on the repository's hooks:
 
 ```bash
