@@ -399,12 +399,25 @@ export const REGISTRY = {
       group: 'auth',
       secret: true,
       description:
-        'Signs session cookies and encrypts authenticator (MFA) secrets. At least 32 characters of randomness.',
+        'Encrypts authenticator (MFA) secrets and backup codes at rest, and keys the API cookie signer. At least 32 characters of randomness.',
       obtain: '`openssl rand -base64 48`. Generate one per environment; never reuse.',
       local: 'dev-only-insecure-secret-replace-me-with-48-random-bytes',
-      note: 'Rotating it signs everyone out and makes enrolled authenticator secrets unreadable; there is no dual-key rotation yet (docs/RUNBOOK.md §7). Production refuses a value that looks like a placeholder.',
+      note: 'Rotate it without losing enrolled authenticators by keeping the old value in `AUTH_SECRET_PREVIOUS` until `pnpm auth:rotate-keys` has re-encrypted what is stored (docs/SECRETS.md). It does not sign anyone out: sessions are random tokens, not keyed by it. Production refuses a value that looks like a placeholder.',
     },
     { min: 32, message: 'AUTH_SECRET must be at least 32 characters' },
+  ),
+  AUTH_SECRET_PREVIOUS: optionalText(
+    {
+      scopes: ['api'],
+      group: 'auth',
+      secret: true,
+      description:
+        'Earlier `AUTH_SECRET` values that stored data may still be encrypted with, newest first, separated by commas. Used only while rotating the key.',
+      obtain: 'The value `AUTH_SECRET` had before you changed it. See docs/SECRETS.md.',
+      example: 'CHANGE_ME',
+      note: 'Leave unset except during a rotation: deploy the new `AUTH_SECRET` with the old one here, run `pnpm auth:rotate-keys`, then remove this. Each key must be at least 32 characters, and at most three are accepted.',
+    },
+    { min: 1 },
   ),
   SESSION_COOKIE_NAME: defaultedText(
     {

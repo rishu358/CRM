@@ -1,6 +1,6 @@
 import { createRemoteEmailProvider } from '@crm/outbound';
 import { Global, Module } from '@nestjs/common';
-import { API_ENV_TOKEN } from '../config/env.js';
+import { API_ENV_TOKEN, previousAuthSecrets } from '../config/env.js';
 import {
   ConsoleEmailProvider,
   EMAIL_PROVIDER,
@@ -17,6 +17,8 @@ import { GoogleAuthService } from './google.service.js';
 import { MfaService } from './mfa.service.js';
 import { SessionService } from './session.service.js';
 import { BetterAuthPasswordHasher, PASSWORD_HASHER } from './crypto/password.hasher.js';
+import { KeyRing } from './crypto/key-ring.js';
+import { KeyRotationService } from './crypto/key-rotation.service.js';
 import { BetterAuthTotpProvider, TOTP_PROVIDER } from './crypto/totp.provider.js';
 import type { ApiEnv } from '../config/env.js';
 
@@ -48,6 +50,13 @@ import type { ApiEnv } from '../config/env.js';
     AuthRateLimitGuard,
     MfaService,
     GoogleAuthService,
+    {
+      provide: KeyRing,
+      inject: [API_ENV_TOKEN],
+      useFactory: (env: ApiEnv) => new KeyRing(env.AUTH_SECRET, previousAuthSecrets(env)),
+    },
+    // Not exported: only the operator command reaches it (ADR-0049).
+    KeyRotationService,
     { provide: PASSWORD_HASHER, useClass: BetterAuthPasswordHasher },
     { provide: TOTP_PROVIDER, useClass: BetterAuthTotpProvider },
     {

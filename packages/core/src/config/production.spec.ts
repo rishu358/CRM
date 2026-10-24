@@ -59,6 +59,24 @@ describe('production configuration', () => {
     expect(problemsOf({ authSecret })).toContain(expected);
   });
 
+  it('holds a previous AUTH_SECRET to the same standard, and does not mind none', () => {
+    const good = 'Zk3pQ8vLm2XrWn7TyB4cJd9HfGa5SeUo1iRtVxCz6KuBn0MyPqEl';
+    expect(problemsOf({ authSecretPrevious: undefined })).toBe('');
+    expect(problemsOf({ authSecretPrevious: '' })).toBe('');
+    expect(problemsOf({ authSecretPrevious: good })).toBe('');
+    expect(
+      problemsOf({ authSecretPrevious: `${good}, ${good.split('').reverse().join('')}` }),
+    ).toBe('');
+    expect(problemsOf({ authSecretPrevious: 'short' })).toContain(
+      'AUTH_SECRET_PREVIOUS must be at least 32 characters',
+    );
+    expect(
+      problemsOf({ authSecretPrevious: `${good},dev-only-insecure-secret-replace-me-1234567` }),
+    ).toContain('AUTH_SECRET_PREVIOUS looks like a placeholder');
+    // A problem names the variable, never the value.
+    expect(problemsOf({ authSecretPrevious: 'short' })).not.toContain('short,');
+  });
+
   it('refuses mail that goes nowhere, and a provider it cannot send with', () => {
     expect(problemsOf({ emailProvider: 'console' })).toContain('EMAIL_PROVIDER=console');
     expect(problemsOf({ emailProvider: 'memory' })).toContain(

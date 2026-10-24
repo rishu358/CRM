@@ -54,6 +54,11 @@ a working version, and the first tag will be cut from a green `master` (see
   `node:crypto` and sent through the guarded outbound client pinned to the region host, with no SDK. The API and the
   worker build email providers from one shared factory. `docs/PROVIDERS.md` lists the settings for each email and
   storage choice. `EMAIL_PROVIDER=smtp` sends through any SMTP server with `nodemailer` (a new dependency, MIT-0), requiring TLS: STARTTLS by default, never plain text in production, certificates verified.
+- **Rotating `AUTH_SECRET` without losing authenticators (ADR-0049):** stored authenticator secrets now record
+  which key wrote them, `AUTH_SECRET_PREVIOUS` holds earlier keys during a rotation, and `pnpm auth:rotate-keys`
+  re-encrypts what is stored (safe to repeat, safe while serving, `--dry-run` to look first). `docs/SECRETS.md`
+  lists every secret and how to rotate it, with a test that fails if a secret is missing from it. Rotating
+  `AUTH_SECRET` never signed anyone out, contrary to what the runbook said; a test now proves it.
 
 ### Security
 

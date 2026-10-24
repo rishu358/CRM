@@ -306,14 +306,16 @@ of it between exposure and rotation.
 
 ## 7. Secrets and rotation
 
-| Secret                                     | Held by                      | Rotating it                                                                                                                                                                                                                                                      |
-| ------------------------------------------ | ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `AUTH_SECRET`                              | API                          | **Signs everyone out** (cookies are signed with it) **and makes enrolled authenticator secrets unreadable** (MFA secrets are encrypted with it). Rotate only with a plan: announce it, and expect every MFA user to re-enrol. There is no dual-key rotation yet. |
-| `doadmin` (managed-database administrator) | You only: a password manager | Never an app, CI or Vercel credential (§9.4). Rotate in the provider's console; nothing in this repository holds it.                                                                                                                                             |
-| Database passwords (five roles)            | API, worker, migrate         | `ALTER ROLE … PASSWORD`, update the env, restart. No downtime if done role by role behind a rolling restart.                                                                                                                                                     |
-| `RESEND_API_KEY`                           | API, worker                  | Create a new key in Resend, set it, restart, delete the old key.                                                                                                                                                                                                 |
-| Object store keys                          | API, worker                  | Create a new key pair, set both, restart, delete the old pair.                                                                                                                                                                                                   |
-| `GOOGLE_CLIENT_SECRET`                     | API                          | Rotate in the Google console, set, restart.                                                                                                                                                                                                                      |
+Every secret, what it protects and how to rotate it is in [SECRETS.md](SECRETS.md); this is the short table.
+
+| Secret                                     | Held by                      | Rotating it                                                                                                                                                                                                                        |
+| ------------------------------------------ | ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `AUTH_SECRET`                              | API                          | **Without losing anyone's authenticator**: deploy the new key with the old as `AUTH_SECRET_PREVIOUS`, run `pnpm auth:rotate-keys`, then remove the old one. It does **not** sign anyone out. Full steps: [SECRETS.md](SECRETS.md). |
+| `doadmin` (managed-database administrator) | You only: a password manager | Never an app, CI or Vercel credential (§9.4). Rotate in the provider's console; nothing in this repository holds it.                                                                                                               |
+| Database passwords (five roles)            | API, worker, migrate         | `ALTER ROLE … PASSWORD`, update the env, restart. No downtime if done role by role behind a rolling restart.                                                                                                                       |
+| `RESEND_API_KEY`                           | API, worker                  | Create a new key in Resend, set it, restart, delete the old key.                                                                                                                                                                   |
+| Object store keys                          | API, worker                  | Create a new key pair, set both, restart, delete the old pair.                                                                                                                                                                     |
+| `GOOGLE_CLIENT_SECRET`                     | API                          | Rotate in the Google console, set, restart.                                                                                                                                                                                        |
 
 Never put a secret in the repository, an image layer, a log line or a ticket. The images contain no
 env file; `.dockerignore` and `.gitignore` both exclude them.
@@ -321,7 +323,7 @@ env file; `.dockerignore` and `.gitignore` both exclude them.
 ## 8. Known gaps (so nobody is surprised)
 
 - **Rate limits are per process** until they move to Redis; scale-out multiplies them.
-- **`AUTH_SECRET` rotation signs everyone out and breaks MFA enrolments**; there is no key versioning.
+- **`AUTH_SECRET` rotation needs the procedure in [SECRETS.md](SECRETS.md)** (the old key kept as `AUTH_SECRET_PREVIOUS` until `pnpm auth:rotate-keys` has run). Changing it without that makes enrolled authenticators unreadable.
 - **A list's search matches words by their start, not substrings, and shows at most the 300 most
   recently updated matches** (ADR-0041 §5); an export of a search refuses more than 5,000.
 - **Search without the `LEAKPROOF` marks is slow for a word that matches little** and is bounded by a
