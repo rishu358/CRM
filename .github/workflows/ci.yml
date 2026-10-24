@@ -11,9 +11,14 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-# `packages: read` so the jobs that need an S3 server can pull our MinIO mirror
-# from GHCR with the built-in GITHUB_TOKEN, rather than a registry secret.
 # Read-only everywhere: nothing in this workflow writes to the repository.
+#
+# The jobs that need an S3 server pull our MinIO mirror from GHCR using the
+# GHCR_PULL_TOKEN secret, not GITHUB_TOKEN. The mirror is a user-owned private
+# package, and GITHUB_TOKEN is refused with 403 even after granting the
+# repository Actions access to it; `packages: read` below does not help with a
+# package owned by a user rather than by this repository. GHCR_PULL_TOKEN is a
+# classic PAT with the single scope read:packages.
 permissions:
   contents: read
   packages: read
@@ -68,7 +73,7 @@ jobs:
       # mirror, so this job needs the login too — it fails with "error from
       # registry: unauthorized" without it.
       - name: Log in to GHCR
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+        run: echo "${{ secrets.GHCR_PULL_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
       - run: pnpm test
 
   security:
@@ -87,7 +92,7 @@ jobs:
       # s3.integration.spec.ts starts MinIO through Testcontainers, and that image
       # is our private GHCR mirror, so Docker must be logged in before it pulls.
       - name: Log in to GHCR
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+        run: echo "${{ secrets.GHCR_PULL_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
       # This job must never be made optional or allowed to fail (CLAUDE.md §4).
       - run: pnpm test:security
 
@@ -202,7 +207,7 @@ jobs:
       - run: pnpm build
       # The MinIO mirror below lives in our private GHCR package.
       - name: Log in to GHCR
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+        run: echo "${{ secrets.GHCR_PULL_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
       # MinIO runs as a plain container rather than a `services:` entry
       # because it needs the `server /data` command, and service containers
       # cannot override a command. Same pinned digest as docker-compose.yml.
