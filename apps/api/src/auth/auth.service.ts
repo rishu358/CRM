@@ -1,4 +1,6 @@
 import { randomBytes } from 'node:crypto';
+import type { Logger } from 'pino';
+import { createLogger } from '../common/logger.js';
 import { Inject, Injectable } from '@nestjs/common';
 import {
   ConflictError,
@@ -73,7 +75,11 @@ export class AuthService {
     @Inject(PASSWORD_HASHER) private readonly passwords: PasswordHasher,
     @Inject(EMAIL_PROVIDER) private readonly email: EmailProvider,
     @Inject(API_ENV_TOKEN) private readonly env: ApiEnv,
-  ) {}
+  ) {
+    this.logger = createLogger(env.LOG_LEVEL, false);
+  }
+
+  private readonly logger: Logger;
 
   // -------------------------------------------------------------------------
   // Sign-up
@@ -307,6 +313,9 @@ export class AuthService {
       });
       throw new InvalidCredentialsError();
     }
+    // The one moment we hold the plaintext of a correct password: if its hash is in an older format or
+    // made with weaker settings than are configured now, replace it (ADR-0050).
+    await this.upgradePasswordHash(user.id, hash, input.password);
 
     if (user.email_verified_at === null) {
       await this.throttle.recordEvent('login_unverified', false, {
@@ -597,6 +606,23 @@ export class AuthService {
       userId,
     });
     await this.auditPasswordChange(userId, 'password_reset');
+  }
+
+  /**
+   * Move a password that has just verified to the current hash format and settings (ADR-0050).
+   *
+   * Best effort: a failure here must not fail a sign-in the person has just passed, so it is logged
+   * (by id, never the password or the hash) and tried again next time. Written only if the stored hash
+   * is still the one that verified, so it can never undo a password change made in the meantime.
+   */
+  private async upgradePasswordHash(userId: string, hash: string, password: string): Promise<void> {
+    if (!this.passwords.needsRehash(hash)) return;
+    try {
+      const upgraded = await this.passwords.hash(password);
+      await this.repository.upgradePasswordHash(userId, hash, upgraded);
+    } catch {
+      this.logger.warn({ userId }, 'password hash upgrade failed; will retry at the next sign-in');
+    }
   }
 
   /**

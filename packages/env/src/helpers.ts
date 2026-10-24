@@ -136,6 +136,7 @@ interface IntOptions {
   readonly scopeDefaults?: ScopeDefaults<number>;
   /** `positive` is `> 0`; `nonnegative` is `>= 0`. */
   readonly sign: 'positive' | 'nonnegative';
+  readonly min?: number;
   readonly max?: number;
 }
 
@@ -151,7 +152,8 @@ export function defaultedInt<const Sc extends readonly Scope[]>(
     schemaFor: (scope) => {
       const base = z.coerce.number().int();
       const signed = o.sign === 'positive' ? base.positive() : base.nonnegative();
-      const bounded = o.max === undefined ? signed : signed.max(o.max);
+      const floored = o.min === undefined ? signed : signed.min(o.min);
+      const bounded = o.max === undefined ? floored : floored.max(o.max);
       return bounded.default(pick(scope, o.default, o.scopeDefaults) ?? o.default);
     },
     defaultFor: (scope) => String(pick(scope, o.default, o.scopeDefaults) ?? o.default),

@@ -9,7 +9,7 @@ Priorities, in order: **Security → Correctness → Speed/UX → Features.**
 
 ## Set up
 
-Requires Node 24+, pnpm 9 and Docker. The current steps are in the [README](README.md#getting-started).
+Requires Node 24.7 or later, pnpm 9 and Docker. The current steps are in the [README](README.md#getting-started).
 
 **After every pull or merge that adds a workspace package, run `pnpm install`.** A new package exists in
 the tree but is linked into nobody's `node_modules` until you do, and the error is a `TS2307: Cannot find

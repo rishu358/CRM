@@ -82,14 +82,14 @@ store, its database adapter or its HTTP handler.**
 
 Specifically, we depend on:
 
-| From                           | Used for                                                    |
-| ------------------------------ | ----------------------------------------------------------- |
-| `better-auth/crypto`           | `hashPassword` / `verifyPassword` (scrypt, salted, encoded) |
-| `better-auth/crypto`           | `symmetricEncrypt` / `symmetricDecrypt` for TOTP secrets    |
-| `better-auth/crypto`           | `constantTimeEqual`                                         |
-| `@better-auth/utils/otp`       | TOTP generation, verification and `otpauth://` URLs         |
-| `@better-auth/utils/base32`    | TOTP secret encoding                                        |
-| `better-auth/social-providers` | Google: authorization URL, code exchange, user info         |
+| From                           | Used for                                                                                               |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------ |
+| `better-auth/crypto`           | `symmetricEncrypt`; `verifyPassword` for old scrypt hashes only (new passwords are Argon2id, ADR-0050) |
+| `better-auth/crypto`           | `symmetricEncrypt` / `symmetricDecrypt` for TOTP secrets                                               |
+| `better-auth/crypto`           | `constantTimeEqual`                                                                                    |
+| `@better-auth/utils/otp`       | TOTP generation, verification and `otpauth://` URLs                                                    |
+| `@better-auth/utils/base32`    | TOTP secret encoding                                                                                   |
+| `better-auth/social-providers` | Google: authorization URL, code exchange, user info                                                    |
 
 Everything else — sessions, routes, validation, errors, audit — stays in our own
 layers, where the rest of the system's rules already apply. Password hashing, TOTP

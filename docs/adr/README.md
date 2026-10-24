@@ -57,3 +57,4 @@ supersedes the old one and update the old one's **Status** to
 | [0047](0047-entitlements-plans-features-and-overrides.md)        | Entitlements: plans, features and per-workspace overrides                     | Accepted |
 | [0048](0048-email-and-storage-providers.md)                      | Email and storage providers: SES without an SDK, SMTP via nodemailer          | Accepted |
 | [0049](0049-key-ids-and-rotating-auth-secret.md)                 | Key ids, and rotating AUTH_SECRET without losing authenticators               | Accepted |
+| [0050](0050-argon2id-password-hashing.md)                        | Argon2id password hashing, on Node's own implementation                       | Accepted |

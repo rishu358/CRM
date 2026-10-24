@@ -211,6 +211,23 @@ export class AuthRepository {
     );
   }
 
+  /**
+   * Replace a password hash with a newer hash of **the same password**, only if the stored hash is
+   * still the one that was verified. Without the comparison, a sign-in that verified the old password
+   * could write its upgrade after the owner had changed the password, and put the old one back.
+   * Returns whether it replaced anything; a refusal is not an error, the next sign-in tries again.
+   * Does not touch sessions: nothing about who may sign in has changed.
+   */
+  async upgradePasswordHash(userId: string, oldHash: string, newHash: string): Promise<boolean> {
+    return this.run(undefined, async (t) => {
+      const result = await t.execute(sql`
+        update auth_accounts set password_hash = ${newHash}, updated_at = now()
+        where user_id = ${userId} and provider_id = 'credential' and password_hash = ${oldHash}
+      `);
+      return (result.rowCount ?? 0) === 1;
+    });
+  }
+
   async setPassword(userId: string, passwordHash: string, tx?: Tx): Promise<void> {
     await this.run(tx, (t) =>
       t.execute(sql`

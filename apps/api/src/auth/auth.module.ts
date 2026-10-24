@@ -16,7 +16,7 @@ import { AuthThrottleService } from './auth-throttle.service.js';
 import { GoogleAuthService } from './google.service.js';
 import { MfaService } from './mfa.service.js';
 import { SessionService } from './session.service.js';
-import { BetterAuthPasswordHasher, PASSWORD_HASHER } from './crypto/password.hasher.js';
+import { Argon2idPasswordHasher, PASSWORD_HASHER } from './crypto/password.hasher.js';
 import { KeyRing } from './crypto/key-ring.js';
 import { KeyRotationService } from './crypto/key-rotation.service.js';
 import { BetterAuthTotpProvider, TOTP_PROVIDER } from './crypto/totp.provider.js';
@@ -57,7 +57,7 @@ import type { ApiEnv } from '../config/env.js';
     },
     // Not exported: only the operator command reaches it (ADR-0049).
     KeyRotationService,
-    { provide: PASSWORD_HASHER, useClass: BetterAuthPasswordHasher },
+    { provide: PASSWORD_HASHER, useClass: Argon2idPasswordHasher },
     { provide: TOTP_PROVIDER, useClass: BetterAuthTotpProvider },
     {
       provide: EMAIL_PROVIDER,
