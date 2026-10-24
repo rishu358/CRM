@@ -38,6 +38,10 @@ jobs:
       # here as well because a one-second answer beats a ten-minute one.
       # Must stay after `typecheck`, which is what compiles @crm/core to dist.
       - run: pnpm openapi:check
+      # `.env.example`, the staging and production templates and docs/CONFIGURATION.md are generated
+      # from the configuration registry (ADR-0044); a variable added or changed without regenerating
+      # them fails here, so the documentation cannot drift from the code.
+      - run: pnpm config:check
 
   test:
     name: Unit and integration tests
@@ -142,6 +146,10 @@ jobs:
         image: redis:7.4-alpine
         ports: ['6379:6379']
     env:
+      # Every process in this job shares one environment, including database credentials, and the
+      # web app is started with NODE_ENV=production. Outside local development the web app refuses to
+      # start holding a secret meant for another process (ADR-0044), so say this is a local run.
+      APP_ENV: local
       DATABASE_URL: postgres://crm_app:crm_app_dev@localhost:5432/crm
       DATABASE_MIGRATION_URL: postgres://crm_migrator:crm_migrator_dev@localhost:5432/crm
       DATABASE_AUTH_URL: postgres://crm_auth:crm_auth_dev@localhost:5432/crm

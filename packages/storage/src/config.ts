@@ -1,38 +1,33 @@
 import type { StorageProvider } from '@crm/core';
-import { z } from 'zod';
 import { MemoryStorageProvider } from './memory.js';
 import { S3StorageProvider } from './s3.js';
 
 /**
- * Storage configuration, shared by the API and the worker (CLAUDE.md §5.8).
+ * The storage settings a process needs, as its environment provides them (CLAUDE.md §5.8).
  *
- * Both processes must agree on where files live, and the cheapest way to make
- * disagreement impossible is for both to spread this one shape into their own
- * env schema and call one factory. Neither reads `process.env` here; each app's
- * own `env.ts` remains the only place that does.
+ * The variables themselves, their defaults and their documentation are declared once, in
+ * `@crm/env`'s registry (ADR-0044), where the API and the worker both read them, so the two
+ * processes cannot disagree about where files live. This is only the shape `createStorageProvider`
+ * needs: both apps' loaded environments satisfy it as they are, and this package depends on no
+ * configuration package. Nothing here reads `process.env`.
  *
- * `memory` exists for tests and cannot work across processes (the API and the
- * worker would each get their own empty store), so it is refused in production
- * and is not what `pnpm dev` uses: dev runs MinIO from docker-compose.
+ * `memory` exists for tests and cannot work across processes (the API and the worker would each get
+ * their own empty store), so it is refused in production and is not what `pnpm dev` uses: dev runs
+ * MinIO from docker-compose.
  */
-export const storageEnvShape = {
-  STORAGE_PROVIDER: z.enum(['s3', 'memory']).default('s3'),
-  S3_BUCKET: z.string().min(1).default('crm-files'),
-  S3_REGION: z.string().min(1).default('us-east-1'),
+export interface StorageEnv {
+  readonly STORAGE_PROVIDER: 's3' | 'memory';
+  readonly S3_BUCKET: string;
+  readonly S3_REGION: string;
   /** Internal address of an S3-compatible store. Omit for AWS S3 itself. */
-  S3_ENDPOINT: z.string().optional(),
+  readonly S3_ENDPOINT?: string | undefined;
   /** The address a *browser* reaches the store at, when it differs from the above. */
-  S3_PUBLIC_ENDPOINT: z.string().optional(),
-  S3_ACCESS_KEY_ID: z.string().optional(),
-  S3_SECRET_ACCESS_KEY: z.string().optional(),
+  readonly S3_PUBLIC_ENDPOINT?: string | undefined;
+  readonly S3_ACCESS_KEY_ID?: string | undefined;
+  readonly S3_SECRET_ACCESS_KEY?: string | undefined;
   /** MinIO needs this; S3 and R2 do not. */
-  S3_FORCE_PATH_STYLE: z
-    .enum(['true', 'false'])
-    .default('false')
-    .transform((value) => value === 'true'),
-};
-
-export type StorageEnv = z.infer<z.ZodObject<typeof storageEnvShape>>;
+  readonly S3_FORCE_PATH_STYLE: boolean;
+}
 
 export function createStorageProvider(env: StorageEnv, nodeEnv: string): StorageProvider {
   if (env.STORAGE_PROVIDER === 'memory') {

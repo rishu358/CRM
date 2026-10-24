@@ -77,7 +77,8 @@ Postgres 16, Redis and the object store are **managed services**, not containers
 (CLAUDE.md §2). `deploy/docker-compose.prod.example.yml` shows one host's layout and is an example to
 copy, not something to run unchanged.
 
-The API and the worker **refuse to start** in production with a development value (a default or
+Every environment variable, who reads it and where to get it is in [CONFIGURATION.md](CONFIGURATION.md)
+(generated from one registry, ADR-0044). The API and the worker **refuse to start** in production with a development value (a default or
 placeholder `AUTH_SECRET`, `console` or `memory` email, memory storage, `http` or `localhost` URLs, the
 database superuser, a development password) and print the name of each variable that is wrong, never
 its value. If one will not start, read its log first: the answer is in it. The rules are
@@ -102,8 +103,9 @@ specifics, and a verification script for the managed-database step._
    does the password substitution and the one grant that fixes it (§9.4).
 3. **Build the images** (`docker build -f deploy/Dockerfile --target <api|worker|web|migrate> .`),
    tag them with the release, and push them to your registry.
-4. **Fill in the environment**: copy `deploy/production.env.example` to `deploy/production.env` (git
-   ignores it) and set every value. Generate `AUTH_SECRET` with `openssl rand -base64 48`.
+4. **Fill in the environment**: copy `deploy/production.env.example` (or `deploy/staging.env.example`) to
+   `deploy/production.env` (git ignores it) and set every value; both are generated from the registry, and
+   [CONFIGURATION.md](CONFIGURATION.md) explains each. Generate `AUTH_SECRET` with `openssl rand -base64 48`.
 5. **Migrate**: `docker compose … --profile ops run --rm migrate`. It prints the migrations it applied.
 6. **Start**: `docker compose … up -d`. The API reports healthy at `/api/v1/health`.
 7. **Check it**: sign up, confirm the verification email arrives, sign in, create a contact, upload

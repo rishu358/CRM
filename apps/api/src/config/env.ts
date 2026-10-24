@@ -3,86 +3,26 @@ import {
   productionConfigProblems,
   type ProductionConfigInput,
 } from '@crm/core';
-import { storageEnvShape } from '@crm/storage';
-import { z } from 'zod';
+import { loadEnv, type EnvFor, type EnvSource } from '@crm/env';
 
 /**
- * The only module allowed to read process.env (CLAUDE.md §5.8).
+ * The API's configuration (CLAUDE.md §5.8, ADR-0044).
  *
- * Validated once at boot so a missing secret stops the process immediately
- * rather than surfacing as a confusing 500 on the first request that needs it.
- * Errors report which variable is wrong, never its value.
+ * The variables, their types, defaults and documentation are declared once, in `@crm/env`'s
+ * registry; this module asks it for the API's scope and then applies the production rules
+ * (`@crm/core`), which need the whole picture rather than one variable at a time. Nothing here, or
+ * anywhere else in the application, reads `process.env`.
+ *
+ * Validated once at boot so a missing secret stops the process immediately rather than surfacing as
+ * a confusing 500 on the first request that needs it. Errors name the variable, never its value.
  */
-const envSchema = z
-  .object({
-    NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
-    API_PORT: z.coerce.number().int().positive().default(3001),
-    API_HOST: z.string().default('0.0.0.0'),
-    WEB_URL: z.string().default('http://localhost:3000'),
-    // Our own public origin, used to build the OAuth redirect URI. Google
-    // compares it byte for byte against the registered one, so it cannot be
-    // inferred from the request.
-    API_URL: z.string().default('http://localhost:3001'),
-    CORS_ORIGINS: z.string().default('http://localhost:3000'),
+export type ApiEnv = EnvFor<'api'>;
 
-    DATABASE_URL: z.string().min(1),
-    DATABASE_AUTH_URL: z.string().min(1).optional(),
-    DATABASE_POOL_MAX: z.coerce.number().int().positive().max(100).default(10),
-    // The managed provider's CA certificate, PEM or base64 of it (packages/db/src/tls.ts, ADR-0042).
-    DATABASE_CA_CERT: z.string().optional(),
-
-    REDIS_URL: z.string().optional(),
-
-    // 32 bytes minimum. Short secrets are the usual way session signing fails
-    // quietly, so this is a hard floor rather than a warning.
-    AUTH_SECRET: z.string().min(32, 'AUTH_SECRET must be at least 32 characters'),
-    SESSION_COOKIE_NAME: z.string().default('crm_session'),
-    SESSION_TTL_DAYS: z.coerce.number().int().positive().max(90).default(14),
-
-    // Sign-in, sign-up and password reset are unauthenticated, so the per-user
-    // limit above cannot apply to them. This is the per-IP ceiling for those
-    // routes specifically, far tighter than the general one.
-    AUTH_RATE_LIMIT_WINDOW_SECONDS: z.coerce.number().int().positive().default(900),
-    AUTH_RATE_LIMIT_MAX_PER_IP: z.coerce.number().int().positive().default(50),
-    // Cap on the progressive delay after repeated failures. Every delayed
-    // request is a connection held open, so this is bounded rather than
-    // doubling forever (packages/core/auth/throttle.ts).
-    AUTH_THROTTLE_MAX_DELAY_MS: z.coerce.number().int().nonnegative().max(60_000).default(8000),
-
-    EMAIL_PROVIDER: z.enum(['console', 'memory', 'resend']).default('console'),
-    // Only read when EMAIL_PROVIDER=resend. Never logged.
-    RESEND_API_KEY: z.string().optional(),
-
-    // Object storage for import files and generated exports (CLAUDE.md §5.12).
-    ...storageEnvShape,
-    EMAIL_FROM: z.string().default('no-reply@localhost'),
-
-    // Google sign-in is optional: the endpoints return 404 when it is not
-    // configured, rather than failing confusingly at the redirect.
-    GOOGLE_CLIENT_ID: z.string().optional(),
-    GOOGLE_CLIENT_SECRET: z.string().optional(),
-
-    RATE_LIMIT_WINDOW_SECONDS: z.coerce.number().int().positive().default(60),
-    RATE_LIMIT_MAX_PER_USER: z.coerce.number().int().positive().default(300),
-    RATE_LIMIT_MAX_PER_TENANT: z.coerce.number().int().positive().default(3000),
-
-    LOG_LEVEL: z.enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal']).default('info'),
-  })
-  .passthrough();
-
-export type ApiEnv = z.infer<typeof envSchema>;
-
-export function loadApiEnv(source: NodeJS.ProcessEnv = process.env): ApiEnv {
-  const parsed = envSchema.safeParse(source);
-  if (!parsed.success) {
-    const problems = parsed.error.issues
-      .map((issue) => `${issue.path.join('.')}: ${issue.message}`)
-      .join('; ');
-    throw new Error(`Invalid API environment: ${problems}`);
-  }
+export function loadApiEnv(source?: EnvSource): ApiEnv {
+  const env = loadEnv('api', source);
   // A production process with development settings does not start (ADR-0041).
-  assertProductionConfig(productionInput(parsed.data));
-  return parsed.data;
+  assertProductionConfig(productionInput(env));
+  return env;
 }
 
 function productionInput(env: ApiEnv): ProductionConfigInput {

@@ -18,6 +18,7 @@
     "@crm/contracts": "workspace:^",
     "@crm/core": "workspace:^",
     "@crm/db": "workspace:^",
+    "@crm/env": "workspace:^",
     "@crm/outbound": "workspace:^",
     "@crm/storage": "workspace:^",
     "@fastify/cookie": "^11.1.3",

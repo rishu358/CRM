@@ -48,6 +48,7 @@ pnpm test                # unit + integration (real Postgres via Testcontainers;
 pnpm test:security       # tenant isolation + permissions: must always pass, never skipped
 pnpm test:e2e            # Playwright, for the critical flows
 pnpm openapi:check       # the API document matches the code
+pnpm config:check        # generated .env.example / CONFIGURATION.md are current
 pnpm test:scripts        # the repository's own scripts
 bash scripts/scan-secrets.sh   # gitleaks over the whole history, failing closed
 ```
@@ -62,6 +63,12 @@ critical advisories. Integration tests never mock the database for permission ch
   trust the client for tenant, user, role, ownership or price.
 - **Every endpoint is authorised through `can()`**; no inline role checks. Hidden fields are removed
   from responses and rejected on write.
+- **No hardcoded configuration, and no `process.env` outside `packages/env`.** A domain, URL, email
+  address, region, bucket, name or brand string comes from configuration. Add a new variable to
+  `packages/env/src/registry.ts` (its scopes, whether it is secret, where to get it), read it with
+  `loadEnv(scope)`, run `pnpm config:docs` and commit the regenerated `.env.example`, templates and
+  `docs/CONFIGURATION.md`. A new vendor goes behind a provider adapter chosen by an env variable. The
+  full rules are CLAUDE.md §13.
 - **No secrets in the repository, tests, docs, logs or error messages**, not even "temporary" ones.
   If one is committed, treat it as exposed: rotate it first, then remove it
   ([`SECURITY.md`](SECURITY.md#if-you-committed-a-secret)).

@@ -5,11 +5,12 @@ import {
   MemoryStorageProvider,
   newStorageKey,
   safeDownloadName,
-  storageEnvShape,
 } from './index.js';
-import { z } from 'zod';
+import { loadEnv } from '@crm/env';
 
-const parseEnv = (source: Record<string, string>) => z.object(storageEnvShape).parse(source);
+// The storage settings as the worker loads them: through the registry, as in production.
+const parseEnv = (source: Record<string, string>) =>
+  loadEnv('worker', { DATABASE_URL: 'postgres://u:p@localhost/d', ...source });
 
 describe('newStorageKey (CLAUDE.md §5.12: random keys)', () => {
   const tenant = '0192f9b0-0000-7000-8000-000000000001';

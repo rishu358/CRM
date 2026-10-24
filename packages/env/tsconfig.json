@@ -1,0 +1,5 @@
+{
+  "extends": "@crm/config/tsconfig/library.json",
+  "compilerOptions": { "rootDir": "src" },
+  "include": ["src/**/*.ts"]
+}

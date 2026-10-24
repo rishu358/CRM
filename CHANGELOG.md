@@ -21,6 +21,17 @@ a working version, and the first tag will be cut from a green `master` (see
   CODEOWNERS, a pull-request template, secret scanning (gitleaks) in a pre-commit hook and in CI,
   and a Conventional Commits check.
 
+### Changed
+
+- **One configuration registry (`@crm/env`, ADR-0044):** every environment variable is declared once, with
+  its scopes, secrecy, default and where to get it. The API, worker, web app and scripts load only their
+  own scope; the web app refuses to start outside local development if it holds a secret meant for
+  another process. `.env.example`, `deploy/staging.env.example`, `deploy/production.env.example` and
+  `docs/CONFIGURATION.md` are generated from it and checked in CI. An empty variable now means "not set".
+  `.env.example` no longer lists nine variables no code reads.
+- `process.env` is forbidden everywhere except the registry's one reader (lint rule tightened).
+- CLAUDE.md gains section 13 (configuration, secrets and vendors).
+
 ### Security
 
 - Production configuration now also refuses `doadmin`, the managed-database administrator role, by

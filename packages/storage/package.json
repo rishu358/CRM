@@ -27,6 +27,7 @@
   },
   "devDependencies": {
     "@crm/config": "workspace:^",
+    "@crm/env": "workspace:^",
     "@types/node": "^26.6.5",
     "testcontainers": "^12.2.1",
     "typescript": "5.9.3",

@@ -1,46 +1,27 @@
-import { z } from 'zod';
+import { loadEnv, type EnvFor, type EnvSource } from '@crm/env';
 
 /**
- * The only place in this package that reads process.env (CLAUDE.md §5.8).
- * Validated once at startup so a misconfigured deployment fails immediately and
- * loudly rather than at the first query.
+ * Configuration for the CLI entry points in this package: migrate, seed, reindex (CLAUDE.md §5.8,
+ * ADR-0044). The variables are declared once, in `@crm/env`'s registry, under the `db` scope; this
+ * package reads no `process.env` itself. Validated once at startup so a misconfigured deployment
+ * fails immediately and loudly rather than at the first query.
+ *
+ * - `DATABASE_URL`           the API's role (`crm_app`): no BYPASSRLS, owns nothing
+ * - `DATABASE_MIGRATION_URL` `crm_migrator`, which owns the schema
+ * - `DATABASE_AUTH_URL`      `crm_auth`: identity tables only
+ * - `DATABASE_WORKER_URL`    `crm_worker`: the outbox relay
  */
-const envSchema = z.object({
-  /** The API connects as crm_app: no BYPASSRLS, owns nothing. */
-  DATABASE_URL: z.string().min(1),
-  /** Migrations connect as crm_migrator, which owns the schema. */
-  DATABASE_MIGRATION_URL: z.string().min(1).optional(),
-  /** The auth layer connects as crm_auth: identity tables only. */
-  DATABASE_AUTH_URL: z.string().min(1).optional(),
-  /** The outbox relay connects as crm_worker. */
-  DATABASE_WORKER_URL: z.string().min(1).optional(),
-  DATABASE_POOL_MAX: z.coerce.number().int().positive().max(100).default(10),
-  /** The managed provider's CA certificate: PEM, or base64 of it. See `tls.ts`. */
-  DATABASE_CA_CERT: z.string().optional(),
-});
+export type DbEnv = EnvFor<'db'>;
 
-export type DbEnv = z.infer<typeof envSchema>;
-
-export function loadDbEnv(source: NodeJS.ProcessEnv = process.env): DbEnv {
-  const parsed = envSchema.safeParse(source);
-  if (!parsed.success) {
-    // Prints which variables are wrong, never their values.
-    const problems = parsed.error.issues
-      .map((issue) => `${issue.path.join('.')}: ${issue.message}`)
-      .join('; ');
-    throw new Error(`Invalid database environment: ${problems}`);
-  }
-  return parsed.data;
+export function loadDbEnv(source?: EnvSource): DbEnv {
+  return loadEnv('db', source);
 }
 
 /**
- * Load-test tooling only (`src/perf`): a superuser connection to a **scratch** database, which
- * the seed refuses to use unless its name says it is one. Kept out of `DbEnv` so no service ever
- * sees, or can be configured with, a superuser URL.
+ * Load-test tooling only (`src/perf`): a superuser connection to a **scratch** database, which the
+ * seed refuses to use unless its name says it is one. Registered under its own `perf` scope, apart
+ * from every application's, so no service can ever be configured with a superuser URL.
  */
-export function loadPerfEnv(source: NodeJS.ProcessEnv = process.env): {
-  adminUrl: string | undefined;
-} {
-  const value = source['PERF_ADMIN_URL'];
-  return { adminUrl: value === undefined || value === '' ? undefined : value };
+export function loadPerfEnv(source?: EnvSource): { adminUrl: string | undefined } {
+  return { adminUrl: loadEnv('perf', source).PERF_ADMIN_URL };
 }

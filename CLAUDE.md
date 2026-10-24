@@ -38,7 +38,8 @@ packages/
   contracts/      # Zod schemas + TS types for every API request/response
   db/             # Drizzle schema, migrations, RLS policies, seed
   ui/             # Shared design-system components
-  config/         # eslint, tsconfig, tailwind presets
+  config/         # eslint, tsconfig, tailwind presets (tooling; never a runtime dependency)
+  env/            # THE configuration registry + loaders: the only reader of process.env (ADR-0044)
   core/           # Pure domain logic (permissions engine, field types, money, dates)
 docs/
   MVP_SPEC.md     # Product + technical spec (source of truth)
@@ -59,6 +60,10 @@ pnpm lint && pnpm typecheck
 pnpm db:generate         # create migration from schema change
 pnpm db:migrate          # apply migrations
 pnpm db:seed             # demo tenant with sample data
+pnpm config:docs         # regenerate .env.example, the staging/production templates, docs/CONFIGURATION.md
+pnpm config:check        # fail if those are stale (CI)
+pnpm hooks:install       # once per clone: secret scan on commit, Conventional Commits check
+pnpm test:scripts        # the repository's own scripts (commit-message check)
 ```
 
 ## 5. NON-NEGOTIABLE SECURITY RULES
@@ -70,7 +75,7 @@ pnpm db:seed             # demo tenant with sample data
 5. **No IDOR.** Load records by `id` AND rely on RLS; return 404 (not 403) for records outside the tenant/visibility scope.
 6. **Validate every input** with Zod at the API boundary. Reject unknown keys (`.strict()`).
 7. **No raw SQL string concatenation.** Parameterized queries only. Dynamic sort/filter fields must be whitelisted against field metadata.
-8. **Secrets** only from environment/secret manager. Never commit `.env`. Never log tokens, passwords, OTPs or full PII.
+8. **Secrets** only from environment/secret manager. Never commit `.env`. Never log tokens, passwords, OTPs or full PII. Secret scanning (gitleaks) runs on every commit and in CI; see §13.
 9. **Auth:** httpOnly + Secure + SameSite=Lax cookies, CSRF protection on state-changing requests, MFA supported, rate-limited login/OTP/reset, session revocation on password change.
 10. **Audit everything that matters:** create/update/delete, login, permission/role changes, exports, impersonation. Audit log is append-only.
 11. **Exports:** escape CSV formula injection (cells starting with `= + - @ \t \r` get a leading `'`). Exports are permission-checked and audited.
@@ -149,3 +154,32 @@ pnpm db:seed             # demo tenant with sample data
 - [ ] Loading/empty/error/no-permission states in UI
 - [ ] Strings use i18n; dates/money use shared formatters
 - [ ] OpenAPI updated; spec updated if behavior changed
+- [ ] No hardcoded config (§13); any new env var is in the registry and `pnpm config:docs` was run
+
+## 13. Configuration, secrets and vendors (handover-ready rules)
+
+The codebase must be cloneable, configured with environment variables only, and deployable to any
+host or handed to another developer **without editing code**. These rules are permanent and bind
+every developer and every Claude Code session (ADR-0044). If a request conflicts with one, STOP and ask.
+
+1. **No hardcoded config.** Domains, URLs, email addresses, regions, bucket names, product names, brand
+   text, support and legal addresses, and sender identities are never literals in code. They come from
+   configuration (environment, or tenant settings). Test fixtures use obviously fake `*.example` values.
+2. **No `process.env` outside `packages/env`.** Read configuration with `loadEnv(scope)`. An ESLint rule
+   fails the build otherwise. Tool configs (`*.config.ts`) and developer scripts are the only exceptions.
+3. **A new env var is added to the registry** (`packages/env/src/registry.ts`) with its scopes, whether
+   it is secret, its default and where to get it, then `pnpm config:docs` is run and the regenerated
+   `.env.example`, staging/production templates and `docs/CONFIGURATION.md` are committed. CI fails on
+   stale files. Never edit those generated files by hand.
+4. **Scopes are a security decision.** The web app is registered for the few variables it needs and
+   refuses to start outside local development if it holds any secret meant for another process. Never
+   add a secret, or a database variable, to the `web` scope.
+5. **New vendors only through provider adapters** selected by an env variable (email, storage, search,
+   queue, payments, WhatsApp, AI). No vendor SDK or hostname outside its adapter, and nothing in
+   application code may name DigitalOcean, Vercel, Resend or any other host.
+6. **No secret in the repository, tests, docs, logs or error messages**, ever, including "temporary"
+   ones. If one is committed, rotate it first (SECURITY.md). A gitleaks false positive is allowlisted by
+   its exact fake value in `.gitleaks.toml` with a reason; a rule is never loosened.
+7. **Tenant isolation does not depend on the deployment mode.** Row-level security is on in every mode;
+   a single-tenant install is one tenant, never a different data-access path.
+8. **Commits are Conventional Commits** (`feat(scope): ...`), enforced by the `commit-msg` hook and CI.
