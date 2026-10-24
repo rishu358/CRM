@@ -26,7 +26,9 @@ function block(selector: string): Tokens {
   const tokens: Tokens = {};
   for (const match of css
     .slice(open, close)
-    .matchAll(/--([a-z-]+):\s*([\d.]+)\s+([\d.]+)%\s+([\d.]+)%;/g)) {
+    // A token may be `H S% L%` or `var(--brand-x, H S% L%)`: the brand variable is only set when an
+    // installation configures a colour (ADR-0045), so what is proven here is the built-in fallback.
+    .matchAll(/--([a-z-]+):\s*(?:var\(--[a-z-]+,\s*)?([\d.]+)\s+([\d.]+)%\s+([\d.]+)%\)?;/g)) {
     tokens[match[1] as string] = [Number(match[2]), Number(match[3]), Number(match[4])];
   }
   return tokens;

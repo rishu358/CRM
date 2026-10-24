@@ -32,6 +32,11 @@ export interface CspOptions {
   readonly https: boolean;
   /** Origins the browser may connect to besides this one: the object store's public address. */
   readonly connectOrigins: readonly string[];
+  /**
+   * Origins images may load from besides this one: the host of a configured logo or favicon
+   * (ADR-0045). Nothing else is added to `img-src`, so one typo cannot open it to the internet.
+   */
+  readonly imgOrigins: readonly string[];
 }
 
 /** An origin, or null if the text is not an http(s) URL. Anything else never reaches a header. */
@@ -61,7 +66,7 @@ export function buildCsp(options: CspOptions): string {
     // In development the dev server injects style tags it does not nonce.
     options.development ? "style-src 'self' 'unsafe-inline'" : `style-src 'self' ${nonce}`,
     "style-src-attr 'unsafe-inline'",
-    "img-src 'self' data: blob:",
+    `img-src 'self' data: blob:${[...new Set(options.imgOrigins)].map((origin) => ` ${origin}`).join('')}`,
     "font-src 'self'",
     `connect-src ${connect.join(' ')}`,
     "object-src 'none'",

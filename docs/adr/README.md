@@ -52,3 +52,4 @@ supersedes the old one and update the old one's **Status** to
 | [0042](0042-deployment-digitalocean-blr1-and-vercel-bom1.md)     | Deployment: DigitalOcean App Platform in BLR1, the web app on Vercel in bom1  | Accepted |
 | [0043](0043-managed-postgres-schema-ownership.md)                | Bootstrapping on a managed Postgres: the admin role may not own `public`      | Proposed |
 | [0044](0044-configuration-registry.md)                           | One configuration registry, loaded per scope, with the docs generated from it | Accepted |
+| [0045](0045-instance-branding-and-new-workspace-defaults.md)     | Branding and new-workspace defaults are configuration, per installation       | Accepted |

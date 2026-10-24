@@ -10,7 +10,12 @@
  * now is that no component contains a literal string.
  */
 export const en = {
-  'app.name': 'CRM',
+  // The product's name is not here: it is configuration (`APP_NAME`), read from `useBrand()`.
+  'app.description': 'Customer relationship management',
+  'auth.footer.label': 'Legal and support',
+  'auth.footer.terms': 'Terms',
+  'auth.footer.privacy': 'Privacy',
+  'auth.footer.support': 'Support',
   'nav.leads': 'Leads',
   'nav.contacts': 'Contacts',
   'nav.accounts': 'Accounts',
@@ -1105,7 +1110,7 @@ export const en = {
   'setup.checklist.allDone': 'You’re all set. Everything on the list is done.',
   'setup.checklist.invite_team': 'Invite your team',
   'setup.checklist.invite_team.hint':
-    'Add the people who will work in the CRM and give each a role.',
+    'Add the people who will work in {appName} and give each a role.',
   'setup.checklist.import_contacts': 'Import your contacts',
   'setup.checklist.import_contacts.hint':
     'Bring in a spreadsheet or CSV instead of typing them one by one.',

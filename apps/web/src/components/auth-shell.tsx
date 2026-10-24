@@ -3,7 +3,8 @@
 import { AlertIcon, Card, SuccessIcon } from '@crm/ui';
 import type { ReactNode } from 'react';
 import { t } from '../lib/i18n';
-import { BrandMark } from './brand-mark';
+import { BrandLockup } from './brand-lockup';
+import { useBrand } from './brand-provider';
 
 /**
  * The frame every signed-out screen sits in.
@@ -31,8 +32,7 @@ export function AuthShell({
     <main className="flex min-h-dvh flex-col items-center justify-center bg-background px-4 py-10">
       <div className="w-full max-w-[26rem]">
         <div className="mb-8 flex items-center justify-center gap-2.5">
-          <BrandMark className="h-9 w-9" />
-          <span className="text-xl font-semibold tracking-tight">{t('app.name')}</span>
+          <BrandLockup size="auth" />
         </div>
         <Card className="shadow-md">
           <div className="px-6 pt-6">
@@ -46,8 +46,44 @@ export function AuthShell({
         {footer === undefined ? null : (
           <div className="mt-5 text-center text-sm text-muted-foreground">{footer}</div>
         )}
+        <LegalLinks />
       </div>
     </main>
+  );
+}
+
+/**
+ * Support, terms and privacy links, each shown only if the installation configured it
+ * (`SUPPORT_EMAIL`, `TERMS_URL`, `PRIVACY_URL`; ADR-0045). A deployment with none of them shows
+ * nothing, rather than links to somebody else's documents.
+ */
+function LegalLinks() {
+  const brand = useBrand();
+  const links = [
+    brand.termsUrl === null ? null : { href: brand.termsUrl, label: t('auth.footer.terms') },
+    brand.privacyUrl === null ? null : { href: brand.privacyUrl, label: t('auth.footer.privacy') },
+    brand.supportEmail === null
+      ? null
+      : { href: `mailto:${brand.supportEmail}`, label: t('auth.footer.support') },
+  ].filter((link): link is { href: string; label: string } => link !== null);
+  if (links.length === 0) return null;
+
+  return (
+    <nav
+      aria-label={t('auth.footer.label')}
+      className="mt-6 flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs text-muted-foreground"
+    >
+      {links.map((link) => (
+        <a
+          key={link.href}
+          href={link.href}
+          rel="noopener noreferrer"
+          className="rounded-sm underline-offset-4 hover:underline"
+        >
+          {link.label}
+        </a>
+      ))}
+    </nav>
   );
 }
 

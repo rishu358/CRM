@@ -87,6 +87,7 @@ const notificationOptions = {
   }),
   emailFrom: env.EMAIL_FROM,
   webUrl: env.WEB_URL,
+  appName: env.APP_NAME,
   digestWindowMinutes: env.DIGEST_WINDOW_MINUTES,
 };
 

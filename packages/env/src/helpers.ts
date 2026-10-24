@@ -196,3 +196,82 @@ export function defaultedFlag<const Sc extends readonly Scope[]>(
     defaultFor: () => (o.default ? 'true' : 'false'),
   };
 }
+
+// ---- checked values -----------------------------------------------------------------------------
+
+/** A string with a default that must also pass a check (a valid time zone, a currency code). */
+export function defaultedChecked<const Sc extends readonly Scope[]>(
+  m: BaseMeta<Sc>,
+  o: {
+    readonly default: string;
+    readonly check: (value: string) => boolean;
+    readonly message: string;
+  },
+): VarDef<string, false, Sc> {
+  return {
+    ...meta(m, 'optional'),
+    scopes: m.scopes,
+    optional: false,
+    schemaFor: () => z.string().refine(o.check, o.message).default(o.default),
+    defaultFor: () => o.default,
+  };
+}
+
+/** An email address that may be left unset. */
+export function optionalEmail<const Sc extends readonly Scope[]>(
+  m: BaseMeta<Sc>,
+): VarDef<string, true, Sc> {
+  return {
+    ...meta(m, 'optional'),
+    scopes: m.scopes,
+    optional: true,
+    schemaFor: () => z.email().optional(),
+    defaultFor: () => undefined,
+  };
+}
+
+/** A `#rrggbb` colour that may be left unset. Whether it is readable is checked where it is used. */
+export function optionalHexColor<const Sc extends readonly Scope[]>(
+  m: BaseMeta<Sc>,
+): VarDef<string, true, Sc> {
+  return {
+    ...meta(m, 'optional'),
+    scopes: m.scopes,
+    optional: true,
+    schemaFor: () =>
+      z
+        .string()
+        .regex(/^#[0-9a-fA-F]{6}$/, 'must be a colour written #rrggbb')
+        .optional(),
+    defaultFor: () => undefined,
+  };
+}
+
+/**
+ * An address a browser loads an image from: an absolute http(s) URL, or a path on the web app's own
+ * origin (`/brand/logo.svg`, served from `apps/web/public`). Never `javascript:`, `data:` or a
+ * protocol-relative `//host`, which would let a typo become a script or an unexpected host.
+ */
+export function isAssetUrl(value: string): boolean {
+  if (/^\/[^/\\]/.test(value)) return true;
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' || url.protocol === 'http:';
+  } catch {
+    return false;
+  }
+}
+
+/** An image address (see `isAssetUrl`) that may be left unset. */
+export function optionalAssetUrl<const Sc extends readonly Scope[]>(
+  m: BaseMeta<Sc>,
+): VarDef<string, true, Sc> {
+  return {
+    ...meta(m, 'optional'),
+    scopes: m.scopes,
+    optional: true,
+    schemaFor: () =>
+      z.string().refine(isAssetUrl, 'must be an http(s) URL or a path starting with /').optional(),
+    defaultFor: () => undefined,
+  };
+}

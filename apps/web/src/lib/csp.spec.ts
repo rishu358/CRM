@@ -7,6 +7,7 @@ const production: CspOptions = {
   development: false,
   https: true,
   connectOrigins: [],
+  imgOrigins: [],
 };
 
 const directive = (policy: string, name: string): string | undefined =>
@@ -64,6 +65,27 @@ describe('what varies', () => {
     const policy = buildCsp({ ...production, connectOrigins: ['https://files.example.com'] });
     expect(directive(policy, 'connect-src')).toBe("'self' https://files.example.com");
     expect(policy.split('https://files.example.com')).toHaveLength(2);
+  });
+
+  it('allows images from this origin, data and blob only, unless a logo host is configured', () => {
+    expect(directive(buildCsp(production), 'img-src')).toBe("'self' data: blob:");
+  });
+
+  it('adds a configured logo host to img-src and nowhere else', () => {
+    const policy = buildCsp({ ...production, imgOrigins: ['https://cdn.example.com'] });
+    expect(directive(policy, 'img-src')).toBe("'self' data: blob: https://cdn.example.com");
+    expect(policy.split('https://cdn.example.com')).toHaveLength(2);
+    // Images are the only thing that opens up: scripts, connections and fonts are untouched.
+    expect(directive(policy, 'connect-src')).toBe("'self'");
+    expect(directive(policy, 'font-src')).toBe("'self'");
+  });
+
+  it('lists an image origin once however many times it is given', () => {
+    const policy = buildCsp({
+      ...production,
+      imgOrigins: ['https://cdn.example.com', 'https://cdn.example.com'],
+    });
+    expect(policy.split('https://cdn.example.com')).toHaveLength(2);
   });
 
   it('lists an origin once however many times it is given', () => {

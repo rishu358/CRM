@@ -472,7 +472,7 @@ export class InvitationsService {
       to: message.to,
       subject: `You have been invited to join ${message.workspaceName}`,
       text:
-        `${from} has invited you to join ${message.workspaceName} on CRM as ` +
+        `${from} has invited you to join ${message.workspaceName} on ${this.env.APP_NAME} as ` +
         `${message.roleName}.\n\n` +
         `Open this link to accept. It expires in 7 days and can be used once:\n\n` +
         `${this.env.WEB_URL}/accept-invite?token=${message.token}\n\n` +

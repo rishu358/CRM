@@ -478,7 +478,7 @@ export class AuthService {
 
       await this.email.send({
         to: user.email,
-        subject: 'Reset your CRM password',
+        subject: `Reset your ${this.env.APP_NAME} password`,
         text:
           `Hello ${user.name},\n\n` +
           `Open this link to choose a new password. It expires in one hour and ` +
@@ -663,7 +663,7 @@ export class AuthService {
       subject: 'Confirm your email address',
       text:
         `Hello ${name},\n\n` +
-        `Confirm your address to finish setting up your CRM account. This link ` +
+        `Confirm your address to finish setting up your ${this.env.APP_NAME} account. This link ` +
         `expires in 24 hours:\n\n${this.env.WEB_URL}/verify-email?token=${token}\n`,
     });
   }
@@ -671,9 +671,10 @@ export class AuthService {
   private async sendAccountExists(email: string): Promise<void> {
     await this.email.send({
       to: email,
-      subject: 'You already have a CRM account',
+      // No article before the name: "a Orchid account" is what a configurable name would produce.
+      subject: `You already have an account on ${this.env.APP_NAME}`,
       text:
-        `Somebody tried to create a CRM account with this address, and one ` +
+        `Somebody tried to create an account on ${this.env.APP_NAME} with this address, and one ` +
         `already exists.\n\n` +
         `If that was you, sign in instead: ${this.env.WEB_URL}/sign-in\n` +
         `If you have forgotten your password: ${this.env.WEB_URL}/forgot-password\n\n` +

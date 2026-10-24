@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { EnvError, loadEnv, redactedEnv } from './load.js';
+import { EnvError, loadEnv, redactedEnv, variablesFor } from './load.js';
 
 const API_MIN = {
   DATABASE_URL: 'postgres://crm_app:pw@localhost:15432/crm',
@@ -61,17 +61,11 @@ describe('loadEnv', () => {
 
   it('returns only the variables registered for the scope', () => {
     const env = loadEnv('web', { API_URL: 'https://api.example.com', SOME_OTHER_THING: 'x' });
-    expect(Object.keys(env).sort()).toEqual(
-      [
-        'API_URL',
-        'APP_ENV',
-        'NODE_ENV',
-        'S3_PUBLIC_ENDPOINT',
-        'SESSION_COOKIE_NAME',
-        'SESSION_TTL_DAYS',
-      ].filter((name) => name in env),
-    );
+    const registered = variablesFor('web').map(([name]) => name);
+    expect(Object.keys(env).every((name) => registered.includes(name))).toBe(true);
     expect(env).not.toHaveProperty('SOME_OTHER_THING');
+    // Registered for the API only, so absent here even though the source could have supplied it.
+    expect(env).not.toHaveProperty('DATABASE_POOL_MAX');
   });
 
   it('does not put variables of other scopes on the type', () => {
