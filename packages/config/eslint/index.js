@@ -79,7 +79,7 @@ export const base = tseslint.config(
           object: 'process',
           property: 'env',
           message:
-            'Read configuration from the validated env module, not process.env directly (CLAUDE.md §5.8).',
+            'Read configuration with loadEnv(scope) from @crm/env, not process.env directly (CLAUDE.md §5.8, §13). New variables go in packages/env/src/registry.ts.',
         },
       ],
     },
@@ -94,8 +94,10 @@ export const base = tseslint.config(
     },
   },
   {
-    // The env module is the one place allowed to touch process.env.
-    files: ['**/env.ts', '**/env/*.ts', '**/*.config.ts', '**/drizzle.config.ts'],
+    // Tool configuration runs outside the application (Next, Playwright, Vitest, drizzle-kit) and
+    // cannot import it. The application's own reader is exempted in the one package that owns it:
+    // packages/env/eslint.config.js allows `src/process-env.ts` and nothing else (ADR-0044).
+    files: ['**/*.config.ts', '**/*.config.mts', '**/drizzle.config.ts'],
     rules: { 'no-restricted-properties': 'off' },
   },
 );

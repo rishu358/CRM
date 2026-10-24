@@ -23,7 +23,7 @@ loadEnv({
 const config: NextConfig = {
   reactStrictMode: true,
   // The workspace packages ship TypeScript source, so Next must compile them.
-  transpilePackages: ['@crm/ui', '@crm/contracts', '@crm/core'],
+  transpilePackages: ['@crm/ui', '@crm/contracts', '@crm/core', '@crm/env'],
   async headers() {
     return [
       {

@@ -16,6 +16,7 @@
     "@crm/contracts": "workspace:^",
     "@crm/core": "workspace:^",
     "@crm/db": "workspace:^",
+    "@crm/env": "workspace:^",
     "@crm/outbound": "workspace:^",
     "@crm/storage": "workspace:^",
     "csv-parse": "^7.0.3",
