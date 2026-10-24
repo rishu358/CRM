@@ -14,8 +14,13 @@ import { defineConfig, devices } from '@playwright/test';
 export default defineConfig({
   testDir: './e2e',
   globalSetup: './e2e/global-setup.ts',
-  timeout: 30_000,
-  expect: { timeout: 10_000 },
+  // A GitHub runner is about three to four times slower than a development
+  // machine here: the same suite takes 8 minutes locally and 30 on CI. At the
+  // local budget, 26 tests exceeded 30s — twice each, since CI already retries —
+  // while every one of them passes locally. The budget is raised for CI only, so
+  // a genuine hang is still caught quickly when running on a workstation.
+  timeout: process.env.CI ? 90_000 : 30_000,
+  expect: { timeout: process.env.CI ? 20_000 : 10_000 },
   fullyParallel: false,
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 1 : 0,
