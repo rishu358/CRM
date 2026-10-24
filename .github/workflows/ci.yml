@@ -194,6 +194,15 @@ jobs:
       RATE_LIMIT_MAX_PER_IP: '100000'
       RATE_LIMIT_MAX_PER_USER: '100000'
       RATE_LIMIT_MAX_PER_TENANT: '100000'
+      # The sign-in throttle needs raising too, and for a sharper reason: the
+      # whole suite signs in from one address, over a hundred times. At the
+      # production defaults the progressive delay grows until sign-in stops
+      # returning, so tests hang on waitForURL('**/dashboard') and fail at
+      # authentication rather than at whatever they were testing. These are the
+      # values the suite is run with locally.
+      AUTH_RATE_LIMIT_WINDOW_SECONDS: '900'
+      AUTH_RATE_LIMIT_MAX_PER_IP: '100000'
+      AUTH_THROTTLE_MAX_DELAY_MS: '1'
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
