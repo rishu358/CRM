@@ -235,36 +235,54 @@ jobs:
       - run: pnpm --filter @crm/web exec playwright install --with-deps chromium
       - name: Start API and wait for it
         run: |
-          pnpm --filter @crm/api start &
+          pnpm --filter @crm/api start > /tmp/api.log 2>&1 &
           for _ in $(seq 1 30); do
             if curl -fsS http://localhost:3001/api/v1/health > /dev/null; then
               echo "API ready"; exit 0
             fi
             sleep 2
           done
-          echo "API did not become ready" >&2; exit 1
+          # Print why. Without this the step only ever said "did not become ready",
+          # and the actual reason had to be dug out of the raw job log.
+          echo "API did not become ready. Its output:" >&2
+          cat /tmp/api.log >&2
+          exit 1
         env:
-          NODE_ENV: production
+          # Deliberately not `production`. The production configuration guard
+          # (ADR-0041) refuses a placeholder AUTH_SECRET, EMAIL_PROVIDER=console
+          # and an http S3_PUBLIC_ENDPOINT — all of which this job uses on purpose —
+          # so the API exited at once. The guard is right; CI is not production.
+          # `development` matches what the suite is run with locally. The web app
+          # below still serves a real production build.
+          NODE_ENV: development
       # Import, export, recycle-bin and data-rights flows are BullMQ jobs, so
       # their specs hang without a worker draining the queue.
       - name: Start the worker
-        run: pnpm --filter @crm/worker start &
+        run: pnpm --filter @crm/worker start > /tmp/worker.log 2>&1 &
         env:
-          NODE_ENV: production
+          # Same reason as the API above.
+          NODE_ENV: development
       # Start the web app on `next start`, not `next dev`. playwright.config.ts
       # sets `reuseExistingServer: true`, so Playwright attaches to this server
       # instead of spawning the dev one, which is how the suite is run locally.
       - name: Start the web app and wait for it
         run: |
-          pnpm --filter @crm/web start &
+          pnpm --filter @crm/web start > /tmp/web.log 2>&1 &
           for _ in $(seq 1 60); do
             if curl -fsS http://localhost:3000 > /dev/null; then
               echo "Web ready"; exit 0
             fi
             sleep 2
           done
-          echo "Web did not become ready" >&2; exit 1
+          echo "Web did not become ready. Its output:" >&2
+          cat /tmp/web.log >&2
+          echo "--- worker output, in case it died first ---" >&2
+          cat /tmp/worker.log >&2 || true
+          exit 1
         env:
+          # The web app does run a production build; APP_ENV=local at job level is
+          # what keeps the scope guard (CLAUDE.md §13.4) from rejecting the database
+          # and S3 credentials this shared env block hands to every process.
           NODE_ENV: production
       - run: pnpm --filter @crm/web exec playwright test
       - uses: actions/upload-artifact@v4
