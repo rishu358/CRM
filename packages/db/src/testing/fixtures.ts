@@ -246,6 +246,47 @@ export class Fixtures {
   }
 
   /** The company's calendar, which decides where "this month" starts (ADR-0038). */
+  /** What a workspace and its founding user were created with (ADR-0045). */
+  async workspaceDefaults(
+    tenantId: string,
+    email: string,
+  ): Promise<{
+    region: string;
+    currency: string;
+    timezone: string;
+    locale: string;
+    fiscalYearStartMonth: string;
+    userLocale: string;
+    userTimezone: string;
+  }> {
+    const { rows } = await this.pool.query<{
+      region: string;
+      currency: string;
+      timezone: string;
+      locale: string;
+      fiscal: string;
+      user_locale: string;
+      user_timezone: string;
+    }>(
+      `select t.region, t.default_currency as currency, t.timezone, t.locale,
+              t.fiscal_year_start_month as fiscal, u.locale as user_locale, u.timezone as user_timezone
+         from tenants t, users u
+        where t.id = $1 and u.email = $2`,
+      [tenantId, email],
+    );
+    const row = rows[0];
+    if (row === undefined) throw new Error('No such workspace or user');
+    return {
+      region: row.region,
+      currency: row.currency,
+      timezone: row.timezone,
+      locale: row.locale,
+      fiscalYearStartMonth: row.fiscal,
+      userLocale: row.user_locale,
+      userTimezone: row.user_timezone,
+    };
+  }
+
   async setTenantTimeZone(tenantId: string, timeZone: string): Promise<void> {
     await this.pool.query(`UPDATE tenants SET timezone = $2 WHERE id = $1`, [tenantId, timeZone]);
   }

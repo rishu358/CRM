@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { buildCsp, originOf } from './lib/csp';
+import { imageOrigins } from './lib/brand';
 import { webEnv } from './lib/env';
 
 /**
@@ -29,6 +30,8 @@ export function proxy(request: NextRequest): NextResponse {
     connectOrigins: [originOf(env.S3_PUBLIC_ENDPOINT)].filter(
       (origin): origin is string => origin !== null,
     ),
+    // A configured logo or favicon on another host (ADR-0045); a local path adds nothing.
+    imgOrigins: imageOrigins(env),
   });
 
   const requestHeaders = new Headers(request.headers);

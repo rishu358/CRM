@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { newId } from '@crm/core';
 import { type Tx, sql } from '@crm/db';
+import { API_ENV_TOKEN, type ApiEnv } from '../config/env.js';
 import { DatabaseService } from '../database/database.service.js';
 
 /**
@@ -76,7 +77,10 @@ export interface MfaFactorRow {
 
 @Injectable()
 export class AuthRepository {
-  constructor(@Inject(DatabaseService) private readonly database: DatabaseService) {}
+  constructor(
+    @Inject(DatabaseService) private readonly database: DatabaseService,
+    @Inject(API_ENV_TOKEN) private readonly env: ApiEnv,
+  ) {}
 
   /** Run several repository calls in one identity transaction. */
   transaction<T>(work: (tx: Tx) => Promise<T>): Promise<T> {
@@ -129,10 +133,11 @@ export class AuthRepository {
     const id = newId();
     await this.run(tx, (t) =>
       t.execute(sql`
-        insert into users (id, email, name, image, email_verified_at)
+        insert into users (id, email, name, image, email_verified_at, locale, timezone)
         values (
           ${id}, ${input.email}, ${input.name}, ${input.image ?? null},
-          ${input.emailVerified === true ? sql`now()` : sql`null`}
+          ${input.emailVerified === true ? sql`now()` : sql`null`},
+          ${this.env.DEFAULT_LOCALE}, ${this.env.DEFAULT_TIMEZONE}
         )
       `),
     );
@@ -316,8 +321,14 @@ export class AuthRepository {
     const id = newId();
     await this.run(tx, (t) =>
       t.execute(sql`
-        insert into tenants (id, name, slug, status)
-        values (${id}, ${input.name}, ${input.slug}, ${input.status})
+        insert into tenants (
+          id, name, slug, status, region, default_currency, timezone, locale, fiscal_year_start_month
+        )
+        values (
+          ${id}, ${input.name}, ${input.slug}, ${input.status},
+          ${this.env.DEFAULT_REGION}, ${this.env.DEFAULT_CURRENCY}, ${this.env.DEFAULT_TIMEZONE},
+          ${this.env.DEFAULT_LOCALE}, ${this.env.DEFAULT_FISCAL_YEAR_START_MONTH}
+        )
       `),
     );
     return id;

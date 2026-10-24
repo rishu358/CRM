@@ -26,6 +26,18 @@ export const GROUPS = [
     blurb: 'Where each process listens and where the others find it.',
   },
   {
+    id: 'branding',
+    title: 'Branding and identity',
+    blurb:
+      'What this installation calls itself and how it looks. Nothing here is compiled in: change it per deployment, per customer, or per white-label buyer.',
+  },
+  {
+    id: 'tenantDefaults',
+    title: 'Defaults for new workspaces',
+    blurb:
+      'What a newly created workspace and its first user start with. An administrator can change them afterwards; existing workspaces are never touched.',
+  },
+  {
     id: 'database',
     title: 'Database',
     blurb: 'One PostgreSQL role per job. Never a superuser, never the same password twice.',

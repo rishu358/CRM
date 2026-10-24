@@ -36,7 +36,9 @@ import { t, type TranslationKey } from '../lib/i18n';
 import { signOut } from '../lib/session';
 import { goToKeyFor } from '../lib/shortcuts';
 import { useSidebarCollapsed } from '../lib/sidebar';
+import { BrandLockup } from './brand-lockup';
 import { BrandMark } from './brand-mark';
+import { useBrand } from './brand-provider';
 import { CommandPalette } from './command-palette';
 import { NotificationBell } from './notification-bell';
 import { GlobalShortcuts } from './shortcuts';
@@ -202,6 +204,7 @@ function NavList({
 }
 
 export function AppShell({ children }: { children: ReactNode }) {
+  const brand = useBrand();
   const pathname = usePathname();
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -293,11 +296,10 @@ export function AppShell({ children }: { children: ReactNode }) {
         >
           <Link
             href="/dashboard"
-            title={collapsed ? t('app.name') : undefined}
+            title={collapsed ? brand.name : undefined}
             className="flex items-center gap-2.5 rounded-md px-1 py-1 text-base font-semibold tracking-tight"
           >
-            <BrandMark />
-            <span className={collapsed ? 'sr-only' : undefined}>{t('app.name')}</span>
+            <BrandLockup size="sidebar" collapsed={collapsed} />
           </Link>
           <IconButton
             label={collapsed ? t('nav.expand') : t('nav.collapse')}

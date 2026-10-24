@@ -7,6 +7,7 @@ import {
   MfaInvalidError,
 } from '@crm/core';
 import type { MfaEnrolment } from '@crm/contracts';
+import { API_ENV_TOKEN, type ApiEnv } from '../config/env.js';
 import { AuthRepository } from './auth.repository.js';
 import { TOTP_PROVIDER, type TotpProvider } from './crypto/totp.provider.js';
 
@@ -25,8 +26,6 @@ import { TOTP_PROVIDER, type TotpProvider } from './crypto/totp.provider.js';
  * secret they never successfully scanned, and if the workspace then required
  * MFA they would be locked out of their own account by their own setup.
  */
-export const TOTP_ISSUER = 'CRM';
-
 interface BackupCodeState {
   readonly hashes: string[];
 }
@@ -36,6 +35,7 @@ export class MfaService {
   constructor(
     @Inject(AuthRepository) private readonly repository: AuthRepository,
     @Inject(TOTP_PROVIDER) private readonly totp: TotpProvider,
+    @Inject(API_ENV_TOKEN) private readonly env: ApiEnv,
   ) {}
 
   /** Whether this user has an activated second factor. */
@@ -73,7 +73,7 @@ export class MfaService {
 
     return {
       secret,
-      otpauthUrl: this.totp.provisioningUrl(secret, TOTP_ISSUER, email),
+      otpauthUrl: this.totp.provisioningUrl(secret, this.env.APP_NAME, email),
       backupCodes,
     };
   }

@@ -1,9 +1,13 @@
 import {
+  defaultedChecked,
   defaultedChoice,
   defaultedFlag,
   defaultedInt,
   defaultedText,
   defaultedUrl,
+  optionalAssetUrl,
+  optionalEmail,
+  optionalHexColor,
   optionalText,
   optionalUrl,
   requiredText,
@@ -119,6 +123,167 @@ export const REGISTRY = {
       note: 'Never `*`; every entry must be https in production.',
     },
     { default: 'http://localhost:3000' },
+  ),
+
+  // ---- branding and identity ---------------------------------------------------------------
+  APP_NAME: defaultedChecked(
+    {
+      scopes: ['api', 'worker', 'web'],
+      group: 'branding',
+      description:
+        'What this installation calls itself: page titles, the sign-in screen, the navigation, every email, and the issuer shown in authenticator apps.',
+      local: 'CRM',
+      example: 'Acme CRM',
+      note: '1 to 60 characters, no angle brackets. It applies to every email sent and every new authenticator enrolment from the next start; an authenticator entry already enrolled keeps the name it was enrolled under.',
+    },
+    {
+      default: 'CRM',
+      check: (value) =>
+        value.length >= 1 &&
+        value.length <= 60 &&
+        [...value].every((character) => character !== '<' && character !== '>' && character >= ' '),
+      message: 'must be 1 to 60 characters, without < or > or control characters',
+    },
+  ),
+  SUPPORT_EMAIL: optionalEmail({
+    scopes: ['web'],
+    group: 'branding',
+    description:
+      'Where people are told to write for help. Shown as a link in the footer of the sign-in screens when set.',
+    example: 'support@example.com',
+  }),
+  TERMS_URL: optionalAssetUrl({
+    scopes: ['web'],
+    group: 'branding',
+    description:
+      'Link to your terms of service, shown in the footer of the sign-in screens when set: an https URL, or a path on the web app.',
+    example: 'https://example.com/terms',
+  }),
+  PRIVACY_URL: optionalAssetUrl({
+    scopes: ['web'],
+    group: 'branding',
+    description:
+      'Link to your privacy policy, shown in the footer of the sign-in screens when set: an https URL, or a path on the web app.',
+    example: 'https://example.com/privacy',
+  }),
+  BRAND_LOGO_URL: optionalAssetUrl({
+    scopes: ['web'],
+    group: 'branding',
+    description:
+      'Logo shown in the navigation and on the sign-in screens in place of the name: an https URL, or a path such as `/brand/logo.svg` served from `apps/web/public`.',
+    example: 'https://cdn.example.com/logo.svg',
+    note: 'An https URL on another host is added to the content security policy for images, and only that host. Give it a transparent background: it is shown on light and dark themes.',
+  }),
+  BRAND_FAVICON_URL: optionalAssetUrl({
+    scopes: ['web'],
+    group: 'branding',
+    description: 'The browser tab icon: an https URL, or a path served from `apps/web/public`.',
+    example: 'https://cdn.example.com/favicon.png',
+  }),
+  BRAND_COLOR: optionalHexColor({
+    scopes: ['web'],
+    group: 'branding',
+    description:
+      'Primary colour of the light theme (buttons, links, focus rings), written #rrggbb. Unset keeps the built-in teal.',
+    example: '#0b6b73',
+    note: 'The web app refuses to start if the colour is too light to read as text on the light background (WCAG AA, 4.5:1). The text on it is chosen automatically, black or white.',
+  }),
+  BRAND_COLOR_DARK: optionalHexColor({
+    scopes: ['web'],
+    group: 'branding',
+    description:
+      'Primary colour of the dark theme, written #rrggbb. Unset keeps the built-in dark-theme colour: a colour that works on a light page is rarely the one that works on a dark one, so the two are separate.',
+    example: '#3ad0d8',
+    note: 'Must be light enough to read as text on the dark background (4.5:1), or the web app refuses to start.',
+  }),
+
+  // ---- defaults for new workspaces ---------------------------------------------------------
+  DEFAULT_CURRENCY: defaultedChecked(
+    {
+      scopes: ['api'],
+      group: 'tenantDefaults',
+      description: "A new workspace's currency, as an ISO 4217 code.",
+      local: 'INR',
+      example: 'INR',
+    },
+    {
+      default: 'INR',
+      check: (value) => /^[A-Z]{3}$/.test(value),
+      message: 'must be a three-letter ISO 4217 currency code in capitals, such as INR or USD',
+    },
+  ),
+  DEFAULT_TIMEZONE: defaultedChecked(
+    {
+      scopes: ['api'],
+      group: 'tenantDefaults',
+      description:
+        'A new workspace\'s time zone, and its first user\'s: an IANA name. It decides what "today" is for due dates and reports.',
+      local: 'Asia/Kolkata',
+      example: 'Asia/Kolkata',
+    },
+    {
+      default: 'Asia/Kolkata',
+      check: (value) => {
+        // Area/City or UTC. `Intl` also accepts legacy abbreviations such as IST, which are
+        // ambiguous (Postgres reads the same letters differently) and not what the rest of the
+        // system stores.
+        if (value !== 'UTC' && !value.includes('/')) return false;
+        try {
+          new Intl.DateTimeFormat('en', { timeZone: value });
+          return true;
+        } catch {
+          return false;
+        }
+      },
+      message:
+        'must be an IANA time zone name in Area/City form (or UTC), such as Asia/Kolkata or America/New_York',
+    },
+  ),
+  DEFAULT_LOCALE: defaultedChecked(
+    {
+      scopes: ['api'],
+      group: 'tenantDefaults',
+      description:
+        "A new workspace's locale, and its first user's: a BCP 47 tag. It decides number grouping (`en-IN` gives lakh and crore), date order and month names.",
+      local: 'en-IN',
+      example: 'en-IN',
+    },
+    {
+      default: 'en-IN',
+      check: (value) => {
+        try {
+          return Intl.getCanonicalLocales(value).length === 1;
+        } catch {
+          return false;
+        }
+      },
+      message: 'must be a BCP 47 language tag, such as en-IN or en-US',
+    },
+  ),
+  DEFAULT_FISCAL_YEAR_START_MONTH: defaultedChoice(
+    {
+      scopes: ['api'],
+      group: 'tenantDefaults',
+      description:
+        "The month a new workspace's financial year starts, 1 (January) to 12. 4 is April, the Indian financial year.",
+      local: '4',
+      example: '4',
+    },
+    {
+      values: ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'],
+      default: '4',
+    },
+  ),
+  DEFAULT_REGION: defaultedText(
+    {
+      scopes: ['api'],
+      group: 'tenantDefaults',
+      description:
+        'The data-residency label recorded on a new workspace: where this installation keeps its data (for example the cloud region of the database). A label for reporting and contracts; it does not move anything.',
+      local: 'ap-south-1',
+      example: 'ap-south-1',
+    },
+    { default: 'ap-south-1', min: 1 },
   ),
 
   // ---- database ----------------------------------------------------------------------------

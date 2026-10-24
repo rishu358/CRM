@@ -4,6 +4,7 @@ import type { ChecklistKey, OnboardingStatus } from '@crm/contracts';
 import { Card, CardBody, CardHeader, SuccessIcon, cn } from '@crm/ui';
 import Link from 'next/link';
 import { t, type TranslationKey } from '../lib/i18n';
+import { useBrand } from './brand-provider';
 
 /**
  * Where each step is done. The checklist only points: it is derived from what
@@ -38,6 +39,7 @@ const STEPS: Readonly<
  * show the same card without a second copy of the list or its wording.
  */
 export function SetupChecklist({ checklist }: { checklist: OnboardingStatus['checklist'] }) {
+  const brand = useBrand();
   const done = checklist.filter((item) => item.done).length;
   const total = checklist.length;
   const percent = total === 0 ? 0 : Math.round((done / total) * 100);
@@ -102,7 +104,9 @@ export function SetupChecklist({ checklist }: { checklist: OnboardingStatus['che
                       {item.done ? t('setup.checklist.done') : t('setup.checklist.todo')}
                     </span>
                   </Link>
-                  <p className="mt-0.5 text-sm text-muted-foreground">{t(step.hint)}</p>
+                  <p className="mt-0.5 text-sm text-muted-foreground">
+                    {t(step.hint, { appName: brand.name })}
+                  </p>
                 </div>
               </li>
             );

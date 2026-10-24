@@ -60,6 +60,8 @@ function relay(): OutboxRelay {
     email,
     emailFrom: 'no-reply@example.com',
     webUrl: 'https://crm.example',
+    // Not the default, so a digest that still said "CRM" would be caught.
+    appName: 'Sharma & Sons Desk',
     // Zero so the digest is deliverable immediately; the delay itself is the
     // outbox's `available_at`, which the reminder cases below exercise.
     digestWindowMinutes: 0,
@@ -293,6 +295,12 @@ describe('the email digest', () => {
     expect(message?.subject).toContain('update');
     expect(message?.text).toContain('Digest me');
     expect(message?.html).toContain('Digest me');
+
+    // The installation's own name (`APP_NAME`), escaped where it becomes markup (ADR-0045).
+    expect(message?.subject).toMatch(/^Your Sharma & Sons Desk: \d+ updates?$/);
+    expect(message?.text).toContain('waiting in your Sharma & Sons Desk:');
+    expect(message?.html).toContain('waiting in your Sharma &amp; Sons Desk:');
+    expect(`${message?.subject}${message?.text}${message?.html}`).not.toContain('CRM');
 
     const rows = await fixtures.notificationsFor(tenantId, userId);
     expect(rows.find((row) => row.payload['activityId'] === activityId)?.digestedAt).not.toBeNull();

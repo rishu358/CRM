@@ -29,6 +29,11 @@ a working version, and the first tag will be cut from a green `master` (see
   another process. `.env.example`, `deploy/staging.env.example`, `deploy/production.env.example` and
   `docs/CONFIGURATION.md` are generated from it and checked in CI. An empty variable now means "not set".
   `.env.example` no longer lists nine variables no code reads.
+- **Branding is configuration (ADR-0045):** `APP_NAME`, logo, favicon, a primary colour for each theme (refused
+  at start-up unless it clears WCAG AA in that theme), support, terms and privacy links. The name is no
+  longer compiled into the page title, sign-in screen, navigation, emails or authenticator issuer. What a new
+  workspace and its first user start with (currency, time zone, locale, financial year, region label) is
+  configured too. All defaults are unchanged. The "you already have an account" email is reworded.
 - `process.env` is forbidden everywhere except the registry's one reader (lint rule tightened).
 - CLAUDE.md gains section 13 (configuration, secrets and vendors).
 

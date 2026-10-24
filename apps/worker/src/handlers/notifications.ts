@@ -28,6 +28,8 @@ export interface NotificationHandlerOptions {
   readonly email: EmailProvider;
   readonly emailFrom: string;
   readonly webUrl: string;
+  /** What the installation calls itself in the digest (`APP_NAME`). */
+  readonly appName: string;
   readonly digestWindowMinutes: number;
 }
 
@@ -227,7 +229,7 @@ export function sendDigest(options: NotificationHandlerOptions) {
         )})
     `);
 
-    await options.email.send(renderDigest(user, rows, options.webUrl));
+    await options.email.send(renderDigest(user, rows, options.webUrl, options.appName));
   };
 }
 
@@ -243,6 +245,7 @@ function renderDigest(
   user: { email: string; name: string },
   rows: readonly { type: string; payload: Record<string, unknown> }[],
   webUrl: string,
+  appName: string,
 ): { to: string; subject: string; text: string; html: string } {
   const lines = rows.map((row) => {
     const subject = typeof row.payload['subject'] === 'string' ? row.payload['subject'] : 'A task';
@@ -255,7 +258,7 @@ function renderDigest(
   const text = [
     `Hello ${user.name},`,
     '',
-    `You have ${heading} waiting in your CRM:`,
+    `You have ${heading} waiting in your ${appName}:`,
     '',
     ...lines.map((line) => `  • ${line}`),
     '',
@@ -264,12 +267,12 @@ function renderDigest(
 
   const html = [
     `<p>Hello ${escapeHtml(user.name)},</p>`,
-    `<p>You have ${escapeHtml(heading)} waiting in your CRM:</p>`,
+    `<p>You have ${escapeHtml(heading)} waiting in your ${escapeHtml(appName)}:</p>`,
     '<ul>',
     ...lines.map((line) => `<li>${escapeHtml(line)}</li>`),
     '</ul>',
     `<p><a href="${escapeHtml(link)}">Open My Day</a></p>`,
   ].join('\n');
 
-  return { to: user.email, subject: `Your CRM: ${heading}`, text, html };
+  return { to: user.email, subject: `Your ${appName}: ${heading}`, text, html };
 }

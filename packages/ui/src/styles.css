@@ -33,8 +33,8 @@
     --popover: 0 0% 100%;
     --popover-foreground: 200 32% 10%;
 
-    --primary: 186 88% 24%;
-    --primary-foreground: 0 0% 100%;
+    --primary: var(--brand-primary, 186 88% 24%);
+    --primary-foreground: var(--brand-primary-foreground, 0 0% 100%);
 
     --secondary: 200 18% 93%;
     --secondary-foreground: 200 32% 12%;
@@ -42,8 +42,8 @@
     --muted: 200 18% 95%;
     --muted-foreground: 200 14% 35%;
 
-    --accent: 186 45% 92%;
-    --accent-foreground: 186 85% 17%;
+    --accent: var(--brand-accent, 186 45% 92%);
+    --accent-foreground: var(--brand-accent-foreground, 186 85% 17%);
 
     --destructive: 4 72% 42%;
     --destructive-foreground: 0 0% 100%;
@@ -56,7 +56,7 @@
 
     --border: 200 16% 88%;
     --input: 200 10% 50%;
-    --ring: 186 88% 30%;
+    --ring: var(--brand-ring, 186 88% 30%);
 
     --radius: 0.5rem;
     /*
@@ -93,8 +93,8 @@
       --popover: 200 24% 12%;
       --popover-foreground: 200 20% 95%;
 
-      --primary: 184 70% 50%;
-      --primary-foreground: 200 40% 7%;
+      --primary: var(--brand-primary-dark, 184 70% 50%);
+      --primary-foreground: var(--brand-primary-dark-foreground, 200 40% 7%);
 
       --secondary: 200 20% 17%;
       --secondary-foreground: 200 20% 95%;
@@ -102,8 +102,8 @@
       --muted: 200 20% 13%;
       --muted-foreground: 200 12% 68%;
 
-      --accent: 186 40% 18%;
-      --accent-foreground: 184 70% 82%;
+      --accent: var(--brand-accent-dark, 186 40% 18%);
+      --accent-foreground: var(--brand-accent-dark-foreground, 184 70% 82%);
 
       --destructive: 4 80% 66%;
       --destructive-foreground: 200 40% 7%;
@@ -116,7 +116,7 @@
 
       --border: 200 18% 20%;
       --input: 200 10% 48%;
-      --ring: 184 70% 55%;
+      --ring: var(--brand-ring-dark, 184 70% 55%);
     }
   }
 
@@ -131,8 +131,8 @@
     --popover: 200 24% 12%;
     --popover-foreground: 200 20% 95%;
 
-    --primary: 184 70% 50%;
-    --primary-foreground: 200 40% 7%;
+    --primary: var(--brand-primary-dark, 184 70% 50%);
+    --primary-foreground: var(--brand-primary-dark-foreground, 200 40% 7%);
 
     --secondary: 200 20% 17%;
     --secondary-foreground: 200 20% 95%;
@@ -140,8 +140,8 @@
     --muted: 200 20% 13%;
     --muted-foreground: 200 12% 68%;
 
-    --accent: 186 40% 18%;
-    --accent-foreground: 184 70% 82%;
+    --accent: var(--brand-accent-dark, 186 40% 18%);
+    --accent-foreground: var(--brand-accent-dark-foreground, 184 70% 82%);
 
     --destructive: 4 80% 66%;
     --destructive-foreground: 200 40% 7%;
@@ -154,7 +154,7 @@
 
     --border: 200 18% 20%;
     --input: 200 10% 48%;
-    --ring: 184 70% 55%;
+    --ring: var(--brand-ring-dark, 184 70% 55%);
   }
 
   * {
