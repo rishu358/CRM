@@ -85,3 +85,9 @@ Four mechanisms carry tenant isolation, and all four are required:
 A test in `packages/db` fails if a table carrying `tenant_id` is ever added
 without the first point. `pnpm test:security` is a required CI gate and is never
 made optional.
+
+## Contributing and security
+
+Read [`CONTRIBUTING.md`](CONTRIBUTING.md) before changing anything (run `pnpm hooks:install` once per
+clone), and report vulnerabilities privately as described in [`SECURITY.md`](SECURITY.md). Release
+history is in [`CHANGELOG.md`](CHANGELOG.md).
