@@ -2,6 +2,7 @@ import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { sql } from 'drizzle-orm';
 import pg from 'pg';
 import * as schema from './schema/index.js';
+import { poolConnectionConfig } from './tls.js';
 
 /**
  * Database access (ADR-0002).
@@ -25,6 +26,11 @@ export interface TenantContext {
 
 export interface DbClientOptions {
   readonly connectionString: string;
+  /**
+   * The provider's CA certificate, for a managed Postgres whose certificate Node does not trust
+   * (see `tls.ts`). Verification stays on; unset leaves the driver's own rules untouched.
+   */
+  readonly caCert?: string | undefined;
   readonly maxConnections?: number;
   /** Fail fast rather than queueing behind a saturated pool. */
   readonly connectionTimeoutMillis?: number;
@@ -42,7 +48,7 @@ export interface DbClient {
 
 export function createDbClient(options: DbClientOptions): DbClient {
   const pool = new pg.Pool({
-    connectionString: options.connectionString,
+    ...poolConnectionConfig(options.connectionString, options.caCert),
     max: options.maxConnections ?? 10,
     connectionTimeoutMillis: options.connectionTimeoutMillis ?? 5_000,
     // Recycle idle connections so a long-lived process does not pin a backend
@@ -114,3 +120,29 @@ export function withoutTenant<T>(db: Database, work: (tx: Tx) => Promise<T>): Pr
 }
 
 export { schema };
+
+/** What the database says about the role a pool's connections run as. */
+export interface PoolRole {
+  readonly name: string;
+  readonly superuser: boolean;
+  readonly bypassRls: boolean;
+}
+
+/**
+ * Asks the server who this pool really is, for the startup check that refuses a role that can
+ * walk through row-level security (CLAUDE.md §5.1). It reads the catalog rather than trusting
+ * the connection string: the name in a URL says what someone meant, `pg_roles` says what the
+ * role can do. Touches no tenant data, so it needs no tenant context.
+ */
+export async function readPoolRole(pool: pg.Pool): Promise<PoolRole> {
+  const result = await pool.query<{ name: string; superuser: boolean; bypassrls: boolean }>(
+    `select r.rolname as name, r.rolsuper as superuser, r.rolbypassrls as bypassrls
+       from pg_roles r
+      where r.rolname = current_user`,
+  );
+  const row = result.rows[0];
+  // current_user always has a pg_roles row; an empty answer means we cannot say what we are, and
+  // not knowing is not a pass.
+  if (row === undefined) throw new Error('Could not read the connected database role');
+  return { name: row.name, superuser: row.superuser, bypassRls: row.bypassrls };
+}

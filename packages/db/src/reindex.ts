@@ -15,11 +15,15 @@ if (flag >= 0 && (tenantId === undefined || !/^[0-9a-f-]{36}$/i.test(tenantId)))
   throw new Error('--tenant needs a company id (a UUID)');
 }
 
-const worker = createDbClient({ connectionString: env.DATABASE_WORKER_URL ?? env.DATABASE_URL });
+const caCert = env.DATABASE_CA_CERT;
+const worker = createDbClient({
+  connectionString: env.DATABASE_WORKER_URL ?? env.DATABASE_URL,
+  caCert,
+});
 const auth =
   env.DATABASE_AUTH_URL === undefined
     ? null
-    : createDbClient({ connectionString: env.DATABASE_AUTH_URL });
+    : createDbClient({ connectionString: env.DATABASE_AUTH_URL, caCert });
 
 try {
   const summary = await reindexAll({ worker, auth }, { tenantId }, (message) => {

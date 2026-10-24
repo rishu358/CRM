@@ -49,3 +49,5 @@ supersedes the old one and update the old one's **Status** to
 | [0039](0039-customization.md)                                    | Customization: what a definition may never do, enforced twice                | Accepted |
 | [0040](0040-outbound-requests-and-browser-hardening.md)          | Outbound requests and the browser policy: one guarded door                   | Accepted |
 | [0041](0041-hardening-b-search-at-scale-and-deploy-readiness.md) | Hardening B: search at scale through one seam, production refuses dev values | Accepted |
+| [0042](0042-deployment-digitalocean-blr1-and-vercel-bom1.md)     | Deployment: DigitalOcean App Platform in BLR1, the web app on Vercel in bom1 | Accepted |
+| [0043](0043-managed-postgres-schema-ownership.md)                | Bootstrapping on a managed Postgres: the admin role may not own `public`     | Proposed |

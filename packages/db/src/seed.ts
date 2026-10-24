@@ -44,8 +44,12 @@ const DEMO_PASSWORD = 'demo-password-not-for-production';
 
 loadRootEnvFile();
 const env = loadDbEnv();
-const app = createDbClient({ connectionString: env.DATABASE_URL });
-const auth = createDbClient({ connectionString: env.DATABASE_AUTH_URL ?? env.DATABASE_URL });
+const caCert = env.DATABASE_CA_CERT;
+const app = createDbClient({ connectionString: env.DATABASE_URL, caCert });
+const auth = createDbClient({
+  connectionString: env.DATABASE_AUTH_URL ?? env.DATABASE_URL,
+  caCert,
+});
 /**
  * A third connection, as crm_worker.
  *
@@ -57,7 +61,10 @@ const auth = createDbClient({ connectionString: env.DATABASE_AUTH_URL ?? env.DAT
  * (migration 0011). Using a different role here is the asymmetry working, not
  * a workaround for it.
  */
-const worker = createDbClient({ connectionString: env.DATABASE_WORKER_URL ?? env.DATABASE_URL });
+const worker = createDbClient({
+  connectionString: env.DATABASE_WORKER_URL ?? env.DATABASE_URL,
+  caCert,
+});
 
 const tenantId = newId();
 const ownerId = newId();

@@ -23,6 +23,8 @@ x-app-env: &app-env
   NODE_ENV: production
   LOG_LEVEL: ${LOG_LEVEL:-info}
   DATABASE_POOL_MAX: ${DATABASE_POOL_MAX:-10}
+  # Only for a managed Postgres whose certificate is signed by the provider's own CA (base64 of the PEM).
+  DATABASE_CA_CERT: ${DATABASE_CA_CERT:-}
   WEB_URL: ${WEB_URL:?set WEB_URL}
   EMAIL_PROVIDER: resend
   EMAIL_FROM: ${EMAIL_FROM:?set EMAIL_FROM}
@@ -112,6 +114,7 @@ services:
       NODE_ENV: production
       DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL}
       DATABASE_MIGRATION_URL: ${DATABASE_MIGRATION_URL:?set DATABASE_MIGRATION_URL}
+      DATABASE_CA_CERT: ${DATABASE_CA_CERT:-}
     restart: 'no'
 
 volumes:
