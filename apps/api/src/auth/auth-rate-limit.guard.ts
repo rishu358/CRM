@@ -1,6 +1,11 @@
 import { Inject, Injectable, type CanActivate, type ExecutionContext } from '@nestjs/common';
 import { RateLimitedError } from '@crm/core';
-import { InMemoryCounter, type RateLimitCounter } from '../platform/rate-limit.service.js';
+import {
+  RATE_LIMIT_COUNTER,
+  hitOnce,
+  rateLimitKey,
+  type RateLimitCounter,
+} from '../platform/rate-limit/counter.js';
 import { API_ENV_TOKEN, type ApiEnv } from '../config/env.js';
 import { currentRequestContext } from '../common/request-context.js';
 import { PUBLIC_ROUTE_KEY } from './auth.guard.js';
@@ -21,20 +26,19 @@ import { PUBLIC_ROUTE_KEY } from './auth.guard.js';
  * common password across many different addresses, which the per-account delay
  * would never see.
  *
- * ## Known limitation
- *
- * The counter is in-process, exactly as `TenantRateLimitService` is: a real
- * limit on one instance and none across several. It must move to Redis before
- * the API is scaled horizontally, which is why it sits behind the same
- * `RateLimitCounter` interface.
+ * The count is shared across API instances when `REDIS_URL` is set (ADR-0050), so
+ * a host cannot multiply its allowance by the number of instances behind the load
+ * balancer. If Redis cannot be reached it is this process's own count, which is
+ * the limit it had before it was shared.
  */
 @Injectable()
 export class AuthRateLimitGuard implements CanActivate {
-  private readonly counter: RateLimitCounter = new InMemoryCounter();
+  constructor(
+    @Inject(RATE_LIMIT_COUNTER) private readonly counter: RateLimitCounter,
+    @Inject(API_ENV_TOKEN) private readonly env: ApiEnv,
+  ) {}
 
-  constructor(@Inject(API_ENV_TOKEN) private readonly env: ApiEnv) {}
-
-  canActivate(context: ExecutionContext): boolean {
+  async canActivate(context: ExecutionContext): Promise<boolean> {
     const handler = context.getHandler() as { [PUBLIC_ROUTE_KEY]?: boolean };
 
     // Only the routes that take no session. An authenticated route is already
@@ -43,12 +47,19 @@ export class AuthRateLimitGuard implements CanActivate {
     if (handler[PUBLIC_ROUTE_KEY] !== true) return true;
 
     const ip = currentRequestContext()?.ipAddress ?? 'unknown';
-    const count = this.counter.hit(`auth:${ip}`, this.env.AUTH_RATE_LIMIT_WINDOW_SECONDS);
+    const hit = await hitOnce(
+      this.counter,
+      rateLimitKey('auth-ip', ip),
+      this.env.AUTH_RATE_LIMIT_WINDOW_SECONDS,
+    );
 
-    if (count > this.env.AUTH_RATE_LIMIT_MAX_PER_IP) {
+    if (hit.count > this.env.AUTH_RATE_LIMIT_MAX_PER_IP) {
       // The same generic message for every caller. Saying which limit was hit,
       // or how much is left, tells an attacker how to pace themselves.
-      throw new RateLimitedError('Too many attempts. Try again in a few minutes.');
+      throw new RateLimitedError(
+        'Too many attempts. Try again in a few minutes.',
+        hit.retryAfterSeconds,
+      );
     }
     return true;
   }
