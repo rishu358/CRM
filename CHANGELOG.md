@@ -44,6 +44,12 @@ a working version, and the first tag will be cut from a green `master` (see
 - **`pnpm tenant:create`:** creates a workspace and its founding owner through the same provisioning code
   sign-up uses. The password is prompted for with nothing echoed, or piped with `--password-stdin`; there is
   no `--password`. On a single-tenant installation it creates the one workspace and refuses a second.
+- **Entitlements (ADR-0047):** `entitlements.has(feature)` is answered from a plan catalogue plus
+  per-workspace overrides, and enforced by the API (`402 ENTITLEMENT_REQUIRED`) on `POST /imports` and
+  `POST /exports`. A single-tenant installation has every feature. The catalogue ships with no differences
+  between plans, so nothing changes for any workspace. Overrides are written only by the operator
+  (`pnpm tenant:entitlements`), never by a request: the application role can read them and nothing else
+  (migration 0022).
 
 ### Security
 

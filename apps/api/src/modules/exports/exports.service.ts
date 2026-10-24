@@ -27,6 +27,7 @@ import { newStorageKey } from '@crm/storage';
 import { assertFiltersReadable, assertSortable } from '../../common/field-queries.js';
 import { DatabaseService } from '../../database/database.service.js';
 import { AuditService } from '../../platform/audit.service.js';
+import { EntitlementsService } from '../../platform/entitlements.service.js';
 import { FieldMetadataService } from '../../platform/field-metadata.service.js';
 import { OutboxService } from '../../platform/outbox.service.js';
 import { STORAGE_PROVIDER } from '../../platform/storage/storage.tokens.js';
@@ -76,6 +77,7 @@ export class ExportsService {
     @Inject(AuditService) private readonly audit: AuditService,
     @Inject(OutboxService) private readonly outbox: OutboxService,
     @Inject(STORAGE_PROVIDER) private readonly storage: StorageProvider,
+    @Inject(EntitlementsService) private readonly entitlements: EntitlementsService,
   ) {}
 
   async create(
@@ -88,6 +90,10 @@ export class ExportsService {
     assertCan(actor, 'export', { objectType: input.objectType });
 
     return this.inTenant(actor, async (tx) => {
+      // After `can()`, so someone who may not export is told so before learning anything about the
+      // plan. Before the idempotent replay too: a withdrawn feature starts no new job, even a repeat.
+      await this.entitlements.require(tx, actor.tenantId, 'exports');
+
       if (idempotencyKey !== undefined) {
         const existing = await this.repository.findByIdempotencyKey(
           tx,

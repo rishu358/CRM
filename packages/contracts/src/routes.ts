@@ -1095,7 +1095,7 @@ const importRoutes: RouteDefinition[] = [
       description: 'The new job and the URL to upload to.',
       data: importCreateResultSchema,
     },
-    errors: [],
+    errors: [ErrorCode.ENTITLEMENT_REQUIRED],
   },
   {
     method: 'GET',
@@ -1226,7 +1226,7 @@ const exportRoutes: RouteDefinition[] = [
       description: 'The queued export.',
       data: exportJobSchema,
     },
-    errors: [],
+    errors: [ErrorCode.ENTITLEMENT_REQUIRED],
   },
   {
     method: 'GET',

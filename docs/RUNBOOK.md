@@ -123,6 +123,18 @@ specifics, and a verification script for the managed-database step._
    workspace on a single-tenant installation and an address that already has an account. From a
    checkout, `pnpm tenant:create` does the same and prompts for the password with nothing echoed.
 
+   Plans and exceptions (ADR-0047) are set the same way, from the API image, naming the workspace by
+   its slug. Nothing is needed for a single-tenant installation, which has every feature:
+
+   ```bash
+   docker compose … run --rm -T api node dist/cli/entitlements-main.js show --workspace acme
+   docker compose … run --rm -T api node dist/cli/entitlements-main.js revoke --workspace acme \
+     --feature exports --reason "suspended while the invoice is open"
+   ```
+
+   `features` lists what can be switched; `plan`, `grant` and `clear` do the rest. A request through
+   the API can never change any of it.
+
 8. **Check it**: sign up (multi-tenant) or sign in as the owner you just created (single-tenant), confirm the verification email arrives, sign in, create a contact, upload
    an attachment, run an export. If email does not arrive, see §6.
 

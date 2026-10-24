@@ -96,9 +96,8 @@ pnpm tenant:create --workspace "Acme Ltd" --owner-email you@example.com --owner-
 - Switching a running installation from `multi_tenant` to `single_tenant` closes sign-up and leaves every
   existing workspace as it is. It does not merge or remove workspaces; a single-tenant installation that has
   several simply refuses to create more.
-- **Not here:** entitlements (what a tenant's plan includes) are a separate change. Single-tenant mode will
-  enable every feature, because the operator owns the installation, and that belongs with the entitlement
-  service rather than in this switch.
+- **Entitlements** (what a workspace's plan includes) are ADR-0047. Single-tenant mode enables every feature
+  there, because the operator owns the installation; this switch itself decides nothing about features.
 - pnpm prints the command line it runs, so a password typed after `--password` appears on the screen before
   the command refuses it. The refusal still prevents it from reaching history-less places like logs; the safe
   forms never put it on a command line at all.

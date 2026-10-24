@@ -8,6 +8,7 @@
     "build": "tsc -p tsconfig.build.json",
     "start": "node dist/main.js",
     "tenant:create": "tsx --env-file-if-exists=../../.env src/cli/create-workspace-main.ts",
+    "tenant:entitlements": "tsx --env-file-if-exists=../../.env src/cli/entitlements-main.ts",
     "perf:run": "tsx src/perf/load-run-cli.ts",
     "lint": "eslint src",
     "typecheck": "tsc --noEmit",
