@@ -174,6 +174,12 @@ jobs:
       DATABASE_MIGRATION_URL: postgres://crm_migrator:crm_migrator_dev@localhost:5432/crm
       DATABASE_AUTH_URL: postgres://crm_auth:crm_auth_dev@localhost:5432/crm
       DATABASE_WORKER_URL: postgres://crm_worker:crm_worker_dev@localhost:5432/crm
+      # Only the worker holds this one (ADR-0032): the single role allowed to
+      # redact the audit `changes` column for a subject being erased. Unset, an
+      # erasure request fails with "not configured" by design, rather than
+      # erasing the record and leaving its history readable — which is exactly
+      # what the governance erase spec hit here.
+      DATABASE_ERASURE_URL: postgres://crm_erasure:crm_erasure_dev@localhost:5432/crm
       REDIS_URL: redis://localhost:6379
       AUTH_SECRET: ci-only-secret-at-least-32-characters-long
       API_URL: http://localhost:3001
