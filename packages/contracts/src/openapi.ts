@@ -58,6 +58,7 @@ const STATUS_BY_ERROR_CODE: Readonly<Record<ErrorCode, number>> = {
   [ErrorCode.ENTITLEMENT_REQUIRED]: 402,
   [ErrorCode.FORBIDDEN]: 403,
   [ErrorCode.EMAIL_NOT_VERIFIED]: 403,
+  [ErrorCode.SIGN_UP_DISABLED]: 403,
   [ErrorCode.MFA_ENROLMENT_REQUIRED]: 403,
   [ErrorCode.FIELD_NOT_WRITABLE]: 403,
   [ErrorCode.INVITATION_RECIPIENT_MISMATCH]: 403,

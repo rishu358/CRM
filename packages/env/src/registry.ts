@@ -68,6 +68,20 @@ export const REGISTRY = {
     { values: ['trace', 'debug', 'info', 'warn', 'error', 'fatal'], default: 'info' },
   ),
 
+  // ---- deployment mode ---------------------------------------------------------------------
+  DEPLOYMENT_MODE: defaultedChoice(
+    {
+      scopes: ['api', 'web'],
+      group: 'deployment',
+      description:
+        'How this installation is used. `multi_tenant`: anyone can sign up and gets a workspace of their own (a product). `single_tenant`: public sign-up is closed, one workspace is created by the operator with `pnpm tenant:create`, and people join it by invitation (an installation run by a single company).',
+      local: 'multi_tenant',
+      example: 'multi_tenant',
+      note: 'Row-level security and tenant isolation are identical in both modes: a single-tenant installation is one tenant, never a different way of reading data. The API and the web app must agree. Changing a running installation from `multi_tenant` to `single_tenant` closes sign-up and leaves every existing workspace as it is.',
+    },
+    { values: ['multi_tenant', 'single_tenant'], default: 'multi_tenant' },
+  ),
+
   // ---- addresses ---------------------------------------------------------------------------
   API_PORT: defaultedInt(
     {

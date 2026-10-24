@@ -19,3 +19,4 @@ export * from './audit/index.js';
 export * from './data-rights/index.js';
 export * from './outbound/index.js';
 export * from './config/production.js';
+export * from './deployment/index.js';

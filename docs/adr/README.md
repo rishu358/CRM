@@ -53,3 +53,4 @@ supersedes the old one and update the old one's **Status** to
 | [0043](0043-managed-postgres-schema-ownership.md)                | Bootstrapping on a managed Postgres: the admin role may not own `public`      | Proposed |
 | [0044](0044-configuration-registry.md)                           | One configuration registry, loaded per scope, with the docs generated from it | Accepted |
 | [0045](0045-instance-branding-and-new-workspace-defaults.md)     | Branding and new-workspace defaults are configuration, per installation       | Accepted |
+| [0046](0046-deployment-modes-and-the-setup-command.md)           | Deployment modes: who may create a workspace, and the first-workspace command | Accepted |

@@ -314,6 +314,18 @@ export class AuthRepository {
     });
   }
 
+  /**
+   * How many workspaces exist, of any status. A single-tenant installation holds exactly one, and
+   * the setup command asks before making another (ADR-0046). Counts rows only; reads no tenant data.
+   */
+  async countTenants(tx?: Tx): Promise<number> {
+    const rows = await this.run(tx, async (t) => {
+      const result = await t.execute(sql`select count(*)::int as n from tenants`);
+      return result.rows as unknown as { n: number }[];
+    });
+    return rows[0]?.n ?? 0;
+  }
+
   async createTenant(
     input: { name: string; slug: string; status: string },
     tx?: Tx,

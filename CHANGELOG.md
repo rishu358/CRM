@@ -37,6 +37,14 @@ a working version, and the first tag will be cut from a green `master` (see
 - `process.env` is forbidden everywhere except the registry's one reader (lint rule tightened).
 - CLAUDE.md gains section 13 (configuration, secrets and vendors).
 
+- **Deployment modes (ADR-0046):** `DEPLOYMENT_MODE=single_tenant` closes public sign-up (the API answers
+  `403 SIGN_UP_DISABLED` identically for everyone, and first-time Google sign-in no longer creates an
+  account) and the web app hides the link. Default is `multi_tenant`, so nothing changes unless set.
+  Row-level security and tenant isolation are identical in both modes.
+- **`pnpm tenant:create`:** creates a workspace and its founding owner through the same provisioning code
+  sign-up uses. The password is prompted for with nothing echoed, or piped with `--password-stdin`; there is
+  no `--password`. On a single-tenant installation it creates the one workspace and refuses a second.
+
 ### Security
 
 - Production configuration now also refuses `doadmin`, the managed-database administrator role, by

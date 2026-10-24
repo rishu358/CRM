@@ -1,7 +1,13 @@
 import { randomBytes } from 'node:crypto';
 import { Inject, Injectable } from '@nestjs/common';
 import { google } from 'better-auth/social-providers';
-import { InvalidTokenError, NotFoundError, secretsMatch } from '@crm/core';
+import {
+  InvalidTokenError,
+  NotFoundError,
+  SignUpDisabledError,
+  publicSignUpOpen,
+  secretsMatch,
+} from '@crm/core';
 import { API_ENV_TOKEN, googleConfigured, type ApiEnv } from '../config/env.js';
 import { AuthRepository } from './auth.repository.js';
 
@@ -165,6 +171,10 @@ export class GoogleAuthService {
       });
       return { userId: existing.id, created: false };
     }
+
+    // Everything above only ever signs in an account that already exists. From here on a stranger
+    // would get an account of their own, which a single-tenant installation does not allow (ADR-0046).
+    if (!publicSignUpOpen(this.env.DEPLOYMENT_MODE)) throw new SignUpDisabledError();
 
     const userId = await this.repository.transaction(async (tx) => {
       const id = await this.repository.createUser(

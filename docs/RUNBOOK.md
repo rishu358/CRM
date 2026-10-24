@@ -108,7 +108,22 @@ specifics, and a verification script for the managed-database step._
    [CONFIGURATION.md](CONFIGURATION.md) explains each. Generate `AUTH_SECRET` with `openssl rand -base64 48`.
 5. **Migrate**: `docker compose … --profile ops run --rm migrate`. It prints the migrations it applied.
 6. **Start**: `docker compose … up -d`. The API reports healthy at `/api/v1/health`.
-7. **Check it**: sign up, confirm the verification email arrives, sign in, create a contact, upload
+7. **Create the first workspace** (a single-tenant installation, `DEPLOYMENT_MODE=single_tenant`, has no
+   public sign-up, so this is how it gets its one workspace; on a multi-tenant one it is optional). Run
+   it from the API image, with the API's own environment and the password piped in, never as an argument
+   (ADR-0046):
+
+   ```bash
+   printf '%s\n' "$OWNER_PASSWORD" | docker compose … run --rm -T api \
+     node dist/cli/create-workspace-main.js --password-stdin \
+     --workspace "Acme Ltd" --owner-email you@example.com --owner-name "Your Name"
+   ```
+
+   It prints the workspace id and the sign-in address, and never the password. It refuses a second
+   workspace on a single-tenant installation and an address that already has an account. From a
+   checkout, `pnpm tenant:create` does the same and prompts for the password with nothing echoed.
+
+8. **Check it**: sign up (multi-tenant) or sign in as the owner you just created (single-tenant), confirm the verification email arrives, sign in, create a contact, upload
    an attachment, run an export. If email does not arrive, see §6.
 
 ## 3. Releasing
@@ -527,12 +542,18 @@ app is down (the API, in `blr1`, is unaffected and sessions survive).
   - `S3_PUBLIC_ENDPOINT` = `https://blr1.digitaloceanspaces.com`. Only its origin is used, to let the page
     upload there (CSP).
   - `SESSION_COOKIE_NAME`, `SESSION_TTL_DAYS`: only if you change the defaults (they must match the API's).
+  - `DEPLOYMENT_MODE`: set it to the **same value as the API** (`multi_tenant` or `single_tenant`, ADR-0046).
+    On a single-tenant installation it hides the "create an account" link and closes the sign-up page.
+  - Branding, all optional and public: `APP_NAME` (the same as the API's, so the page and the emails
+    agree), `BRAND_LOGO_URL`, `BRAND_FAVICON_URL`, `BRAND_COLOR`, `BRAND_COLOR_DARK`, `SUPPORT_EMAIL`,
+    `TERMS_URL`, `PRIVACY_URL` (ADR-0045). A colour that would be unreadable in its theme stops the web app
+    starting, with a message saying why.
 - **No other variable.** In particular none of `DATABASE_*`, `AUTH_SECRET`, `S3_ACCESS_KEY_ID`,
   `S3_SECRET_ACCESS_KEY`, `RESEND_API_KEY`, `REDIS_URL`. The web app does not need them, and a credential
-  that is not there cannot leak. The web app's environment parser ignores unknown variables rather than
-  rejecting them, so **nothing in the code will tell you if one gets added**: check by hand after every
-  change to the project's environment (`vercel env ls production`, read the Name column), and when you
-  rotate anything.
+  that is not there cannot leak. Outside local development the web app **refuses to start if it is given any
+  secret that belongs to another process** (ADR-0044), naming it, so a pasted `.env` fails loudly instead of
+  quietly holding a database password. It cannot know about a variable it has never heard of, so after any
+  change to the project's environment still read the Name column (`vercel env ls production`).
 
 ### 9.9 Deploying, migrating, rolling back, and checking
 

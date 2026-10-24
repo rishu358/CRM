@@ -45,6 +45,7 @@ always wins over the file.
 | [`NODE_ENV`](#node_env)                                               | api, worker, web, db, perf | no            | no     |
 | [`APP_ENV`](#app_env)                                                 | api, worker, web, db       | no            | no     |
 | [`LOG_LEVEL`](#log_level)                                             | api, worker                | no            | no     |
+| [`DEPLOYMENT_MODE`](#deployment_mode)                                 | api, web                   | no            | no     |
 | [`API_PORT`](#api_port)                                               | api                        | no            | no     |
 | [`API_HOST`](#api_host)                                               | api                        | no            | no     |
 | [`API_URL`](#api_url)                                                 | api, web                   | in production | no     |
@@ -136,6 +137,22 @@ Minimum level written to the structured JSON log.
 - **Secret:** no
 - **Default:** `info`
 - **Values:** `trace`, `debug`, `info`, `warn`, `error`, `fatal`
+
+## Deployment mode
+
+Whether this installation is a product anyone can sign up to, or one run by a single company. It changes who may create a workspace and nothing about how data is kept apart.
+
+### `DEPLOYMENT_MODE`
+
+How this installation is used. `multi_tenant`: anyone can sign up and gets a workspace of their own (a product). `single_tenant`: public sign-up is closed, one workspace is created by the operator with `pnpm tenant:create`, and people join it by invitation (an installation run by a single company).
+
+- **Used by:** api, web
+- **Required:** no
+- **Secret:** no
+- **Default:** `multi_tenant`
+- **Values:** `multi_tenant`, `single_tenant`
+
+Row-level security and tenant isolation are identical in both modes: a single-tenant installation is one tenant, never a different way of reading data. The API and the web app must agree. Changing a running installation from `multi_tenant` to `single_tenant` closes sign-up and leaves every existing workspace as it is.
 
 ## Addresses
 

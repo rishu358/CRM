@@ -26,7 +26,7 @@ REQUIRED=(CRM_VERSION WEB_URL API_URL AUTH_SECRET DATABASE_CA_CERT
   DATABASE_URL DATABASE_AUTH_URL DATABASE_WORKER_URL DATABASE_ERASURE_URL DATABASE_MIGRATION_URL
   EMAIL_FROM RESEND_API_KEY
   S3_BUCKET S3_REGION S3_ENDPOINT S3_PUBLIC_ENDPOINT S3_ACCESS_KEY_ID S3_SECRET_ACCESS_KEY)
-OPTIONAL=(REDIS_URL)
+OPTIONAL=(REDIS_URL DEPLOYMENT_MODE)
 
 declare -A V
 while IFS= read -r line || [[ -n "$line" ]]; do
@@ -36,6 +36,8 @@ while IFS= read -r line || [[ -n "$line" ]]; do
   V["${BASH_REMATCH[1]}"]="${BASH_REMATCH[2]}"
 done < "$ENV_FILE"
 
+# Not secret and has a safe default: an installation that says nothing is a multi-tenant one.
+: "${V[DEPLOYMENT_MODE]:=multi_tenant}"
 problems=()
 for k in "${REQUIRED[@]}"; do
   [[ -n "${V[$k]:-}" ]] || problems+=("$k is not set")
@@ -65,6 +67,7 @@ done
 if [[ -n "${V[DATABASE_CA_CERT]:-}" ]] && ! printf '%s' "${V[DATABASE_CA_CERT]}" | base64 -d 2>/dev/null | grep -q 'BEGIN CERTIFICATE'; then
   problems+=("DATABASE_CA_CERT must be the base64 of the provider's CA certificate (base64 -w0 ca.crt)")
 fi
+case "${V[DEPLOYMENT_MODE]}" in multi_tenant | single_tenant) ;; *) problems+=("DEPLOYMENT_MODE must be multi_tenant or single_tenant") ;; esac
 [[ "${V[CRM_VERSION]:-}" != latest ]] || problems+=("CRM_VERSION must name a release, not 'latest'")
 [[ ${#V[AUTH_SECRET]} -ge 32 || -z "${V[AUTH_SECRET]:-}" ]] || problems+=("AUTH_SECRET must be at least 32 characters")
 

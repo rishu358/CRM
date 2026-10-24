@@ -81,6 +81,9 @@ services:
       # Public addresses. WEB_URL is the Vercel site; API_URL is this service's own public origin.
       - { key: WEB_URL, value: '@@WEB_URL@@', scope: RUN_TIME }
       - { key: API_URL, value: '@@API_URL@@', scope: RUN_TIME }
+      # multi_tenant: anyone can sign up. single_tenant: sign-up closed, one workspace made with
+      # `tenant:create` (ADR-0046). The web app on Vercel must be set to the same value.
+      - { key: DEPLOYMENT_MODE, value: '@@DEPLOYMENT_MODE@@', scope: RUN_TIME }
       - { key: CORS_ORIGINS, value: '@@WEB_URL@@', scope: RUN_TIME }
       - { key: AUTH_SECRET, value: '@@AUTH_SECRET@@', scope: RUN_TIME, type: SECRET }
       # Two roles, two pools (ADR-0002). Never doadmin, never crm_migrator.

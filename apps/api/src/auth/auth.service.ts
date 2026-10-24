@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { Inject, Injectable } from '@nestjs/common';
 import {
+  ConflictError,
   EmailNotVerifiedError,
   generateOneTimeToken,
   hashOneTimeToken,
@@ -9,6 +10,9 @@ import {
   MfaInvalidError,
   TOKEN_TTL_SECONDS,
   type Actor,
+  SignUpDisabledError,
+  mayCreateWorkspace,
+  publicSignUpOpen,
 } from '@crm/core';
 import type {
   Accepted,
@@ -96,6 +100,10 @@ export class AuthService {
     name: string;
     companyName?: string | undefined;
   }): Promise<Accepted> {
+    // A single-tenant installation lets nobody create a workspace by themselves (ADR-0046).
+    // Checked first, before anything is looked up or sent, so a closed door gives one answer.
+    if (!publicSignUpOpen(this.env.DEPLOYMENT_MODE)) throw new SignUpDisabledError();
+
     const existing = await this.repository.findUserByEmail(input.email);
 
     if (existing !== null) {
@@ -104,8 +112,68 @@ export class AuthService {
       return { accepted: true };
     }
 
+    const { userId } = await this.provisionWorkspace({
+      email: input.email,
+      name: input.name,
+      password: input.password,
+      workspaceName: input.companyName ?? `${input.name}'s workspace`,
+      emailVerified: false,
+    });
+
+    await this.throttle.recordEvent('signup', true, { email: input.email, userId });
+    await this.issueEmailVerification(userId, input.email, input.name);
+    return { accepted: true };
+  }
+
+  /**
+   * Create a workspace and its founding owner on behalf of the operator: the setup command
+   * (`pnpm tenant:create`), not a stranger (ADR-0046).
+   *
+   * It goes through exactly the code public sign-up does (`provisionWorkspace`), so a workspace made
+   * here is indistinguishable from one made by the form: the same roles, field metadata, tenant
+   * defaults and row-level security. Only who is asking differs: the address is marked verified (the
+   * operator vouches for it, and mail may not be configured yet), and a single-tenant installation
+   * refuses once it has its one workspace.
+   *
+   * The caller validates the password against the sign-up policy; it is hashed here and never logged.
+   */
+  async createWorkspaceForOperator(input: {
+    email: string;
+    name: string;
+    password: string;
+    workspaceName: string;
+  }): Promise<{ tenantId: string; userId: string }> {
+    const existingWorkspaces = await this.repository.countTenants();
+    if (!mayCreateWorkspace(this.env.DEPLOYMENT_MODE, existingWorkspaces)) {
+      throw new ConflictError(
+        'This installation already has its workspace. People join it by invitation, from inside the application.',
+      );
+    }
+    if ((await this.repository.findUserByEmail(input.email)) !== null) {
+      throw new ConflictError('An account with this address already exists.');
+    }
+
+    const result = await this.provisionWorkspace({ ...input, emailVerified: true });
+    await this.throttle.recordEvent('workspace_created', true, {
+      email: input.email,
+      userId: result.userId,
+    });
+    return result;
+  }
+
+  /**
+   * The identity, the workspace shell, and the workspace's roles and metadata: the one way a
+   * workspace comes into being, whoever asked for it.
+   */
+  private async provisionWorkspace(input: {
+    email: string;
+    name: string;
+    password: string;
+    workspaceName: string;
+    emailVerified: boolean;
+  }): Promise<{ userId: string; tenantId: string }> {
     const passwordHash = await this.passwords.hash(input.password);
-    const workspaceName = input.companyName ?? `${input.name}'s workspace`;
+    const workspaceName = input.workspaceName;
 
     // 1. Identity and its workspace shell, in one identity transaction. The
     //    tenant starts as 'provisioning' because it has no roles yet, so a
@@ -116,7 +184,10 @@ export class AuthService {
         { name: workspaceName, slug: this.uniqueSlug(workspaceName), status: 'provisioning' },
         tx,
       );
-      const user = await this.repository.createUser({ email: input.email, name: input.name }, tx);
+      const user = await this.repository.createUser(
+        { email: input.email, name: input.name, emailVerified: input.emailVerified },
+        tx,
+      );
       await this.repository.upsertCredential(
         {
           userId: user,
@@ -156,9 +227,7 @@ export class AuthService {
       throw error;
     }
 
-    await this.throttle.recordEvent('signup', true, { email: input.email, userId });
-    await this.issueEmailVerification(userId, input.email, input.name);
-    return { accepted: true };
+    return { userId, tenantId };
   }
 
   // -------------------------------------------------------------------------

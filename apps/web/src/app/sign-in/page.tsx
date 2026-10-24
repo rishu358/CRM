@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
 import { AuthShell, FormError } from '../../components/auth-shell';
+import { useBrand } from '../../components/brand-provider';
 import { authErrorMessage } from '../../lib/auth-errors';
 import { t } from '../../lib/i18n';
 import { signIn, verifyMfa } from '../../lib/session';
@@ -24,6 +25,7 @@ type Step = { kind: 'credentials' } | { kind: 'mfa'; challengeToken: string };
 
 export default function SignInPage() {
   const router = useRouter();
+  const { signUpOpen } = useBrand();
   const [step, setStep] = useState<Step>({ kind: 'credentials' });
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -108,12 +110,15 @@ export default function SignInPage() {
       title={t('auth.title')}
       description={t('auth.description')}
       footer={
-        <>
-          {t('auth.noAccount')}{' '}
-          <Link href="/sign-up" className="font-medium text-foreground underline">
-            {t('auth.createAccount')}
-          </Link>
-        </>
+        // A single-tenant installation has no sign-up (ADR-0046): people are invited.
+        signUpOpen ? (
+          <>
+            {t('auth.noAccount')}{' '}
+            <Link href="/sign-up" className="font-medium text-foreground underline">
+              {t('auth.createAccount')}
+            </Link>
+          </>
+        ) : undefined
       }
     >
       <form onSubmit={(event) => void submitCredentials(event)} className="space-y-4">

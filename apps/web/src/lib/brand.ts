@@ -1,3 +1,4 @@
+import { publicSignUpOpen, type DeploymentMode } from '@crm/core';
 import { brandTheme } from '@crm/ui/brand';
 import { originOf } from './csp';
 
@@ -12,6 +13,7 @@ import { originOf } from './csp';
  */
 export interface BrandEnv {
   readonly APP_NAME: string;
+  readonly DEPLOYMENT_MODE?: DeploymentMode | undefined;
   readonly SUPPORT_EMAIL?: string | undefined;
   readonly TERMS_URL?: string | undefined;
   readonly PRIVACY_URL?: string | undefined;
@@ -21,8 +23,13 @@ export interface BrandEnv {
   readonly BRAND_COLOR_DARK?: string | undefined;
 }
 
-/** What a component may know: public, and safe to hand to the browser. */
+/**
+ * What a component may know about this installation: public, and safe to hand to the browser. Its
+ * identity, and whether strangers may create accounts here (`DEPLOYMENT_MODE`, ADR-0046): the sign-in
+ * screen offers the link only when they may. Hiding it is courtesy; the API is what refuses.
+ */
 export interface PublicBrand {
+  readonly signUpOpen: boolean;
   readonly name: string;
   readonly logoUrl: string | null;
   readonly faviconUrl: string | null;
@@ -33,6 +40,7 @@ export interface PublicBrand {
 
 export function publicBrand(env: BrandEnv): PublicBrand {
   return {
+    signUpOpen: publicSignUpOpen(env.DEPLOYMENT_MODE ?? 'multi_tenant'),
     name: env.APP_NAME,
     logoUrl: env.BRAND_LOGO_URL ?? null,
     faviconUrl: env.BRAND_FAVICON_URL ?? null,

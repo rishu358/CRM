@@ -11,6 +11,7 @@ const bare: BrandEnv = { APP_NAME: 'CRM' };
 describe('publicBrand', () => {
   it('hands components the name and whatever else is configured, and null for the rest', () => {
     expect(publicBrand(bare)).toEqual({
+      signUpOpen: true,
       name: 'CRM',
       logoUrl: null,
       faviconUrl: null,
@@ -28,6 +29,7 @@ describe('publicBrand', () => {
         PRIVACY_URL: '/privacy',
       }),
     ).toEqual({
+      signUpOpen: true,
       name: 'Orchid Desk',
       logoUrl: 'https://cdn.example.com/logo.svg',
       faviconUrl: '/brand/favicon.png',
@@ -35,6 +37,17 @@ describe('publicBrand', () => {
       termsUrl: 'https://example.com/terms',
       privacyUrl: '/privacy',
     });
+  });
+});
+
+describe('whether the installation takes sign-ups (ADR-0046)', () => {
+  it('is open by default and on a multi-tenant installation', () => {
+    expect(publicBrand(bare).signUpOpen).toBe(true);
+    expect(publicBrand({ ...bare, DEPLOYMENT_MODE: 'multi_tenant' }).signUpOpen).toBe(true);
+  });
+
+  it('is closed on a single-tenant installation', () => {
+    expect(publicBrand({ ...bare, DEPLOYMENT_MODE: 'single_tenant' }).signUpOpen).toBe(false);
   });
 });
 
