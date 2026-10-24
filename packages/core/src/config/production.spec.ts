@@ -65,11 +65,56 @@ describe('production configuration', () => {
       'EMAIL_PROVIDER=memory delivers nothing',
     );
     expect(problemsOf({ emailProvider: undefined })).toContain('EMAIL_PROVIDER=console');
-    expect(problemsOf({ emailProvider: 'smtp' })).toContain(
+    expect(problemsOf({ emailProvider: 'sendgrid' })).toContain(
       'not a provider this build can send with',
     );
     expect(problemsOf({ resendApiKey: undefined })).toContain('requires RESEND_API_KEY');
     expect(problemsOf({ resendApiKey: '' })).toContain('requires RESEND_API_KEY');
+  });
+
+  it('accepts Amazon SES with a region and both keys, and names each one that is missing', () => {
+    const ses = {
+      emailProvider: 'ses',
+      resendApiKey: undefined,
+      sesRegion: 'ap-south-1',
+      sesAccessKeyId: 'AKIAEXAMPLE',
+      sesSecretAccessKey: 'wJalrXUtnFEMI',
+    };
+    expect(problemsOf(ses)).toBe('');
+    expect(problemsOf({ ...ses, sesRegion: undefined })).toBe(
+      'EMAIL_PROVIDER=ses requires SES_REGION',
+    );
+    expect(problemsOf({ ...ses, sesAccessKeyId: '' })).toBe(
+      'EMAIL_PROVIDER=ses requires SES_ACCESS_KEY_ID',
+    );
+    expect(problemsOf({ ...ses, sesSecretAccessKey: undefined })).toBe(
+      'EMAIL_PROVIDER=ses requires SES_SECRET_ACCESS_KEY',
+    );
+    // Never a value: not even in the problem about the key next to it.
+    expect(problemsOf({ ...ses, sesRegion: undefined })).not.toContain('wJalrXUtnFEMI');
+  });
+
+  it('accepts SMTP over TLS, and refuses it without a host, in clear, or with half a login', () => {
+    const smtp = {
+      emailProvider: 'smtp',
+      resendApiKey: undefined,
+      smtpHost: 'smtp.mail.example.com',
+      smtpSecurity: 'starttls',
+      smtpUser: 'no-reply@mail.example.com',
+      smtpPassword: 'a-real-password',
+    };
+    expect(problemsOf(smtp)).toBe('');
+    expect(problemsOf({ ...smtp, smtpSecurity: 'tls' })).toBe('');
+    // A relay that trusts the sender by address needs no login at all.
+    expect(problemsOf({ ...smtp, smtpUser: undefined, smtpPassword: undefined })).toBe('');
+    expect(problemsOf({ ...smtp, smtpHost: undefined })).toBe(
+      'EMAIL_PROVIDER=smtp requires SMTP_HOST',
+    );
+    expect(problemsOf({ ...smtp, smtpSecurity: 'none' })).toContain('SMTP_SECURITY=none');
+    expect(problemsOf({ ...smtp, smtpPassword: undefined })).toContain(
+      'SMTP_USER and SMTP_PASSWORD must be set together',
+    );
+    expect(problemsOf({ ...smtp, smtpSecurity: 'none' })).not.toContain('a-real-password');
   });
 
   it.each([undefined, '', 'no-reply', 'no-reply@localhost', 'CRM <no-reply@localhost>'])(

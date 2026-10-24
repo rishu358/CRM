@@ -83,6 +83,15 @@ always wins over the file.
 | [`EMAIL_PROVIDER`](#email_provider)                                   | api, worker                | in production | no     |
 | [`EMAIL_FROM`](#email_from)                                           | api, worker                | in production | no     |
 | [`RESEND_API_KEY`](#resend_api_key)                                   | api, worker                | in production | yes    |
+| [`SES_REGION`](#ses_region)                                           | api, worker                | in production | no     |
+| [`SES_ACCESS_KEY_ID`](#ses_access_key_id)                             | api, worker                | in production | yes    |
+| [`SES_SECRET_ACCESS_KEY`](#ses_secret_access_key)                     | api, worker                | in production | yes    |
+| [`SES_CONFIGURATION_SET`](#ses_configuration_set)                     | api, worker                | no            | no     |
+| [`SMTP_HOST`](#smtp_host)                                             | api, worker                | in production | no     |
+| [`SMTP_PORT`](#smtp_port)                                             | api, worker                | no            | no     |
+| [`SMTP_SECURITY`](#smtp_security)                                     | api, worker                | no            | no     |
+| [`SMTP_USER`](#smtp_user)                                             | api, worker                | no            | no     |
+| [`SMTP_PASSWORD`](#smtp_password)                                     | api, worker                | no            | yes    |
 | [`STORAGE_PROVIDER`](#storage_provider)                               | api, worker                | no            | no     |
 | [`S3_BUCKET`](#s3_bucket)                                             | api, worker                | no            | no     |
 | [`S3_REGION`](#s3_region)                                             | api, worker                | no            | no     |
@@ -508,13 +517,13 @@ Outgoing mail.
 
 ### `EMAIL_PROVIDER`
 
-How outgoing mail is sent. `console` prints the message, links included, to the log; `memory` keeps messages in memory for the test suite; `resend` sends through Resend.
+How outgoing mail is sent. `console` prints the message, links included, to the log; `memory` keeps messages in memory for the test suite; `resend` sends through Resend; `ses` sends through Amazon SES; `smtp` sends through an SMTP server.
 
 - **Used by:** api, worker
 - **Required:** in production (a production process refuses to run without a real value)
 - **Secret:** no
 - **Default:** `console`
-- **Values:** `console`, `memory`, `resend`
+- **Values:** `console`, `memory`, `resend`, `ses`, `smtp`
 
 `console` and `memory` are refused when `NODE_ENV=production`, so a deployment that forgot to configure a real provider fails loudly instead of writing reset links into a log file.
 
@@ -537,6 +546,90 @@ API key for Resend. Required when `EMAIL_PROVIDER=resend`.
 - **Required:** in production (a production process refuses to run without a real value)
 - **Secret:** yes: never logged, never committed, never on the web app
 - **Where to get it:** Resend dashboard, API Keys. Create one per environment with sending access only.
+
+### `SES_REGION`
+
+The AWS region whose Amazon SES sends the mail. Required when `EMAIL_PROVIDER=ses`.
+
+- **Used by:** api, worker
+- **Required:** in production (a production process refuses to run without a real value)
+- **Secret:** no
+
+The region decides where the message is processed (data residency). The sender identity in `EMAIL_FROM` must be verified in this region, and the account must be out of the SES sandbox to send to addresses you have not verified. The China regions are not supported.
+
+### `SES_ACCESS_KEY_ID`
+
+Access key ID for Amazon SES. Required when `EMAIL_PROVIDER=ses`.
+
+- **Used by:** api, worker
+- **Required:** in production (a production process refuses to run without a real value)
+- **Secret:** yes: never logged, never committed, never on the web app
+- **Where to get it:** AWS IAM: a user whose only permission is `ses:SendEmail` on the verified identity. Not a root or administrator key.
+
+### `SES_SECRET_ACCESS_KEY`
+
+Secret access key for Amazon SES. Required when `EMAIL_PROVIDER=ses`.
+
+- **Used by:** api, worker
+- **Required:** in production (a production process refuses to run without a real value)
+- **Secret:** yes: never logged, never committed, never on the web app
+- **Where to get it:** Shown once, when the IAM access key is created.
+
+### `SES_CONFIGURATION_SET`
+
+Optional Amazon SES configuration set to send through, for delivery events and reputation tracking.
+
+- **Used by:** api, worker
+- **Required:** no
+- **Secret:** no
+
+### `SMTP_HOST`
+
+The SMTP server mail is sent through. Required when `EMAIL_PROVIDER=smtp`.
+
+- **Used by:** api, worker
+- **Required:** in production (a production process refuses to run without a real value)
+- **Secret:** no
+
+A host name or address, chosen by the operator: it is never taken from a request, so a server on a private network is fine.
+
+### `SMTP_PORT`
+
+The SMTP server port: 587 for `starttls`, 465 for `tls`, 25 or a local inbox port for `none`.
+
+- **Used by:** api, worker
+- **Required:** no
+- **Secret:** no
+- **Default:** `587`
+
+### `SMTP_SECURITY`
+
+How the connection is protected. `starttls` connects in clear and requires the upgrade to TLS; `tls` is TLS from the first byte; `none` is plain text, for a local development inbox only.
+
+- **Used by:** api, worker
+- **Required:** no
+- **Secret:** no
+- **Default:** `starttls`
+- **Values:** `starttls`, `tls`, `none`
+
+`none` is refused when `NODE_ENV=production`. Certificates are always verified, and TLS 1.2 is the minimum.
+
+### `SMTP_USER`
+
+The SMTP login. Set together with `SMTP_PASSWORD`, or both left unset for a server that trusts the sender by address.
+
+- **Used by:** api, worker
+- **Required:** no
+- **Secret:** no
+
+### `SMTP_PASSWORD`
+
+The SMTP password. Set together with `SMTP_USER`.
+
+- **Used by:** api, worker
+- **Required:** no
+- **Secret:** yes: never logged, never committed, never on the web app
+- **Where to get it:** The mail provider's console: an app password or an SMTP credential for this sender only.
 
 ## Object storage
 

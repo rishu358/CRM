@@ -27,6 +27,13 @@ export interface ProductionConfigInput {
   readonly emailProvider?: string | undefined;
   readonly emailFrom?: string | undefined;
   readonly resendApiKey?: string | undefined;
+  readonly sesRegion?: string | undefined;
+  readonly sesAccessKeyId?: string | undefined;
+  readonly sesSecretAccessKey?: string | undefined;
+  readonly smtpHost?: string | undefined;
+  readonly smtpSecurity?: string | undefined;
+  readonly smtpUser?: string | undefined;
+  readonly smtpPassword?: string | undefined;
   readonly storageProvider?: string | undefined;
   readonly s3AccessKeyId?: string | undefined;
   readonly s3SecretAccessKey?: string | undefined;
@@ -141,6 +148,27 @@ export function productionConfigProblems(input: ProductionConfigInput): Producti
   } else if (email === 'resend') {
     if (input.resendApiKey === undefined || input.resendApiKey === '') {
       problems.push('EMAIL_PROVIDER=resend requires RESEND_API_KEY');
+    }
+  } else if (email === 'ses') {
+    for (const [name, value] of [
+      ['SES_REGION', input.sesRegion],
+      ['SES_ACCESS_KEY_ID', input.sesAccessKeyId],
+      ['SES_SECRET_ACCESS_KEY', input.sesSecretAccessKey],
+    ] as const) {
+      if (value === undefined || value === '') problems.push(`EMAIL_PROVIDER=ses requires ${name}`);
+    }
+  } else if (email === 'smtp') {
+    if (input.smtpHost === undefined || input.smtpHost === '') {
+      problems.push('EMAIL_PROVIDER=smtp requires SMTP_HOST');
+    }
+    if ((input.smtpSecurity ?? 'starttls') === 'none') {
+      problems.push('SMTP_SECURITY=none sends mail and credentials in clear; use starttls or tls');
+    }
+    if (
+      (input.smtpUser === undefined || input.smtpUser === '') !==
+      (input.smtpPassword === undefined || input.smtpPassword === '')
+    ) {
+      problems.push('SMTP_USER and SMTP_PASSWORD must be set together');
     }
   } else {
     problems.push(`EMAIL_PROVIDER=${email} is not a provider this build can send with`);

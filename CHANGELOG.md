@@ -50,6 +50,10 @@ a working version, and the first tag will be cut from a green `master` (see
   between plans, so nothing changes for any workspace. Overrides are written only by the operator
   (`pnpm tenant:entitlements`), never by a request: the application role can read them and nothing else
   (migration 0022).
+- **Amazon SES (ADR-0048):** `EMAIL_PROVIDER=ses` sends through SES's REST API, signed with Signature Version 4 on
+  `node:crypto` and sent through the guarded outbound client pinned to the region host, with no SDK. The API and the
+  worker build email providers from one shared factory. `docs/PROVIDERS.md` lists the settings for each email and
+  storage choice. `EMAIL_PROVIDER=smtp` sends through any SMTP server with `nodemailer` (a new dependency, MIT-0), requiring TLS: STARTTLS by default, never plain text in production, certificates verified.
 
 ### Security
 

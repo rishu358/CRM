@@ -485,12 +485,12 @@ export const REGISTRY = {
       group: 'email',
       requirement: 'production',
       description:
-        'How outgoing mail is sent. `console` prints the message, links included, to the log; `memory` keeps messages in memory for the test suite; `resend` sends through Resend.',
+        'How outgoing mail is sent. `console` prints the message, links included, to the log; `memory` keeps messages in memory for the test suite; `resend` sends through Resend; `ses` sends through Amazon SES; `smtp` sends through an SMTP server.',
       local: 'console',
       example: 'resend',
       note: '`console` and `memory` are refused when `NODE_ENV=production`, so a deployment that forgot to configure a real provider fails loudly instead of writing reset links into a log file.',
     },
-    { values: ['console', 'memory', 'resend'], default: 'console' },
+    { values: ['console', 'memory', 'resend', 'ses', 'smtp'], default: 'console' },
   ),
   EMAIL_FROM: defaultedText(
     {
@@ -513,6 +513,110 @@ export const REGISTRY = {
       requirement: 'production',
       description: 'API key for Resend. Required when `EMAIL_PROVIDER=resend`.',
       obtain: 'Resend dashboard, API Keys. Create one per environment with sending access only.',
+      example: 'CHANGE_ME',
+    },
+    { min: 1 },
+  ),
+
+  SES_REGION: optionalText(
+    {
+      scopes: ['api', 'worker'],
+      group: 'email',
+      requirement: 'production',
+      description:
+        'The AWS region whose Amazon SES sends the mail. Required when `EMAIL_PROVIDER=ses`.',
+      example: 'ap-south-1',
+      note: 'The region decides where the message is processed (data residency). The sender identity in `EMAIL_FROM` must be verified in this region, and the account must be out of the SES sandbox to send to addresses you have not verified. The China regions are not supported.',
+    },
+    { min: 1 },
+  ),
+  SES_ACCESS_KEY_ID: optionalText(
+    {
+      scopes: ['api', 'worker'],
+      group: 'email',
+      secret: true,
+      requirement: 'production',
+      description: 'Access key ID for Amazon SES. Required when `EMAIL_PROVIDER=ses`.',
+      obtain:
+        'AWS IAM: a user whose only permission is `ses:SendEmail` on the verified identity. Not a root or administrator key.',
+      example: 'CHANGE_ME',
+    },
+    { min: 1 },
+  ),
+  SES_SECRET_ACCESS_KEY: optionalText(
+    {
+      scopes: ['api', 'worker'],
+      group: 'email',
+      secret: true,
+      requirement: 'production',
+      description: 'Secret access key for Amazon SES. Required when `EMAIL_PROVIDER=ses`.',
+      obtain: 'Shown once, when the IAM access key is created.',
+      example: 'CHANGE_ME',
+    },
+    { min: 1 },
+  ),
+  SES_CONFIGURATION_SET: optionalText(
+    {
+      scopes: ['api', 'worker'],
+      group: 'email',
+      description:
+        'Optional Amazon SES configuration set to send through, for delivery events and reputation tracking.',
+      example: 'transactional',
+    },
+    { min: 1 },
+  ),
+
+  SMTP_HOST: optionalText(
+    {
+      scopes: ['api', 'worker'],
+      group: 'email',
+      requirement: 'production',
+      description: 'The SMTP server mail is sent through. Required when `EMAIL_PROVIDER=smtp`.',
+      example: 'smtp.mail.example.com',
+      note: 'A host name or address, chosen by the operator: it is never taken from a request, so a server on a private network is fine.',
+    },
+    { min: 1 },
+  ),
+  SMTP_PORT: defaultedInt(
+    {
+      scopes: ['api', 'worker'],
+      group: 'email',
+      description:
+        'The SMTP server port: 587 for `starttls`, 465 for `tls`, 25 or a local inbox port for `none`.',
+      example: '587',
+    },
+    { default: 587, sign: 'positive' },
+  ),
+  SMTP_SECURITY: defaultedChoice(
+    {
+      scopes: ['api', 'worker'],
+      group: 'email',
+      description:
+        'How the connection is protected. `starttls` connects in clear and requires the upgrade to TLS; `tls` is TLS from the first byte; `none` is plain text, for a local development inbox only.',
+      local: 'none',
+      example: 'starttls',
+      note: '`none` is refused when `NODE_ENV=production`. Certificates are always verified, and TLS 1.2 is the minimum.',
+    },
+    { values: ['starttls', 'tls', 'none'], default: 'starttls' },
+  ),
+  SMTP_USER: optionalText(
+    {
+      scopes: ['api', 'worker'],
+      group: 'email',
+      description:
+        'The SMTP login. Set together with `SMTP_PASSWORD`, or both left unset for a server that trusts the sender by address.',
+      example: 'no-reply@mail.example.com',
+    },
+    { min: 1 },
+  ),
+  SMTP_PASSWORD: optionalText(
+    {
+      scopes: ['api', 'worker'],
+      group: 'email',
+      secret: true,
+      description: 'The SMTP password. Set together with `SMTP_USER`.',
+      obtain:
+        "The mail provider's console: an app password or an SMTP credential for this sender only.",
       example: 'CHANGE_ME',
     },
     { min: 1 },

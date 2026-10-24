@@ -1,4 +1,4 @@
-import { createResendEmailProvider } from '@crm/outbound';
+import { createRemoteEmailProvider } from '@crm/outbound';
 import { Global, Module } from '@nestjs/common';
 import { API_ENV_TOKEN } from '../config/env.js';
 import {
@@ -56,10 +56,33 @@ import type { ApiEnv } from '../config/env.js';
       useFactory: (env: ApiEnv) => {
         if (env.EMAIL_PROVIDER === 'memory') return new MemoryEmailProvider(env);
         if (env.EMAIL_PROVIDER === 'resend') {
-          if (env.RESEND_API_KEY === undefined || env.RESEND_API_KEY === '') {
-            throw new Error('EMAIL_PROVIDER=resend requires RESEND_API_KEY');
-          }
-          return createResendEmailProvider({ apiKey: env.RESEND_API_KEY, from: env.EMAIL_FROM });
+          return createRemoteEmailProvider({
+            kind: 'resend',
+            from: env.EMAIL_FROM,
+            resendApiKey: env.RESEND_API_KEY,
+          });
+        }
+        if (env.EMAIL_PROVIDER === 'ses') {
+          return createRemoteEmailProvider({
+            kind: 'ses',
+            from: env.EMAIL_FROM,
+            sesRegion: env.SES_REGION,
+            sesAccessKeyId: env.SES_ACCESS_KEY_ID,
+            sesSecretAccessKey: env.SES_SECRET_ACCESS_KEY,
+            sesConfigurationSet: env.SES_CONFIGURATION_SET,
+          });
+        }
+        if (env.EMAIL_PROVIDER === 'smtp') {
+          return createRemoteEmailProvider({
+            kind: 'smtp',
+            from: env.EMAIL_FROM,
+            nodeEnv: env.NODE_ENV,
+            smtpHost: env.SMTP_HOST,
+            smtpPort: env.SMTP_PORT,
+            smtpSecurity: env.SMTP_SECURITY,
+            smtpUser: env.SMTP_USER,
+            smtpPassword: env.SMTP_PASSWORD,
+          });
         }
         return new ConsoleEmailProvider(env);
       },
