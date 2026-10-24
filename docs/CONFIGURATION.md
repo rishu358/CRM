@@ -72,6 +72,7 @@ always wins over the file.
 | [`DATABASE_POOL_MAX`](#database_pool_max)                             | api, worker, db            | no            | no     |
 | [`DATABASE_CA_CERT`](#database_ca_cert)                               | api, worker, db            | no            | no     |
 | [`AUTH_SECRET`](#auth_secret)                                         | api                        | yes           | yes    |
+| [`AUTH_SECRET_PREVIOUS`](#auth_secret_previous)                       | api                        | no            | yes    |
 | [`SESSION_COOKIE_NAME`](#session_cookie_name)                         | api, web                   | no            | no     |
 | [`SESSION_TTL_DAYS`](#session_ttl_days)                               | api, web                   | no            | no     |
 | [`AUTH_RATE_LIMIT_WINDOW_SECONDS`](#auth_rate_limit_window_seconds)   | api                        | no            | no     |
@@ -422,14 +423,25 @@ Signing, cookies and sign-in limits.
 
 ### `AUTH_SECRET`
 
-Signs session cookies and encrypts authenticator (MFA) secrets. At least 32 characters of randomness.
+Encrypts authenticator (MFA) secrets and backup codes at rest, and keys the API cookie signer. At least 32 characters of randomness.
 
 - **Used by:** api
 - **Required:** yes: the process refuses to start without it
 - **Secret:** yes: never logged, never committed, never on the web app
 - **Where to get it:** `openssl rand -base64 48`. Generate one per environment; never reuse.
 
-Rotating it signs everyone out and makes enrolled authenticator secrets unreadable; there is no dual-key rotation yet (docs/RUNBOOK.md §7). Production refuses a value that looks like a placeholder.
+Rotate it without losing enrolled authenticators by keeping the old value in `AUTH_SECRET_PREVIOUS` until `pnpm auth:rotate-keys` has re-encrypted what is stored (docs/SECRETS.md). It does not sign anyone out: sessions are random tokens, not keyed by it. Production refuses a value that looks like a placeholder.
+
+### `AUTH_SECRET_PREVIOUS`
+
+Earlier `AUTH_SECRET` values that stored data may still be encrypted with, newest first, separated by commas. Used only while rotating the key.
+
+- **Used by:** api
+- **Required:** no
+- **Secret:** yes: never logged, never committed, never on the web app
+- **Where to get it:** The value `AUTH_SECRET` had before you changed it. See docs/SECRETS.md.
+
+Leave unset except during a rotation: deploy the new `AUTH_SECRET` with the old one here, run `pnpm auth:rotate-keys`, then remove this. Each key must be at least 32 characters, and at most three are accepted.
 
 ### `SESSION_COOKIE_NAME`
 

@@ -20,6 +20,7 @@ export type ApiEnv = EnvFor<'api'>;
 
 export function loadApiEnv(source?: EnvSource): ApiEnv {
   const env = loadEnv('api', source);
+  assertPreviousAuthSecrets(env);
   // A production process with development settings does not start (ADR-0041).
   assertProductionConfig(productionInput(env));
   return env;
@@ -30,6 +31,7 @@ function productionInput(env: ApiEnv): ProductionConfigInput {
     nodeEnv: env.NODE_ENV,
     scope: 'api',
     authSecret: env.AUTH_SECRET,
+    authSecretPrevious: env.AUTH_SECRET_PREVIOUS,
     emailProvider: env.EMAIL_PROVIDER,
     emailFrom: env.EMAIL_FROM,
     resendApiKey: env.RESEND_API_KEY,
@@ -76,4 +78,29 @@ export function googleConfigured(
     typeof env.GOOGLE_CLIENT_SECRET === 'string' &&
     env.GOOGLE_CLIENT_SECRET.length > 0
   );
+}
+
+/** The most earlier keys a rotation may hold at once: more is a rotation that was never finished. */
+const MAX_PREVIOUS_KEYS = 3;
+
+/** `AUTH_SECRET_PREVIOUS` as a list, newest first. Empty when no rotation is under way. */
+export function previousAuthSecrets(env: Pick<ApiEnv, 'AUTH_SECRET_PREVIOUS'>): string[] {
+  return (env.AUTH_SECRET_PREVIOUS ?? '')
+    .split(',')
+    .map((key) => key.trim())
+    .filter((key) => key.length > 0);
+}
+
+/** Refuses a malformed key list at start-up, naming the variable and never a key. */
+function assertPreviousAuthSecrets(env: ApiEnv): void {
+  const keys = previousAuthSecrets(env);
+  if (keys.length > MAX_PREVIOUS_KEYS) {
+    throw new Error(
+      `AUTH_SECRET_PREVIOUS holds ${String(keys.length)} keys; at most ${String(MAX_PREVIOUS_KEYS)} are accepted. ` +
+        'Finish the earlier rotations and remove the old keys.',
+    );
+  }
+  if (keys.some((key) => key.length < 32)) {
+    throw new Error('Every key in AUTH_SECRET_PREVIOUS must be at least 32 characters');
+  }
 }

@@ -2,8 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { Inject, Injectable } from '@nestjs/common';
 import { base32 } from '@better-auth/utils/base32';
 import { createOTP } from '@better-auth/utils/otp';
-import { symmetricDecrypt, symmetricEncrypt } from 'better-auth/crypto';
-import { API_ENV_TOKEN, type ApiEnv } from '../../config/env.js';
+import { KeyRing } from './key-ring.js';
 
 /**
  * TOTP second factors (MVP_SPEC M1, ADR-0017).
@@ -15,7 +14,8 @@ import { API_ENV_TOKEN, type ApiEnv } from '../../config/env.js';
  * ## Secrets at rest
  *
  * A TOTP secret is a second password: anyone holding it can generate valid
- * codes forever. So it is encrypted with `AUTH_SECRET` before it reaches the
+ * codes forever. So it is encrypted with `AUTH_SECRET` (through the key ring, which
+ * records which key wrote each value, ADR-0049) before it reaches the
  * database, which means a leaked database alone does not defeat MFA — the
  * attacker also needs the application's secret, which lives somewhere else
  * entirely (CLAUDE.md §5.8).
@@ -45,7 +45,7 @@ export interface TotpProvider {
 
 @Injectable()
 export class BetterAuthTotpProvider implements TotpProvider {
-  constructor(@Inject(API_ENV_TOKEN) private readonly env: ApiEnv) {}
+  constructor(@Inject(KeyRing) private readonly keys: KeyRing) {}
 
   /** 160 bits, as RFC 4226 §4 requires for HMAC-SHA1. */
   generateSecret(): string {
@@ -76,10 +76,10 @@ export class BetterAuthTotpProvider implements TotpProvider {
   }
 
   async encryptSecret(secret: string): Promise<string> {
-    return symmetricEncrypt({ key: this.env.AUTH_SECRET, data: secret });
+    return this.keys.encrypt(secret);
   }
 
   async decryptSecret(ciphertext: string): Promise<string> {
-    return symmetricDecrypt({ key: this.env.AUTH_SECRET, data: ciphertext });
+    return this.keys.decrypt(ciphertext);
   }
 }

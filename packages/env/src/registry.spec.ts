@@ -66,6 +66,7 @@ describe('the registry', () => {
     // The named list, as a backstop against the patterns above going stale.
     for (const name of [
       'AUTH_SECRET',
+      'AUTH_SECRET_PREVIOUS',
       'DATABASE_URL',
       'DATABASE_AUTH_URL',
       'DATABASE_WORKER_URL',

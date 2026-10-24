@@ -9,7 +9,7 @@ import { AppModule } from './app.module.js';
 import { DomainErrorFilter } from './common/domain-error.filter.js';
 import { createLogger } from './common/logger.js';
 import { runWithRequestContext, type RequestContext } from './common/request-context.js';
-import { corsOrigins, loadApiEnv, type ApiEnv } from './config/env.js';
+import { corsOrigins, loadApiEnv, previousAuthSecrets, type ApiEnv } from './config/env.js';
 import type { AuthenticatedRequest } from './auth/auth.guard.js';
 
 /**
@@ -33,7 +33,9 @@ export async function createApp(env: ApiEnv = loadApiEnv()): Promise<NestFastify
 
   const instance = app.getHttpAdapter().getInstance();
 
-  await app.register(cookie, { secret: env.AUTH_SECRET });
+  // Nothing signs a cookie today (a session is a random token, not keyed by this); if something
+  // does, a key kept for a rotation still verifies what it signed (ADR-0049).
+  await app.register(cookie, { secret: [env.AUTH_SECRET, ...previousAuthSecrets(env)] });
 
   // Strict security headers (MVP_SPEC §8). The API serves JSON only, so the
   // CSP can forbid essentially everything rather than allowlisting sources.

@@ -24,6 +24,8 @@ export interface ProductionConfigInput {
    */
   readonly scope?: 'api' | 'worker';
   readonly authSecret?: string | undefined;
+  /** Comma-separated earlier values, as configured: each must be as good as the current one. */
+  readonly authSecretPrevious?: string | undefined;
   readonly emailProvider?: string | undefined;
   readonly emailFrom?: string | undefined;
   readonly resendApiKey?: string | undefined;
@@ -138,7 +140,13 @@ export function productionConfigProblems(input: ProductionConfigInput): Producti
   const warnings: string[] = [];
 
   const api = (input.scope ?? 'api') === 'api';
-  if (api) checkSecret('AUTH_SECRET', input.authSecret, problems);
+  if (api) {
+    checkSecret('AUTH_SECRET', input.authSecret, problems);
+    // A retired key is still a key that opens stored data: a weak one is a weak lock.
+    for (const previous of (input.authSecretPrevious ?? '').split(',')) {
+      if (previous.trim() !== '') checkSecret('AUTH_SECRET_PREVIOUS', previous.trim(), problems);
+    }
+  }
 
   const email = input.emailProvider ?? 'console';
   if (email === 'console' || email === 'memory') {
