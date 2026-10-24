@@ -39,8 +39,12 @@ const PATTERNS: readonly { name: string; test: RegExp }[] = [
     test: /\b(?:XMLHttpRequest|new WebSocket|new EventSource|sendBeacon)\b/,
   },
   {
+    // `rejectUnauthorized: true` is verification ON, and ADR-0042 needs to say it explicitly when
+    // handing `pg` a provider CA. Anything else — `false`, a variable, or the bare identifier —
+    // still trips. Narrowed rather than allowlisting the file, because an allowlist entry would
+    // blind this guard to a later `rejectUnauthorized: false` in the very file that configures TLS.
     name: 'TLS verification switched off',
-    test: /rejectUnauthorized|NODE_TLS_REJECT_UNAUTHORIZED/,
+    test: /rejectUnauthorized(?!\s*:\s*true\b)|NODE_TLS_REJECT_UNAUTHORIZED/,
   },
   { name: 'the test-only client', test: /@crm\/outbound\/testing/ },
 ];
@@ -207,5 +211,20 @@ describe('what the scanner can and cannot be fooled by', () => {
     expect(PATTERNS[2]!.test.test("const net = require('node:net');")).toBe(true);
     expect(PATTERNS[3]!.test.test("import axios from 'axios';")).toBe(true);
     expect(PATTERNS[3]!.test.test("import { fetch } from 'undici';")).toBe(true);
+  });
+
+  it('allows TLS verification switched on, and nothing else', () => {
+    const tls = PATTERNS.find((p) => p.name === 'TLS verification switched off')!;
+    // The one legitimate use: stated explicitly beside a provider CA (ADR-0042).
+    expect(tls.test.test('ssl: { ca, rejectUnauthorized: true }')).toBe(false);
+    expect(tls.test.test('readonly rejectUnauthorized: true;')).toBe(false);
+    // Everything that could turn verification off still trips, including the
+    // spellings that are easy to reach for when a certificate will not validate.
+    expect(tls.test.test('ssl: { rejectUnauthorized: false }')).toBe(true);
+    expect(tls.test.test('rejectUnauthorized:false')).toBe(true);
+    expect(tls.test.test('rejectUnauthorized: allowSelfSigned')).toBe(true);
+    expect(tls.test.test('const { rejectUnauthorized } = options;')).toBe(true);
+    expect(tls.test.test('rejectUnauthorized: trueish')).toBe(true);
+    expect(tls.test.test("process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';")).toBe(true);
   });
 });
