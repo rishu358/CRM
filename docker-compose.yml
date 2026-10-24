@@ -55,7 +55,7 @@ services:
     # Our own mirror, because MinIO's images are no longer publicly pullable
     # (quay.io 401s on the manifest, Docker Hub denies anonymous pulls), which
     # broke CI and every fresh clone. See deploy/minio-mirror.Dockerfile.
-    image: ghcr.io/rishu358/crm-minio@sha256:d14f78d9a6cc2ab32a9abea491ae7ebf1c0ad7e142bb4eaed58974da2eeb3dec
+    image: ghcr.io/rishu358/crm-minio@sha256:53bb27d3dbdf27dc28bacb759062014b9c5d2636c9b32f115f5ee7b772aa6adf
     container_name: crm-minio
     restart: unless-stopped
     environment:

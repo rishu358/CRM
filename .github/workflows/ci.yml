@@ -63,8 +63,12 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      # Integration tests start their own Postgres via Testcontainers, so the
-      # Docker daemon on the runner is the only dependency.
+      # Integration tests start their own Postgres via Testcontainers. That image
+      # is public, but s3.integration.spec.ts also starts our private GHCR MinIO
+      # mirror, so this job needs the login too — it fails with "error from
+      # registry: unauthorized" without it.
+      - name: Log in to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
       - run: pnpm test
 
   security:
@@ -207,7 +211,7 @@ jobs:
           docker run -d --name crm-minio -p 19000:9000 \
             -e MINIO_ROOT_USER=crm_minio \
             -e MINIO_ROOT_PASSWORD=crm_minio_ci_secret \
-            ghcr.io/rishu358/crm-minio@sha256:d14f78d9a6cc2ab32a9abea491ae7ebf1c0ad7e142bb4eaed58974da2eeb3dec \
+            ghcr.io/rishu358/crm-minio@sha256:53bb27d3dbdf27dc28bacb759062014b9c5d2636c9b32f115f5ee7b772aa6adf \
             server /data
           for _ in $(seq 1 30); do
             if curl -fsS http://localhost:19000/minio/health/ready > /dev/null; then

@@ -54,11 +54,15 @@ if [ "$status" -ne 0 ]; then
   echo "[secrets] FAIL: gitleaks exited $status (a finding, or it could not run)." >&2
   exit 1
 fi
-if echo "$plain" | grep -qE '(^| )ERR( |$)'; then
+# These use a here-string rather than `echo ... | grep -q`. `grep -q` exits at the
+# first match, `echo` then dies of SIGPIPE, and under `pipefail` the pipeline reports
+# failure even though the match succeeded. That inverted the check below: a clean run
+# of 108 commits was reported as "no commits were scanned" and failed CI.
+if grep -qE '(^| )ERR( |$)' <<<"$plain"; then
   echo "[secrets] FAIL: gitleaks logged an error; the scan cannot be trusted." >&2
   exit 1
 fi
-if ! echo "$plain" | grep -qE '[1-9][0-9]* commits scanned'; then
+if ! grep -qE '[1-9][0-9]* commits scanned' <<<"$plain"; then
   echo "[secrets] FAIL: no commits were scanned (shallow clone? unreadable repository?)." >&2
   exit 1
 fi

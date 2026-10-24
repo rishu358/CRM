@@ -14,8 +14,15 @@
 # `packages: read` instead of a separate registry secret.
 #
 # Rebuild and publish (needs the base image in the local cache and write:packages):
-#   docker build -f deploy/minio-mirror.Dockerfile -t ghcr.io/rishu358/crm-minio:RELEASE.2025-09-07T16-13-09Z .
-#   docker push ghcr.io/rishu358/crm-minio:RELEASE.2025-09-07T16-13-09Z
+#   docker buildx build --provenance=false --sbom=false \
+#     -f deploy/minio-mirror.Dockerfile \
+#     -t ghcr.io/rishu358/crm-minio:RELEASE.2025-09-07T16-13-09Z --push .
+#
+# --provenance=false and --sbom=false matter. Without them buildx publishes an OCI
+# image index carrying an attestation manifest, and pulling that index by digest
+# failed on the GitHub runner with "failed to resolve reference ... HEAD /blobs/".
+# Referencing a plain manifest.v2 digest avoids it. Take the digest to pin from
+#   docker buildx imagetools inspect ghcr.io/rishu358/crm-minio:RELEASE.2025-09-07T16-13-09Z
 #
 # Known limitation: the cached base is linux/amd64 only, so this mirror is single
 # platform. GitHub's runners are amd64, but an arm64 machine (Apple Silicon) cannot
