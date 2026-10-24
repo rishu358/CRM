@@ -829,16 +829,33 @@ describe('the workspace keeps an administrator', () => {
       }),
     ]);
 
-    expect([a.status, b.status].sort()).toEqual([200, 409]);
+    // The property, not the mechanism: exactly one wins and the other is refused.
+    // Which refusal depends on timing. When both reach the write, the loser is
+    // caught by optimistic locking (409). When the winner's demotion commits first,
+    // the loser is no longer an administrator by the time they are authorised and
+    // `can()` refuses (403). Asserting 409 alone made this fail on a slower machine
+    // where 403 — the stricter of the two — is what happens.
+    expect([a.status, b.status].filter((status) => status === 200)).toHaveLength(1);
+    expect([403, 409]).toContain(a.status === 200 ? b.status : a.status);
 
     // And somebody can still manage the workspace.
     const survivor = a.status === 200 ? first : second;
+    const loser = a.status === 200 ? second : first;
     const check = await request(harness, {
       method: 'GET',
       url: '/api/v1/members',
       token: survivor.token,
     });
     expect(check.status).toBe(200);
+
+    // The end state, which the status codes alone do not prove: the demotion was
+    // applied exactly once. The winner still holds Admin, so the workspace is not
+    // left without an administrator, and the loser holds the role they were demoted
+    // to — not some half-applied state where both writes took effect.
+    const members = dataOf<{ userId: string; roleId: string }[]>(check);
+    const adminRole = roles.get('Admin')!;
+    expect(members.find((member) => member.userId === survivor.userId)?.roleId).toBe(adminRole);
+    expect(members.find((member) => member.userId === loser.userId)?.roleId).toBe(repRole);
   });
 
   it('flags the lock-out in the preview before anybody tries to save', async () => {
