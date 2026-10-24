@@ -47,6 +47,8 @@ const PATTERNS: readonly { name: string; test: RegExp }[] = [
     test: /rejectUnauthorized(?!\s*:\s*true\b)|NODE_TLS_REJECT_UNAUTHORIZED/,
   },
   { name: 'the test-only client', test: /@crm\/outbound\/testing/ },
+  // A mail library opens its own connections, outside the guarded client: only the SMTP adapter may.
+  { name: 'mail library', test: /from\s+['"]nodemailer['"]/ },
 ];
 
 interface Allowed {
@@ -101,6 +103,12 @@ const ALLOWED: readonly Allowed[] = [
     pattern: 'node network module',
     reason:
       'The guarded client itself: the one place that opens a connection for an address a user chose.',
+  },
+  {
+    file: 'packages/outbound/src/smtp.ts',
+    pattern: 'mail library',
+    reason:
+      'The SMTP adapter: the one place a mail library opens a connection, to the server the operator configured (never one a request named), with TLS verified and required.',
   },
 ];
 

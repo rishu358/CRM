@@ -485,12 +485,12 @@ export const REGISTRY = {
       group: 'email',
       requirement: 'production',
       description:
-        'How outgoing mail is sent. `console` prints the message, links included, to the log; `memory` keeps messages in memory for the test suite; `resend` sends through Resend; `ses` sends through Amazon SES.',
+        'How outgoing mail is sent. `console` prints the message, links included, to the log; `memory` keeps messages in memory for the test suite; `resend` sends through Resend; `ses` sends through Amazon SES; `smtp` sends through an SMTP server.',
       local: 'console',
       example: 'resend',
       note: '`console` and `memory` are refused when `NODE_ENV=production`, so a deployment that forgot to configure a real provider fails loudly instead of writing reset links into a log file.',
     },
-    { values: ['console', 'memory', 'resend', 'ses'], default: 'console' },
+    { values: ['console', 'memory', 'resend', 'ses', 'smtp'], default: 'console' },
   ),
   EMAIL_FROM: defaultedText(
     {
@@ -562,6 +562,62 @@ export const REGISTRY = {
       description:
         'Optional Amazon SES configuration set to send through, for delivery events and reputation tracking.',
       example: 'transactional',
+    },
+    { min: 1 },
+  ),
+
+  SMTP_HOST: optionalText(
+    {
+      scopes: ['api', 'worker'],
+      group: 'email',
+      requirement: 'production',
+      description: 'The SMTP server mail is sent through. Required when `EMAIL_PROVIDER=smtp`.',
+      example: 'smtp.mail.example.com',
+      note: 'A host name or address, chosen by the operator: it is never taken from a request, so a server on a private network is fine.',
+    },
+    { min: 1 },
+  ),
+  SMTP_PORT: defaultedInt(
+    {
+      scopes: ['api', 'worker'],
+      group: 'email',
+      description:
+        'The SMTP server port: 587 for `starttls`, 465 for `tls`, 25 or a local inbox port for `none`.',
+      example: '587',
+    },
+    { default: 587, sign: 'positive' },
+  ),
+  SMTP_SECURITY: defaultedChoice(
+    {
+      scopes: ['api', 'worker'],
+      group: 'email',
+      description:
+        'How the connection is protected. `starttls` connects in clear and requires the upgrade to TLS; `tls` is TLS from the first byte; `none` is plain text, for a local development inbox only.',
+      local: 'none',
+      example: 'starttls',
+      note: '`none` is refused when `NODE_ENV=production`. Certificates are always verified, and TLS 1.2 is the minimum.',
+    },
+    { values: ['starttls', 'tls', 'none'], default: 'starttls' },
+  ),
+  SMTP_USER: optionalText(
+    {
+      scopes: ['api', 'worker'],
+      group: 'email',
+      description:
+        'The SMTP login. Set together with `SMTP_PASSWORD`, or both left unset for a server that trusts the sender by address.',
+      example: 'no-reply@mail.example.com',
+    },
+    { min: 1 },
+  ),
+  SMTP_PASSWORD: optionalText(
+    {
+      scopes: ['api', 'worker'],
+      group: 'email',
+      secret: true,
+      description: 'The SMTP password. Set together with `SMTP_USER`.',
+      obtain:
+        "The mail provider's console: an app password or an SMTP credential for this sender only.",
+      example: 'CHANGE_ME',
     },
     { min: 1 },
   ),

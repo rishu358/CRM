@@ -53,7 +53,7 @@ export class MemoryEmailProvider implements EmailProvider {
 }
 
 export interface EmailProviderConfig {
-  readonly kind: 'console' | 'memory' | 'resend' | 'ses';
+  readonly kind: 'console' | 'memory' | 'resend' | 'ses' | 'smtp';
   readonly nodeEnv: string;
   readonly logger: Logger;
   readonly resendApiKey?: string | undefined;
@@ -61,6 +61,11 @@ export interface EmailProviderConfig {
   readonly sesAccessKeyId?: string | undefined;
   readonly sesSecretAccessKey?: string | undefined;
   readonly sesConfigurationSet?: string | undefined;
+  readonly smtpHost?: string | undefined;
+  readonly smtpPort: number;
+  readonly smtpSecurity: 'starttls' | 'tls' | 'none';
+  readonly smtpUser?: string | undefined;
+  readonly smtpPassword?: string | undefined;
   readonly from: string;
 }
 
@@ -81,6 +86,18 @@ export function createEmailProvider(config: EmailProviderConfig): EmailProvider 
       sesAccessKeyId: config.sesAccessKeyId,
       sesSecretAccessKey: config.sesSecretAccessKey,
       sesConfigurationSet: config.sesConfigurationSet,
+    });
+  }
+  if (kind === 'smtp') {
+    return createRemoteEmailProvider({
+      kind: 'smtp',
+      from: config.from,
+      nodeEnv,
+      smtpHost: config.smtpHost,
+      smtpPort: config.smtpPort,
+      smtpSecurity: config.smtpSecurity,
+      smtpUser: config.smtpUser,
+      smtpPassword: config.smtpPassword,
     });
   }
   if (nodeEnv === 'production') {

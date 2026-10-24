@@ -51,4 +51,33 @@ describe('createRemoteEmailProvider', () => {
       }),
     ).toThrow('SES_REGION is not an AWS region name');
   });
+
+  describe('smtp', () => {
+    const smtp = {
+      kind: 'smtp' as const,
+      from,
+      nodeEnv: 'production',
+      smtpHost: 'smtp.mail.example.com',
+      smtpPort: 587,
+      smtpSecurity: 'starttls' as const,
+      smtpUser: 'u',
+      smtpPassword: 'p',
+    };
+
+    it('builds with a host, and says which variable is missing without one', () => {
+      expect(createRemoteEmailProvider(smtp)).toBeDefined();
+      expect(() => createRemoteEmailProvider({ ...smtp, smtpHost: undefined })).toThrow(
+        'EMAIL_PROVIDER=smtp requires SMTP_HOST',
+      );
+    });
+
+    it('refuses plain text in production, even if the configuration check was skipped', () => {
+      expect(() => createRemoteEmailProvider({ ...smtp, smtpSecurity: 'none' })).toThrow(
+        'SMTP_SECURITY=none cannot be used in production',
+      );
+      expect(() =>
+        createRemoteEmailProvider({ ...smtp, smtpSecurity: 'none', nodeEnv: 'development' }),
+      ).not.toThrow();
+    });
+  });
 });

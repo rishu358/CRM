@@ -1,6 +1,7 @@
 import type { EmailProvider } from '@crm/core';
 import { createResendEmailProvider } from './resend.js';
 import { createSesEmailProvider } from './ses.js';
+import { createSmtpEmailProvider, type SmtpSecurity } from './smtp.js';
 
 /**
  * The providers that really send mail, chosen by `EMAIL_PROVIDER` (ADR-0009, ADR-0048).
@@ -23,6 +24,16 @@ export type RemoteEmailConfig =
       readonly sesAccessKeyId?: string | undefined;
       readonly sesSecretAccessKey?: string | undefined;
       readonly sesConfigurationSet?: string | undefined;
+    }
+  | {
+      readonly kind: 'smtp';
+      readonly from: string;
+      readonly nodeEnv: string;
+      readonly smtpHost?: string | undefined;
+      readonly smtpPort: number;
+      readonly smtpSecurity: SmtpSecurity;
+      readonly smtpUser?: string | undefined;
+      readonly smtpPassword?: string | undefined;
     };
 
 export function createRemoteEmailProvider(config: RemoteEmailConfig): EmailProvider {
@@ -31,6 +42,21 @@ export function createRemoteEmailProvider(config: RemoteEmailConfig): EmailProvi
       throw new Error('EMAIL_PROVIDER=resend requires RESEND_API_KEY');
     }
     return createResendEmailProvider({ apiKey: config.resendApiKey, from: config.from });
+  }
+
+  if (config.kind === 'smtp') {
+    if (config.smtpHost === undefined || config.smtpHost === '') {
+      throw new Error('EMAIL_PROVIDER=smtp requires SMTP_HOST');
+    }
+    return createSmtpEmailProvider({
+      host: config.smtpHost,
+      port: config.smtpPort,
+      security: config.smtpSecurity,
+      user: config.smtpUser,
+      password: config.smtpPassword,
+      from: config.from,
+      nodeEnv: config.nodeEnv,
+    });
   }
 
   const missing = [

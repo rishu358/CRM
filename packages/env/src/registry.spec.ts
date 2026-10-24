@@ -74,6 +74,7 @@ describe('the registry', () => {
       'RESEND_API_KEY',
       'SES_ACCESS_KEY_ID',
       'SES_SECRET_ACCESS_KEY',
+      'SMTP_PASSWORD',
       'S3_ACCESS_KEY_ID',
       'S3_SECRET_ACCESS_KEY',
       'GOOGLE_CLIENT_SECRET',

@@ -1,4 +1,4 @@
-import { SesEmailProvider } from '@crm/outbound';
+import { SesEmailProvider, SmtpEmailProvider } from '@crm/outbound';
 import { describe, expect, inject, it } from 'vitest';
 import { EMAIL_PROVIDER } from '../platform/email/email.provider.js';
 import { startApiHarness } from '../testing/harness.js';
@@ -31,5 +31,22 @@ describe('choosing the email provider at start-up', () => {
     await attempt.catch((error: unknown) => {
       expect(String(error)).not.toContain(ses.SES_ACCESS_KEY_ID);
     });
+  }, 240_000);
+
+  it('builds the SMTP adapter, and refuses to start without a host', async () => {
+    const smtp = {
+      EMAIL_PROVIDER: 'smtp',
+      SMTP_HOST: 'smtp.mail.example.com',
+      SMTP_SECURITY: 'starttls',
+    };
+    const harness = await startApiHarness(inject('dbUrls'), smtp);
+    try {
+      expect(harness.app.get(EMAIL_PROVIDER)).toBeInstanceOf(SmtpEmailProvider);
+    } finally {
+      await harness.close();
+    }
+    await expect(startApiHarness(inject('dbUrls'), { EMAIL_PROVIDER: 'smtp' })).rejects.toThrow(
+      'EMAIL_PROVIDER=smtp requires SMTP_HOST',
+    );
   }, 240_000);
 });

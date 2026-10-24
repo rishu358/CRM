@@ -53,11 +53,33 @@ The SES adapter signs its own requests (AWS Signature Version 4) and sends them 
 guarded outbound client, pinned to `email.<region>.amazonaws.com` over https. The China regions and temporary
 (session-token) credentials are not supported.
 
-### Not yet: plain SMTP
+### SMTP
 
-An SMTP adapter (for a company's own mail server, or any relay) is not here. SMTP cannot be done with one
-signed HTTP request: it needs a client library for the protocol, which is a new dependency and is waiting for
-a decision (ADR-0048).
+```
+EMAIL_PROVIDER=smtp
+EMAIL_FROM=App <no-reply@mail.example.com>
+SMTP_HOST=smtp.mail.example.com
+SMTP_PORT=587
+SMTP_SECURITY=starttls
+SMTP_USER=<the login>
+SMTP_PASSWORD=<its password>
+```
+
+For a company's own mail server or any relay. `SMTP_SECURITY` is how the connection is protected:
+
+| Value      | Port | What it does                                                                                                                                                                    |
+| ---------- | ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `starttls` | 587  | Connects in clear and **requires** the upgrade to TLS. A server that does not offer it, or a downgrade by someone in the middle, makes the send fail: nothing is sent in clear. |
+| `tls`      | 465  | TLS from the first byte.                                                                                                                                                        |
+| `none`     | any  | Plain text, for a local development inbox only. **Refused in production.**                                                                                                      |
+
+Certificates are verified (a self-signed one is refused: use a certificate the server's name matches) and TLS 1.2
+is the minimum. `SMTP_USER` and `SMTP_PASSWORD` are set together, or both left unset for a relay that trusts the
+sender by address. The server is the operator's choice and never comes from a request, so one on a private
+network is fine.
+
+Failures are reported as a code and an SMTP status, never the server's own text, which often repeats the
+recipient's address.
 
 ## File storage: `STORAGE_PROVIDER`
 

@@ -38,13 +38,25 @@ cannot disagree about what a provider needs. A missing setting is reported by th
 value. `console` and `memory` stay in each process, with their own refusal to run in production. The
 production guard (`@crm/core`) knows what SES needs.
 
-### 3. SMTP: not decided yet
+### 3. SMTP, through `nodemailer`
 
-SMTP is a protocol, not a request: STARTTLS negotiation, authentication, dot-stuffing, MIME and the encoding of
-non-ASCII headers. Writing it by hand is how header-injection and encoding bugs are made, and a mail library is
-the usual answer. That is a new runtime dependency, which CLAUDE.md §11.4 says to ask about, so it is **not
-added here**. The decision, and the options, are with the owner. Until then `EMAIL_PROVIDER=smtp` is refused as
-not a provider this build can send with, in the validator and at start-up.
+SMTP is a protocol, not one request: STARTTLS negotiation, authentication, dot-stuffing, MIME and the encoding of
+non-ASCII headers. Writing it by hand is how header-injection and encoding bugs are made, so this is the one
+provider that uses a library: `nodemailer` (MIT-0, no dependencies of its own), approved by the owner on
+2026-10-24 under CLAUDE.md §11.4, with `@types/nodemailer` as a development dependency. A test fails the build
+if anything but `smtp.ts` imports it.
+
+- **TLS is required.** `SMTP_SECURITY` is `starttls` (the default: connect in clear, _require_ the upgrade),
+  `tls` (from the first byte) or `none`. `none` is for a local development inbox and is refused in production
+  by both the configuration check and the adapter. Certificates are verified and TLS 1.2 is the floor. A test
+  against a server that offers no STARTTLS asserts that no sender, recipient or message crossed the wire; turning
+  `requireTLS` off makes it fail.
+- **The server is the operator's, never a user's.** It comes from configuration, so it does not go through the
+  guard that refuses private addresses: a relay on a private network is a normal setup. This is why it is the one
+  adapter outside `OutboundHttp`, and why the boundary test names it.
+- **Failures are a code and a status.** A server's error text usually repeats the address it refused, so it is
+  never reported. A line break in the recipient or subject is refused before anything is sent. The library is told
+  not to read local files or fetch URLs named in a message.
 
 ### 4. Storage: documented recipes, not presets in code
 
@@ -67,6 +79,10 @@ the values for each store, and says plainly which were verified and which were w
 
 - SES needs a verified identity in the same region and an account out of the SES sandbox before it delivers to
   anyone. The adapter cannot detect either; the documentation says so.
+- The SMTP tests run against a small server on the loopback interface. They prove delivery and the refusal paths
+  (no STARTTLS offered, wrong protocol, unreachable, 4xx, 5xx, injected line breaks). **They do not exercise a
+  successful TLS handshake**, which needs a certificate; that part is Node's and the library's, and a real send
+  against the real server is the first thing to try.
 - SES delivery was verified against fakes and the published signing vector. **It has not been run against a live
   SES account.** A real send is the first thing to try on deploying with it.
 - The deploy templates (`deploy/`) still show Resend, which is the combination they were written and checked

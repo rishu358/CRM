@@ -4,6 +4,7 @@ import type { OutboundHttp } from './types.js';
 export * from './types.js';
 export { createResendEmailProvider, EmailSendError, ResendEmailProvider } from './resend.js';
 export { createSesEmailProvider, SesEmailProvider } from './ses.js';
+export { createSmtpEmailProvider, SmtpEmailProvider, type SmtpSecurity } from './smtp.js';
 export { createRemoteEmailProvider, type RemoteEmailConfig } from './email.js';
 
 /**

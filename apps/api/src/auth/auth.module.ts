@@ -72,6 +72,18 @@ import type { ApiEnv } from '../config/env.js';
             sesConfigurationSet: env.SES_CONFIGURATION_SET,
           });
         }
+        if (env.EMAIL_PROVIDER === 'smtp') {
+          return createRemoteEmailProvider({
+            kind: 'smtp',
+            from: env.EMAIL_FROM,
+            nodeEnv: env.NODE_ENV,
+            smtpHost: env.SMTP_HOST,
+            smtpPort: env.SMTP_PORT,
+            smtpSecurity: env.SMTP_SECURITY,
+            smtpUser: env.SMTP_USER,
+            smtpPassword: env.SMTP_PASSWORD,
+          });
+        }
         return new ConsoleEmailProvider(env);
       },
     },

@@ -23,11 +23,13 @@
     "build": "tsc -p tsconfig.build.json"
   },
   "dependencies": {
-    "@crm/core": "workspace:^"
+    "@crm/core": "workspace:^",
+    "nodemailer": "^10.2.1"
   },
   "devDependencies": {
     "@crm/config": "workspace:^",
     "@types/node": "^26.6.5",
+    "@types/nodemailer": "^8.0.2",
     "typescript": "5.9.3",
     "vitest": "^5.0.5"
   }

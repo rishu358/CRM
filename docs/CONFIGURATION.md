@@ -87,6 +87,11 @@ always wins over the file.
 | [`SES_ACCESS_KEY_ID`](#ses_access_key_id)                             | api, worker                | in production | yes    |
 | [`SES_SECRET_ACCESS_KEY`](#ses_secret_access_key)                     | api, worker                | in production | yes    |
 | [`SES_CONFIGURATION_SET`](#ses_configuration_set)                     | api, worker                | no            | no     |
+| [`SMTP_HOST`](#smtp_host)                                             | api, worker                | in production | no     |
+| [`SMTP_PORT`](#smtp_port)                                             | api, worker                | no            | no     |
+| [`SMTP_SECURITY`](#smtp_security)                                     | api, worker                | no            | no     |
+| [`SMTP_USER`](#smtp_user)                                             | api, worker                | no            | no     |
+| [`SMTP_PASSWORD`](#smtp_password)                                     | api, worker                | no            | yes    |
 | [`STORAGE_PROVIDER`](#storage_provider)                               | api, worker                | no            | no     |
 | [`S3_BUCKET`](#s3_bucket)                                             | api, worker                | no            | no     |
 | [`S3_REGION`](#s3_region)                                             | api, worker                | no            | no     |
@@ -512,13 +517,13 @@ Outgoing mail.
 
 ### `EMAIL_PROVIDER`
 
-How outgoing mail is sent. `console` prints the message, links included, to the log; `memory` keeps messages in memory for the test suite; `resend` sends through Resend; `ses` sends through Amazon SES.
+How outgoing mail is sent. `console` prints the message, links included, to the log; `memory` keeps messages in memory for the test suite; `resend` sends through Resend; `ses` sends through Amazon SES; `smtp` sends through an SMTP server.
 
 - **Used by:** api, worker
 - **Required:** in production (a production process refuses to run without a real value)
 - **Secret:** no
 - **Default:** `console`
-- **Values:** `console`, `memory`, `resend`, `ses`
+- **Values:** `console`, `memory`, `resend`, `ses`, `smtp`
 
 `console` and `memory` are refused when `NODE_ENV=production`, so a deployment that forgot to configure a real provider fails loudly instead of writing reset links into a log file.
 
@@ -577,6 +582,54 @@ Optional Amazon SES configuration set to send through, for delivery events and r
 - **Used by:** api, worker
 - **Required:** no
 - **Secret:** no
+
+### `SMTP_HOST`
+
+The SMTP server mail is sent through. Required when `EMAIL_PROVIDER=smtp`.
+
+- **Used by:** api, worker
+- **Required:** in production (a production process refuses to run without a real value)
+- **Secret:** no
+
+A host name or address, chosen by the operator: it is never taken from a request, so a server on a private network is fine.
+
+### `SMTP_PORT`
+
+The SMTP server port: 587 for `starttls`, 465 for `tls`, 25 or a local inbox port for `none`.
+
+- **Used by:** api, worker
+- **Required:** no
+- **Secret:** no
+- **Default:** `587`
+
+### `SMTP_SECURITY`
+
+How the connection is protected. `starttls` connects in clear and requires the upgrade to TLS; `tls` is TLS from the first byte; `none` is plain text, for a local development inbox only.
+
+- **Used by:** api, worker
+- **Required:** no
+- **Secret:** no
+- **Default:** `starttls`
+- **Values:** `starttls`, `tls`, `none`
+
+`none` is refused when `NODE_ENV=production`. Certificates are always verified, and TLS 1.2 is the minimum.
+
+### `SMTP_USER`
+
+The SMTP login. Set together with `SMTP_PASSWORD`, or both left unset for a server that trusts the sender by address.
+
+- **Used by:** api, worker
+- **Required:** no
+- **Secret:** no
+
+### `SMTP_PASSWORD`
+
+The SMTP password. Set together with `SMTP_USER`.
+
+- **Used by:** api, worker
+- **Required:** no
+- **Secret:** yes: never logged, never committed, never on the web app
+- **Where to get it:** The mail provider's console: an app password or an SMTP credential for this sender only.
 
 ## Object storage
 
