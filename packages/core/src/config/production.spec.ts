@@ -72,6 +72,28 @@ describe('production configuration', () => {
     expect(problemsOf({ resendApiKey: '' })).toContain('requires RESEND_API_KEY');
   });
 
+  it('accepts Amazon SES with a region and both keys, and names each one that is missing', () => {
+    const ses = {
+      emailProvider: 'ses',
+      resendApiKey: undefined,
+      sesRegion: 'ap-south-1',
+      sesAccessKeyId: 'AKIAEXAMPLE',
+      sesSecretAccessKey: 'wJalrXUtnFEMI',
+    };
+    expect(problemsOf(ses)).toBe('');
+    expect(problemsOf({ ...ses, sesRegion: undefined })).toBe(
+      'EMAIL_PROVIDER=ses requires SES_REGION',
+    );
+    expect(problemsOf({ ...ses, sesAccessKeyId: '' })).toBe(
+      'EMAIL_PROVIDER=ses requires SES_ACCESS_KEY_ID',
+    );
+    expect(problemsOf({ ...ses, sesSecretAccessKey: undefined })).toBe(
+      'EMAIL_PROVIDER=ses requires SES_SECRET_ACCESS_KEY',
+    );
+    // Never a value: not even in the problem about the key next to it.
+    expect(problemsOf({ ...ses, sesRegion: undefined })).not.toContain('wJalrXUtnFEMI');
+  });
+
   it.each([undefined, '', 'no-reply', 'no-reply@localhost', 'CRM <no-reply@localhost>'])(
     'refuses the sender address %j',
     (emailFrom) => {

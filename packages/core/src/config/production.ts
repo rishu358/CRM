@@ -27,6 +27,9 @@ export interface ProductionConfigInput {
   readonly emailProvider?: string | undefined;
   readonly emailFrom?: string | undefined;
   readonly resendApiKey?: string | undefined;
+  readonly sesRegion?: string | undefined;
+  readonly sesAccessKeyId?: string | undefined;
+  readonly sesSecretAccessKey?: string | undefined;
   readonly storageProvider?: string | undefined;
   readonly s3AccessKeyId?: string | undefined;
   readonly s3SecretAccessKey?: string | undefined;
@@ -141,6 +144,14 @@ export function productionConfigProblems(input: ProductionConfigInput): Producti
   } else if (email === 'resend') {
     if (input.resendApiKey === undefined || input.resendApiKey === '') {
       problems.push('EMAIL_PROVIDER=resend requires RESEND_API_KEY');
+    }
+  } else if (email === 'ses') {
+    for (const [name, value] of [
+      ['SES_REGION', input.sesRegion],
+      ['SES_ACCESS_KEY_ID', input.sesAccessKeyId],
+      ['SES_SECRET_ACCESS_KEY', input.sesSecretAccessKey],
+    ] as const) {
+      if (value === undefined || value === '') problems.push(`EMAIL_PROVIDER=ses requires ${name}`);
     }
   } else {
     problems.push(`EMAIL_PROVIDER=${email} is not a provider this build can send with`);

@@ -1,5 +1,5 @@
 import type { EmailMessage, EmailProvider } from '@crm/core';
-import { createResendEmailProvider } from '@crm/outbound';
+import { createRemoteEmailProvider } from '@crm/outbound';
 import type { Logger } from 'pino';
 
 /**
@@ -53,20 +53,35 @@ export class MemoryEmailProvider implements EmailProvider {
 }
 
 export interface EmailProviderConfig {
-  readonly kind: 'console' | 'memory' | 'resend';
+  readonly kind: 'console' | 'memory' | 'resend' | 'ses';
   readonly nodeEnv: string;
   readonly logger: Logger;
   readonly resendApiKey?: string | undefined;
+  readonly sesRegion?: string | undefined;
+  readonly sesAccessKeyId?: string | undefined;
+  readonly sesSecretAccessKey?: string | undefined;
+  readonly sesConfigurationSet?: string | undefined;
   readonly from: string;
 }
 
 export function createEmailProvider(config: EmailProviderConfig): EmailProvider {
   const { kind, nodeEnv, logger } = config;
   if (kind === 'resend') {
-    if (config.resendApiKey === undefined || config.resendApiKey === '') {
-      throw new Error('EMAIL_PROVIDER=resend requires RESEND_API_KEY');
-    }
-    return createResendEmailProvider({ apiKey: config.resendApiKey, from: config.from });
+    return createRemoteEmailProvider({
+      kind: 'resend',
+      from: config.from,
+      resendApiKey: config.resendApiKey,
+    });
+  }
+  if (kind === 'ses') {
+    return createRemoteEmailProvider({
+      kind: 'ses',
+      from: config.from,
+      sesRegion: config.sesRegion,
+      sesAccessKeyId: config.sesAccessKeyId,
+      sesSecretAccessKey: config.sesSecretAccessKey,
+      sesConfigurationSet: config.sesConfigurationSet,
+    });
   }
   if (nodeEnv === 'production') {
     throw new Error(

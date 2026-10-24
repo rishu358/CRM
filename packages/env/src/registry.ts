@@ -485,12 +485,12 @@ export const REGISTRY = {
       group: 'email',
       requirement: 'production',
       description:
-        'How outgoing mail is sent. `console` prints the message, links included, to the log; `memory` keeps messages in memory for the test suite; `resend` sends through Resend.',
+        'How outgoing mail is sent. `console` prints the message, links included, to the log; `memory` keeps messages in memory for the test suite; `resend` sends through Resend; `ses` sends through Amazon SES.',
       local: 'console',
       example: 'resend',
       note: '`console` and `memory` are refused when `NODE_ENV=production`, so a deployment that forgot to configure a real provider fails loudly instead of writing reset links into a log file.',
     },
-    { values: ['console', 'memory', 'resend'], default: 'console' },
+    { values: ['console', 'memory', 'resend', 'ses'], default: 'console' },
   ),
   EMAIL_FROM: defaultedText(
     {
@@ -514,6 +514,54 @@ export const REGISTRY = {
       description: 'API key for Resend. Required when `EMAIL_PROVIDER=resend`.',
       obtain: 'Resend dashboard, API Keys. Create one per environment with sending access only.',
       example: 'CHANGE_ME',
+    },
+    { min: 1 },
+  ),
+
+  SES_REGION: optionalText(
+    {
+      scopes: ['api', 'worker'],
+      group: 'email',
+      requirement: 'production',
+      description:
+        'The AWS region whose Amazon SES sends the mail. Required when `EMAIL_PROVIDER=ses`.',
+      example: 'ap-south-1',
+      note: 'The region decides where the message is processed (data residency). The sender identity in `EMAIL_FROM` must be verified in this region, and the account must be out of the SES sandbox to send to addresses you have not verified. The China regions are not supported.',
+    },
+    { min: 1 },
+  ),
+  SES_ACCESS_KEY_ID: optionalText(
+    {
+      scopes: ['api', 'worker'],
+      group: 'email',
+      secret: true,
+      requirement: 'production',
+      description: 'Access key ID for Amazon SES. Required when `EMAIL_PROVIDER=ses`.',
+      obtain:
+        'AWS IAM: a user whose only permission is `ses:SendEmail` on the verified identity. Not a root or administrator key.',
+      example: 'CHANGE_ME',
+    },
+    { min: 1 },
+  ),
+  SES_SECRET_ACCESS_KEY: optionalText(
+    {
+      scopes: ['api', 'worker'],
+      group: 'email',
+      secret: true,
+      requirement: 'production',
+      description: 'Secret access key for Amazon SES. Required when `EMAIL_PROVIDER=ses`.',
+      obtain: 'Shown once, when the IAM access key is created.',
+      example: 'CHANGE_ME',
+    },
+    { min: 1 },
+  ),
+  SES_CONFIGURATION_SET: optionalText(
+    {
+      scopes: ['api', 'worker'],
+      group: 'email',
+      description:
+        'Optional Amazon SES configuration set to send through, for delivery events and reputation tracking.',
+      example: 'transactional',
     },
     { min: 1 },
   ),
