@@ -52,7 +52,10 @@ services:
   # (and kept private) by `pnpm infra:up`, via packages/storage/scripts.
   minio:
     # Pinned by digest, not a floating tag: RELEASE.2025-09-07T16-13-09Z.
-    image: quay.io/minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e
+    # Our own mirror, because MinIO's images are no longer publicly pullable
+    # (quay.io 401s on the manifest, Docker Hub denies anonymous pulls), which
+    # broke CI and every fresh clone. See deploy/minio-mirror.Dockerfile.
+    image: ghcr.io/rishu358/crm-minio@sha256:d14f78d9a6cc2ab32a9abea491ae7ebf1c0ad7e142bb4eaed58974da2eeb3dec
     container_name: crm-minio
     restart: unless-stopped
     environment:

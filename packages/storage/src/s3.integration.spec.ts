@@ -18,9 +18,11 @@ let endpoint: string;
 const BUCKET = 'crm-test';
 
 beforeAll(async () => {
-  // The same digest-pinned image docker-compose runs (RELEASE.2025-09-07T16-13-09Z).
+  // The same digest-pinned image docker-compose runs (RELEASE.2025-09-07T16-13-09Z),
+  // from our own mirror: MinIO's images are no longer publicly pullable, so the
+  // upstream reference failed here in CI. See deploy/minio-mirror.Dockerfile.
   container = await new GenericContainer(
-    'quay.io/minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e',
+    'ghcr.io/rishu358/crm-minio@sha256:d14f78d9a6cc2ab32a9abea491ae7ebf1c0ad7e142bb4eaed58974da2eeb3dec',
   )
     .withExposedPorts(9000)
     .withEnvironment({ MINIO_ROOT_USER: 'test_access', MINIO_ROOT_PASSWORD: 'test_secret_key_1' })

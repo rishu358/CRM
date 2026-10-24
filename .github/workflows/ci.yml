@@ -11,6 +11,13 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# `packages: read` so the jobs that need an S3 server can pull our MinIO mirror
+# from GHCR with the built-in GITHUB_TOKEN, rather than a registry secret.
+# Read-only everywhere: nothing in this workflow writes to the repository.
+permissions:
+  contents: read
+  packages: read
+
 env:
   NODE_VERSION: '24'
   PNPM_VERSION: '9.15.4'
@@ -73,6 +80,10 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # s3.integration.spec.ts starts MinIO through Testcontainers, and that image
+      # is our private GHCR mirror, so Docker must be logged in before it pulls.
+      - name: Log in to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
       # This job must never be made optional or allowed to fail (CLAUDE.md §4).
       - run: pnpm test:security
 
@@ -185,6 +196,9 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
+      # The MinIO mirror below lives in our private GHCR package.
+      - name: Log in to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
       # MinIO runs as a plain container rather than a `services:` entry
       # because it needs the `server /data` command, and service containers
       # cannot override a command. Same pinned digest as docker-compose.yml.
@@ -193,7 +207,7 @@ jobs:
           docker run -d --name crm-minio -p 19000:9000 \
             -e MINIO_ROOT_USER=crm_minio \
             -e MINIO_ROOT_PASSWORD=crm_minio_ci_secret \
-            quay.io/minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e \
+            ghcr.io/rishu358/crm-minio@sha256:d14f78d9a6cc2ab32a9abea491ae7ebf1c0ad7e142bb4eaed58974da2eeb3dec \
             server /data
           for _ in $(seq 1 30); do
             if curl -fsS http://localhost:19000/minio/health/ready > /dev/null; then
