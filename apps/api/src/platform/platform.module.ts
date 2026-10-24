@@ -7,6 +7,8 @@ import { FieldMetadataService } from './field-metadata.service.js';
 import { CurrencyConverter } from './exchange-rates/currency-converter.service.js';
 import { EXCHANGE_RATE_SOURCE } from './exchange-rates/exchange-rate.source.js';
 import { ManualExchangeRateSource } from './exchange-rates/manual-exchange-rate.source.js';
+import { EntitlementsOperator } from './entitlements-operator.service.js';
+import { EntitlementsService } from './entitlements.service.js';
 import { OutboxService } from './outbox.service.js';
 import { OwnershipRegistry } from './ownership.registry.js';
 import { TenantClock } from './tenant-clock.service.js';
@@ -30,6 +32,9 @@ import { STORAGE_PROVIDER } from './storage/storage.tokens.js';
     TenantRateLimitService,
     CurrencyConverter,
     TenantClock,
+    EntitlementsService,
+    // Deliberately not exported: only the operator command reaches it, never another module (ADR-0047).
+    EntitlementsOperator,
     // The one line that changes when live rates arrive (ADR-0021, P1).
     { provide: EXCHANGE_RATE_SOURCE, useClass: ManualExchangeRateSource },
     // The one line that changes when Postgres full-text is outgrown (CLAUDE.md §2, ADR-0009, ADR-0041).
@@ -50,6 +55,7 @@ import { STORAGE_PROVIDER } from './storage/storage.tokens.js';
     TenantRateLimitService,
     CurrencyConverter,
     TenantClock,
+    EntitlementsService,
     STORAGE_PROVIDER,
     SEARCH_PROVIDER,
   ],

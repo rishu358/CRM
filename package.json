@@ -22,6 +22,8 @@
     "openapi:check": "tsx packages/contracts/scripts/write-openapi.mts --check",
     "config:docs": "tsx packages/env/scripts/generate.ts",
     "config:check": "tsx packages/env/scripts/generate.ts --check",
+    "tenant:create": "pnpm --filter @crm/api tenant:create",
+    "tenant:entitlements": "pnpm --filter @crm/api tenant:entitlements",
     "hooks:install": "git config core.hooksPath .githooks",
     "test:scripts": "node --test \"scripts/**/*.test.mjs\"",
     "infra:up": "docker compose up -d && pnpm infra:bucket",

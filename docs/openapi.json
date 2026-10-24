@@ -6732,6 +6732,16 @@
               }
             }
           },
+          "402": {
+            "description": "The tenant's plan does not include this capability. `error.code` is one of: `ENTITLEMENT_REQUIRED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "403": {
             "description": "Authenticated, but not permitted. `error.code` is one of: `FORBIDDEN`.",
             "content": {
@@ -7688,6 +7698,16 @@
           },
           "401": {
             "description": "No session, or the credentials offered were not accepted. `error.code` is one of: `UNAUTHENTICATED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "The tenant's plan does not include this capability. `error.code` is one of: `ENTITLEMENT_REQUIRED`.",
             "content": {
               "application/json": {
                 "schema": {

@@ -246,6 +246,24 @@ export class Fixtures {
   }
 
   /** The company's calendar, which decides where "this month" starts (ADR-0038). */
+  /** Whether an account with this address exists (deleted or not). */
+  async userExists(email: string): Promise<boolean> {
+    const { rows } = await this.pool.query('select 1 from users where email = $1', [email]);
+    return rows.length > 0;
+  }
+
+  /** Whether a workspace with exactly this name exists. Names in tests are unique, so this is safe to use while other suites create workspaces in the same database. */
+  async tenantNamed(name: string): Promise<boolean> {
+    const { rows } = await this.pool.query('select 1 from tenants where name = $1', [name]);
+    return rows.length > 0;
+  }
+
+  /** How many workspaces exist (compare only where nothing else can be creating them). */
+  async tenantCount(): Promise<number> {
+    const { rows } = await this.pool.query<{ n: number }>('select count(*)::int as n from tenants');
+    return rows[0]?.n ?? 0;
+  }
+
   /** What a workspace and its founding user were created with (ADR-0045). */
   async workspaceDefaults(
     tenantId: string,

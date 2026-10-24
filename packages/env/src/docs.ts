@@ -1,4 +1,4 @@
-import { allVariables } from './load.js';
+import { allVariables, variablesFor } from './load.js';
 import { GROUPS, type AnyVarDef, type Scope } from './types.js';
 
 /**
@@ -83,9 +83,15 @@ export function renderEnvExample(profile: Profile): string {
       '# The API and the worker refuse to start in production with a development value, and say which',
       '# variable is wrong (never its value).',
       '#',
-      '# The web app (Vercel) takes ONLY: API_URL, S3_PUBLIC_ENDPOINT, SESSION_COOKIE_NAME and',
-      '# SESSION_TTL_DAYS (when changed from the defaults), NODE_ENV and APP_ENV. It refuses to start',
-      '# if given any secret below. See docs/CONFIGURATION.md.',
+      // Generated from the registry, so it cannot fall behind it: the web app is registered for
+      // these and no others, and refuses to start if given a secret that belongs to another process.
+      ...wrap(
+        `The web app (Vercel) takes ONLY: ${variablesFor('web')
+          .map(([name]) => name)
+          .join(', ')}. It refuses to start if given any secret below. See docs/CONFIGURATION.md.`,
+        100,
+        '# ',
+      ),
     );
   }
   out.push('');

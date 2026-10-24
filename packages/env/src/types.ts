@@ -21,6 +21,12 @@ export type LoadableScope = Scope;
 export const GROUPS = [
   { id: 'runtime', title: 'Runtime', blurb: 'Which environment this is, and how loud it is.' },
   {
+    id: 'deployment',
+    title: 'Deployment mode',
+    blurb:
+      'Whether this installation is a product anyone can sign up to, or one run by a single company. It changes who may create a workspace and nothing about how data is kept apart.',
+  },
+  {
     id: 'addresses',
     title: 'Addresses',
     blurb: 'Where each process listens and where the others find it.',

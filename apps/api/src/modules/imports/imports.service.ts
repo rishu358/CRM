@@ -26,6 +26,7 @@ import type { ImportJob, Tx } from '@crm/db';
 import { newStorageKey } from '@crm/storage';
 import { DatabaseService } from '../../database/database.service.js';
 import { AuditService } from '../../platform/audit.service.js';
+import { EntitlementsService } from '../../platform/entitlements.service.js';
 import { FieldMetadataService } from '../../platform/field-metadata.service.js';
 import { OutboxService } from '../../platform/outbox.service.js';
 import { STORAGE_PROVIDER } from '../../platform/storage/storage.tokens.js';
@@ -70,6 +71,7 @@ export class ImportsService {
     @Inject(AuditService) private readonly audit: AuditService,
     @Inject(OutboxService) private readonly outbox: OutboxService,
     @Inject(STORAGE_PROVIDER) private readonly storage: StorageProvider,
+    @Inject(EntitlementsService) private readonly entitlements: EntitlementsService,
   ) {}
 
   async create(
@@ -86,6 +88,9 @@ export class ImportsService {
     }
 
     const job = await this.inTenant(actor, async (tx) => {
+      // After `can()`, and before the idempotent replay: a withdrawn feature starts no new import.
+      await this.entitlements.require(tx, actor.tenantId, 'imports');
+
       if (idempotencyKey !== undefined) {
         const existing = await this.repository.findByIdempotencyKey(
           tx,

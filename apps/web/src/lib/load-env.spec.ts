@@ -25,6 +25,16 @@ describe('loadWebEnv', () => {
     expect(env.BRAND_COLOR).toBeUndefined();
   });
 
+  it('is multi-tenant until the installation says otherwise, and carries the mode it is given', () => {
+    expect(loadWebEnv(GOOD).DEPLOYMENT_MODE).toBe('multi_tenant');
+    expect(loadWebEnv({ ...GOOD, DEPLOYMENT_MODE: 'single_tenant' }).DEPLOYMENT_MODE).toBe(
+      'single_tenant',
+    );
+    expect(messageOf(() => loadWebEnv({ ...GOOD, DEPLOYMENT_MODE: 'one_tenant' }))).toContain(
+      'DEPLOYMENT_MODE',
+    );
+  });
+
   it('carries the branding it is given', () => {
     const env = loadWebEnv({
       ...GOOD,

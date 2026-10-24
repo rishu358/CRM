@@ -30,6 +30,8 @@ export const ErrorCode = {
   RATE_LIMITED: 'RATE_LIMITED',
   /** The tenant's plan does not include this capability. */
   ENTITLEMENT_REQUIRED: 'ENTITLEMENT_REQUIRED',
+  /** This installation does not let strangers create workspaces (`DEPLOYMENT_MODE=single_tenant`). */
+  SIGN_UP_DISABLED: 'SIGN_UP_DISABLED',
   /** A write referenced a field the caller may not write, or that does not exist. */
   FIELD_NOT_WRITABLE: 'FIELD_NOT_WRITABLE',
   /**
@@ -231,6 +233,21 @@ export class InvalidCredentialsError extends DomainError {
 export class InvalidTokenError extends DomainError {
   constructor(message = 'This link is invalid or has expired') {
     super(ErrorCode.INVALID_TOKEN, message, 400);
+  }
+}
+
+/**
+ * Public sign-up is closed on a single-tenant installation (ADR-0046). 403, not 404: the fact is
+ * public (the sign-in screen does not offer the link) and a client that is told why can say why,
+ * where a 404 would read as "this server is broken". It reveals nothing about any account.
+ */
+export class SignUpDisabledError extends DomainError {
+  constructor() {
+    super(
+      ErrorCode.SIGN_UP_DISABLED,
+      'Sign-up is not open on this installation. Ask an administrator to invite you.',
+      403,
+    );
   }
 }
 

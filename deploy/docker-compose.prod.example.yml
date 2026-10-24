@@ -46,6 +46,7 @@ services:
       <<: *app-env
       API_PORT: 3001
       API_URL: ${API_URL:?set API_URL}
+      DEPLOYMENT_MODE: ${DEPLOYMENT_MODE:-multi_tenant}
       CORS_ORIGINS: ${WEB_URL}
       AUTH_SECRET: ${AUTH_SECRET:?set AUTH_SECRET}
       DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL}
@@ -81,6 +82,7 @@ services:
     environment:
       NODE_ENV: production
       API_URL: http://api:3001
+      DEPLOYMENT_MODE: ${DEPLOYMENT_MODE:-multi_tenant}
       S3_PUBLIC_ENDPOINT: ${S3_PUBLIC_ENDPOINT:-}
     expose: ['3000']
     # Next writes its cache under .next at run time; everything else is read-only.
