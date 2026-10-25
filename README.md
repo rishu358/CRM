@@ -14,7 +14,7 @@ Requires Node 24.7 or later, pnpm 9, and Docker.
 
 ```bash
 pnpm install
-pnpm run setup         # checks the machine, creates .env, starts the services, migrates, seeds, builds
+pnpm run setup         # checks the machine, creates .env, builds, starts the services, migrates, seeds
 pnpm dev               # web :3000, api :3001, worker
 ```
 
@@ -27,10 +27,10 @@ To do the same by hand:
 
 ```bash
 cp .env.example .env   # then set AUTH_SECRET to `openssl rand -base64 48`
+pnpm build             # first: shared packages compile to dist, and migrate and seed need them
 pnpm infra:up          # Postgres 15432, Redis 16379, MinIO 19000 (+ bucket), Mailpit 11025/18025
 pnpm db:migrate
 pnpm db:seed           # prints sign-in credentials for the demo users
-pnpm build             # shared packages compile to dist; apps resolve them from there
 ```
 
 Then open http://localhost:3000/sign-in and use one of the addresses the seed
