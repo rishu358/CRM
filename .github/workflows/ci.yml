@@ -129,6 +129,8 @@ jobs:
         run: bash scripts/scan-secrets.sh
       - name: Tests for the repository scripts
         run: node --test "scripts/**/*.test.mjs"
+      - name: Documentation links and pnpm commands still resolve
+        run: node scripts/check-docs.mjs
       - name: Commit messages follow Conventional Commits
         if: github.event_name == 'pull_request'
         run: node scripts/check-commit-message.mjs --range "origin/${{ github.base_ref }}..HEAD"

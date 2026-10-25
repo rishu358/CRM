@@ -294,7 +294,7 @@ are out of scope (ADR-0032).
 - [x] The credential proxy cannot be made to forward outside `/api/v1`. (`proxy-path.spec.ts`, `e2e/hardening.spec.ts`)
       **Acceptance (Week 6 hardening, ADR-0041)**
 
-- [x] Load test with 1M seeded contacts through the real API, with p50/p95 per path and capacity under mixed traffic; every index defect it found is fixed. (`docs/PERF.md`; `pnpm perf:seed`, `pnpm perf:run`)
+- [x] Load test with 1M seeded contacts through the real API, with p50/p95 per path and capacity under mixed traffic; every index defect it found is fixed. (`docs/PERF.md`; `pnpm --filter @crm/db perf:seed`, `pnpm --filter @crm/api perf:run`)
 - [x] A list's free-text `q` cannot read a field the caller may not see. (`apps/api/src/common/search-fields.security.spec.ts`)
 - [x] Search is swappable: a vendor-neutral conformance suite passes against the Postgres provider. (`@crm/core/search-contract`, `provider.contract.spec.ts`)
 - [x] The product runs on a Postgres without a superuser; a slow search is bounded at two seconds. (`bootstrap.nonsuperuser.spec.ts`, `timeout.spec.ts`; `docs/RUNBOOK.md` §0)

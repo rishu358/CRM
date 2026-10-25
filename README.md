@@ -5,6 +5,9 @@ for what it does and [`CLAUDE.md`](CLAUDE.md) for the rules every change follows
 
 Priorities, in order: **Security → Correctness → Speed/UX → Features.**
 
+All the documentation is indexed in [`docs/README.md`](docs/README.md). Taking this over? Start with
+[`docs/HANDOVER.md`](docs/HANDOVER.md).
+
 ## Getting started
 
 Requires Node 24.7 or later, pnpm 9, and Docker.
