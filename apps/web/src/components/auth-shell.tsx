@@ -1,6 +1,6 @@
 'use client';
 
-import { AlertIcon, Card, SuccessIcon } from '@crm/ui';
+import { AlertIcon, Card, InfoIcon, SuccessIcon } from '@crm/ui';
 import type { ReactNode } from 'react';
 import { t } from '../lib/i18n';
 import { BrandLockup } from './brand-lockup';
@@ -102,6 +102,20 @@ export function FormError({ message }: { message: string | null }) {
       className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2.5 text-sm text-destructive"
     >
       <AlertIcon aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0" />
+      <span>{message}</span>
+    </p>
+  );
+}
+
+/** Something the person should know that is neither an error nor a success. */
+export function FormInfo({ message }: { message: string | null }) {
+  if (message === null) return null;
+  return (
+    <p
+      role="status"
+      className="flex items-start gap-2 rounded-md border border-border bg-muted px-3 py-2.5 text-sm text-foreground"
+    >
+      <InfoIcon aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
       <span>{message}</span>
     </p>
   );

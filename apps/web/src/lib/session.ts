@@ -1,5 +1,8 @@
 'use client';
 
+import { handleSessionEnded, resumeSessionEnded, suppressSessionEnded } from './session-ended';
+import { isSessionEnded } from './session-gate';
+
 /**
  * Session and account operations, called by the auth screens.
  *
@@ -53,6 +56,9 @@ async function postSession(payload: Record<string, string>): Promise<SignInOutco
   const body = await readEnvelope<never>(response);
 
   if (!response.ok) {
+    // Only a password change reaches here with a session; the others have none to lose, and the
+    // handler ignores the signed-out screens they are used from.
+    if (isSessionEnded(response.status, body.error?.code)) handleSessionEnded();
     return { status: 'failed', error: failure(body, 'Could not sign you in') };
   }
 
@@ -63,6 +69,8 @@ async function postSession(payload: Record<string, string>): Promise<SignInOutco
       challengeToken: (body as { challengeToken: string }).challengeToken,
     };
   }
+  // A new session: a refusal from here on is a real end of it, so the browser says so again.
+  resumeSessionEnded();
   return { status: 'signed_in' };
 }
 
@@ -99,6 +107,8 @@ export async function acceptInvitationAsNewAccount(input: {
 }
 
 export async function signOut(): Promise<void> {
+  // Queries still in flight are about to be refused; that is the person's own doing, not a surprise.
+  suppressSessionEnded();
   await globalThis.fetch('/api/session', { method: 'DELETE' });
 }
 
@@ -121,7 +131,10 @@ async function callApi<T = void>(
   });
   const body = await readEnvelope<T>(response);
 
-  if (!response.ok) return { error: failure(body, 'Something went wrong') };
+  if (!response.ok) {
+    if (isSessionEnded(response.status, body.error?.code)) handleSessionEnded();
+    return { error: failure(body, 'Something went wrong') };
+  }
   return { data: body.data as T };
 }
 

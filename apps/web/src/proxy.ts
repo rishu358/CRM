@@ -1,7 +1,68 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { buildCsp, originOf } from './lib/csp';
 import { imageOrigins } from './lib/brand';
+import { clientAddressHeaders } from './lib/client-address';
 import { webEnv } from './lib/env';
+import { upstreamPath } from './lib/proxy-path';
+import {
+  SIGN_IN_PATH,
+  checkSession,
+  gateStep,
+  isDocumentLoad,
+  signInQuery,
+} from './lib/session-gate';
+
+/**
+ * Send somebody without a working session to the sign-in screen, before any page is drawn (ADR-0055).
+ *
+ * Without this the app frame was drawn for everyone and every card on it said "Could not load this".
+ * No cookie: sign-in, without saying a session ended, because there was none. A cookie, on a full page
+ * load: the API is asked whether it still means anything, and only a definite "no" (401
+ * `UNAUTHENTICATED`) redirects and clears the cookie. A slow or failing API changes nothing, so an
+ * outage cannot sign everybody out. The cookie is cleared here because it is httpOnly, which means
+ * only the server can.
+ *
+ * Not a security boundary: the API authenticates every call itself. This decides which screen to show.
+ */
+async function signInRedirect(request: NextRequest): Promise<NextResponse | null> {
+  const env = webEnv();
+  const { pathname } = request.nextUrl;
+  const token = request.cookies.get(env.SESSION_COOKIE_NAME)?.value;
+  const step = gateStep(pathname, token !== undefined && token.length > 0);
+  if (step === 'open') return null;
+
+  let sessionEnded = false;
+  if (step === 'check') {
+    if (!isDocumentLoad(request.headers)) return null;
+
+    const path = upstreamPath(['auth', 'me']);
+    if (path === null || token === undefined) return null;
+    const verdict = await checkSession({
+      meUrl: new URL(path, env.API_URL),
+      token,
+      // The API limits each address before it knows who is asking (ADR-0053). Without this every
+      // page load by everybody would be counted against this server's one address.
+      clientAddress: clientAddressHeaders(request.headers),
+    });
+    if (verdict !== 'rejected') return null;
+    sessionEnded = true;
+  }
+
+  const url = request.nextUrl.clone();
+  url.pathname = SIGN_IN_PATH;
+  url.search = signInQuery(pathname, { sessionEnded });
+  const response = NextResponse.redirect(url);
+  if (sessionEnded) {
+    response.cookies.set(env.SESSION_COOKIE_NAME, '', {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: env.NODE_ENV === 'production',
+      path: '/',
+      maxAge: 0,
+    });
+  }
+  return response;
+}
 
 /**
  * Every page gets its own Content Security Policy (CLAUDE.md §5, ADR-0040).
@@ -13,7 +74,10 @@ import { webEnv } from './lib/env';
  * Not applied to `/api/*` (those are JSON handlers whose responses carry the static headers
  * from `next.config.ts`), to static assets, or to prefetches, which are never rendered.
  */
-export function proxy(request: NextRequest): NextResponse {
+export async function proxy(request: NextRequest): Promise<NextResponse> {
+  const redirect = await signInRedirect(request);
+  if (redirect !== null) return redirect;
+
   const nonce = Buffer.from(crypto.randomUUID()).toString('base64');
   const forwarded = request.headers.get('x-forwarded-proto');
   const https =
