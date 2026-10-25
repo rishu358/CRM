@@ -23,8 +23,8 @@ pnpm itself; it cannot be shadowed, so the README says which to type.
 ### 2. Every step is idempotent and says what it did
 
 In order: check the machine (Node 24.7 or later, because password hashing uses Node's built-in Argon2id,
-ADR-0050; pnpm; a running Docker); create `.env`; start the services; apply the migrations; create the demo
-workspace; build. Each prints one line saying what it did or why it skipped. A failing step stops the run,
+ADR-0050; pnpm; a running Docker); create `.env`; build; start the services; apply the migrations; create the demo
+workspace. (The build was originally last; see the correction at the end.) Each prints one line saying what it did or why it skipped. A failing step stops the run,
 names the command that failed, and says it is safe to run again.
 
 - **`.env` is created only if absent, and never overwritten.** A new one is a copy of `.env.example` with
@@ -99,3 +99,12 @@ password, because this is the workspace someone may go on to use.
 - **Generating `AUTH_SECRET` into an existing `.env`.** See §2.
 - **Making `db:seed` idempotent and running it every time.** A larger change to a script that currently makes a
   fresh demo workspace each run on purpose (it is how a developer gets a clean one).
+
+## Correction (2026-10-25): the build comes first
+
+The first real run of the command, on a throwaway stack from a clean checkout of master, failed at
+`pnpm db:migrate`: `@crm/db`'s migration tool imports the compiled `@crm/env`, and on a fresh clone nothing is
+compiled until the build, which was the last step. The unit tests of the script could not see this, because they
+run against a fake command runner. The build now runs before the services, the migrations and the seed.
+`--no-build` is only for a checkout that is already built. The same order is corrected in the README and in
+`docs/SETUP.md`.

@@ -9,13 +9,14 @@
  * produced anything to depend on. Every step is idempotent and says what it did or skipped, and the
  * script never prints a secret.
  *
- *   pnpm run setup              check the machine, create .env, start the services, migrate,
- *                               seed the demo workspace (first run only), build
+ *   pnpm run setup              check the machine, create .env, build, start the services, migrate,
+ *                               seed the demo workspace (first run only)
  *   pnpm run setup -- --check   only check; change nothing; exit non-zero with a reason
  *   --no-seed                   do not create the demo workspace
  *   --seed                      create another demo workspace even if this is not the first run
  *   --minimal                   instead of the demo company, one empty workspace with one owner
- *   --no-build                  skip `pnpm build`
+ *   --no-build                  skip `pnpm build` (only for a checkout that is already built:
+ *                               the migration and seed commands need the compiled packages)
  *
  * All outside effects (files, commands, the clock's randomness, the output) are parameters of
  * `runSetup`, so `setup.test.mjs` exercises it without Docker, a database or a terminal.
@@ -38,11 +39,11 @@ Usage:
   --seed       Create a demo workspace even if this is not the first run.
   --minimal    Create one empty workspace with one owner (a generated password, shown once)
                instead of the demo company.
-  --no-build   Skip the build.
+  --no-build   Skip the build. Only for a checkout that is already built: migrating needs it.
   --help       Show this text.
 
-First run: creates .env from .env.example (with a generated AUTH_SECRET), starts Postgres, Redis,
-MinIO and a local mail inbox (Mailpit), applies the migrations, creates the demo workspace and builds.
+First run: creates .env from .env.example (with a generated AUTH_SECRET), builds, starts Postgres,
+Redis, MinIO and a local mail inbox (Mailpit), applies the migrations and creates the demo workspace.
 Later runs leave .env and the demo data alone. "pnpm setup" without "run" is a built-in pnpm command,
 not this.
 `;
@@ -202,7 +203,18 @@ export async function runSetup(deps) {
     return true;
   };
 
-  if (!(await step('pnpm infra:up  (Postgres, Redis, MinIO)', ['pnpm', 'infra:up']))) return 1;
+  // The build comes first: the migration and seed commands import the compiled shared packages
+  // (`@crm/env` and the rest), so on a fresh clone, where nothing is built yet, they cannot start
+  // until this has run. `--no-build` is therefore only for a checkout that is already built.
+  if (args.build) {
+    if (!(await step('pnpm build', ['pnpm', 'build']))) return 1;
+  } else {
+    say('skipped  build (--no-build)');
+  }
+
+  if (!(await step('pnpm infra:up  (Postgres, Redis, MinIO, Mailpit)', ['pnpm', 'infra:up']))) {
+    return 1;
+  }
   if (!(await step('pnpm db:migrate', ['pnpm', 'db:migrate']))) return 1;
 
   // The seed adds a demo workspace every time it runs, so it is not repeated by default.
@@ -221,12 +233,6 @@ export async function runSetup(deps) {
         ? 'skipped  demo workspace (--no-seed)'
         : 'skipped  demo workspace: this is not the first run. `pnpm db:seed` makes another.',
     );
-  }
-
-  if (args.build) {
-    if (!(await step('pnpm build', ['pnpm', 'build']))) return 1;
-  } else {
-    say('skipped  build (--no-build)');
   }
 
   say(

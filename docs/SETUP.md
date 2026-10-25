@@ -22,8 +22,9 @@ pnpm dev
 Use `pnpm run setup`, not `pnpm setup`: the latter is a pnpm command that configures pnpm itself.
 
 `pnpm run setup` is safe to run again. It checks Node, pnpm and Docker; creates `.env` from `.env.example` with a
-generated `AUTH_SECRET` (never overwriting an existing `.env`); starts the services; applies the migrations;
-creates the demo workspace on the first run only; and builds. It stops at the first step that fails, names it, and
+generated `AUTH_SECRET` (never overwriting an existing `.env`); builds; starts the services; applies the migrations;
+and creates the demo workspace on the first run only. The build comes first because the migration and seed commands
+import the compiled packages. It stops at the first step that fails, names it, and
 tells you to fix that and run it again. Every step is safe to repeat. Options:
 
 | Option       | Effect                                                                                              |
@@ -64,10 +65,10 @@ owner, and a generated password printed once.
 
 ```bash
 cp .env.example .env     # then set AUTH_SECRET to the output of: openssl rand -base64 48
+pnpm build               # first: migrate and seed import the compiled packages
 pnpm infra:up            # the containers, and the file-store bucket
 pnpm db:migrate
 pnpm db:seed
-pnpm build
 pnpm dev
 ```
 

@@ -99,11 +99,12 @@ describe('the first run', () => {
     assert.match(env, /^APP_ENV=local$/m);
     assert.match(env, /^EMAIL_PROVIDER=console$/m);
 
+    // The build is first: migrate and seed import the compiled packages, which a fresh clone lacks.
     assert.deepEqual(w.ran.slice(2), [
+      'pnpm build',
       'pnpm infra:up',
       'pnpm db:migrate',
       'pnpm db:seed',
-      'pnpm build',
     ]);
     assert.match(w.out.join('\n'), /Ready\. Start it with:\s+pnpm dev/);
     assert.match(w.out.join('\n'), /inbox\s+http:\/\/localhost:18025/);
@@ -262,7 +263,15 @@ describe('what stops it, and what it says', () => {
     assert.match(w.err.join('\n'), /"pnpm db:migrate" failed \(exit 1\)/);
     assert.match(w.err.join('\n'), /safe to repeat/);
     assert.ok(!w.ran.includes('pnpm db:seed'));
-    assert.ok(!w.ran.includes('pnpm build'));
+  });
+
+  it('stops at a failing build before it starts anything or touches the database', async () => {
+    const w = world({ failing: ['pnpm build'] });
+    assert.equal(await runSetup(w.deps()), 1);
+    assert.match(w.err.join('\n'), /"pnpm build" failed \(exit 1\)/);
+    assert.ok(!w.ran.includes('pnpm infra:up'));
+    assert.ok(!w.ran.includes('pnpm db:migrate'));
+    assert.ok(!w.ran.includes('pnpm db:seed'));
   });
 
   it('does not write .env if .env.example has no placeholder to replace', async () => {
