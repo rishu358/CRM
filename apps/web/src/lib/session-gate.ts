@@ -136,13 +136,15 @@ export const SESSION_CHECK_TIMEOUT_MS = 3000;
 export async function checkSession(options: {
   meUrl: URL;
   token: string;
+  /** Who is really asking, so the API's per-address ceiling counts the person, not this server. */
+  clientAddress?: Record<string, string>;
   fetchFn?: typeof fetch;
 }): Promise<SessionVerdict> {
   const fetchFn = options.fetchFn ?? fetch;
   try {
     const response = await fetchFn(options.meUrl, {
       method: 'GET',
-      headers: { authorization: `Bearer ${options.token}` },
+      headers: { ...options.clientAddress, authorization: `Bearer ${options.token}` },
       cache: 'no-store',
       signal: AbortSignal.timeout(SESSION_CHECK_TIMEOUT_MS),
     });

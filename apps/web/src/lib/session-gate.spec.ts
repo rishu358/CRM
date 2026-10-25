@@ -194,6 +194,20 @@ describe('checkSession', () => {
     expect((init.headers as Record<string, string>)['authorization']).toBe('Bearer tok');
   });
 
+  it('passes the real client address on, so the API limits the person and not this server', async () => {
+    const fetchFn = reply(200, { data: {} });
+    await checkSession({
+      meUrl,
+      token: 'tok',
+      clientAddress: { 'x-forwarded-for': '203.0.113.7' },
+      fetchFn,
+    });
+    const init = (fetchFn as unknown as ReturnType<typeof vi.fn>).mock.calls[0]?.[1] as RequestInit;
+    const headers = init.headers as Record<string, string>;
+    expect(headers['x-forwarded-for']).toBe('203.0.113.7');
+    expect(headers['authorization']).toBe('Bearer tok');
+  });
+
   it('is valid when the API accepts the session', async () => {
     expect(await checkSession({ meUrl, token: 't', fetchFn: reply(200, { data: {} }) })).toBe(
       'valid',

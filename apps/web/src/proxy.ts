@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { buildCsp, originOf } from './lib/csp';
 import { imageOrigins } from './lib/brand';
+import { clientAddressHeaders } from './lib/client-address';
 import { webEnv } from './lib/env';
 import { upstreamPath } from './lib/proxy-path';
 import {
@@ -36,7 +37,13 @@ async function signInRedirect(request: NextRequest): Promise<NextResponse | null
 
     const path = upstreamPath(['auth', 'me']);
     if (path === null || token === undefined) return null;
-    const verdict = await checkSession({ meUrl: new URL(path, env.API_URL), token });
+    const verdict = await checkSession({
+      meUrl: new URL(path, env.API_URL),
+      token,
+      // The API limits each address before it knows who is asking (ADR-0053). Without this every
+      // page load by everybody would be counted against this server's one address.
+      clientAddress: clientAddressHeaders(request.headers),
+    });
     if (verdict !== 'rejected') return null;
     sessionEnded = true;
   }
