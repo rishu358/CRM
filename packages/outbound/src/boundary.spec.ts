@@ -81,6 +81,12 @@ const ALLOWED: readonly Allowed[] = [
     reason: 'Runs in the browser and calls this app’s own `/api/session` and `/api/proxy`.',
   },
   {
+    file: 'apps/web/src/lib/session-ended.ts',
+    pattern: 'fetch',
+    reason:
+      'Runs in the browser and calls this app’s own `/api/session` (sign-out) with a fixed path chosen by no caller, to clear the session cookie.',
+  },
+  {
     file: 'apps/web/src/lib/attachments.ts',
     pattern: 'fetch',
     reason:
