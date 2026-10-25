@@ -11,12 +11,23 @@ Requires Node 24.7 or later, pnpm 9, and Docker.
 
 ```bash
 pnpm install
-cp .env.example .env
+pnpm run setup         # checks the machine, creates .env, starts the services, migrates, seeds, builds
+pnpm dev               # web :3000, api :3001, worker
+```
+
+Use `pnpm run setup`, not `pnpm setup`: the latter is a built-in pnpm command that configures pnpm itself.
+`pnpm run setup -- --check` only checks Node, pnpm, Docker and `.env`, and changes nothing. It is safe to run
+again: it never overwrites `.env`, and it creates the demo workspace on the first run only
+([ADR-0051](docs/adr/0051-setup-command.md)).
+
+To do the same by hand:
+
+```bash
+cp .env.example .env   # then set AUTH_SECRET to `openssl rand -base64 48`
 pnpm infra:up          # Postgres on 15432, Redis on 16379, MinIO on 19000 (+ creates the bucket)
 pnpm db:migrate
 pnpm db:seed           # prints sign-in credentials for the demo users
 pnpm build             # shared packages compile to dist; apps resolve them from there
-pnpm dev               # web :3000, api :3001, worker
 ```
 
 Then open http://localhost:3000/sign-in and use one of the addresses the seed

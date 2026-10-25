@@ -64,6 +64,10 @@ a working version, and the first tag will be cut from a green `master` (see
   and are upgraded at their owner's next successful sign-in, never overwriting a password changed in the
   meantime. Cost is configurable (`PASSWORD_HASH_MEMORY_KIB`, `PASSWORD_HASH_PASSES`,
   `PASSWORD_HASH_PARALLELISM`) with floors at the OWASP minimum, and raising it upgrades hashes the same way.
+- **`pnpm run setup` (ADR-0051):** one command from a fresh clone to a running local stack: checks Node, pnpm and
+  Docker, creates `.env` with a generated `AUTH_SECRET`, starts the services, migrates, creates the demo
+  workspace (first run only) and builds. Safe to repeat, never overwrites `.env`, never prints a secret, and has a
+  `--check` mode that changes nothing. Zero dependencies. A local mail inbox is not part of it yet.
 
 ### Security
 
