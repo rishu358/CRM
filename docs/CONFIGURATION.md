@@ -84,6 +84,8 @@ always wins over the file.
 | [`RATE_LIMIT_WINDOW_SECONDS`](#rate_limit_window_seconds)             | api                        | no            | no     |
 | [`RATE_LIMIT_MAX_PER_USER`](#rate_limit_max_per_user)                 | api                        | no            | no     |
 | [`RATE_LIMIT_MAX_PER_TENANT`](#rate_limit_max_per_tenant)             | api                        | no            | no     |
+| [`RATE_LIMIT_MAX_PER_IP`](#rate_limit_max_per_ip)                     | api                        | no            | no     |
+| [`RATE_LIMIT_ALLOW_PER_PROCESS`](#rate_limit_allow_per_process)       | api                        | no            | no     |
 | [`EMAIL_PROVIDER`](#email_provider)                                   | api, worker                | in production | no     |
 | [`EMAIL_FROM`](#email_from)                                           | api, worker                | in production | no     |
 | [`RESEND_API_KEY`](#resend_api_key)                                   | api, worker                | in production | yes    |
@@ -557,7 +559,30 @@ Most requests one tenant may make per window, across all its users.
 - **Secret:** no
 - **Default:** `3000`
 
-Applied per tenant AND per user, not only per address (CLAUDE.md §5.14). Counted per process until Redis-backed limiting lands, so N instances allow N times this.
+Applied per tenant AND per user, not only per address (CLAUDE.md §5.14). Counted in Redis so the limit holds across API instances (ADR-0053); without REDIS_URL each instance counts alone.
+
+### `RATE_LIMIT_MAX_PER_IP`
+
+Most requests one address may make per window, signed in or not: the pre-authentication ceiling.
+
+- **Used by:** api
+- **Required:** no
+- **Secret:** no
+- **Default:** `1000`
+
+Sized for an office behind one NAT address rather than for one person, so it is far looser than the per-user limit and is not a substitute for it (CLAUDE.md §5.14).
+
+### `RATE_LIMIT_ALLOW_PER_PROCESS`
+
+Permit counting rate limits per process instead of in Redis, for a deployment that really does run one API instance.
+
+- **Used by:** api
+- **Required:** no
+- **Secret:** no
+- **Default:** `false`
+- **Values:** `true`, `false`
+
+Production refuses to start without REDIS_URL unless this is set (ADR-0053): on more than one instance, per-process counting silently multiplies every limit by the instance count. Set it only when you know there is exactly one.
 
 ## Email
 
@@ -775,7 +800,7 @@ Redis or Valkey connection string, for counters shared across API instances. Use
 - **Required:** no
 - **Secret:** yes: never logged, never committed, never on the web app
 
-Optional today: nothing reads it until Redis-backed rate limiting lands, and the API logs a warning while it is empty in production. Leave it unset for a single instance.
+Rate limits are counted here so one budget is shared by every API instance (ADR-0053). Production refuses to start without it unless RATE_LIMIT_ALLOW_PER_PROCESS says this really is a single instance; if Redis becomes unreachable the API degrades to per-process counting rather than failing requests.
 
 ## Sign in with Google
 

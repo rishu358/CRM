@@ -517,9 +517,29 @@ export const REGISTRY = {
       scopes: ['api'],
       group: 'limits',
       description: 'Most requests one tenant may make per window, across all its users.',
-      note: 'Applied per tenant AND per user, not only per address (CLAUDE.md §5.14). Counted per process until Redis-backed limiting lands, so N instances allow N times this.',
+      note: 'Applied per tenant AND per user, not only per address (CLAUDE.md §5.14). Counted in Redis so the limit holds across API instances (ADR-0053); without REDIS_URL each instance counts alone.',
     },
     { default: 3000, sign: 'positive' },
+  ),
+  RATE_LIMIT_MAX_PER_IP: defaultedInt(
+    {
+      scopes: ['api'],
+      group: 'limits',
+      description:
+        'Most requests one address may make per window, signed in or not: the pre-authentication ceiling.',
+      note: 'Sized for an office behind one NAT address rather than for one person, so it is far looser than the per-user limit and is not a substitute for it (CLAUDE.md §5.14).',
+    },
+    { default: 1000, sign: 'positive' },
+  ),
+  RATE_LIMIT_ALLOW_PER_PROCESS: defaultedFlag(
+    {
+      scopes: ['api'],
+      group: 'limits',
+      description:
+        'Permit counting rate limits per process instead of in Redis, for a deployment that really does run one API instance.',
+      note: 'Production refuses to start without REDIS_URL unless this is set (ADR-0053): on more than one instance, per-process counting silently multiplies every limit by the instance count. Set it only when you know there is exactly one.',
+    },
+    { default: false },
   ),
 
   // ---- email -------------------------------------------------------------------------------
@@ -766,7 +786,7 @@ export const REGISTRY = {
       description:
         'Redis or Valkey connection string, for counters shared across API instances. Use the `rediss://` (TLS) form in production.',
       local: 'redis://localhost:16379',
-      note: 'Optional today: nothing reads it until Redis-backed rate limiting lands, and the API logs a warning while it is empty in production. Leave it unset for a single instance.',
+      note: 'Rate limits are counted here so one budget is shared by every API instance (ADR-0053). Production refuses to start without it unless RATE_LIMIT_ALLOW_PER_PROCESS says this really is a single instance; if Redis becomes unreachable the API degrades to per-process counting rather than failing requests.',
     },
     { min: 1 },
   ),

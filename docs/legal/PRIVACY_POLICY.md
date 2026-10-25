@@ -35,7 +35,7 @@ Section 12 lists, plainly, what this product **cannot** do.
 
 ## 1. Who we are
 
-**[TO BE CONFIRMED: full legal entity name, CIN/LLPIN, registered address]**
+**Birab Trading LLP**, **[TO BE CONFIRMED: LLPIN and registered address]**
 ("we", "us", "our") operates **[TO BE CONFIRMED: product name — the codebase
 calls it "CRM", which is a placeholder, not a brand]** (the "Service"), a
 web-based customer relationship management platform.

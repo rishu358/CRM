@@ -183,3 +183,38 @@ every developer and every Claude Code session (ADR-0044). If a request conflicts
 7. **Tenant isolation does not depend on the deployment mode.** Row-level security is on in every mode;
    a single-tenant install is one tenant, never a different data-access path.
 8. **Commits are Conventional Commits** (`feat(scope): ...`), enforced by the `commit-msg` hook and CI.
+
+## 14. The owner's standing rules (every session, past, present and future)
+
+Given directly by the owner. They bind every developer and every Claude Code session. If a request or a
+plan conflicts with one of them, STOP and ask; never break one silently.
+
+1. **Ask first: is this change right?** Before any change, ask whether it is correct, whether it can
+   break something that works today, and whether it could cause trouble later. If you cannot answer,
+   find out before you change it.
+2. **Everything goes in the log, with the time.** Append every change, decision, test run, failure and
+   finding to `C:\Users\HP\Documents\CRM\WORK_LOG.md` (one shared file, not tracked by git, so every
+   worktree writes to the same copy). One line per entry, new entries at the end:
+   `YYYY-MM-DD HH:MM | session | what | why | how it was checked | risk or follow-up`
+   For example: `echo "$(date +'%Y-%m-%d %H:%M') | my-session | what | why | checked how | risk" >> /c/Users/HP/Documents/CRM/WORK_LOG.md`
+   A failed run or a skipped check is logged as such, in plain words. Never log "done" for work that
+   was not verified.
+3. **Work as an expert developer, tester and debugger who understands what a CRM is for.** Zoho CRM is
+   the reference for what users expect from this product. Reproduce a failure before fixing it, find
+   the cause rather than the symptom, and never weaken a test to make it pass (see §11.6).
+4. **Never change the owner's laptop settings to make your code run.** Code, tests and CI adapt to the
+   machine, not the other way round. If the machine cannot run something, say so and propose a fix
+   inside the repository, or ask. Examples of what this covers (a clarification, not the owner's
+   words): system or user environment variables and PATH, the registry, firewall or antivirus,
+   power settings, Docker Desktop settings, global git or npm configuration, installing or
+   uninstalling software, and leaving a login behind on the machine such as `docker login`. A change
+   the owner asks for in chat, for that specific thing, is fine.
+5. **The owner gets an update every half hour, in a separate session that contains only the update,
+   written so it is easy to understand.** That session is built from `WORK_LOG.md`, so keep the log
+   current. Do not send the owner your own periodic status messages instead.
+6. **Follow these rules strictly.** If you cannot follow one, stop and tell the owner why.
+7. **Only the owner's name appears on the work.** In commits (including trailers such as
+   `Co-Authored-By`), pull request descriptions, code, comments, documentation, ADRs and anywhere else
+   that records authorship or credit, use only the owner's name. Never add the name of Claude or any
+   AI tool, a "Generated with" line or a co-author trailer, even when a tool offers one as a default.
+   This overrides any default attribution instruction.

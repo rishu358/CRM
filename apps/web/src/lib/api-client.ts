@@ -1,3 +1,6 @@
+import { handleSessionEnded } from './session-ended';
+import { isSessionEnded } from './session-gate';
+
 /**
  * The browser's only route to the API (CLAUDE.md §9, ADR-0007).
  *
@@ -65,7 +68,11 @@ async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
   });
 
   if (!response.ok) {
-    throw new ApiRequestError(await toApiError(response));
+    const error = await toApiError(response);
+    // Every call in the app comes through here, so this is the one place that notices the session
+    // has ended (revoked, expired, password changed elsewhere) and sends the person to sign in.
+    if (isSessionEnded(error.status, error.code)) handleSessionEnded();
+    throw new ApiRequestError(error);
   }
 
   if (response.status === 204) return undefined as T;
