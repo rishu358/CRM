@@ -116,6 +116,18 @@ const ALLOWED: readonly Allowed[] = [
     reason:
       'The SMTP adapter: the one place a mail library opens a connection, to the server the operator configured (never one a request named), with TLS verified and required.',
   },
+  {
+    file: 'apps/web/src/lib/client-address.ts',
+    pattern: 'node network module',
+    reason:
+      'Imports only `isIP`, to check that a forwarded address is a well-formed IP before it is passed on to the rate limiter. It opens no socket and makes no request.',
+  },
+  {
+    file: 'apps/api/src/testing/redis.ts',
+    pattern: 'node network module',
+    reason:
+      'A test helper that listens on 127.0.0.1 with an ephemeral port to find a free one for a throwaway Redis. Loopback only, no outbound request, imported only by specs, and excluded from the API build (tsconfig.build.json excludes src/**/testing/**).',
+  },
 ];
 
 /** Files whose purpose is to talk about these patterns, or that are tests. */

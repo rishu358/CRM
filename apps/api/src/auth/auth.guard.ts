@@ -9,7 +9,7 @@ import { MfaEnrolmentRequiredError, UnauthenticatedError, isUuid, type Actor } f
 import type { FastifyRequest } from 'fastify';
 import { API_ENV_TOKEN } from '../config/env.js';
 import type { ApiEnv } from '../config/env.js';
-import { TenantRateLimitService } from '../platform/rate-limit.service.js';
+import { ActorRateLimitService } from '../platform/rate-limit.service.js';
 import { ActorService } from './actor.service.js';
 import { AuthRepository } from './auth.repository.js';
 import { MfaService } from './mfa.service.js';
@@ -81,7 +81,7 @@ export class AuthGuard implements CanActivate {
   constructor(
     @Inject(SessionService) private readonly sessions: SessionService,
     @Inject(ActorService) private readonly actors: ActorService,
-    @Inject(TenantRateLimitService) private readonly tenantLimit: TenantRateLimitService,
+    @Inject(ActorRateLimitService) private readonly actorLimit: ActorRateLimitService,
     @Inject(MfaService) private readonly mfa: MfaService,
     @Inject(AuthRepository) private readonly repository: AuthRepository,
     @Inject(API_ENV_TOKEN) private readonly env: ApiEnv,
@@ -114,9 +114,10 @@ export class AuthGuard implements CanActivate {
     // accepted for a tenant this user actually belongs to.
     const actor = await this.actors.resolve(session.userId, tenantId);
 
-    // Counted against the tenant membership proved, not the header the client
-    // sent, so one caller cannot exhaust another workspace's budget.
-    this.tenantLimit.check(actor.tenantId);
+    // Counted against the user the session proved and the tenant membership proved, not
+    // the header the client sent, so one caller cannot exhaust another workspace's or
+    // another person's budget (CLAUDE.md §5.14).
+    await this.actorLimit.check(actor);
 
     // MFA enforcement (MVP_SPEC M1 acceptance): a workspace with "MFA
     // required" blocks access until the user enrols. Checked here rather than

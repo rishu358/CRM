@@ -1,7 +1,9 @@
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
 import pg from 'pg';
 import { createDbClient, type DbClient } from '../client.js';
+import { closePool } from '../pool-close.js';
 import { Fixtures } from '../testing/fixtures.js';
+import { createScratchDatabase, type ScratchDatabase } from '../testing/scratch-database.js';
 import { reindexAll } from './reindex-all.js';
 
 /**
@@ -9,7 +11,14 @@ import { reindexAll } from './reindex-all.js';
  *
  * Run against the real roles, because the point of the two-client shape is that neither role could do
  * the whole job alone.
+ *
+ * In a database of its own (ADR-0054). Without a tenant, this command's subject is *every* company in
+ * the cluster: in the shared test database that meant clearing and rebuilding the indexes of whatever
+ * the files running beside this one had created — including a perf fixture's hundred thousand records,
+ * in one transaction — which made this test's cost depend on test ordering and quietly emptied the
+ * other files' indexes underneath them.
  */
+let scratch: ScratchDatabase;
 let worker: DbClient;
 let auth: DbClient;
 let superuser: pg.Pool;
@@ -25,7 +34,8 @@ const count = async (tenantId: string): Promise<number> => {
 };
 
 beforeAll(async () => {
-  const urls = inject('dbUrls');
+  scratch = await createScratchDatabase(inject('dbUrls'), 'crm_reindex_all');
+  const urls = scratch.urls;
   worker = createDbClient({ connectionString: urls.worker, maxConnections: 2 });
   auth = createDbClient({ connectionString: urls.auth, maxConnections: 2 });
   superuser = new pg.Pool({ connectionString: urls.superuser, max: 2 });
@@ -43,10 +53,11 @@ beforeAll(async () => {
      values (gen_random_uuid(), $1, 'Deletedwood', now())`,
     [tenantA],
   );
-});
+}, 180_000);
 
 afterAll(async () => {
-  await Promise.all([worker.close(), auth.close(), superuser.end()]);
+  await Promise.all([worker.close(), auth.close(), closePool(superuser)]);
+  await scratch.drop();
 });
 
 describe('reindexing one company', () => {
@@ -94,8 +105,8 @@ describe('reindexing one company', () => {
 describe('reindexing every company', () => {
   it('lists the companies with the auth role and rebuilds each', async () => {
     const summary = await reindexAll({ worker, auth });
-    expect(summary.failed).toEqual([]);
-    expect(summary.tenants).toBeGreaterThanOrEqual(2);
+    // Exactly the two this file made: in its own database, "every company" is a number it knows.
+    expect(summary).toMatchObject({ tenants: 2, failed: [] });
     expect(await count(tenantB)).toBeGreaterThan(0);
   });
 
@@ -114,7 +125,7 @@ describe('reindexing every company', () => {
     } as unknown as DbClient;
     const summary = await reindexAll({ worker: broken, auth }, {}, (line) => lines.push(line));
     expect(summary.tenants).toBe(0);
-    expect(summary.failed.length).toBeGreaterThanOrEqual(2);
+    expect(summary.failed).toHaveLength(2);
     expect(summary.failed[0]?.error).toContain('connection lost');
     expect(lines.some((line) => line.includes('FAILED'))).toBe(true);
     // A failed rebuild leaves the index as it was.

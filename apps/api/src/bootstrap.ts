@@ -3,14 +3,13 @@ import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fastify';
 import cookie from '@fastify/cookie';
 import helmet from '@fastify/helmet';
-import rateLimit from '@fastify/rate-limit';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { AppModule } from './app.module.js';
 import { DomainErrorFilter } from './common/domain-error.filter.js';
 import { createLogger } from './common/logger.js';
 import { runWithRequestContext, type RequestContext } from './common/request-context.js';
 import { corsOrigins, loadApiEnv, previousAuthSecrets, type ApiEnv } from './config/env.js';
-import type { AuthenticatedRequest } from './auth/auth.guard.js';
+import { AddressRateLimitService } from './platform/rate-limit.service.js';
 
 /**
  * Builds the application. Separate from `main.ts` so tests can start the same
@@ -56,19 +55,6 @@ export async function createApp(env: ApiEnv = loadApiEnv()): Promise<NestFastify
     crossOriginResourcePolicy: { policy: 'same-site' },
   });
 
-  // Rate limit per user and per tenant, not just per IP (CLAUDE.md §5.14).
-  // An office behind one NAT address is many users; a single abusive tenant
-  // across many addresses is still one tenant.
-  await app.register(rateLimit, {
-    max: env.RATE_LIMIT_MAX_PER_USER,
-    timeWindow: env.RATE_LIMIT_WINDOW_SECONDS * 1000,
-    keyGenerator: (request: FastifyRequest) => {
-      const actor = (request as AuthenticatedRequest).actor;
-      if (actor !== undefined) return `u:${actor.userId}`;
-      return `ip:${request.ip}`;
-    },
-  });
-
   // Request context and X-Request-Id, before anything else can log.
   instance.addHook('onRequest', (request: FastifyRequest, reply: FastifyReply, done) => {
     const incoming = request.headers['x-request-id'];
@@ -86,6 +72,17 @@ export async function createApp(env: ApiEnv = loadApiEnv()): Promise<NestFastify
 
     void reply.header('x-request-id', requestId);
     runWithRequestContext(context, done);
+  });
+
+  // The pre-authentication ceiling per address (CLAUDE.md §5.14, ADR-0053). The per-user and per-tenant
+  // limits are checked by the auth guard, once the session has said who is asking; this is the only one
+  // that can apply to a request with no valid session. It runs after the request context so a refusal
+  // carries a request id, and not for the health route, which a load balancer polls and which must keep
+  // answering whoever is asking.
+  const addressLimit = app.get(AddressRateLimitService, { strict: false });
+  instance.addHook('onRequest', async (request: FastifyRequest) => {
+    if (request.url.split('?')[0] === '/api/v1/health') return;
+    await addressLimit.check(request.ip);
   });
 
   app.enableCors({
