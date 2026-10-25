@@ -81,6 +81,27 @@ network is fine.
 Failures are reported as a code and an SMTP status, never the server's own text, which often repeats the
 recipient's address.
 
+### Local development: Mailpit
+
+`pnpm infra:up` starts [Mailpit](https://mailpit.axllent.org), a local inbox that catches everything the
+application sends and delivers nothing. `.env.example` points the application at it:
+
+```
+EMAIL_PROVIDER=smtp
+SMTP_HOST=localhost
+SMTP_PORT=11025
+SMTP_SECURITY=none
+```
+
+Open http://localhost:18025 to read verification and password-reset emails, links included. (Ports are off the
+defaults 1025 and 8025, like the other local services.) Set `EMAIL_PROVIDER=console` to have messages printed to
+the API log instead.
+
+`SMTP_SECURITY=none` is plain text and is **refused when `NODE_ENV=production`**, by the configuration check
+and by the adapter, so this setup cannot be carried into a deployment by accident. The image is pinned by digest
+(v1.32.0) in `docker-compose.yml`. It pulls anonymously from the project's own registry, so there is no mirror to
+maintain; if that ever stops being true, mirror it as `deploy/minio-mirror.Dockerfile` does for MinIO.
+
 ## File storage: `STORAGE_PROVIDER`
 
 `s3` is any S3-compatible store; `memory` is for tests and is refused in production (the API and the worker

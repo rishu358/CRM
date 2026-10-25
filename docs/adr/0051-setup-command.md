@@ -58,15 +58,38 @@ batch file without one. Every command and argument is a literal in the file; not
 shell, and the command line is joined into one string rather than passed as an argument array to a shell
 (deprecated and easy to misuse).
 
-## Not here
+## A local inbox, and a minimal seed
 
-- **A local mail inbox (Mailpit).** Verification and reset mail is still printed to the API log in development.
-  Adding the container needs an image pinned by digest and probably mirrored, as MinIO had to be (its upstream
-  stopped being publicly pullable), which needs network access and a decision. It is the next piece of this work.
-- **A minimal seed** (one workspace and owner, no sample data). `--no-seed` followed by `pnpm tenant:create` does
-  that today; a seed profile would be a convenience on top.
-- The real commands were not run against Docker in this change; the tests prove the script's decisions, not
-  that `pnpm infra:up` starts. A first real run on a clean machine is the check.
+### Mailpit
+
+Development mail used to be printed to the API log. The compose file now also runs Mailpit (SMTP on 11025, the
+inbox on 18025, off the defaults like the other services), and `.env.example` points the application at it with
+the SMTP adapter, so verification and reset links arrive in a real inbox. Set `EMAIL_PROVIDER=console` for the old
+behaviour. The registry default is unchanged (`console`); only the local-development value in `.env.example`
+moved.
+
+- **Pinned by digest** (v1.32.0, the multi-platform index: amd64, arm64, 386). It pulls **anonymously** from
+  `ghcr.io/axllent/mailpit` (checked against the registry, with and without a token), so, unlike MinIO, no mirror is
+  needed. If that stops being true, mirror it as `deploy/minio-mirror.Dockerfile` does.
+- **Plain-text SMTP is local only.** `SMTP_SECURITY=none` is refused in production by the configuration check and
+  by the adapter itself (ADR-0048), so the local value cannot ride into a deployment.
+- CI does not use `docker-compose.yml` (it runs its own services), so this adds nothing to a CI pull.
+
+### `--minimal`
+
+`pnpm db:seed -- --minimal` (or `pnpm run setup -- --minimal`) creates one workspace with one owner and nothing
+else: no sample records, no other people, no invitation, no second company. Setup is left unfinished, so the
+owner meets the first-run screen. The owner's password is **generated and printed once**, not the well-known demo
+password, because this is the workspace someone may go on to use.
+
+## Not verified
+
+- **Nothing here was run against Docker or a database in this change.** The compose service, the `--minimal` seed
+  and the real `pnpm infra:up` / `db:seed` commands were written and statically checked (typecheck, lint, the
+  generated config), and the setup script's decisions are tested with fakes. A first real run on a clean machine is
+  the check, and the full seed (which the E2E suite runs) was edited too: its behaviour is intended to be
+  identical, and that is not yet proven.
+- The Mailpit health check (`/mailpit readyz`) is taken from Mailpit's documentation, not exercised.
 
 ## Alternatives considered
 

@@ -14,6 +14,7 @@
  *   pnpm run setup -- --check   only check; change nothing; exit non-zero with a reason
  *   --no-seed                   do not create the demo workspace
  *   --seed                      create another demo workspace even if this is not the first run
+ *   --minimal                   instead of the demo company, one empty workspace with one owner
  *   --no-build                  skip `pnpm build`
  *
  * All outside effects (files, commands, the clock's randomness, the output) are parameters of
@@ -30,17 +31,20 @@ export const MINIMUM_NODE = [24, 7, 0];
 export const USAGE = `Set up a local development environment.
 
 Usage:
-  pnpm run setup [--check] [--no-seed | --seed] [--no-build]
+  pnpm run setup [--check] [--no-seed | --seed | --minimal] [--no-build]
 
   --check      Check the machine and the configuration; change nothing.
   --no-seed    Do not create the demo workspace.
   --seed       Create a demo workspace even if this is not the first run.
+  --minimal    Create one empty workspace with one owner (a generated password, shown once)
+               instead of the demo company.
   --no-build   Skip the build.
   --help       Show this text.
 
-First run: creates .env from .env.example (with a generated AUTH_SECRET), starts Postgres, Redis and
-MinIO, applies the migrations, creates the demo workspace and builds. Later runs leave .env and the demo
-data alone. "pnpm setup" without "run" is a built-in pnpm command, not this.
+First run: creates .env from .env.example (with a generated AUTH_SECRET), starts Postgres, Redis,
+MinIO and a local mail inbox (Mailpit), applies the migrations, creates the demo workspace and builds.
+Later runs leave .env and the demo data alone. "pnpm setup" without "run" is a built-in pnpm command,
+not this.
 `;
 
 /** `AUTH_SECRET=` left empty or at the development placeholder from .env.example. */
@@ -60,7 +64,7 @@ export function nodeIsRecent(version) {
 
 /**
  * @param {string[]} argv
- * @returns {{ kind: 'help' } | { kind: 'error', message: string } | { kind: 'run', check: boolean, seed: 'auto' | 'yes' | 'no', build: boolean }}
+ * @returns {{ kind: 'help' } | { kind: 'error', message: string } | { kind: 'run', check: boolean, seed: 'auto' | 'yes' | 'no' | 'minimal', build: boolean }}
  */
 export function parseArgs(argv) {
   let check = false;
@@ -71,6 +75,7 @@ export function parseArgs(argv) {
     else if (arg === '--check') check = true;
     else if (arg === '--no-seed') seed = 'no';
     else if (arg === '--seed') seed = 'yes';
+    else if (arg === '--minimal') seed = 'minimal';
     else if (arg === '--no-build') build = false;
     else return { kind: 'error', message: `Unknown argument: ${arg}` };
   }
@@ -201,16 +206,15 @@ export async function runSetup(deps) {
   if (!(await step('pnpm db:migrate', ['pnpm', 'db:migrate']))) return 1;
 
   // The seed adds a demo workspace every time it runs, so it is not repeated by default.
-  const seed = args.seed === 'yes' || (args.seed === 'auto' && createdEnv);
+  const seed =
+    args.seed === 'yes' || args.seed === 'minimal' || (args.seed === 'auto' && createdEnv);
   if (seed) {
-    if (
-      !(await step('pnpm db:seed  (demo workspace; prints the sign-in details)', [
-        'pnpm',
-        'db:seed',
-      ]))
-    ) {
-      return 1;
-    }
+    const minimal = args.seed === 'minimal';
+    const command = minimal ? ['pnpm', 'db:seed', '--minimal'] : ['pnpm', 'db:seed'];
+    const label = minimal
+      ? 'pnpm db:seed --minimal  (one empty workspace; prints the owner and a one-time password)'
+      : 'pnpm db:seed  (demo workspace; prints the sign-in details)';
+    if (!(await step(label, command))) return 1;
   } else {
     say(
       args.seed === 'no'
@@ -232,6 +236,7 @@ export async function runSetup(deps) {
       '  web      http://localhost:3000',
       '  api      http://localhost:3001',
       '  files    http://localhost:19001  (MinIO console)',
+      '  inbox    http://localhost:18025  (Mailpit: verification and reset emails arrive here)',
     ].join('\n'),
   );
   return 0;

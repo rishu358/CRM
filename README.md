@@ -24,7 +24,7 @@ To do the same by hand:
 
 ```bash
 cp .env.example .env   # then set AUTH_SECRET to `openssl rand -base64 48`
-pnpm infra:up          # Postgres on 15432, Redis on 16379, MinIO on 19000 (+ creates the bucket)
+pnpm infra:up          # Postgres 15432, Redis 16379, MinIO 19000 (+ bucket), Mailpit 11025/18025
 pnpm db:migrate
 pnpm db:seed           # prints sign-in credentials for the demo users
 pnpm build             # shared packages compile to dist; apps resolve them from there
@@ -36,8 +36,9 @@ printed, with the password it printed alongside them. Signing in as the
 record scope working end to end.
 
 Sign-up, email verification, password reset and TOTP two-factor all work from
-the UI. Verification and reset emails are not delivered in development — the
-console email provider prints them, links included, to the API's log.
+the UI. Verification and reset emails are not delivered anywhere in development:
+they arrive in a local inbox (Mailpit) at http://localhost:18025, links included.
+Set `EMAIL_PROVIDER=console` in `.env` to have them printed to the API's log instead.
 
 Google sign-in is built but switched off until `GOOGLE_CLIENT_ID` and
 `GOOGLE_CLIENT_SECRET` are set; without them those two endpoints return 404.

@@ -106,6 +106,7 @@ describe('the first run', () => {
       'pnpm build',
     ]);
     assert.match(w.out.join('\n'), /Ready\. Start it with:\s+pnpm dev/);
+    assert.match(w.out.join('\n'), /inbox\s+http:\/\/localhost:18025/);
   });
 
   it('never prints the secret it generated', async () => {
@@ -181,6 +182,28 @@ describe('flags', () => {
     assert.ok(!w.ran.includes('pnpm build'));
     assert.match(w.out.join('\n'), /skipped\s+demo workspace \(--no-seed\)/);
     assert.match(w.out.join('\n'), /skipped\s+build \(--no-build\)/);
+  });
+});
+
+describe('--minimal', () => {
+  it('seeds one empty workspace instead of the demo company, even on a later run', async () => {
+    const w = world({
+      files: { [ENV]: EXAMPLE.replace('dev-only-insecure', 'already-generated') },
+    });
+    assert.equal(await runSetup(w.deps(['--minimal', '--no-build'])), 0);
+    assert.ok(w.ran.includes('pnpm db:seed --minimal'));
+    assert.ok(!w.ran.includes('pnpm db:seed'));
+  });
+
+  it('on a first run, seeds the minimal workspace and only that', async () => {
+    const w = world();
+    await runSetup(w.deps(['--minimal', '--no-build']));
+    const seeds = w.ran.filter((line) => line.startsWith('pnpm db:seed'));
+    assert.deepEqual(seeds, ['pnpm db:seed --minimal']);
+  });
+
+  it('is offered in the usage text and parsed as its own mode', () => {
+    assert.equal(parseArgs(['--minimal']).seed, 'minimal');
   });
 });
 

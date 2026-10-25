@@ -75,6 +75,32 @@ services:
       retries: 10
     command: ['server', '/data', '--console-address', ':9001']
 
+  # A local inbox for the mail the application sends in development: verification and password-reset
+  # links arrive here instead of being printed to a log. Nothing is delivered anywhere. Development
+  # only: production uses a real provider (docs/PROVIDERS.md), and the application refuses plain-text
+  # SMTP when NODE_ENV=production.
+  #
+  # Pinned by digest, not a floating tag: v1.32.0, a multi-platform index (amd64, arm64, 386).
+  # Pulls anonymously from the project's own registry, so there is no mirror to maintain, unlike MinIO
+  # above. If upstream ever stops being publicly pullable, mirror it the way
+  # deploy/minio-mirror.Dockerfile does.
+  mailpit:
+    image: ghcr.io/axllent/mailpit@sha256:0790692be935ea4420d085694f7985b1f692ca6a8771ab0e0bd8ba75ac180498
+    container_name: crm-mailpit
+    restart: unless-stopped
+    environment:
+      # Messages live in memory and are capped, so a long-running dev stack does not grow without bound.
+      MP_MAX_MESSAGES: '500'
+    ports:
+      # Off the defaults (1025 and 8025) for the same reason as the services above.
+      - '11025:1025' # SMTP: what the API and worker send to (SMTP_PORT)
+      - '18025:8025' # the inbox, in a browser
+    healthcheck:
+      test: ['CMD', '/mailpit', 'readyz']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
 volumes:
   crm-minio-data:
   crm-postgres-data:
