@@ -1,7 +1,7 @@
 import type { RateLimitCounter, RateLimitEntry, RateLimitHit } from './counter.js';
 
 /**
- * Shared counts when Redis answers, per-process counts when it does not (ADR-0050).
+ * Shared counts when Redis answers, per-process counts when it does not (ADR-0053).
  *
  * The choice when the shared store is down is between three things: refuse every request (a Redis
  * blip becomes an outage, sign-in included), let every request through (the limit disappears at the

@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import type { RateLimitCounter } from './counter.js';
 
 /**
- * What every `RateLimitCounter` must do, whatever it counts in (ADR-0050).
+ * What every `RateLimitCounter` must do, whatever it counts in (ADR-0053).
  *
  * Used by the in-process counter and the Redis counter, so the shared one is held to exactly what
  * the one it replaces always did. Keys are unique per test, because the Redis counter outlives a

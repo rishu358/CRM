@@ -523,7 +523,7 @@ Most requests one tenant may make per window, across all its users.
 - **Secret:** no
 - **Default:** `3000`
 
-Applied per tenant AND per user, not only per address (CLAUDE.md §5.14). Counted in Redis so the limit holds across API instances (ADR-0050); without REDIS_URL each instance counts alone.
+Applied per tenant AND per user, not only per address (CLAUDE.md §5.14). Counted in Redis so the limit holds across API instances (ADR-0053); without REDIS_URL each instance counts alone.
 
 ### `RATE_LIMIT_MAX_PER_IP`
 
@@ -546,7 +546,7 @@ Permit counting rate limits per process instead of in Redis, for a deployment th
 - **Default:** `false`
 - **Values:** `true`, `false`
 
-Production refuses to start without REDIS_URL unless this is set (ADR-0050): on more than one instance, per-process counting silently multiplies every limit by the instance count. Set it only when you know there is exactly one.
+Production refuses to start without REDIS_URL unless this is set (ADR-0053): on more than one instance, per-process counting silently multiplies every limit by the instance count. Set it only when you know there is exactly one.
 
 ## Email
 
@@ -764,7 +764,7 @@ Redis or Valkey connection string, for counters shared across API instances. Use
 - **Required:** no
 - **Secret:** yes: never logged, never committed, never on the web app
 
-Rate limits are counted here so one budget is shared by every API instance (ADR-0050). Production refuses to start without it unless RATE_LIMIT_ALLOW_PER_PROCESS says this really is a single instance; if Redis becomes unreachable the API degrades to per-process counting rather than failing requests.
+Rate limits are counted here so one budget is shared by every API instance (ADR-0053). Production refuses to start without it unless RATE_LIMIT_ALLOW_PER_PROCESS says this really is a single instance; if Redis becomes unreachable the API degrades to per-process counting rather than failing requests.
 
 ## Sign in with Google
 

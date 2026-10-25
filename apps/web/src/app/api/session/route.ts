@@ -136,7 +136,7 @@ export async function POST(request: NextRequest) {
   const env = webEnv();
   const body = parsed.data;
   // The address the front proxy saw, so the API's sign-in limit is about the person, not this server
-  // (ADR-0050).
+  // (ADR-0053).
   const headers: Record<string, string> = {
     'content-type': 'application/json',
     ...clientAddressHeaders(request.headers),

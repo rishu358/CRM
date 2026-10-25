@@ -5,7 +5,7 @@ import { request, startApiHarness, type ApiHarness } from '../testing/harness.js
 import { startTestRedis, type TestRedis } from '../testing/redis.js';
 
 /**
- * Rate limits hold across API instances (CLAUDE.md §5.14, ADR-0050).
+ * Rate limits hold across API instances (CLAUDE.md §5.14, ADR-0053).
  *
  * Two real instances of the application, one database, one Redis. The point of sharing the counters is
  * that a limit means the same thing however many instances sit behind the load balancer, so each test

@@ -1,7 +1,7 @@
 import { isIP } from 'node:net';
 
 /**
- * Tell the API who is really asking (ADR-0050).
+ * Tell the API who is really asking (ADR-0053).
  *
  * Every browser request reaches the API through this server, so without help the API sees one address,
  * this server's, for every person. The address limits and the sign-in limit would then be one budget

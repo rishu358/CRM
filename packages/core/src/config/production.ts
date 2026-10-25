@@ -115,7 +115,7 @@ function checkPublicUrl(name: string, value: string | undefined, problems: strin
 }
 
 /**
- * Rate limits are shared through Redis (ADR-0050). Without it each API instance counts alone, so N
+ * Rate limits are shared through Redis (ADR-0053). Without it each API instance counts alone, so N
  * instances allow N times the limit. That is acceptable for exactly one instance and a quiet failure
  * for any other number, so it is refused unless the operator says it is one.
  */

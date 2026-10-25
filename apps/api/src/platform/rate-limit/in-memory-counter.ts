@@ -4,7 +4,7 @@ import type { RateLimitCounter, RateLimitEntry, RateLimitHit } from './counter.j
  * Counts in this process.
  *
  * A real limit for one API instance and none across several, which is why a deployment with more
- * than one uses `RedisCounter` (ADR-0050). It stays as the floor under it: when Redis cannot be
+ * than one uses `RedisCounter` (ADR-0053). It stays as the floor under it: when Redis cannot be
  * reached the limits fall back to this, so a Redis outage weakens them to per process and never to
  * nothing.
  */

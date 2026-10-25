@@ -9,7 +9,7 @@ import {
 } from './rate-limit/counter.js';
 
 /**
- * Per-user and per-tenant rate limits (CLAUDE.md §5.14, ADR-0050).
+ * Per-user and per-tenant rate limits (CLAUDE.md §5.14, ADR-0053).
  *
  * Both run **after** the actor is resolved, so the user and the tenant are the ones the session and the
  * membership proved, not a header a caller could spoof to spend somebody else's budget. They share one

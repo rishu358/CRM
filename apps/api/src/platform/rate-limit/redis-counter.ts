@@ -2,7 +2,7 @@ import { Redis, type ChainableCommander } from 'ioredis';
 import type { RateLimitCounter, RateLimitEntry, RateLimitHit } from './counter.js';
 
 /**
- * Counts in Redis, so every API instance spends from the same budget (ADR-0050).
+ * Counts in Redis, so every API instance spends from the same budget (ADR-0053).
  *
  * One atomic script per key: increment, and start the window on the first hit. Doing it as two
  * commands would let a crash between them leave a key that never expires, which is a lockout. The

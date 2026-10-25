@@ -1,5 +1,5 @@
 /**
- * What every rate limit counts with (CLAUDE.md §5.14, ADR-0050).
+ * What every rate limit counts with (CLAUDE.md §5.14, ADR-0053).
  *
  * The tenant limit, the user limit and the two address limits all spend from one counter, so that
  * where the counts live (this process, or Redis shared by every API instance) is decided in one

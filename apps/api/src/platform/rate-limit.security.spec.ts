@@ -103,7 +103,7 @@ describe('the per-address limit', () => {
   });
   it('is about the person behind the web server, not the web server: it follows X-Forwarded-For', async () => {
     // Every browser request reaches the API from the web server's one address, with the person's
-    // address in X-Forwarded-For (the web app passes it on, ADR-0050). Without that the whole user base
+    // address in X-Forwarded-For (the web app passes it on, ADR-0053). Without that the whole user base
     // would be one address and one budget.
     const fromWebServer = '10.0.0.5';
     const asPerson = (person: string) =>

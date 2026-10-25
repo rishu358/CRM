@@ -8,7 +8,7 @@ import { InMemoryCounter } from './in-memory-counter.js';
 import { RedisCounter, createRateLimitRedis, waitUntilReady } from './redis-counter.js';
 
 /**
- * The counter the application provides as `RATE_LIMIT_COUNTER` (ADR-0050).
+ * The counter the application provides as `RATE_LIMIT_COUNTER` (ADR-0053).
  *
  * Owns the Redis connection, so that closing the application closes it.
  */

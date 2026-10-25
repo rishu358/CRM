@@ -26,7 +26,7 @@ import { PUBLIC_ROUTE_KEY } from './auth.guard.js';
  * common password across many different addresses, which the per-account delay
  * would never see.
  *
- * The count is shared across API instances when `REDIS_URL` is set (ADR-0050), so
+ * The count is shared across API instances when `REDIS_URL` is set (ADR-0053), so
  * a host cannot multiply its allowance by the number of instances behind the load
  * balancer. If Redis cannot be reached it is this process's own count, which is
  * the limit it had before it was shared.

@@ -92,7 +92,7 @@ async function forward(request: NextRequest, segments: string[]): Promise<NextRe
     if (value !== null) headers.set(name, value);
   }
   if (token !== undefined) headers.set('authorization', `Bearer ${token}`);
-  // The API's address limits are about the person, not this server (ADR-0050).
+  // The API's address limits are about the person, not this server (ADR-0053).
   for (const [name, value] of Object.entries(clientAddressHeaders(request.headers))) {
     headers.set(name, value);
   }

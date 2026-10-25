@@ -1,4 +1,4 @@
-# ADR-0050: Rate limits are counted in Redis, once, for every API instance
+# ADR-0053: Rate limits are counted in Redis, once, for every API instance
 
 - **Status:** Accepted
 - **Date:** 2026-10-23

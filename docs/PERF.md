@@ -260,7 +260,7 @@ cannot hold a parallel vacuum of the large tables.
   no cache; they are the first reads to cross 200 ms as a company grows past a million records.
 - Writes, imports, exports, many tenants and a browser are unmeasured.
 
-## 8. What sharing rate limits costs (ADR-0050)
+## 8. What sharing rate limits costs (ADR-0053)
 
 Every request now makes one or two Redis calls (the address, and for a signed-in request the user and tenant
 together). The same traffic was run against the 1M-contact database with the counters in the API process and with

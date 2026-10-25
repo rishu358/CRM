@@ -304,7 +304,7 @@ are out of scope (ADR-0032).
 - [x] Deploy artifacts: Dockerfile (api, worker, web, migrate), production compose and Caddy examples, production env template, Resend email adapter through the guarded client. (`deploy/`)
 - [ ] Actual production deployment and pilot onboarding (out of scope for Module B).
 
-**Acceptance (rate limits, ADR-0050)**
+**Acceptance (rate limits, ADR-0053)**
 
 - [x] A rate limit means the same however many API instances run: per user, per tenant, per address and on the sign-in routes are counted in Redis. (`rate-limit.shared.security.spec.ts`, two instances on one Redis)
 - [x] The per-user limit is per user, not per address; a refused request is a `429` with `Retry-After`, not a 500. (`rate-limit.security.spec.ts`)

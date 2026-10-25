@@ -33,7 +33,7 @@ import { STORAGE_PROVIDER } from './storage/storage.tokens.js';
     FieldMetadataService,
     ActorRateLimitService,
     AddressRateLimitService,
-    // Redis when REDIS_URL is set, this process's own counts when it is not (ADR-0050). Every rate limit
+    // Redis when REDIS_URL is set, this process's own counts when it is not (ADR-0053). Every rate limit
     // spends from this one counter.
     {
       provide: RATE_LIMIT_COUNTER,

@@ -74,7 +74,7 @@ export async function createApp(env: ApiEnv = loadApiEnv()): Promise<NestFastify
     runWithRequestContext(context, done);
   });
 
-  // The pre-authentication ceiling per address (CLAUDE.md §5.14, ADR-0050). The per-user and per-tenant
+  // The pre-authentication ceiling per address (CLAUDE.md §5.14, ADR-0053). The per-user and per-tenant
   // limits are checked by the auth guard, once the session has said who is asking; this is the only one
   // that can apply to a request with no valid session. It runs after the request context so a refusal
   // carries a request id, and not for the health route, which a load balancer polls and which must keep
