@@ -274,6 +274,31 @@ describe('at most sixty custom fields per object', () => {
     });
   }, 60_000);
 
+  /**
+   * Waits until a second transaction is queued behind the cap's advisory lock.
+   *
+   * The handover used to be `sleep(600)` and the hope that the other transaction had got that far.
+   * A sleep long enough on an idle machine is not long enough on a loaded one, and the test then
+   * reports the machine rather than the lock. The key is the one migration 0019 takes; `pg_locks`
+   * reports a 64-bit advisory key as its two halves.
+   */
+  async function waitUntilQueuedBehindTheCap(tenantId: string, objectType: string): Promise<void> {
+    const key = `field-cap:${tenantId}:${objectType}`;
+    for (;;) {
+      const waiting = await superuser.query<{ n: number }>(
+        `select count(*)::int as n
+           from pg_locks
+          where locktype = 'advisory'
+            and not granted
+            and classid = ((hashtextextended($1, 0) >> 32) & 4294967295)::oid
+            and objid = (hashtextextended($1, 0) & 4294967295)::oid`,
+        [key],
+      );
+      if ((waiting.rows[0]?.n ?? 0) > 0) return;
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+  }
+
   it('holds under concurrency: an administrator who counts 59 while another is mid-insert waits, and then finds 60', async () => {
     const t = (await db.fixtures.createTenant({ name: 'Race Traders' })).tenantId;
     for (let n = 0; n < 59; n += 1) await addCustom(t, 'contact', `f${n}`);
@@ -285,23 +310,30 @@ describe('at most sixty custom fields per object', () => {
     const gate = new Promise<void>((resolve) => {
       release = resolve;
     });
-    const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+    let taken!: () => void;
+    const sixtiethTaken = new Promise<void>((resolve) => {
+      taken = resolve;
+    });
 
     const first = asApp(t, async (tx) => {
       await tx.execute(
         sql`insert into field_definitions (id, tenant_id, object_type, key, label, type)
             values (${newId()}::uuid, ${t}::uuid, 'contact', 'racer_a', 'A', 'text')`,
       );
+      taken();
       await gate;
     });
-    await sleep(300);
+    // Racing `first` so that a failure in it is reported as itself, not as a hang.
+    await Promise.race([sixtiethTaken, first]);
     const second = captureDbError(() => addCustom(t, 'contact', 'racer_b'));
-    await sleep(600);
+    await waitUntilQueuedBehindTheCap(t, 'contact');
     release();
     await first;
 
     const error = await second;
-    expect(error.code).toBe(CHECK_VIOLATION);
+    // The whole captured error, so that a connection-level failure says so rather than
+    // appearing as an absent SQLSTATE.
+    expect(error).toMatchObject({ code: CHECK_VIOLATION });
     const count = await superuser.query(
       `select count(*)::int as n from field_definitions where tenant_id = $1 and object_type = 'contact'`,
       [t],
