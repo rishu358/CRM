@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
 import { runMigrations } from './migrator.js';
+import { closePool } from './pool-close.js';
 import { Fixtures } from './testing/index.js';
 import { packageRootFrom } from './package-root.js';
 
@@ -99,9 +100,13 @@ beforeAll(async () => {
 }, 180_000);
 
 afterAll(async () => {
-  await pool.end();
-  await admin.query(`drop database if exists ${DATABASE} with (force)`);
-  await admin.end();
+  // Wait for the connections to be gone, then drop without `with (force)`. `pool.end()` resolves
+  // before the backends have exited, and forcing the drop terminates them mid-close, which the
+  // dying client reports as an unhandled `57P01` that fails a run in which every test passed
+  // (ADR-0054). Without force, a connection a test forgot to close fails here and says so.
+  await closePool(pool);
+  await admin.query(`drop database if exists ${DATABASE}`);
+  await closePool(admin);
   rmSync(beforeDir, { recursive: true, force: true });
   rmSync(throughDir, { recursive: true, force: true });
 });

@@ -222,6 +222,7 @@ export const en = {
   'auth.password': 'Password',
   'auth.submit': 'Sign in',
   'auth.signOut': 'Sign out',
+  'auth.sessionEnded': 'Your session has ended. Sign in again to continue.',
   'auth.forgot': 'Forgot your password?',
   'auth.noAccount': 'New here?',
   'auth.createAccount': 'Create an account',

@@ -23,7 +23,7 @@
 ## 1. Who these terms are between
 
 These Terms of Service (the "**Terms**") are an agreement between
-**[TO BE CONFIRMED: full legal entity name, CIN/LLPIN, registered address]**
+**Birab Trading LLP**, **[TO BE CONFIRMED: LLPIN and registered address]**
 ("**we**", "**us**", "**our**") and the business that creates a workspace in
 **[TO BE CONFIRMED: product name — the codebase calls it "CRM", which is a
 placeholder, not a brand]** (the "**Service**") ("**you**", "**Customer**").

@@ -85,7 +85,7 @@ const STATUS_SUMMARY: Readonly<Record<number, string>> = {
   404: 'No such record, or it is outside the caller’s tenant or visibility scope.',
   409: 'The write conflicts with the record’s current state.',
   422: 'Input failed validation at the API boundary.',
-  429: 'Rate limit exceeded. Limits are per user and per tenant, not only per IP.',
+  429: 'Rate limit exceeded. Limits are per user, per tenant and per address, shared across API instances. Wait the number of seconds in `Retry-After` and try again.',
   500: 'Unexpected failure. Quote `requestId` when reporting it.',
   503: 'The service is at capacity. Wait the number of seconds in `Retry-After` and try again.',
 };

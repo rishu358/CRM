@@ -19,3 +19,5 @@ apps/web/next-env.d.ts
 # Prettier collapses short arrays and the generator does not, so formatting it
 # here would put `format:check` and `openapi:check` in a loop neither can win.
 docs/openapi.json
+# The shared work log is untracked and lives outside git (CLAUDE.md §14.2); it is not source.
+WORK_LOG.md

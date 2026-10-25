@@ -65,13 +65,13 @@ Creating the roles needs the ability to create roles (on a managed service, its 
 
 ## 1. What runs where
 
-| Piece           | Image target    | Needs                                                                        |
-| --------------- | --------------- | ---------------------------------------------------------------------------- |
-| API             | `api`           | Postgres (`crm_app`, `crm_auth`), the object store, Resend, optionally Redis |
-| Worker          | `worker`        | Postgres (`crm_worker`, optionally `crm_erasure`), the object store, Resend  |
-| Web             | `web`           | The API (private network) and nothing else                                   |
-| Migrations      | `migrate`       | Postgres as `crm_migrator`. A one-shot job, not a service                    |
-| TLS and routing | Caddy (example) | Ports 80 and 443                                                             |
+| Piece           | Image target    | Needs                                                                       |
+| --------------- | --------------- | --------------------------------------------------------------------------- |
+| API             | `api`           | Postgres (`crm_app`, `crm_auth`), the object store, Resend, Redis (§4.1)    |
+| Worker          | `worker`        | Postgres (`crm_worker`, optionally `crm_erasure`), the object store, Resend |
+| Web             | `web`           | The API (private network) and nothing else                                  |
+| Migrations      | `migrate`       | Postgres as `crm_migrator`. A one-shot job, not a service                   |
+| TLS and routing | Caddy (example) | Ports 80 and 443                                                            |
 
 Postgres 16, Redis and the object store are **managed services**, not containers in the compose file
 (CLAUDE.md §2). `deploy/docker-compose.prod.example.yml` shows one host's layout and is an example to
@@ -171,9 +171,8 @@ machine), against 1,000,000 contacts in one company, 5.6 million search rows and
 - **When it collapses it answers `503 SERVICE_BUSY` with `Retry-After: 2`**, not a generic 500. The
   cause is the database connection pool (`DATABASE_POOL_MAX`, default 10) running out. The web
   client retries 5xx responses with backoff.
-- **Scale out, not up:** run more API instances behind the proxy. **Until rate limits move to Redis
-  each instance counts its own**, so the effective limit is the configured one times the number of
-  instances (the API logs a warning at startup when `REDIS_URL` is unset). Setting
+- **Scale out, not up:** run more API instances behind the proxy. Rate limits are counted in Redis,
+  so they hold across instances (§4.1). Setting
   `DATABASE_POOL_MAX` higher helps only if Postgres has the connections to give: size the database's
   `max_connections` to instances x pool.
 - A single slow endpoint can still consume the pool. Search was the case that did (3 to 31 seconds
@@ -184,6 +183,46 @@ machine), against 1,000,000 contacts in one company, 5.6 million search rows and
 Alert on: API 5xx rate; `SERVICE_BUSY` count; p95 latency per route; Postgres connections near
 `max_connections`; outbox backlog (rows in `outbox_events` with `processed_at` null and a due time in
 the past); disk on the database volume.
+
+### 4.1 Rate limits and Redis
+
+Four limits are counted, all in Redis, so each means the same however many API instances run (ADR-0042):
+
+| Limit          | Setting (default)                                | Applies to                                          |
+| -------------- | ------------------------------------------------ | --------------------------------------------------- |
+| Per user       | `RATE_LIMIT_MAX_PER_USER` (300 per window)       | A signed-in person, from any address                |
+| Per tenant     | `RATE_LIMIT_MAX_PER_TENANT` (3,000 per window)   | Everyone in one workspace together                  |
+| Per address    | `RATE_LIMIT_MAX_PER_IP` (1,000 per window)       | Everything one address sends, signed in or not      |
+| Sign-in routes | `AUTH_RATE_LIMIT_MAX_PER_IP` (50 per 15 minutes) | Sign-in, sign-up, reset and invitation, per address |
+
+The window is `RATE_LIMIT_WINDOW_SECONDS` (60). `/api/v1/health` is not limited. A refused request is a `429` with a
+`Retry-After` header; its message says whose budget it is ("this workspace", "you", "this address") and nothing else.
+
+**What the Redis needs.**
+
+- A password and TLS (`rediss://`), on a private network. Production refuses a `REDIS_URL` with no password or on
+  this machine, and warns on an unencrypted one.
+- **No eviction of counters.** Use `maxmemory-policy noeviction` or a `volatile-*` policy, never `allkeys-*`: an evicted
+  counter silently resets a limit. It may be shared with other things (keys are `crm:rl:v1:*`), but not with a cache that
+  evicts.
+- Very little memory: one small key per active user, workspace and address per window.
+
+**When Redis is down** the API keeps serving and keeps limiting, per process, and logs one warning every 30 seconds
+(`Redis is not answering: rate limits are per process until it is`) and one line when it is back (`Redis is answering again`).
+While it is down each instance counts alone, so N instances allow up to N times a limit. There is nothing to replay and
+nothing to restart: instances reconnect by themselves and the limits are shared again within a few seconds.
+
+**One instance and no Redis.** Production refuses to start without `REDIS_URL`. If exactly one API instance runs and you
+accept per-process counting, set `RATE_LIMIT_ALLOW_PER_PROCESS=true`; it starts and warns on every boot. Do not set it
+and then add a second instance.
+
+**Someone is being refused and should not be.** The message says which limit it was. Raise the setting and restart the
+API, or clear one subject's counter (keys are `crm:rl:v1:user:<user id>`, `…:tenant:<tenant id>`, `…:ip:<address>`,
+`…:auth-ip:<address>`):
+
+```bash
+redis-cli --scan --pattern 'crm:rl:v1:user:<user id>' | xargs -r redis-cli del
+```
 
 ## 5. Backups and recovery
 
@@ -322,7 +361,8 @@ env file; `.dockerignore` and `.gitignore` both exclude them.
 
 ## 8. Known gaps (so nobody is surprised)
 
-- **Rate limits are per process** until they move to Redis; scale-out multiplies them.
+- **Rate limits are fixed windows**, so a caller can send up to twice the limit across a window boundary.
+  While Redis is unreachable each API instance counts alone (§4.1), so N instances allow up to N times the limit.
 - **`AUTH_SECRET` rotation needs the procedure in [SECRETS.md](SECRETS.md)** (the old key kept as `AUTH_SECRET_PREVIOUS` until `pnpm auth:rotate-keys` has run). Changing it without that makes enrolled authenticators unreadable.
 - **A list's search matches words by their start, not substrings, and shows at most the 300 most
   recently updated matches** (ADR-0041 §5); an export of a search refuses more than 5,000.
