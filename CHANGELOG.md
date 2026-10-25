@@ -64,6 +64,15 @@ a working version, and the first tag will be cut from a green `master` (see
   and are upgraded at their owner's next successful sign-in, never overwriting a password changed in the
   meantime. Cost is configurable (`PASSWORD_HASH_MEMORY_KIB`, `PASSWORD_HASH_PASSES`,
   `PASSWORD_HASH_PARALLELISM`) with floors at the OWASP minimum, and raising it upgrades hashes the same way.
+- **`pnpm run setup` (ADR-0051):** one command from a fresh clone to a running local stack: checks Node, pnpm and
+  Docker, creates `.env` with a generated `AUTH_SECRET`, starts the services, migrates, creates the demo
+  workspace (first run only) and builds. Safe to repeat, never overwrites `.env`, never prints a secret, and has a
+  `--check` mode that changes nothing. Zero dependencies. `--minimal` creates one empty workspace with one owner
+  (a generated password, shown once) instead of the demo company; `pnpm db:seed -- --minimal` does the same.
+- **A local mail inbox (Mailpit):** `pnpm infra:up` now also starts Mailpit, pinned by digest, and `.env.example`
+  points development email at it over SMTP, so verification and reset links arrive in an inbox at
+  http://localhost:18025 instead of the API log. `EMAIL_PROVIDER=console` still works. Plain-text SMTP stays
+  refused in production.
 
 ### Security
 

@@ -550,9 +550,9 @@ export const REGISTRY = {
       requirement: 'production',
       description:
         'How outgoing mail is sent. `console` prints the message, links included, to the log; `memory` keeps messages in memory for the test suite; `resend` sends through Resend; `ses` sends through Amazon SES; `smtp` sends through an SMTP server.',
-      local: 'console',
+      local: 'smtp',
       example: 'resend',
-      note: '`console` and `memory` are refused when `NODE_ENV=production`, so a deployment that forgot to configure a real provider fails loudly instead of writing reset links into a log file.',
+      note: 'Local development uses `smtp` into the Mailpit inbox that `pnpm infra:up` starts (docs/PROVIDERS.md); set `console` to print messages to the API log instead. `console` and `memory` are refused when `NODE_ENV=production`, so a deployment that forgot to configure a real provider fails loudly instead of writing reset links into a log file.',
     },
     { values: ['console', 'memory', 'resend', 'ses', 'smtp'], default: 'console' },
   ),
@@ -636,6 +636,7 @@ export const REGISTRY = {
       group: 'email',
       requirement: 'production',
       description: 'The SMTP server mail is sent through. Required when `EMAIL_PROVIDER=smtp`.',
+      local: 'localhost',
       example: 'smtp.mail.example.com',
       note: 'A host name or address, chosen by the operator: it is never taken from a request, so a server on a private network is fine.',
     },
@@ -647,6 +648,7 @@ export const REGISTRY = {
       group: 'email',
       description:
         'The SMTP server port: 587 for `starttls`, 465 for `tls`, 25 or a local inbox port for `none`.',
+      local: '11025',
       example: '587',
     },
     { default: 587, sign: 'positive' },

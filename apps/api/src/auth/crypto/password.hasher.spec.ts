@@ -124,8 +124,14 @@ describe('what it will not be fooled by', () => {
 
   it('refuses a tag with one character changed', async () => {
     const hash = await hasher.hash(PASSWORD);
-    const last = hash.slice(-1) === 'A' ? 'B' : 'A';
-    expect(await hasher.verify(hash.slice(0, -1) + last, PASSWORD)).toBe(false);
+    // The tag is 32 bytes, so its last base64 character carries only four significant bits and
+    // four different characters there decode to the same bytes. Change the first character,
+    // where all six bits count, so this fails the same way on every run.
+    const tagStart = hash.lastIndexOf('$') + 1;
+    const first = hash[tagStart] === 'A' ? 'B' : 'A';
+    expect(
+      await hasher.verify(hash.slice(0, tagStart) + first + hash.slice(tagStart + 1), PASSWORD),
+    ).toBe(false);
   });
 });
 

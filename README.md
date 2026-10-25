@@ -11,12 +11,23 @@ Requires Node 24.7 or later, pnpm 9, and Docker.
 
 ```bash
 pnpm install
-cp .env.example .env
-pnpm infra:up          # Postgres on 15432, Redis on 16379, MinIO on 19000 (+ creates the bucket)
+pnpm run setup         # checks the machine, creates .env, starts the services, migrates, seeds, builds
+pnpm dev               # web :3000, api :3001, worker
+```
+
+Use `pnpm run setup`, not `pnpm setup`: the latter is a built-in pnpm command that configures pnpm itself.
+`pnpm run setup -- --check` only checks Node, pnpm, Docker and `.env`, and changes nothing. It is safe to run
+again: it never overwrites `.env`, and it creates the demo workspace on the first run only
+([ADR-0051](docs/adr/0051-setup-command.md)).
+
+To do the same by hand:
+
+```bash
+cp .env.example .env   # then set AUTH_SECRET to `openssl rand -base64 48`
+pnpm infra:up          # Postgres 15432, Redis 16379, MinIO 19000 (+ bucket), Mailpit 11025/18025
 pnpm db:migrate
 pnpm db:seed           # prints sign-in credentials for the demo users
 pnpm build             # shared packages compile to dist; apps resolve them from there
-pnpm dev               # web :3000, api :3001, worker
 ```
 
 Then open http://localhost:3000/sign-in and use one of the addresses the seed
@@ -25,8 +36,9 @@ printed, with the password it printed alongside them. Signing in as the
 record scope working end to end.
 
 Sign-up, email verification, password reset and TOTP two-factor all work from
-the UI. Verification and reset emails are not delivered in development — the
-console email provider prints them, links included, to the API's log.
+the UI. Verification and reset emails are not delivered anywhere in development:
+they arrive in a local inbox (Mailpit) at http://localhost:18025, links included.
+Set `EMAIL_PROVIDER=console` in `.env` to have them printed to the API's log instead.
 
 Google sign-in is built but switched off until `GOOGLE_CLIENT_ID` and
 `GOOGLE_CLIENT_SECRET` are set; without them those two endpoints return 404.

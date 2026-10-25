@@ -598,7 +598,7 @@ How outgoing mail is sent. `console` prints the message, links included, to the 
 - **Default:** `console`
 - **Values:** `console`, `memory`, `resend`, `ses`, `smtp`
 
-`console` and `memory` are refused when `NODE_ENV=production`, so a deployment that forgot to configure a real provider fails loudly instead of writing reset links into a log file.
+Local development uses `smtp` into the Mailpit inbox that `pnpm infra:up` starts (docs/PROVIDERS.md); set `console` to print messages to the API log instead. `console` and `memory` are refused when `NODE_ENV=production`, so a deployment that forgot to configure a real provider fails loudly instead of writing reset links into a log file.
 
 ### `EMAIL_FROM`
 
