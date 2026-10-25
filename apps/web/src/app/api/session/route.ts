@@ -1,6 +1,7 @@
 import { cookies } from 'next/headers';
 import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
+import { clientAddressHeaders } from '../../../lib/client-address';
 import { webEnv } from '../../../lib/env';
 
 /**
@@ -134,7 +135,12 @@ export async function POST(request: NextRequest) {
 
   const env = webEnv();
   const body = parsed.data;
-  const headers: Record<string, string> = { 'content-type': 'application/json' };
+  // The address the front proxy saw, so the API's sign-in limit is about the person, not this server
+  // (ADR-0053).
+  const headers: Record<string, string> = {
+    'content-type': 'application/json',
+    ...clientAddressHeaders(request.headers),
+  };
 
   // Changing a password is the one action here that needs an existing
   // session: the API re-checks the current password against it.
@@ -225,7 +231,7 @@ export async function DELETE(request: NextRequest) {
   if (token !== undefined) {
     await fetch(new URL('/api/v1/auth/sign-out', env.API_URL), {
       method: 'POST',
-      headers: { authorization: `Bearer ${token}` },
+      headers: { authorization: `Bearer ${token}`, ...clientAddressHeaders(request.headers) },
       cache: 'no-store',
     }).catch(() => undefined);
   }

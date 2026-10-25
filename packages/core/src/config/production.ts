@@ -48,6 +48,11 @@ export interface ProductionConfigInput {
   /** Connection strings by the variable that holds them. */
   readonly databaseUrls?: Readonly<Record<string, string | undefined>>;
   readonly redisUrl?: string | undefined;
+  /**
+   * The operator's explicit statement that exactly one API instance runs, so counting rate limits
+   * in that process is complete. Without it a missing `REDIS_URL` is a reason not to start.
+   */
+  readonly perProcessRateLimitsAllowed?: boolean | undefined;
 }
 
 export interface ProductionConfigReport {
@@ -107,6 +112,39 @@ function checkPublicUrl(name: string, value: string | undefined, problems: strin
   }
   if (url.protocol !== 'https:') problems.push(`${name} must be https in production`);
   if (isLocalHost(url.hostname)) problems.push(`${name} points at this machine`);
+}
+
+/**
+ * Rate limits are shared through Redis (ADR-0053). Without it each API instance counts alone, so N
+ * instances allow N times the limit. That is acceptable for exactly one instance and a quiet failure
+ * for any other number, so it is refused unless the operator says it is one.
+ */
+function checkRedis(input: ProductionConfigInput, problems: string[], warnings: string[]): void {
+  const value = input.redisUrl;
+  if (value === undefined || value === '') {
+    const effect =
+      'REDIS_URL is not set: rate limits are counted per process, so N API instances allow N times the limit';
+    if (input.perProcessRateLimitsAllowed === true) {
+      warnings.push(`${effect} (allowed by RATE_LIMIT_ALLOW_PER_PROCESS)`);
+    } else {
+      problems.push(
+        `${effect}; set REDIS_URL, or set RATE_LIMIT_ALLOW_PER_PROCESS=true if exactly one API instance runs`,
+      );
+    }
+    return;
+  }
+  const url = parseUrl(value);
+  if (url === null || (url.protocol !== 'redis:' && url.protocol !== 'rediss:')) {
+    problems.push('REDIS_URL is not a redis:// or rediss:// URL');
+    return;
+  }
+  if (decodeURIComponent(url.password) === '') problems.push('REDIS_URL has no password');
+  if (isLocalHost(url.hostname)) problems.push('REDIS_URL points at this machine');
+  if (url.protocol === 'redis:' && !isLocalHost(url.hostname)) {
+    warnings.push(
+      'REDIS_URL is not encrypted (redis://): use rediss:// unless the network is private',
+    );
+  }
 }
 
 function checkDatabaseUrl(name: string, value: string, problems: string[]): void {
@@ -226,11 +264,8 @@ export function productionConfigProblems(input: ProductionConfigInput): Producti
     if (value !== undefined && value !== '') checkDatabaseUrl(name, value, problems);
   }
 
-  if (input.redisUrl === undefined || input.redisUrl === '') {
-    warnings.push(
-      'REDIS_URL is not set: rate limits are counted per process, so each API instance has its own',
-    );
-  }
+  // Only the API counts rate limits; the worker serves no requests.
+  if (api) checkRedis(input, problems, warnings);
 
   return { problems, warnings };
 }

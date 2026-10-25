@@ -51,6 +51,7 @@ function productionInput(env: ApiEnv): ProductionConfigInput {
     corsOrigins: env.CORS_ORIGINS,
     databaseUrls: { DATABASE_URL: env.DATABASE_URL, DATABASE_AUTH_URL: env.DATABASE_AUTH_URL },
     redisUrl: env.REDIS_URL,
+    perProcessRateLimitsAllowed: env.RATE_LIMIT_ALLOW_PER_PROCESS,
   };
 }
 

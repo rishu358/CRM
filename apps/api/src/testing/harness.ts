@@ -164,8 +164,10 @@ export async function request(
     body?: unknown;
     /** Extra request headers, e.g. `Idempotency-Key`. */
     headers?: Record<string, string> | undefined;
+    /** The caller's address, for a test about limits that depend on where a request comes from. */
+    remoteAddress?: string | undefined;
   },
-): Promise<{ status: number; body: Record<string, unknown> }> {
+): Promise<{ status: number; body: Record<string, unknown>; headers: Record<string, string> }> {
   const headers: Record<string, string> = { ...(options.headers ?? {}) };
   // Only declare a JSON body when there is one: Fastify rejects a request that
   // announces application/json and then sends nothing, which would turn every
@@ -181,6 +183,7 @@ export async function request(
       method: options.method,
       url: options.url,
       headers,
+      ...(options.remoteAddress === undefined ? {} : { remoteAddress: options.remoteAddress }),
       ...(options.body === undefined ? {} : { payload: JSON.stringify(options.body) }),
     });
 
@@ -192,7 +195,10 @@ export async function request(
       body = { raw: response.payload };
     }
   }
-  return { status: response.statusCode, body };
+  const responseHeaders = Object.fromEntries(
+    Object.entries(response.headers).map(([name, value]) => [name, String(value)]),
+  );
+  return { status: response.statusCode, body, headers: responseHeaders };
 }
 
 /**
