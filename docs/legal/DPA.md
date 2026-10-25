@@ -26,7 +26,7 @@
 This Data Processing Agreement (this "**DPA**") forms part of the
 [Terms of Service](TERMS_OF_SERVICE.md) (the "**Agreement**") between:
 
-- **[TO BE CONFIRMED: full legal entity name, CIN/LLPIN, registered address]**
+- **Birab Trading LLP**, **[TO BE CONFIRMED: LLPIN and registered address]**
   ("**Provider**", "we", "us"), and
 - the customer identified in the Agreement ("**Customer**", "you").
 

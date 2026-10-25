@@ -217,7 +217,7 @@ who can answer them. **None of them was guessed.**
 
 | #   | Item                                                                                                                                           | Appears in                             |
 | --- | ---------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- |
-| A1  | Full legal entity name, CIN/LLPIN, and registered address                                                                                      | All three                              |
+| A1  | LLPIN and registered address of Birab Trading LLP (the entity name was confirmed by the owner on 2026-10-25)                                                                                      | All three                              |
 | A2  | Product name and brand (currently the placeholder "CRM")                                                                                       | All three                              |
 | A3  | Grievance Officer: name, designation, email, postal address, telephone                                                                         | Privacy Policy §1, §11.3, §18; ToS §15 |
 | A4  | Whether the data-protection contact under DPDP §8(9) is the same person                                                                        | Privacy Policy §1                      |
