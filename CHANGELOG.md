@@ -73,6 +73,10 @@ a working version, and the first tag will be cut from a green `master` (see
   points development email at it over SMTP, so verification and reset links arrive in an inbox at
   http://localhost:18025 instead of the API log. `EMAIL_PROVIDER=console` still works. Plain-text SMTP stays
   refused in production.
+- **Handover documentation (ADR-0052):** `docs/README.md` indexes the documents by what the reader is doing,
+  with new `ARCHITECTURE.md`, `SETUP.md`, `DEPLOYMENT.md` and `HANDOVER.md` (what changes hands, what to do first,
+  what was and was not verified). `scripts/check-docs.mjs` fails CI on a link to a file or heading that does not
+  exist or a quoted `pnpm` command that is not a script; it found and fixed two wrong commands in the spec.
 
 ### Security
 

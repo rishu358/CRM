@@ -59,3 +59,4 @@ supersedes the old one and update the old one's **Status** to
 | [0049](0049-key-ids-and-rotating-auth-secret.md)                 | Key ids, and rotating AUTH_SECRET without losing authenticators               | Accepted |
 | [0050](0050-argon2id-password-hashing.md)                        | Argon2id password hashing, on Node's own implementation                       | Accepted |
 | [0051](0051-setup-command.md)                                    | The setup command: one idempotent step from clone to running stack            | Accepted |
+| [0052](0052-documentation-set-and-its-checker.md)                | The handover documentation set, and the checker that keeps it true            | Accepted |
