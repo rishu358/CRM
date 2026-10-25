@@ -1,8 +1,10 @@
 import { generateInvitationToken, hashOneTimeToken, newId, TOKEN_TTL_SECONDS } from '@crm/core';
 // From `@better-auth/utils`, not `better-auth`: it is the same scrypt
-// implementation the API uses (ADR-0017) without the full package's
-// drizzle-orm peer, which would give this workspace a second copy of Drizzle
-// and a wall of SQL<unknown> type errors.
+// implementation the API still verifies for hashes from before Argon2id (ADR-0017),
+// without the full package's drizzle-orm peer, which would give this workspace a second
+// copy of Drizzle and a wall of SQL<unknown> type errors. The demo users' hashes are
+// therefore in the old format, and are upgraded to Argon2id at each one's first sign-in
+// (ADR-0050).
 import { hashPassword } from '@better-auth/utils/password';
 import { eq, sql } from 'drizzle-orm';
 import { createDbClient, withTenant } from './client.js';
@@ -97,8 +99,9 @@ try {
 
   // 3. People, as crm_auth — with real, already-verified credentials, so the
   //    demo signs in through the same flow a customer does. The password is
-  //    hashed by the same function the API uses (ADR-0017); a second
-  //    implementation here would be one more thing that can quietly disagree.
+  //    hashed in the format the API still accepts from before Argon2id
+  //    (ADR-0017, ADR-0050), which the API upgrades on first sign-in; a second
+  //    Argon2id implementation here would be one more thing that can quietly disagree.
   const passwordHash = await hashPassword(DEMO_PASSWORD);
 
   for (const [userId, roleId, name, email] of [
