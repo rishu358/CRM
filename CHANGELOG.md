@@ -59,6 +59,11 @@ a working version, and the first tag will be cut from a green `master` (see
   re-encrypts what is stored (safe to repeat, safe while serving, `--dry-run` to look first). `docs/SECRETS.md`
   lists every secret and how to rotate it, with a test that fails if a secret is missing from it. Rotating
   `AUTH_SECRET` never signed anyone out, contrary to what the runbook said; a test now proves it.
+- **Argon2id password hashing (ADR-0050):** new passwords are hashed with Argon2id using Node's built-in
+  `crypto.argon2` (no new dependency; Node 24.7 or later is now required). Existing scrypt hashes keep working
+  and are upgraded at their owner's next successful sign-in, never overwriting a password changed in the
+  meantime. Cost is configurable (`PASSWORD_HASH_MEMORY_KIB`, `PASSWORD_HASH_PASSES`,
+  `PASSWORD_HASH_PARALLELISM`) with floors at the OWASP minimum, and raising it upgrades hashes the same way.
 
 ### Security
 

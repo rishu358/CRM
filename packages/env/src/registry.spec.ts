@@ -58,7 +58,14 @@ describe('the registry', () => {
     // A credential not marked secret would be printed in logs and written into the docs.
     const credential = /(SECRET|PASSWORD|API_KEY|ACCESS_KEY)/;
     const credentialUrl = /^(DATABASE|REDIS|PERF_ADMIN)_.*URL$/;
+    // Cost settings for hashing passwords: whole numbers about the algorithm, not a password.
+    const notCredentials = new Set([
+      'PASSWORD_HASH_MEMORY_KIB',
+      'PASSWORD_HASH_PASSES',
+      'PASSWORD_HASH_PARALLELISM',
+    ]);
     for (const [name, def] of all) {
+      if (notCredentials.has(name)) continue;
       if (credential.test(name) || credentialUrl.test(name)) {
         expect(def.secret, `${name} should be marked secret`).toBe(true);
       }

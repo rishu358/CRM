@@ -7,7 +7,7 @@ Priorities, in order: **Security → Correctness → Speed/UX → Features.**
 
 ## Getting started
 
-Requires Node 24+, pnpm 9, and Docker.
+Requires Node 24.7 or later, pnpm 9, and Docker.
 
 ```bash
 pnpm install

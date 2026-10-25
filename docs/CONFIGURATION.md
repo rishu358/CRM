@@ -73,6 +73,9 @@ always wins over the file.
 | [`DATABASE_CA_CERT`](#database_ca_cert)                               | api, worker, db            | no            | no     |
 | [`AUTH_SECRET`](#auth_secret)                                         | api                        | yes           | yes    |
 | [`AUTH_SECRET_PREVIOUS`](#auth_secret_previous)                       | api                        | no            | yes    |
+| [`PASSWORD_HASH_MEMORY_KIB`](#password_hash_memory_kib)               | api                        | no            | no     |
+| [`PASSWORD_HASH_PASSES`](#password_hash_passes)                       | api                        | no            | no     |
+| [`PASSWORD_HASH_PARALLELISM`](#password_hash_parallelism)             | api                        | no            | no     |
 | [`SESSION_COOKIE_NAME`](#session_cookie_name)                         | api, web                   | no            | no     |
 | [`SESSION_TTL_DAYS`](#session_ttl_days)                               | api, web                   | no            | no     |
 | [`AUTH_RATE_LIMIT_WINDOW_SECONDS`](#auth_rate_limit_window_seconds)   | api                        | no            | no     |
@@ -444,6 +447,39 @@ Earlier `AUTH_SECRET` values that stored data may still be encrypted with, newes
 - **Where to get it:** The value `AUTH_SECRET` had before you changed it. See docs/SECRETS.md.
 
 Leave unset except during a rotation: deploy the new `AUTH_SECRET` with the old one here, run `pnpm auth:rotate-keys`, then remove this. Each key must be at least 32 characters, and at most three are accepted.
+
+### `PASSWORD_HASH_MEMORY_KIB`
+
+Argon2id memory cost for new password hashes, in KiB. Every sign-in and every password change uses this much memory for about a tenth of a second.
+
+- **Used by:** api
+- **Required:** no
+- **Secret:** no
+- **Default:** `19456`
+
+The default and the floor are 19 MiB, the OWASP minimum for Argon2id with two passes. Raise it as hardware allows: an existing password is re-hashed at the new setting the next time its owner signs in. Allow this much memory times the number of simultaneous sign-ins (the thread pool caps that at four by default).
+
+### `PASSWORD_HASH_PASSES`
+
+Argon2id passes (time cost) for new password hashes.
+
+- **Used by:** api
+- **Required:** no
+- **Secret:** no
+- **Default:** `2`
+
+The default and the floor are 2. Raise it to make each hash slower; existing passwords are re-hashed at the new setting on their owner's next sign-in.
+
+### `PASSWORD_HASH_PARALLELISM`
+
+Argon2id parallelism (lanes) for new password hashes.
+
+- **Used by:** api
+- **Required:** no
+- **Secret:** no
+- **Default:** `1`
+
+One lane keeps a hash on one thread, so a burst of sign-ins cannot starve the rest of the process.
 
 ### `SESSION_COOKIE_NAME`
 

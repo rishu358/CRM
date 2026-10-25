@@ -419,6 +419,37 @@ export const REGISTRY = {
     },
     { min: 1 },
   ),
+  PASSWORD_HASH_MEMORY_KIB: defaultedInt(
+    {
+      scopes: ['api'],
+      group: 'auth',
+      description:
+        'Argon2id memory cost for new password hashes, in KiB. Every sign-in and every password change uses this much memory for about a tenth of a second.',
+      example: '19456',
+      note: 'The default and the floor are 19 MiB, the OWASP minimum for Argon2id with two passes. Raise it as hardware allows: an existing password is re-hashed at the new setting the next time its owner signs in. Allow this much memory times the number of simultaneous sign-ins (the thread pool caps that at four by default).',
+    },
+    { default: 19456, sign: 'positive', min: 19456, max: 1048576 },
+  ),
+  PASSWORD_HASH_PASSES: defaultedInt(
+    {
+      scopes: ['api'],
+      group: 'auth',
+      description: 'Argon2id passes (time cost) for new password hashes.',
+      example: '2',
+      note: "The default and the floor are 2. Raise it to make each hash slower; existing passwords are re-hashed at the new setting on their owner's next sign-in.",
+    },
+    { default: 2, sign: 'positive', min: 2, max: 10 },
+  ),
+  PASSWORD_HASH_PARALLELISM: defaultedInt(
+    {
+      scopes: ['api'],
+      group: 'auth',
+      description: 'Argon2id parallelism (lanes) for new password hashes.',
+      example: '1',
+      note: 'One lane keeps a hash on one thread, so a burst of sign-ins cannot starve the rest of the process.',
+    },
+    { default: 1, sign: 'positive', max: 8 },
+  ),
   SESSION_COOKIE_NAME: defaultedText(
     {
       scopes: ['api', 'web'],
