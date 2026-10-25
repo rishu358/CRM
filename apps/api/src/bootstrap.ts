@@ -9,7 +9,6 @@ import { DomainErrorFilter } from './common/domain-error.filter.js';
 import { createLogger } from './common/logger.js';
 import { runWithRequestContext, type RequestContext } from './common/request-context.js';
 import { corsOrigins, loadApiEnv, previousAuthSecrets, type ApiEnv } from './config/env.js';
-import type { AuthenticatedRequest } from './auth/auth.guard.js';
 import { AddressRateLimitService } from './platform/rate-limit.service.js';
 
 /**
