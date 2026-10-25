@@ -59,3 +59,6 @@ supersedes the old one and update the old one's **Status** to
 | [0049](0049-key-ids-and-rotating-auth-secret.md)                 | Key ids, and rotating AUTH_SECRET without losing authenticators               | Accepted |
 | [0050](0050-argon2id-password-hashing.md)                        | Argon2id password hashing, on Node's own implementation                       | Accepted |
 | [0051](0051-setup-command.md)                                    | The setup command: one idempotent step from clone to running stack            | Accepted |
+| [0053](0053-shared-rate-limits.md)                               | Rate limits are counted in Redis, once, for every API instance                | Accepted |
+| [0054](0054-database-test-suite-isolation-and-teardown.md)       | Isolation, teardown and resource budget in the database test suite            | Accepted |
+| [0055](0055-ended-sessions-send-the-person-to-sign-in.md)        | A session that has ended sends the person to the sign-in screen               | Accepted |

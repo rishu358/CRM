@@ -2,6 +2,7 @@ import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { sql } from 'drizzle-orm';
 import pg from 'pg';
 import * as schema from './schema/index.js';
+import { closePool } from './pool-close.js';
 import { poolConnectionConfig } from './tls.js';
 
 /**
@@ -61,7 +62,7 @@ export function createDbClient(options: DbClientOptions): DbClient {
   return {
     db,
     pool,
-    close: () => pool.end(),
+    close: () => closePool(pool),
   };
 }
 

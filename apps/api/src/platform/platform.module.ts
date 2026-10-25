@@ -12,7 +12,9 @@ import { EntitlementsService } from './entitlements.service.js';
 import { OutboxService } from './outbox.service.js';
 import { OwnershipRegistry } from './ownership.registry.js';
 import { TenantClock } from './tenant-clock.service.js';
-import { TenantRateLimitService } from './rate-limit.service.js';
+import { ActorRateLimitService, AddressRateLimitService } from './rate-limit.service.js';
+import { RATE_LIMIT_COUNTER } from './rate-limit/counter.js';
+import { createRateLimitCounter } from './rate-limit/rate-limit.providers.js';
 import { SEARCH_PROVIDER } from './search/search.tokens.js';
 import { STORAGE_PROVIDER } from './storage/storage.tokens.js';
 
@@ -29,7 +31,15 @@ import { STORAGE_PROVIDER } from './storage/storage.tokens.js';
     OutboxService,
     OwnershipRegistry,
     FieldMetadataService,
-    TenantRateLimitService,
+    ActorRateLimitService,
+    AddressRateLimitService,
+    // Redis when REDIS_URL is set, this process's own counts when it is not (ADR-0053). Every rate limit
+    // spends from this one counter.
+    {
+      provide: RATE_LIMIT_COUNTER,
+      inject: [API_ENV_TOKEN],
+      useFactory: (env: ApiEnv) => createRateLimitCounter(env),
+    },
     CurrencyConverter,
     TenantClock,
     EntitlementsService,
@@ -52,7 +62,9 @@ import { STORAGE_PROVIDER } from './storage/storage.tokens.js';
     OutboxService,
     OwnershipRegistry,
     FieldMetadataService,
-    TenantRateLimitService,
+    ActorRateLimitService,
+    AddressRateLimitService,
+    RATE_LIMIT_COUNTER,
     CurrencyConverter,
     TenantClock,
     EntitlementsService,
