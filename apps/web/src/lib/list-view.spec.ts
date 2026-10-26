@@ -1,3 +1,4 @@
+import type { FieldDefinitionView } from './fields';
 import { describe, expect, it } from 'vitest';
 import { editableFields, editValue } from './bulk';
 import {
@@ -21,9 +22,9 @@ import {
 } from './selection';
 
 const system = (key: string, type = 'text', options?: { value: string; label: string }[]) =>
-  ({ key, label: key, type, isSystem: true, isActive: true, options }) as never;
+  ({ key, label: key, type, isSystem: true, isActive: true, options }) as unknown as FieldDefinitionView;
 const custom = (key: string, type: string) =>
-  ({ key, label: key, type, isSystem: false, isActive: true, writable: true }) as never;
+  ({ key, label: key, type, isSystem: false, isActive: true, writable: true }) as unknown as FieldDefinitionView;
 
 describe('what a list asks the API for', () => {
   it('builds one query string from the search, the conditions and the sort', () => {
@@ -148,7 +149,7 @@ describe('what a bulk edit offers for this person', () => {
     { ...custom('score', 'currency') },
     { ...custom('old', 'text'), isActive: false },
     { ...custom('locked', 'text'), writable: false },
-  ] as never[];
+  ] as unknown as FieldDefinitionView[];
 
   it('offers the allowed system fields they may write, and the custom fields of a type it can enter', () => {
     const keys = editableFields('contact', defs).map((field) => field.key);
@@ -169,7 +170,7 @@ describe('what a bulk edit offers for this person', () => {
         isActive: true,
         writable: true,
       },
-    ] as never[];
+    ] as unknown as FieldDefinitionView[];
     expect(editableFields('deal', dealDefs)).toEqual([]);
     const withStages = editableFields('deal', dealDefs, [{ id: 's1', name: 'Won' }]);
     expect(withStages[0]?.input).toEqual({
