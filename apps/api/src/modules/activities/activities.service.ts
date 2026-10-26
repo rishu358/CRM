@@ -36,6 +36,7 @@ import { SEARCH_PROVIDER, type ApiSearchProvider } from '../../platform/search/s
 import { DatabaseService } from '../../database/database.service.js';
 import { AuditService, diffChanges } from '../../platform/audit.service.js';
 import { FieldMetadataService } from '../../platform/field-metadata.service.js';
+import { IdempotencyService } from '../../platform/idempotency.service.js';
 import { OutboxService } from '../../platform/outbox.service.js';
 import { ActivitiesRepository } from './activities.repository.js';
 import {
@@ -77,6 +78,7 @@ export class ActivitiesService {
     @Inject(FieldMetadataService) private readonly fieldMetadata: FieldMetadataService,
     @Inject(AuditService) private readonly audit: AuditService,
     @Inject(OutboxService) private readonly outbox: OutboxService,
+    @Inject(IdempotencyService) private readonly idempotency: IdempotencyService,
     @Inject(SEARCH_PROVIDER) private readonly search: ApiSearchProvider,
   ) {}
 
@@ -150,25 +152,49 @@ export class ActivitiesService {
   }
 
   async getById(actor: Actor, id: string): Promise<SerializedActivity> {
-    assertCan(actor, 'read', { objectType: 'activity' });
-
-    return this.inTenant(actor, async (tx) => {
-      const row = await this.loadOrNotFound(tx, actor, id);
-      // Out of scope raises 404, not 403, so the endpoint cannot be used to
-      // discover that an id exists (CLAUDE.md §5.5).
-      assertCan(actor, 'read', {
-        objectType: 'activity',
-        record: await recordRefFor(tx, actor, row.assignedTo),
-      });
-
-      const fields = await this.fieldMetadata.forObject(tx, actor.tenantId, 'activity');
-      const links = await this.resolveLinks(tx, actor, [row]);
-      return serializeActivity(actor, row, fields, links.get(row.id) ?? []);
-    });
+    return this.inTenant(actor, (tx) => this.getByIdInTx(actor, tx, id));
   }
 
-  async create(actor: Actor, input: ActivityCreateInput): Promise<SerializedActivity> {
-    return this.inTenant(actor, (tx) => this.createInTx(actor, tx, input));
+  /**
+   * Read one activity inside a transaction somebody else owns, exactly as `getById` does: same
+   * permission checks, same 404 for what is out of scope, same serializer. A replayed
+   * `Idempotency-Key` re-reads the record it created through this (ADR-0060).
+   */
+  async getByIdInTx(actor: Actor, tx: Tx, id: string): Promise<SerializedActivity> {
+    assertCan(actor, 'read', { objectType: 'activity' });
+
+    const row = await this.loadOrNotFound(tx, actor, id);
+    // Out of scope raises 404, not 403, so the endpoint cannot be used to
+    // discover that an id exists (CLAUDE.md §5.5).
+    assertCan(actor, 'read', {
+      objectType: 'activity',
+      record: await recordRefFor(tx, actor, row.assignedTo),
+    });
+
+    const fields = await this.fieldMetadata.forObject(tx, actor.tenantId, 'activity');
+    const links = await this.resolveLinks(tx, actor, [row]);
+    return serializeActivity(actor, row, fields, links.get(row.id) ?? []);
+  }
+
+  async create(
+    actor: Actor,
+    input: ActivityCreateInput,
+    idempotencyKey?: string,
+  ): Promise<SerializedActivity> {
+    return this.inTenant(actor, (tx) =>
+      this.idempotency.once(
+        tx,
+        actor,
+        idempotencyKey,
+        { objectType: 'activity', action: 'create' },
+        input,
+        async () => {
+          const activity = await this.createInTx(actor, tx, input);
+          return { answer: activity, reference: { recordId: activity['id'] as string } };
+        },
+        (reference) => this.getByIdInTx(actor, tx, reference.recordId),
+      ),
+    );
   }
 
   /**

@@ -43,6 +43,7 @@ import { SEARCH_PROVIDER, type ApiSearchProvider } from '../../platform/search/s
 import { DatabaseService } from '../../database/database.service.js';
 import { AuditService, diffChanges } from '../../platform/audit.service.js';
 import { FieldMetadataService } from '../../platform/field-metadata.service.js';
+import { IdempotencyService } from '../../platform/idempotency.service.js';
 import { OutboxService } from '../../platform/outbox.service.js';
 import { AccountsService } from '../accounts/accounts.service.js';
 import { ContactsService } from '../contacts/contacts.service.js';
@@ -94,6 +95,7 @@ export class LeadsService {
     @Inject(FieldMetadataService) private readonly fieldMetadata: FieldMetadataService,
     @Inject(AuditService) private readonly audit: AuditService,
     @Inject(OutboxService) private readonly outbox: OutboxService,
+    @Inject(IdempotencyService) private readonly idempotency: IdempotencyService,
     @Inject(ContactsService) private readonly contacts: ContactsService,
     @Inject(AccountsService) private readonly accounts: AccountsService,
     @Inject(DealsService) private readonly deals: DealsService,
@@ -155,20 +157,27 @@ export class LeadsService {
   }
 
   async getById(actor: Actor, id: string): Promise<SerializedLead> {
+    return this.inTenant(actor, (tx) => this.getByIdInTx(actor, tx, id));
+  }
+
+  /**
+   * Read one lead inside a transaction somebody else owns, exactly as `getById` does: same
+   * permission checks, same 404 for what is out of scope, same serializer. A replayed
+   * `Idempotency-Key` re-reads the record it created through this (ADR-0060).
+   */
+  async getByIdInTx(actor: Actor, tx: Tx, id: string): Promise<SerializedLead> {
     assertCan(actor, 'read', { objectType: 'lead' });
 
-    return this.inTenant(actor, async (tx) => {
-      const row = await this.loadOrNotFound(tx, actor, id);
-      // Record-level check. Out of scope raises 404, not 403, so the endpoint
-      // cannot be used to discover that an id exists (CLAUDE.md §5.5).
-      assertCan(actor, 'read', {
-        objectType: 'lead',
-        record: await recordRefFor(tx, actor, row.ownerId),
-      });
-
-      const fields = await this.fieldMetadata.forObject(tx, actor.tenantId, 'lead');
-      return serializeLead(actor, row, fields);
+    const row = await this.loadOrNotFound(tx, actor, id);
+    // Record-level check. Out of scope raises 404, not 403, so the endpoint
+    // cannot be used to discover that an id exists (CLAUDE.md §5.5).
+    assertCan(actor, 'read', {
+      objectType: 'lead',
+      record: await recordRefFor(tx, actor, row.ownerId),
     });
+
+    const fields = await this.fieldMetadata.forObject(tx, actor.tenantId, 'lead');
+    return serializeLead(actor, row, fields);
   }
 
   /**
@@ -183,65 +192,88 @@ export class LeadsService {
   async create(
     actor: Actor,
     input: LeadCreateInput,
+    idempotencyKey?: string,
   ): Promise<{ lead: SerializedLead; duplicates: DuplicateMatch[] }> {
     assertCan(actor, 'create', { objectType: 'lead' });
 
-    return this.inTenant(actor, async (tx) => {
-      const fields = await this.fieldMetadata.forObject(tx, actor.tenantId, 'lead');
-      assertWritableLeadFields(actor, input, fields);
+    return this.inTenant(actor, (tx) =>
+      this.idempotency.once(
+        tx,
+        actor,
+        idempotencyKey,
+        { objectType: 'lead', action: 'create' },
+        input,
+        async () => {
+          const fields = await this.fieldMetadata.forObject(tx, actor.tenantId, 'lead');
+          assertWritableLeadFields(actor, input, fields);
 
-      const customFields = this.validateCustomFields(input.customFields ?? {}, fields, false);
-      const ownerId = this.resolveOwner(actor, input.ownerId ?? undefined);
+          const customFields = this.validateCustomFields(input.customFields ?? {}, fields, false);
+          const ownerId = this.resolveOwner(actor, input.ownerId ?? undefined);
 
-      const row = await this.repository.insert(tx, {
-        id: newId(),
-        tenantId: actor.tenantId,
-        ownerId,
-        firstName: input.firstName ?? null,
-        lastName: input.lastName,
-        company: input.company ?? null,
-        email: input.email ?? null,
-        phone: input.phone ?? null,
-        source: input.source ?? null,
-        status: input.status ?? 'new',
-        customFields,
-        createdBy: actor.userId,
-        updatedBy: actor.userId,
-      });
+          const row = await this.repository.insert(tx, {
+            id: newId(),
+            tenantId: actor.tenantId,
+            ownerId,
+            firstName: input.firstName ?? null,
+            lastName: input.lastName,
+            company: input.company ?? null,
+            email: input.email ?? null,
+            phone: input.phone ?? null,
+            source: input.source ?? null,
+            status: input.status ?? 'new',
+            customFields,
+            createdBy: actor.userId,
+            updatedBy: actor.userId,
+          });
 
-      // Same transaction as the insert: the audit entry and the event exist if
-      // and only if the lead does (CLAUDE.md §5.10, ADR-0006).
-      await this.audit.record(tx, actor, {
-        action: 'create',
-        objectType: 'lead',
-        recordId: row.id,
-        changes: diffChanges(
-          {},
-          {
-            lastName: row.lastName,
-            company: row.company,
+          // Same transaction as the insert: the audit entry and the event exist if
+          // and only if the lead does (CLAUDE.md §5.10, ADR-0006).
+          await this.audit.record(tx, actor, {
+            action: 'create',
+            objectType: 'lead',
+            recordId: row.id,
+            changes: diffChanges(
+              {},
+              {
+                lastName: row.lastName,
+                company: row.company,
+                email: row.email,
+                status: row.status,
+                ownerId: row.ownerId,
+              },
+            ),
+          });
+          await this.outbox.publish(tx, actor, {
+            eventType: 'lead.created.v1',
+            objectType: 'lead',
+            recordId: row.id,
+            payload: { ownerId: row.ownerId },
+          });
+
+          const duplicates = await this.duplicatesFor(tx, actor, {
             email: row.email,
-            status: row.status,
-            ownerId: row.ownerId,
-          },
-        ),
-      });
-      await this.outbox.publish(tx, actor, {
-        eventType: 'lead.created.v1',
-        objectType: 'lead',
-        recordId: row.id,
-        payload: { ownerId: row.ownerId },
-      });
+            phone: row.phone,
+            company: row.company,
+            excludeLeadId: row.id,
+          });
 
-      const duplicates = await this.duplicatesFor(tx, actor, {
-        email: row.email,
-        phone: row.phone,
-        company: row.company,
-        excludeLeadId: row.id,
-      });
-
-      return { lead: serializeLead(actor, row, fields), duplicates };
-    });
+          return {
+            answer: { lead: serializeLead(actor, row, fields), duplicates },
+            reference: { recordId: row.id },
+          };
+        },
+        async (reference) => {
+          const lead = await this.getByIdInTx(actor, tx, reference.recordId);
+          const duplicates = await this.duplicatesFor(tx, actor, {
+            email: (lead['email'] as string | null | undefined) ?? null,
+            phone: (lead['phone'] as string | null | undefined) ?? null,
+            company: (lead['company'] as string | null | undefined) ?? null,
+            excludeLeadId: reference.recordId,
+          });
+          return { lead, duplicates };
+        },
+      ),
+    );
   }
 
   async update(actor: Actor, id: string, input: LeadUpdateInput): Promise<SerializedLead> {
@@ -401,209 +433,248 @@ export class LeadsService {
     actor: Actor,
     id: string,
     input: LeadConvertRequest,
+    idempotencyKey?: string,
   ): Promise<LeadConversionResult> {
     assertCan(actor, 'update', { objectType: 'lead' });
 
     // One transaction for everything below. Nothing in this method opens
     // another, and nothing it calls does either: every record is created
     // through the owning module's `createInTx`, which takes this `tx`.
-    return this.inTenant(actor, async (tx) => {
-      const lead = await this.loadOrNotFound(tx, actor, id);
-      assertCan(actor, 'update', {
-        objectType: 'lead',
-        record: await recordRefFor(tx, actor, lead.ownerId),
-      });
+    return this.inTenant(actor, (tx) =>
+      this.idempotency.once(
+        tx,
+        actor,
+        idempotencyKey,
+        { objectType: 'lead', action: 'convert' },
+        { id, input },
+        async () => {
+          const lead = await this.loadOrNotFound(tx, actor, id);
+          assertCan(actor, 'update', {
+            objectType: 'lead',
+            record: await recordRefFor(tx, actor, lead.ownerId),
+          });
 
-      if (lead.status === 'converted') throw alreadyConverted();
-      if (lead.version !== input.version) throw new VersionConflictError('lead');
+          if (lead.status === 'converted') throw alreadyConverted();
+          if (lead.version !== input.version) throw new VersionConflictError('lead');
 
-      const leadFields = await this.fieldMetadata.forObject(tx, actor.tenantId, 'lead');
-      const visible = this.visibleValues(actor, lead);
-      const skipped: string[] = [];
+          const leadFields = await this.fieldMetadata.forObject(tx, actor.tenantId, 'lead');
+          const visible = this.visibleValues(actor, lead);
+          const skipped: string[] = [];
 
-      const accountChoice =
-        input.account ??
-        (visible.company === null ? { mode: 'none' as const } : { mode: 'create' as const });
-      const contactChoice = input.contact ?? { mode: 'create' as const };
-      const accountDomain = companyDomainFromEmail(visible.email);
+          const accountChoice =
+            input.account ??
+            (visible.company === null ? { mode: 'none' as const } : { mode: 'create' as const });
+          const contactChoice = input.contact ?? { mode: 'create' as const };
+          const accountDomain = companyDomainFromEmail(visible.email);
 
-      // --- duplicates, before anything is written ----------------------------
-      // Only a record the conversion is about to *create* can be a duplicate;
-      // linking to an existing one is the answer, not the problem. Both checks
-      // run before the first insert so one 409 lists every match, and so the
-      // client never has to resolve them one round trip at a time.
-      if (!input.acknowledgeDuplicates) {
-        const contactMatches =
-          contactChoice.mode === 'create'
-            ? await this.contacts.findDuplicates(tx, actor, {
-                email: visible.email,
-                phone: visible.phone,
-              })
-            : [];
-        const accountMatches =
-          accountChoice.mode === 'create' && visible.company !== null
-            ? await this.accounts.findDuplicates(tx, actor, {
-                domain: accountDomain,
-                name: visible.company,
-              })
-            : [];
-        if (contactMatches.length > 0 || accountMatches.length > 0) {
-          throw duplicateFound([
-            ...contactMatches.map((match) => ({ path: 'contact' as const, match })),
-            ...accountMatches.map((match) => ({ path: 'account' as const, match })),
-          ]);
-        }
-      }
+          // --- duplicates, before anything is written ----------------------------
+          // Only a record the conversion is about to *create* can be a duplicate;
+          // linking to an existing one is the answer, not the problem. Both checks
+          // run before the first insert so one 409 lists every match, and so the
+          // client never has to resolve them one round trip at a time.
+          if (!input.acknowledgeDuplicates) {
+            const contactMatches =
+              contactChoice.mode === 'create'
+                ? await this.contacts.findDuplicates(tx, actor, {
+                    email: visible.email,
+                    phone: visible.phone,
+                  })
+                : [];
+            const accountMatches =
+              accountChoice.mode === 'create' && visible.company !== null
+                ? await this.accounts.findDuplicates(tx, actor, {
+                    domain: accountDomain,
+                    name: visible.company,
+                  })
+                : [];
+            if (contactMatches.length > 0 || accountMatches.length > 0) {
+              throw duplicateFound([
+                ...contactMatches.map((match) => ({ path: 'contact' as const, match })),
+                ...accountMatches.map((match) => ({ path: 'account' as const, match })),
+              ]);
+            }
+          }
 
-      // --- the account first, so the contact can point at it ----------------
+          // --- the account first, so the contact can point at it ----------------
 
-      let accountId: string | null = null;
-      let accountCreated = false;
+          let accountId: string | null = null;
+          let accountCreated = false;
 
-      if (accountChoice.mode === 'link') {
-        accountId = (
-          await this.accounts.assertReadableForLinking(
+          if (accountChoice.mode === 'link') {
+            accountId = (
+              await this.accounts.assertReadableForLinking(
+                tx,
+                actor,
+                accountChoice.accountId,
+                'account.accountId',
+              )
+            ).id;
+          } else if (accountChoice.mode === 'create') {
+            if (visible.company === null) {
+              throw new ValidationError([
+                { path: 'account', message: 'This lead has no company to create an account from' },
+              ]);
+            }
+            const accountInput: Record<string, unknown> = { name: visible.company };
+            if (accountDomain !== null) {
+              if (canWriteField(actor, 'account', 'domain')) accountInput['domain'] = accountDomain;
+              else skipped.push('account.domain');
+            }
+            const accountOwner = this.ownerForTarget(actor, lead, 'account');
+            if (accountOwner !== undefined) accountInput['ownerId'] = accountOwner;
+
+            const account = await this.accounts.createInTx(
+              actor,
+              tx,
+              accountInput as AccountCreateInput,
+            );
+            accountId = account['id'] as string;
+            accountCreated = true;
+          }
+
+          // --- the contact ------------------------------------------------------
+          let contactId: string;
+          let contactCreated = false;
+
+          if (contactChoice.mode === 'link') {
+            contactId = (
+              await this.contacts.assertReadableForLinking(
+                tx,
+                actor,
+                contactChoice.contactId,
+                'contact.contactId',
+              )
+            ).id;
+          } else {
+            const contactFields = await this.fieldMetadata.forObject(tx, actor.tenantId, 'contact');
+            const contactInput = this.mapToContact(actor, lead, leadFields, contactFields, skipped);
+            if (accountId !== null) contactInput['accountId'] = accountId;
+            const contactOwner = this.ownerForTarget(actor, lead, 'contact');
+            if (contactOwner !== undefined) contactInput['ownerId'] = contactOwner;
+
+            const contact = await this.contacts.createInTx(
+              actor,
+              tx,
+              contactInput as unknown as ContactCreateInput,
+            );
+            contactId = contact['id'] as string;
+            contactCreated = true;
+          }
+
+          // --- the deal, if one was asked for -----------------------------------
+          let dealId: string | null = null;
+          if (input.deal !== undefined && input.deal !== null) {
+            const dealInput: Record<string, unknown> = {
+              name: input.deal.name ?? defaultDealName(visible.company, lead.lastName),
+              primaryContactId: contactId,
+            };
+            if (accountId !== null) dealInput['accountId'] = accountId;
+            if (input.deal.pipelineId !== undefined)
+              dealInput['pipelineId'] = input.deal.pipelineId;
+            if (input.deal.stageId !== undefined) dealInput['stageId'] = input.deal.stageId;
+            if (input.deal.amount !== undefined) dealInput['amount'] = input.deal.amount;
+            if (input.deal.expectedCloseDate !== undefined) {
+              dealInput['expectedCloseDate'] = input.deal.expectedCloseDate;
+            }
+            const dealOwner = this.ownerForTarget(actor, lead, 'deal');
+            if (dealOwner !== undefined) dealInput['ownerId'] = dealOwner;
+
+            const deal = await this.deals.createInTx(
+              actor,
+              tx,
+              dealInput as unknown as DealCreateInput,
+            );
+            dealId = deal['id'] as string;
+          }
+
+          // --- finally, the lead itself ----------------------------------------
+          const converted = await this.repository.markConverted(
             tx,
-            actor,
-            accountChoice.accountId,
-            'account.accountId',
-          )
-        ).id;
-      } else if (accountChoice.mode === 'create') {
-        if (visible.company === null) {
-          throw new ValidationError([
-            { path: 'account', message: 'This lead has no company to create an account from' },
-          ]);
-        }
-        const accountInput: Record<string, unknown> = { name: visible.company };
-        if (accountDomain !== null) {
-          if (canWriteField(actor, 'account', 'domain')) accountInput['domain'] = accountDomain;
-          else skipped.push('account.domain');
-        }
-        const accountOwner = this.ownerForTarget(actor, lead, 'account');
-        if (accountOwner !== undefined) accountInput['ownerId'] = accountOwner;
+            actor.tenantId,
+            id,
+            input.version,
+            {
+              convertedAt: new Date(),
+              convertedContactId: contactId,
+              convertedAccountId: accountId,
+              convertedDealId: dealId,
+              updatedBy: actor.userId,
+            },
+          );
+          // Zero rows: the version moved, or somebody converted it first. Throwing
+          // here rolls back the contact, the account and the deal created above.
+          if (converted === null) throw new VersionConflictError('lead');
 
-        const account = await this.accounts.createInTx(
-          actor,
-          tx,
-          accountInput as AccountCreateInput,
-        );
-        accountId = account['id'] as string;
-        accountCreated = true;
-      }
+          await this.audit.record(tx, actor, {
+            action: 'update',
+            objectType: 'lead',
+            recordId: id,
+            changes: diffChanges(lead, converted),
+          });
+          await this.outbox.publish(tx, actor, {
+            eventType: 'lead.converted.v1',
+            objectType: 'lead',
+            recordId: id,
+            payload: {
+              contactId,
+              accountId,
+              dealId,
+              contactCreated,
+              accountCreated,
+            },
+          });
 
-      // --- the contact ------------------------------------------------------
-      let contactId: string;
-      let contactCreated = false;
+          // A record that was only linked gets no `created` event of its own, so
+          // its history would never mention the lead. These say so.
+          if (!contactCreated) {
+            await this.outbox.publish(tx, actor, {
+              eventType: 'contact.linked_from_lead.v1',
+              objectType: 'contact',
+              recordId: contactId,
+              payload: { leadId: id },
+            });
+          }
+          if (accountId !== null && !accountCreated) {
+            await this.outbox.publish(tx, actor, {
+              eventType: 'account.linked_from_lead.v1',
+              objectType: 'account',
+              recordId: accountId,
+              payload: { leadId: id },
+            });
+          }
 
-      if (contactChoice.mode === 'link') {
-        contactId = (
-          await this.contacts.assertReadableForLinking(
-            tx,
-            actor,
-            contactChoice.contactId,
-            'contact.contactId',
-          )
-        ).id;
-      } else {
-        const contactFields = await this.fieldMetadata.forObject(tx, actor.tenantId, 'contact');
-        const contactInput = this.mapToContact(actor, lead, leadFields, contactFields, skipped);
-        if (accountId !== null) contactInput['accountId'] = accountId;
-        const contactOwner = this.ownerForTarget(actor, lead, 'contact');
-        if (contactOwner !== undefined) contactInput['ownerId'] = contactOwner;
-
-        const contact = await this.contacts.createInTx(
-          actor,
-          tx,
-          contactInput as unknown as ContactCreateInput,
-        );
-        contactId = contact['id'] as string;
-        contactCreated = true;
-      }
-
-      // --- the deal, if one was asked for -----------------------------------
-      let dealId: string | null = null;
-      if (input.deal !== undefined && input.deal !== null) {
-        const dealInput: Record<string, unknown> = {
-          name: input.deal.name ?? defaultDealName(visible.company, lead.lastName),
-          primaryContactId: contactId,
-        };
-        if (accountId !== null) dealInput['accountId'] = accountId;
-        if (input.deal.pipelineId !== undefined) dealInput['pipelineId'] = input.deal.pipelineId;
-        if (input.deal.stageId !== undefined) dealInput['stageId'] = input.deal.stageId;
-        if (input.deal.amount !== undefined) dealInput['amount'] = input.deal.amount;
-        if (input.deal.expectedCloseDate !== undefined) {
-          dealInput['expectedCloseDate'] = input.deal.expectedCloseDate;
-        }
-        const dealOwner = this.ownerForTarget(actor, lead, 'deal');
-        if (dealOwner !== undefined) dealInput['ownerId'] = dealOwner;
-
-        const deal = await this.deals.createInTx(
-          actor,
-          tx,
-          dealInput as unknown as DealCreateInput,
-        );
-        dealId = deal['id'] as string;
-      }
-
-      // --- finally, the lead itself ----------------------------------------
-      const converted = await this.repository.markConverted(tx, actor.tenantId, id, input.version, {
-        convertedAt: new Date(),
-        convertedContactId: contactId,
-        convertedAccountId: accountId,
-        convertedDealId: dealId,
-        updatedBy: actor.userId,
-      });
-      // Zero rows: the version moved, or somebody converted it first. Throwing
-      // here rolls back the contact, the account and the deal created above.
-      if (converted === null) throw new VersionConflictError('lead');
-
-      await this.audit.record(tx, actor, {
-        action: 'update',
-        objectType: 'lead',
-        recordId: id,
-        changes: diffChanges(lead, converted),
-      });
-      await this.outbox.publish(tx, actor, {
-        eventType: 'lead.converted.v1',
-        objectType: 'lead',
-        recordId: id,
-        payload: {
-          contactId,
-          accountId,
-          dealId,
-          contactCreated,
-          accountCreated,
+          const result: LeadConversionResult = {
+            lead: serializeLead(actor, converted, leadFields) as LeadConversionResult['lead'],
+            contact: { id: contactId, created: contactCreated },
+            account: accountId === null ? null : { id: accountId, created: accountCreated },
+            deal: dealId === null ? null : { id: dealId },
+            skippedFields: skipped,
+          };
+          // Ids, flags and field names only: the lead itself is re-read on a replay.
+          return {
+            answer: result,
+            reference: {
+              recordId: id,
+              contact: result.contact,
+              account: result.account,
+              deal: result.deal,
+              skippedFields: result.skippedFields,
+            },
+          };
         },
-      });
-
-      // A record that was only linked gets no `created` event of its own, so
-      // its history would never mention the lead. These say so.
-      if (!contactCreated) {
-        await this.outbox.publish(tx, actor, {
-          eventType: 'contact.linked_from_lead.v1',
-          objectType: 'contact',
-          recordId: contactId,
-          payload: { leadId: id },
-        });
-      }
-      if (accountId !== null && !accountCreated) {
-        await this.outbox.publish(tx, actor, {
-          eventType: 'account.linked_from_lead.v1',
-          objectType: 'account',
-          recordId: accountId,
-          payload: { leadId: id },
-        });
-      }
-
-      return {
-        lead: serializeLead(actor, converted, leadFields) as LeadConversionResult['lead'],
-        contact: { id: contactId, created: contactCreated },
-        account: accountId === null ? null : { id: accountId, created: accountCreated },
-        deal: dealId === null ? null : { id: dealId },
-        skippedFields: skipped,
-      };
-    });
+        async (reference) => ({
+          lead: (await this.getByIdInTx(
+            actor,
+            tx,
+            reference.recordId,
+          )) as LeadConversionResult['lead'],
+          contact: reference['contact'] as LeadConversionResult['contact'],
+          account: reference['account'] as LeadConversionResult['account'],
+          deal: reference['deal'] as LeadConversionResult['deal'],
+          skippedFields: reference['skippedFields'] as string[],
+        }),
+      ),
+    );
   }
 
   // -------------------------------------------------------------------------

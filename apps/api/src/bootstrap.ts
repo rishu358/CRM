@@ -7,7 +7,11 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 import { AppModule } from './app.module.js';
 import { DomainErrorFilter } from './common/domain-error.filter.js';
 import { createLogger } from './common/logger.js';
-import { runWithRequestContext, type RequestContext } from './common/request-context.js';
+import {
+  runWithRequestContext,
+  wasIdempotentReplay,
+  type RequestContext,
+} from './common/request-context.js';
 import { corsOrigins, loadApiEnv, previousAuthSecrets, type ApiEnv } from './config/env.js';
 import { AddressRateLimitService } from './platform/rate-limit.service.js';
 
@@ -68,10 +72,17 @@ export async function createApp(env: ApiEnv = loadApiEnv()): Promise<NestFastify
       ipAddress: request.ip,
       userAgent:
         typeof request.headers['user-agent'] === 'string' ? request.headers['user-agent'] : null,
+      replay: { replayed: false },
     };
 
     void reply.header('x-request-id', requestId);
     runWithRequestContext(context, done);
+  });
+
+  // A request answered from a remembered Idempotency-Key says so (ADR-0060).
+  instance.addHook('onSend', (_request: FastifyRequest, reply: FastifyReply, payload, done) => {
+    if (wasIdempotentReplay()) void reply.header('idempotent-replayed', 'true');
+    done(null, payload);
   });
 
   // The pre-authentication ceiling per address (CLAUDE.md §5.14, ADR-0053). The per-user and per-tenant
@@ -95,8 +106,9 @@ export async function createApp(env: ApiEnv = loadApiEnv()): Promise<NestFastify
       'x-tenant-id',
       'x-request-id',
       'x-csrf-token',
+      'idempotency-key',
     ],
-    exposedHeaders: ['x-request-id'],
+    exposedHeaders: ['x-request-id', 'idempotent-replayed'],
   });
 
   app.setGlobalPrefix('api/v1');

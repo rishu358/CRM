@@ -24,6 +24,15 @@ export const PURGE_BATCH_SIZE = 200;
 export const PURGE_SWEEP_INTERVAL_HOURS = 24;
 
 /**
+ * How long an `Idempotency-Key` is remembered, with the answer it was given (ADR-0060).
+ *
+ * What is remembered is the id of what was created, not its content, and it is not kept longer than a
+ * retry could need it. The API forgets a person's older keys whenever they next use one; the purge
+ * sweep forgets the rest, so nothing outlives this window by more than one sweep interval.
+ */
+export const IDEMPOTENCY_WINDOW_HOURS = 24;
+
+/**
  * What an erased value reads as, in the record and in the audit diff.
  *
  * MVP_SPEC M11 names this literal: "audit diffs redacted (audit row kept,

@@ -299,6 +299,13 @@ const RECORD: readonly ErrorCode[] = [ErrorCode.NOT_FOUND];
 /** A write that carries `version` can lose the optimistic lock (CLAUDE.md §7). */
 const VERSIONED: readonly ErrorCode[] = [ErrorCode.NOT_FOUND, ErrorCode.VERSION_CONFLICT];
 
+/** What a route that accepts an `Idempotency-Key` can answer on top of its own errors (ADR-0060). */
+const IDEMPOTENT: readonly ErrorCode[] = [
+  ErrorCode.IDEMPOTENCY_KEY_REUSED,
+  ErrorCode.IDEMPOTENCY_IN_PROGRESS,
+  ErrorCode.IDEMPOTENT_RECORD_UNAVAILABLE,
+];
+
 /** A write through the field layer can name a field the caller may not write. */
 const WRITABLE: readonly ErrorCode[] = [ErrorCode.FIELD_NOT_WRITABLE];
 
@@ -375,6 +382,12 @@ function standardObjectRoutes(object: {
       operationId: `create${name}`,
       tag: object.tag,
       summary: `Create a ${singular}`,
+      description:
+        'Accepts an `Idempotency-Key` header (1 to 128 letters, digits, `_ . : -`): a retry with ' +
+        'the same key and the same body returns the first answer and creates nothing more; the ' +
+        'same key with a different body is a 409. A retry re-reads the record as the caller may ' +
+        'see it now and says `Idempotent-Replayed: true`; if the record has been deleted since, it ' +
+        'is a 409 `IDEMPOTENT_RECORD_UNAVAILABLE`. The key is remembered for 24 hours (ADR-0060).',
       auth: 'session',
       body: { name: `${name}Create`, schema: object.create },
       response: {
@@ -385,7 +398,7 @@ function standardObjectRoutes(object: {
         data: object.record,
         ...(object.createMeta === undefined ? {} : { meta: object.createMeta }),
       },
-      errors: [...WRITABLE, ...(object.createErrors ?? [])],
+      errors: [...WRITABLE, ...IDEMPOTENT, ...(object.createErrors ?? [])],
     },
     {
       method: 'PATCH',
@@ -1044,7 +1057,8 @@ const leadRoutes: RouteDefinition[] = [
     summary: 'Convert a lead',
     description:
       'One transaction: contact, account and optional deal, then the lead is marked ' +
-      'converted (ADR-0022). Converting twice is refused, not repeated.',
+      'converted (ADR-0022). Converting twice is refused, not repeated, unless the retry carries ' +
+      'the same `Idempotency-Key` as the conversion that worked, which returns that answer (ADR-0060).',
     auth: 'session',
     params: leadParamsSchema,
     body: { name: 'LeadConvert', schema: leadConvertSchema },
@@ -1055,7 +1069,7 @@ const leadRoutes: RouteDefinition[] = [
       description: 'What the conversion created or linked.',
       data: leadConversionResultSchema,
     },
-    errors: [...VERSIONED, ErrorCode.CONFLICT],
+    errors: [...VERSIONED, ...IDEMPOTENT, ErrorCode.CONFLICT],
   },
 ];
 
@@ -1753,7 +1767,7 @@ const bulkRoutes: RouteDefinition[] = [
       description: 'What was changed and what was skipped.',
       data: bulkResultSchema,
     },
-    errors: [ErrorCode.CONFLICT, ...WRITABLE],
+    errors: [ErrorCode.CONFLICT, ...IDEMPOTENT, ...WRITABLE],
   },
   {
     method: 'GET',

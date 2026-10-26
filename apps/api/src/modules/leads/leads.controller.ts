@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  Headers,
   HttpCode,
   Inject,
   Param,
@@ -27,6 +28,7 @@ import {
 } from '@crm/contracts';
 import type { Actor } from '@crm/core';
 import { CurrentActor } from '../../auth/auth.guard.js';
+import { parseIdempotencyKey } from '../../common/idempotency.js';
 import { zodPipe } from '../../common/zod-validation.pipe.js';
 import { LeadsService } from './leads.service.js';
 
@@ -93,8 +95,13 @@ export class LeadsController {
   async create(
     @CurrentActor() actor: Actor,
     @Body(zodPipe(leadCreateSchema)) body: LeadCreateInput,
+    @Headers('idempotency-key') idempotencyKey: string | undefined,
   ) {
-    const { lead, duplicates } = await this.leads.create(actor, body);
+    const { lead, duplicates } = await this.leads.create(
+      actor,
+      body,
+      parseIdempotencyKey(idempotencyKey),
+    );
     return { data: lead, meta: { duplicates } };
   }
 
@@ -118,8 +125,11 @@ export class LeadsController {
     @CurrentActor() actor: Actor,
     @Param(zodPipe(leadParamsSchema)) params: { id: string },
     @Body(zodPipe(leadConvertSchema)) body: LeadConvertRequest,
+    @Headers('idempotency-key') idempotencyKey: string | undefined,
   ) {
-    return { data: await this.leads.convert(actor, params.id, body) };
+    return {
+      data: await this.leads.convert(actor, params.id, body, parseIdempotencyKey(idempotencyKey)),
+    };
   }
 
   /**

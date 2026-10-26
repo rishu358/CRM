@@ -5,7 +5,6 @@ import { ContactsModule } from '../contacts/contacts.module.js';
 import { DealsModule } from '../deals/deals.module.js';
 import { LeadsModule } from '../leads/leads.module.js';
 import { BulkController } from './bulk.controller.js';
-import { BulkRepository } from './bulk.repository.js';
 import { BulkService } from './bulk.service.js';
 
 /**
@@ -13,11 +12,12 @@ import { BulkService } from './bulk.service.js';
  *
  * This module owns the *orchestration*: the batch, its transaction, the report and the retry
  * memory. It owns no record: every change goes through the owning module's service, which is why
- * it imports them and why none of them knows it exists.
+ * it imports them and why none of them knows it exists. The retry memory is the platform's
+ * `IdempotencyService`, shared with every create route (ADR-0060).
  */
 @Module({
   imports: [AccessModule, ContactsModule, AccountsModule, LeadsModule, DealsModule],
   controllers: [BulkController],
-  providers: [BulkService, BulkRepository],
+  providers: [BulkService],
 })
 export class BulkModule {}

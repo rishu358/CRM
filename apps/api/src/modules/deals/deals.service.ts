@@ -40,6 +40,7 @@ import { DatabaseService } from '../../database/database.service.js';
 import { AuditService, diffChanges } from '../../platform/audit.service.js';
 import { CurrencyConverter } from '../../platform/exchange-rates/currency-converter.service.js';
 import { FieldMetadataService } from '../../platform/field-metadata.service.js';
+import { IdempotencyService } from '../../platform/idempotency.service.js';
 import { OutboxService } from '../../platform/outbox.service.js';
 import { AccountsService } from '../accounts/accounts.service.js';
 import { ContactsService } from '../contacts/contacts.service.js';
@@ -104,6 +105,7 @@ export class DealsService {
     @Inject(FieldMetadataService) private readonly fieldMetadata: FieldMetadataService,
     @Inject(AuditService) private readonly audit: AuditService,
     @Inject(OutboxService) private readonly outbox: OutboxService,
+    @Inject(IdempotencyService) private readonly idempotency: IdempotencyService,
     @Inject(PipelinesService) private readonly pipelines: PipelinesService,
     @Inject(AccountsService) private readonly accounts: AccountsService,
     @Inject(ContactsService) private readonly contacts: ContactsService,
@@ -233,25 +235,49 @@ export class DealsService {
   }
 
   async getById(actor: Actor, id: string): Promise<SerializedDeal> {
-    assertCan(actor, 'read', { objectType: 'deal' });
-
-    return this.inTenant(actor, async (tx) => {
-      const row = await this.loadOrNotFound(tx, actor, id);
-      // Record-level check. Out of scope raises 404, not 403, so the endpoint
-      // cannot be used to discover that an id exists (CLAUDE.md §5.5).
-      assertCan(actor, 'read', {
-        objectType: 'deal',
-        record: await recordRefFor(tx, actor, row.ownerId),
-      });
-
-      const fields = await this.fieldMetadata.forObject(tx, actor.tenantId, 'deal');
-      const people = await this.repository.peopleFor(tx, actor.tenantId, [row.id]);
-      return serializeDeal(actor, row, fields, people.get(row.id) ?? []);
-    });
+    return this.inTenant(actor, (tx) => this.getByIdInTx(actor, tx, id));
   }
 
-  async create(actor: Actor, input: DealCreateInput): Promise<SerializedDeal> {
-    return this.inTenant(actor, (tx) => this.createInTx(actor, tx, input));
+  /**
+   * Read one deal inside a transaction somebody else owns, exactly as `getById` does: same
+   * permission checks, same 404 for what is out of scope, same serializer. A replayed
+   * `Idempotency-Key` re-reads the record it created through this (ADR-0060).
+   */
+  async getByIdInTx(actor: Actor, tx: Tx, id: string): Promise<SerializedDeal> {
+    assertCan(actor, 'read', { objectType: 'deal' });
+
+    const row = await this.loadOrNotFound(tx, actor, id);
+    // Record-level check. Out of scope raises 404, not 403, so the endpoint
+    // cannot be used to discover that an id exists (CLAUDE.md §5.5).
+    assertCan(actor, 'read', {
+      objectType: 'deal',
+      record: await recordRefFor(tx, actor, row.ownerId),
+    });
+
+    const fields = await this.fieldMetadata.forObject(tx, actor.tenantId, 'deal');
+    const people = await this.repository.peopleFor(tx, actor.tenantId, [row.id]);
+    return serializeDeal(actor, row, fields, people.get(row.id) ?? []);
+  }
+
+  async create(
+    actor: Actor,
+    input: DealCreateInput,
+    idempotencyKey?: string,
+  ): Promise<SerializedDeal> {
+    return this.inTenant(actor, (tx) =>
+      this.idempotency.once(
+        tx,
+        actor,
+        idempotencyKey,
+        { objectType: 'deal', action: 'create' },
+        input,
+        async () => {
+          const deal = await this.createInTx(actor, tx, input);
+          return { answer: deal, reference: { recordId: deal['id'] as string } };
+        },
+        (reference) => this.getByIdInTx(actor, tx, reference.recordId),
+      ),
+    );
   }
 
   /**

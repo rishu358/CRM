@@ -139,6 +139,46 @@ describe('what the sweep removes', () => {
   });
 });
 
+describe('remembered Idempotency-Key answers (ADR-0060)', () => {
+  /** A remembered key is only kept for the window. */
+  async function rememberedAnswer(options: { hoursAgo: number; tenantId?: string }) {
+    const userId = await harness.user('Admin');
+    const id = newId();
+    await harness.pool.query(
+      `insert into bulk_operations
+         (id, tenant_id, idempotency_key, object_type, action, request_hash, result, created_at, created_by)
+       values ($1, $2, $3, 'contact', 'create', 'h', '{}'::jsonb, now() - make_interval(hours => $4::int), $5)`,
+      [id, options.tenantId ?? harness.tenantId, `k-${id}`, options.hoursAgo, userId],
+    );
+    return id;
+  }
+
+  const remembered = async (id: string): Promise<boolean> =>
+    (await harness.pool.query('select 1 from bulk_operations where id = $1', [id])).rows.length ===
+    1;
+
+  it('forgets answers older than the window, in the same sweep, and keeps recent ones', async () => {
+    const stale = await rememberedAnswer({ hoursAgo: 30 });
+    const fresh = await rememberedAnswer({ hoursAgo: 2 });
+
+    await harness.queueSweep();
+    await harness.drain();
+
+    expect(await remembered(stale)).toBe(false);
+    expect(await remembered(fresh)).toBe(true);
+  });
+
+  it('sweeps only the tenant it was run for', async () => {
+    const other = await harness.fixtures.createTenant({ name: 'Purge other' });
+    const staleElsewhere = await rememberedAnswer({ hoursAgo: 30, tenantId: other.tenantId });
+
+    await harness.queueSweep();
+    await harness.drain();
+
+    expect(await remembered(staleElsewhere)).toBe(true);
+  });
+});
+
 describe('what soft delete left behind (ADR-0005)', () => {
   it('removes the links, tags, timeline and recently-viewed rows that pointed at it', async () => {
     const userId = await harness.user('Admin');

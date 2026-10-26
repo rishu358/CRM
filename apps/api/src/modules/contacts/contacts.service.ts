@@ -32,6 +32,7 @@ import { SEARCH_PROVIDER, type ApiSearchProvider } from '../../platform/search/s
 import { DatabaseService } from '../../database/database.service.js';
 import { AuditService, diffChanges } from '../../platform/audit.service.js';
 import { FieldMetadataService } from '../../platform/field-metadata.service.js';
+import { IdempotencyService } from '../../platform/idempotency.service.js';
 import { OutboxService } from '../../platform/outbox.service.js';
 import { ContactsRepository } from './contacts.repository.js';
 import {
@@ -63,6 +64,7 @@ export class ContactsService {
     @Inject(FieldMetadataService) private readonly fieldMetadata: FieldMetadataService,
     @Inject(AuditService) private readonly audit: AuditService,
     @Inject(OutboxService) private readonly outbox: OutboxService,
+    @Inject(IdempotencyService) private readonly idempotency: IdempotencyService,
     @Inject(SEARCH_PROVIDER) private readonly search: ApiSearchProvider,
   ) {}
 
@@ -121,20 +123,27 @@ export class ContactsService {
   }
 
   async getById(actor: Actor, id: string): Promise<SerializedContact> {
+    return this.inTenant(actor, (tx) => this.getByIdInTx(actor, tx, id));
+  }
+
+  /**
+   * Read one contact inside a transaction somebody else owns, exactly as `getById` does: same
+   * permission checks, same 404 for what is out of scope, same serializer. A replayed
+   * `Idempotency-Key` re-reads the record it created through this (ADR-0060).
+   */
+  async getByIdInTx(actor: Actor, tx: Tx, id: string): Promise<SerializedContact> {
     assertCan(actor, 'read', { objectType: 'contact' });
 
-    return this.inTenant(actor, async (tx) => {
-      const row = await this.loadOrNotFound(tx, actor, id);
-      // Record-level check. Out of scope raises 404, not 403, so the endpoint
-      // cannot be used to discover that an id exists (CLAUDE.md §5.5).
-      assertCan(actor, 'read', {
-        objectType: 'contact',
-        record: await recordRefFor(tx, actor, row.ownerId),
-      });
-
-      const fields = await this.fieldMetadata.forObject(tx, actor.tenantId, 'contact');
-      return serializeContact(actor, row, fields);
+    const row = await this.loadOrNotFound(tx, actor, id);
+    // Record-level check. Out of scope raises 404, not 403, so the endpoint
+    // cannot be used to discover that an id exists (CLAUDE.md §5.5).
+    assertCan(actor, 'read', {
+      objectType: 'contact',
+      record: await recordRefFor(tx, actor, row.ownerId),
     });
+
+    const fields = await this.fieldMetadata.forObject(tx, actor.tenantId, 'contact');
+    return serializeContact(actor, row, fields);
   }
 
   async create(actor: Actor, input: ContactCreateInput): Promise<SerializedContact> {
@@ -153,16 +162,37 @@ export class ContactsService {
   async createWithDuplicates(
     actor: Actor,
     input: ContactCreateInput,
+    idempotencyKey?: string,
   ): Promise<{ contact: SerializedContact; duplicates: DuplicateMatch[] }> {
     assertCan(actor, 'create', { objectType: 'contact' });
-    return this.inTenant(actor, async (tx) => {
-      const duplicates = await this.findDuplicates(tx, actor, {
-        email: input.email,
-        phone: input.phone,
-      });
-      const contact = await this.createInTx(actor, tx, input);
-      return { contact, duplicates };
-    });
+    return this.inTenant(actor, (tx) =>
+      this.idempotency.once(
+        tx,
+        actor,
+        idempotencyKey,
+        { objectType: 'contact', action: 'create' },
+        input,
+        async () => {
+          const duplicates = await this.findDuplicates(tx, actor, {
+            email: input.email,
+            phone: input.phone,
+          });
+          const contact = await this.createInTx(actor, tx, input);
+          return {
+            answer: { contact, duplicates },
+            reference: { recordId: contact['id'] as string },
+          };
+        },
+        async (reference) => {
+          const contact = await this.getByIdInTx(actor, tx, reference.recordId);
+          const duplicates = await this.findDuplicates(tx, actor, {
+            email: contact['email'] as string | null | undefined,
+            phone: contact['phone'] as string | null | undefined,
+          });
+          return { contact, duplicates: duplicates.filter((m) => m.id !== reference.recordId) };
+        },
+      ),
+    );
   }
 
   /**

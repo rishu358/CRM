@@ -19,6 +19,12 @@ export interface RequestContext {
   readonly userId: string | null;
   readonly ipAddress: string | null;
   readonly userAgent: string | null;
+  /**
+   * Set when this request was answered from a remembered `Idempotency-Key` (ADR-0060), so the response
+   * can say `Idempotent-Replayed: true`. A holder, not a flag: the context is copied when the identity
+   * is attached, and the copies must share the one the response hook reads.
+   */
+  readonly replay: { replayed: boolean };
 }
 
 const storage = new AsyncLocalStorage<RequestContext>();
@@ -29,6 +35,16 @@ export function runWithRequestContext<T>(context: RequestContext, work: () => T)
 
 export function currentRequestContext(): RequestContext | undefined {
   return storage.getStore();
+}
+
+/** Note that this request is a replay of an earlier one with the same Idempotency-Key. */
+export function markIdempotentReplay(): void {
+  const context = storage.getStore();
+  if (context !== undefined) context.replay.replayed = true;
+}
+
+export function wasIdempotentReplay(): boolean {
+  return storage.getStore()?.replay.replayed === true;
 }
 
 export function currentRequestId(): string {

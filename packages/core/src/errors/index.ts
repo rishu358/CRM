@@ -75,6 +75,22 @@ export const ErrorCode = {
   /** A role still has members, so it cannot be deleted until they are moved. */
   ROLE_IN_USE: 'ROLE_IN_USE',
   /**
+   * A retry carried the `Idempotency-Key` of a request that did create its record, but that record has
+   * since been deleted or can no longer be read by the caller (ADR-0060). Said plainly rather than as a
+   * 404, which would look as though the first request never created anything.
+   */
+  IDEMPOTENT_RECORD_UNAVAILABLE: 'IDEMPOTENT_RECORD_UNAVAILABLE',
+  /**
+   * An `Idempotency-Key` was used before for a different request (another body, route or record).
+   * The client has a bug or a key collision; it is not a race and retrying will not help (ADR-0060).
+   */
+  IDEMPOTENCY_KEY_REUSED: 'IDEMPOTENCY_KEY_REUSED',
+  /**
+   * A request with the same `Idempotency-Key` is still being carried out. Nothing is wrong: wait for
+   * `Retry-After` and send the same request again, which will then be answered as a replay.
+   */
+  IDEMPOTENCY_IN_PROGRESS: 'IDEMPOTENCY_IN_PROGRESS',
+  /**
    * The change hands out more than the person making it holds. Distinct from
    * `FORBIDDEN`: they may edit roles, just not beyond their own reach (ADR-0033).
    */
@@ -164,6 +180,39 @@ export class VersionConflictError extends DomainError {
 export class ConflictError extends DomainError {
   constructor(message: string, details: readonly ErrorDetail[] = []) {
     super(ErrorCode.CONFLICT, message, 409, details);
+  }
+}
+
+export class IdempotencyKeyReusedError extends DomainError {
+  constructor() {
+    super(
+      ErrorCode.IDEMPOTENCY_KEY_REUSED,
+      'This Idempotency-Key was already used for a different request',
+      409,
+    );
+  }
+}
+
+export class IdempotencyInProgressError extends DomainError {
+  constructor(
+    /** Whole seconds to wait before sending the same request again. Sent as `Retry-After`. */
+    readonly retryAfterSeconds: number,
+  ) {
+    super(
+      ErrorCode.IDEMPOTENCY_IN_PROGRESS,
+      'A request with this Idempotency-Key is still being carried out. Try again shortly.',
+      409,
+    );
+  }
+}
+
+export class IdempotentRecordUnavailableError extends DomainError {
+  constructor() {
+    super(
+      ErrorCode.IDEMPOTENT_RECORD_UNAVAILABLE,
+      'This request was already carried out and created a record, which has since been deleted or is no longer visible to you. Use a new Idempotency-Key to create another.',
+      409,
+    );
   }
 }
 
