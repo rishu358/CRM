@@ -1075,6 +1075,98 @@
         }
       }
     },
+    "/accounts/duplicate-check": {
+      "post": {
+        "operationId": "checkAccountDuplicates",
+        "summary": "Look for accounts that match a draft",
+        "tags": [
+          "Accounts"
+        ],
+        "description": "A POST because it carries the draft, not because it writes anything (ADR-0023). Matches on the same domain, or a name that is close, among the accounts the caller may read and on fields the caller may read. Needs permission to create accounts. Nothing is created.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccountDuplicateCheck"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Matching accounts the caller may see.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DuplicateMatchListResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No session, or the credentials offered were not accepted. `error.code` is one of: `UNAUTHENTICATED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, but not permitted. `error.code` is one of: `FORBIDDEN`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Input failed validation at the API boundary. `error.code` is one of: `VALIDATION_FAILED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded. Limits are per user, per tenant and per address, shared across API instances. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `RATE_LIMITED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote `requestId` when reporting it. `error.code` is one of: `INTERNAL`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/activities": {
       "get": {
         "operationId": "listActivitys",
@@ -4997,6 +5089,98 @@
           },
           "409": {
             "description": "The write conflicts with the record’s current state. `error.code` is one of: `VERSION_CONFLICT`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Input failed validation at the API boundary. `error.code` is one of: `VALIDATION_FAILED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded. Limits are per user, per tenant and per address, shared across API instances. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `RATE_LIMITED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote `requestId` when reporting it. `error.code` is one of: `INTERNAL`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/contacts/duplicate-check": {
+      "post": {
+        "operationId": "checkContactDuplicates",
+        "summary": "Look for contacts that match a draft",
+        "tags": [
+          "Contacts"
+        ],
+        "description": "A POST because it carries the draft, not because it writes anything (ADR-0023). Matches on e-mail and phone, among the contacts the caller may read and on fields the caller may read. Needs permission to create contacts. Nothing is created.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContactDuplicateCheck"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Matching contacts the caller may see.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DuplicateMatchListResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No session, or the credentials offered were not accepted. `error.code` is one of: `UNAUTHENTICATED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, but not permitted. `error.code` is one of: `FORBIDDEN`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -14408,6 +14592,36 @@
         ],
         "additionalProperties": false
       },
+      "AccountDuplicateCheck": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "domain": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 253,
+                "pattern": "^(?!-)[a-z0-9-]{1,63}(?<!-)(\\.(?!-)[a-z0-9-]{1,63}(?<!-))+$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
       "ActivityCreate": {
         "type": "object",
         "properties": {
@@ -15730,6 +15944,36 @@
         "required": [
           "version"
         ],
+        "additionalProperties": false
+      },
+      "ContactDuplicateCheck": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 254,
+                "format": "email",
+                "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^\\+[1-9]\\d{1,14}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
         "additionalProperties": false
       },
       "DataExportCreate": {
@@ -19203,6 +19447,65 @@
               "id"
             ],
             "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "additionalProperties": false
+      },
+      "DuplicateMatchListResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "objectType": {
+                  "type": "string",
+                  "enum": [
+                    "lead",
+                    "contact",
+                    "account"
+                  ]
+                },
+                "id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "label": {
+                  "type": "string"
+                },
+                "matchedOn": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "email",
+                      "phone",
+                      "domain",
+                      "name"
+                    ]
+                  }
+                }
+              },
+              "required": [
+                "objectType",
+                "id",
+                "label",
+                "matchedOn"
+              ],
+              "additionalProperties": false
+            }
           },
           "meta": {
             "type": "object",
@@ -25973,65 +26276,6 @@
               "id"
             ],
             "additionalProperties": false
-          },
-          "meta": {
-            "type": "object",
-            "propertyNames": {
-              "type": "string"
-            },
-            "additionalProperties": {}
-          }
-        },
-        "required": [
-          "data"
-        ],
-        "additionalProperties": false
-      },
-      "DuplicateMatchListResponse": {
-        "type": "object",
-        "properties": {
-          "data": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "objectType": {
-                  "type": "string",
-                  "enum": [
-                    "lead",
-                    "contact",
-                    "account"
-                  ]
-                },
-                "id": {
-                  "type": "string",
-                  "format": "uuid",
-                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-                },
-                "label": {
-                  "type": "string"
-                },
-                "matchedOn": {
-                  "type": "array",
-                  "items": {
-                    "type": "string",
-                    "enum": [
-                      "email",
-                      "phone",
-                      "domain",
-                      "name"
-                    ]
-                  }
-                }
-              },
-              "required": [
-                "objectType",
-                "id",
-                "label",
-                "matchedOn"
-              ],
-              "additionalProperties": false
-            }
           },
           "meta": {
             "type": "object",

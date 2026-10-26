@@ -8,6 +8,7 @@ import {
   type InfiniteData,
 } from '@tanstack/react-query';
 import { api, type ApiRequestError, type ItemEnvelope, type ListEnvelope } from './api-client';
+import type { DuplicateMatch } from './leads';
 import { listKey, listSearchParams, type ListParams } from './list-view';
 
 /**
@@ -157,6 +158,18 @@ export function useCreateAccount() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: accountKeys.all });
     },
+  });
+}
+
+/**
+ * "Would this account duplicate something?", asked before the save so the prompt appears while the
+ * person can still change their mind (ADR-0023). A failed check must never stand between a person and
+ * saving: the API reports matches again with the save regardless.
+ */
+export function useCheckAccountDuplicates() {
+  return useMutation<ItemEnvelope<DuplicateMatch[]>, ApiRequestError, Record<string, unknown>>({
+    mutationFn: (body) =>
+      api.post<ItemEnvelope<DuplicateMatch[]>>('/accounts/duplicate-check', body),
   });
 }
 

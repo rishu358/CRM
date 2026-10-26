@@ -33,6 +33,7 @@ import {
 } from './attachments.js';
 import {
   accountCreateSchema,
+  accountDuplicateCheckSchema,
   accountDeleteQuerySchema,
   accountListQuerySchema,
   accountParamsSchema,
@@ -54,6 +55,7 @@ import {
 } from './activities.js';
 import {
   contactCreateSchema,
+  contactDuplicateCheckSchema,
   contactDeleteQuerySchema,
   contactListQuerySchema,
   contactParamsSchema,
@@ -942,6 +944,55 @@ const pipelineRoutes: RouteDefinition[] = [
       name: 'PipelineListResponse',
       description: "The tenant's pipelines, each with its stages in order.",
       data: pipelineSchema.array(),
+    },
+    errors: [],
+  },
+];
+
+/** The check made before saving a contact or an account (ADR-0023); a lead has its own above. */
+const contactRoutes: RouteDefinition[] = [
+  {
+    method: 'POST',
+    path: '/contacts/duplicate-check',
+    operationId: 'checkContactDuplicates',
+    tag: 'Contacts',
+    summary: 'Look for contacts that match a draft',
+    description:
+      'A POST because it carries the draft, not because it writes anything (ADR-0023). ' +
+      'Matches on e-mail and phone, among the contacts the caller may read and on fields the ' +
+      'caller may read. Needs permission to create contacts. Nothing is created.',
+    auth: 'session',
+    body: { name: 'ContactDuplicateCheck', schema: contactDuplicateCheckSchema },
+    response: {
+      kind: 'object',
+      status: 200,
+      name: 'DuplicateMatchListResponse',
+      description: 'Matching contacts the caller may see.',
+      data: duplicateMatchSchema.array(),
+    },
+    errors: [],
+  },
+];
+
+const accountRoutes: RouteDefinition[] = [
+  {
+    method: 'POST',
+    path: '/accounts/duplicate-check',
+    operationId: 'checkAccountDuplicates',
+    tag: 'Accounts',
+    summary: 'Look for accounts that match a draft',
+    description:
+      'A POST because it carries the draft, not because it writes anything (ADR-0023). ' +
+      'Matches on the same domain, or a name that is close, among the accounts the caller may ' +
+      'read and on fields the caller may read. Needs permission to create accounts. Nothing is created.',
+    auth: 'session',
+    body: { name: 'AccountDuplicateCheck', schema: accountDuplicateCheckSchema },
+    response: {
+      kind: 'object',
+      status: 200,
+      name: 'DuplicateMatchListResponse',
+      description: 'Matching accounts the caller may see.',
+      data: duplicateMatchSchema.array(),
     },
     errors: [],
   },
@@ -2602,6 +2653,7 @@ export const API_ROUTES: readonly RouteDefinition[] = [
   ...healthRoutes,
   ...metaRoutes,
   ...authRoutes,
+  ...accountRoutes,
   ...standardObjectRoutes({
     tag: 'Accounts',
     plural: 'accounts',
@@ -2614,7 +2666,12 @@ export const API_ROUTES: readonly RouteDefinition[] = [
     update: accountUpdateSchema,
     deleteQuery: accountDeleteQuerySchema,
     createErrors: [ErrorCode.CONFLICT],
+    createMeta: z.object({
+      /** Accounts the new one resembles (same domain, or a close name). Never a reason to refuse. */
+      duplicates: duplicateMatchSchema.array(),
+    }),
   }),
+  ...contactRoutes,
   ...standardObjectRoutes({
     tag: 'Contacts',
     plural: 'contacts',
@@ -2626,6 +2683,10 @@ export const API_ROUTES: readonly RouteDefinition[] = [
     create: contactCreateSchema,
     update: contactUpdateSchema,
     deleteQuery: contactDeleteQuerySchema,
+    createMeta: z.object({
+      /** Contacts the new one resembles (same e-mail or phone). Never a reason to refuse. */
+      duplicates: duplicateMatchSchema.array(),
+    }),
   }),
   ...dealRoutes,
   ...standardObjectRoutes({

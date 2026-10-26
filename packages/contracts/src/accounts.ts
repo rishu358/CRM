@@ -117,6 +117,19 @@ export type MoneyInput = z.infer<typeof moneySchema>;
 /** Values for custom fields. Shape only here; meaning comes from metadata. */
 const customFieldsSchema = z.record(z.string(), z.unknown());
 
+/**
+ * What the check made before saving an account is given: the name and domain a person has typed so far
+ * (ADR-0023). Every field is optional; a check with none of them matches nothing.
+ */
+export const accountDuplicateCheckSchema = z
+  .object({
+    name: z.string().trim().min(1).max(200).nullish(),
+    domain: domainSchema.nullish(),
+  })
+  .strict();
+
+export type AccountDuplicateCheckInput = z.infer<typeof accountDuplicateCheckSchema>;
+
 export const accountCreateSchema = z
   .object({
     name: z.string().trim().min(1).max(200),

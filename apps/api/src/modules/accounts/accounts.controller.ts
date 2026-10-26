@@ -12,11 +12,13 @@ import {
 } from '@nestjs/common';
 import {
   accountCreateSchema,
+  accountDuplicateCheckSchema,
   accountDeleteQuerySchema,
   accountListQuerySchema,
   accountParamsSchema,
   accountUpdateSchema,
   type AccountCreateInput,
+  type AccountDuplicateCheckInput,
   type AccountDeleteQuery,
   type AccountListQuery,
   type AccountUpdateInput,
@@ -55,13 +57,28 @@ export class AccountsController {
     return { data: await this.accounts.getById(actor, params.id) };
   }
 
+  /**
+   * "Would this account duplicate something?", asked before it is saved. A POST so the draft stays
+   * out of URLs (CLAUDE.md §5.8). Nothing is written (ADR-0023).
+   */
+  @Post('duplicate-check')
+  @HttpCode(200)
+  async checkDuplicates(
+    @CurrentActor() actor: Actor,
+    @Body(zodPipe(accountDuplicateCheckSchema)) body: AccountDuplicateCheckInput,
+  ) {
+    return { data: await this.accounts.checkDuplicates(actor, body) };
+  }
+
+  /** Created whatever it matches: duplicates are reported in `meta`, never a reason to refuse. */
   @Post()
   @HttpCode(201)
   async create(
     @CurrentActor() actor: Actor,
     @Body(zodPipe(accountCreateSchema)) body: AccountCreateInput,
   ) {
-    return { data: await this.accounts.create(actor, body) };
+    const { account, duplicates } = await this.accounts.createWithDuplicates(actor, body);
+    return { data: account, meta: { duplicates } };
   }
 
   @Patch(':id')
