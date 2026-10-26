@@ -20,6 +20,7 @@ import {
   parseSort,
   toFilterList,
   type ContactCreateInput,
+  type ContactDuplicateCheckInput,
   type ContactListQuery,
   type ContactUpdateInput,
   type DuplicateMatch,
@@ -138,6 +139,44 @@ export class ContactsService {
 
   async create(actor: Actor, input: ContactCreateInput): Promise<SerializedContact> {
     return this.inTenant(actor, (tx) => this.createInTx(actor, tx, input));
+  }
+
+  /**
+   * Create a contact, and report which existing contacts it may duplicate (ADR-0023).
+   *
+   * Offered, never imposed: the contact is saved whatever it matches, and the matches ride along in
+   * `meta.duplicates` so any client, not only one that asked first, can show them. They are looked up
+   * before the insert, in the same transaction, so the new row cannot match itself, and under the
+   * rules of `findDuplicates` (record scope, readable fields). Authorised first: somebody who may not
+   * create contacts is refused before anything is looked up on their behalf.
+   */
+  async createWithDuplicates(
+    actor: Actor,
+    input: ContactCreateInput,
+  ): Promise<{ contact: SerializedContact; duplicates: DuplicateMatch[] }> {
+    assertCan(actor, 'create', { objectType: 'contact' });
+    return this.inTenant(actor, async (tx) => {
+      const duplicates = await this.findDuplicates(tx, actor, {
+        email: input.email,
+        phone: input.phone,
+      });
+      const contact = await this.createInTx(actor, tx, input);
+      return { contact, duplicates };
+    });
+  }
+
+  /**
+   * What would this contact duplicate, before it is saved? The check a form makes while a person types.
+   *
+   * Needs `create` on contacts, so a role with no business adding contacts cannot use it to browse
+   * (ADR-0023 rule 5). Nothing is written.
+   */
+  async checkDuplicates(
+    actor: Actor,
+    input: ContactDuplicateCheckInput,
+  ): Promise<DuplicateMatch[]> {
+    assertCan(actor, 'create', { objectType: 'contact' });
+    return this.inTenant(actor, (tx) => this.findDuplicates(tx, actor, input));
   }
 
   /**

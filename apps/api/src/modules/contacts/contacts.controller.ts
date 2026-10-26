@@ -13,11 +13,13 @@ import {
 import {
   contactCreateSchema,
   contactDeleteQuerySchema,
+  contactDuplicateCheckSchema,
   contactListQuerySchema,
   contactParamsSchema,
   contactUpdateSchema,
   type ContactCreateInput,
   type ContactDeleteQuery,
+  type ContactDuplicateCheckInput,
   type ContactListQuery,
   type ContactUpdateInput,
 } from '@crm/contracts';
@@ -55,13 +57,30 @@ export class ContactsController {
     return { data: await this.contacts.getById(actor, params.id) };
   }
 
+  /**
+   * "Would this contact duplicate something?", asked before it is saved.
+   *
+   * A POST because the question carries an email address and a phone number, which do not belong in
+   * a URL (CLAUDE.md §5.8). Nothing is written (ADR-0023).
+   */
+  @Post('duplicate-check')
+  @HttpCode(200)
+  async checkDuplicates(
+    @CurrentActor() actor: Actor,
+    @Body(zodPipe(contactDuplicateCheckSchema)) body: ContactDuplicateCheckInput,
+  ) {
+    return { data: await this.contacts.checkDuplicates(actor, body) };
+  }
+
+  /** Created whatever it matches: duplicates are reported in `meta`, never a reason to refuse. */
   @Post()
   @HttpCode(201)
   async create(
     @CurrentActor() actor: Actor,
     @Body(zodPipe(contactCreateSchema)) body: ContactCreateInput,
   ) {
-    return { data: await this.contacts.create(actor, body) };
+    const { contact, duplicates } = await this.contacts.createWithDuplicates(actor, body);
+    return { data: contact, meta: { duplicates } };
   }
 
   @Patch(':id')

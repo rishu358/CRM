@@ -61,6 +61,37 @@ test.describe('creating and editing a contact', () => {
     await expect(page.getByRole('link', { name: surname })).toBeVisible();
   });
 
+  test('shows the duplicate prompt when the email matches an existing contact', async ({
+    page,
+  }) => {
+    await signIn(page, credentials.owner);
+
+    await page.getByRole('button', { name: 'New contact' }).click();
+    const dialog = page.getByRole('dialog');
+    const surname = `Twin${Date.now().toString().slice(-6)}`;
+    await dialog.getByLabel('Last name').fill(surname);
+    // The seed's contact Fatima Khan, whom the owner may read.
+    await dialog.getByLabel('Email').fill('fatima.khan@example.com');
+    await dialog.getByRole('button', { name: 'Save' }).click();
+
+    // Nothing was saved yet: the prompt is shown first, with the match and why.
+    const prompt = dialog.getByTestId('duplicate-prompt');
+    await expect(prompt).toBeVisible();
+    await expect(prompt.getByRole('link', { name: 'Fatima Khan' })).toBeVisible();
+    await expect(prompt).toContainText('same email');
+    await expect(page.getByRole('link', { name: surname })).toHaveCount(0);
+
+    // "Back to edit" returns to the form with what was typed still in it.
+    await prompt.getByRole('button', { name: 'Back to edit' }).click();
+    await expect(dialog.getByLabel('Last name')).toHaveValue(surname);
+
+    // The prompt informs, it does not block: saving anyway creates the contact.
+    await dialog.getByRole('button', { name: 'Save' }).click();
+    await dialog.getByRole('button', { name: 'Save anyway' }).click();
+    await expect(dialog).toBeHidden();
+    await expect(page.getByRole('link', { name: surname })).toBeVisible();
+  });
+
   test('inline edit persists across a reload', async ({ page }) => {
     await signIn(page, credentials.owner);
     await page.getByRole('link', { name: 'Sharma' }).first().click();
