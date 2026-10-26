@@ -59,7 +59,7 @@ export function BulkBar({
     <div
       role="region"
       aria-label={t('bulk.bar')}
-      className="sticky bottom-3 z-10 mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 shadow-md"
+      className="sticky bottom-3 z-10 flex flex-wrap items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 shadow-md"
       data-testid="bulk-bar"
     >
       <p className="mr-2 text-sm font-medium" aria-live="polite" data-testid="bulk-count">

@@ -216,13 +216,6 @@ export function DealsPage() {
 
     return (
       <div className="space-y-4">
-        <BulkBar
-          objectType="deal"
-          selection={selection}
-          filter={{ q: view.q, conditions: [...view.conditions] }}
-          hasMore={list.hasNextPage}
-          stages={pipeline.stages}
-        />
         <DealsTable
           deals={listed}
           stages={pipeline.stages}
@@ -230,6 +223,13 @@ export function DealsPage() {
           sort={sort}
           onSortChange={setSort}
           selection={selection}
+        />
+        <BulkBar
+          objectType="deal"
+          selection={selection}
+          filter={{ q: view.q, conditions: [...view.conditions] }}
+          hasMore={list.hasNextPage}
+          stages={pipeline.stages}
         />
         <ListFooter
           end={

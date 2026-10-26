@@ -135,16 +135,16 @@ export function LeadsPage() {
 
     return (
       <div className="space-y-4">
+        <LeadsTable
+          leads={leads}
+          customColumns={customColumns.chosenDefinitions}
+          selection={selection}
+        />
         <BulkBar
           objectType="lead"
           selection={selection}
           filter={{ q: view.q, conditions: [...view.conditions] }}
           hasMore={query.hasNextPage}
-        />
-        <LeadsTable
-          leads={leads}
-          customColumns={customColumns.chosenDefinitions}
-          selection={selection}
         />
         <ListFooter
           end={

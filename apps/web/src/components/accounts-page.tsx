@@ -168,12 +168,6 @@ export function AccountsPage() {
 
     return (
       <div className="space-y-4">
-        <BulkBar
-          objectType="account"
-          selection={selection}
-          filter={{ q: view.q, conditions: [...view.conditions] }}
-          hasMore={query.hasNextPage}
-        />
         <AccountsTable
           accounts={accounts}
           visibleColumns={visibleColumns}
@@ -181,6 +175,12 @@ export function AccountsPage() {
           sort={sort}
           onSortChange={setSort}
           selection={selection}
+        />
+        <BulkBar
+          objectType="account"
+          selection={selection}
+          filter={{ q: view.q, conditions: [...view.conditions] }}
+          hasMore={query.hasNextPage}
         />
         <ListFooter
           end={

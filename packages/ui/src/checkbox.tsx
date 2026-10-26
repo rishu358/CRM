@@ -37,6 +37,10 @@ export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(function Che
         id={inputId}
         type="checkbox"
         aria-describedby={description === undefined ? undefined : descriptionId}
+        // With the label hidden the name is an attribute, not a text node: a hidden `<label>`
+        // would put the row's name into the page's text a second time, where a screen reader
+        // does not need it and a test that looks for the name finds two.
+        aria-label={hideLabel && typeof label === 'string' ? label : undefined}
         className={cn(
           hideLabel ? 'mt-0' : 'mt-0.5',
           'h-4 w-4 shrink-0 cursor-pointer rounded border border-input bg-card accent-primary',
@@ -46,9 +50,11 @@ export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(function Che
         {...props}
       />
       {hideLabel ? (
-        <label htmlFor={inputId} className="sr-only">
-          {label}
-        </label>
+        typeof label === 'string' ? null : (
+          <label htmlFor={inputId} className="sr-only">
+            {label}
+          </label>
+        )
       ) : (
         <div className="min-w-0">
           <label htmlFor={inputId} className="cursor-pointer text-sm font-medium text-foreground">

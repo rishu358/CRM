@@ -135,16 +135,16 @@ export function ContactsPage() {
 
     return (
       <div className="space-y-4">
+        <ContactsTable
+          contacts={contacts}
+          customColumns={customColumns.chosenDefinitions}
+          selection={selection}
+        />
         <BulkBar
           objectType="contact"
           selection={selection}
           filter={{ q: view.q, conditions: [...view.conditions] }}
           hasMore={query.hasNextPage}
-        />
-        <ContactsTable
-          contacts={contacts}
-          customColumns={customColumns.chosenDefinitions}
-          selection={selection}
         />
         <ListFooter
           end={

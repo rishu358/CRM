@@ -80,7 +80,16 @@ test.describe('bulk actions', () => {
     const prefix = `Bulky${stamp}`;
     for (const suffix of ['A', 'B', 'C']) await createContact(page, `${prefix}${suffix}`);
 
-    await page.getByLabel('Search contacts').fill(prefix);
+    // Choose them by a filter on the last name, which is answered by the database at once; the
+    // search box waits for the search index, which the worker fills a moment after a save.
+    await page.reload();
+    await page.getByTestId('filters-button').click();
+    const filters = page.getByTestId('filter-dialog');
+    await filters.getByRole('button', { name: 'Add a condition' }).click();
+    await filters.getByLabel('Field', { exact: true }).selectOption({ label: 'Last name' });
+    await filters.getByLabel('Condition', { exact: true }).selectOption({ label: 'starts with' });
+    await filters.getByLabel('Value', { exact: true }).fill(prefix);
+    await page.getByTestId('filters-apply').click();
     await expect(page.getByRole('link', { name: `${prefix}A` })).toBeVisible();
     await expect(page.getByRole('link', { name: `${prefix}C` })).toBeVisible();
 
@@ -112,7 +121,7 @@ test.describe('bulk actions', () => {
 
   test('a row can be ticked from the keyboard', async ({ page }) => {
     await signIn(page, credentials.owner);
-    const box = page.getByRole('checkbox', { name: 'Select Reddy' });
+    const box = page.getByRole('checkbox', { name: /^Select .*Reddy$/ });
     await box.focus();
     await page.keyboard.press('Space');
     await expect(box).toBeChecked();
