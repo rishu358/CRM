@@ -22,9 +22,23 @@ import {
 } from './selection';
 
 const system = (key: string, type = 'text', options?: { value: string; label: string }[]) =>
-  ({ key, label: key, type, isSystem: true, isActive: true, options }) as unknown as FieldDefinitionView;
+  ({
+    key,
+    label: key,
+    type,
+    isSystem: true,
+    isActive: true,
+    options,
+  }) as unknown as FieldDefinitionView;
 const custom = (key: string, type: string) =>
-  ({ key, label: key, type, isSystem: false, isActive: true, writable: true }) as unknown as FieldDefinitionView;
+  ({
+    key,
+    label: key,
+    type,
+    isSystem: false,
+    isActive: true,
+    writable: true,
+  }) as unknown as FieldDefinitionView;
 
 describe('what a list asks the API for', () => {
   it('builds one query string from the search, the conditions and the sort', () => {
