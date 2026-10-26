@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  Headers,
   HttpCode,
   Inject,
   Param,
@@ -25,6 +26,7 @@ import {
 } from '@crm/contracts';
 import type { Actor } from '@crm/core';
 import { CurrentActor } from '../../auth/auth.guard.js';
+import { parseIdempotencyKey } from '../../common/idempotency.js';
 import { zodPipe } from '../../common/zod-validation.pipe.js';
 import { ContactsService } from './contacts.service.js';
 
@@ -78,8 +80,13 @@ export class ContactsController {
   async create(
     @CurrentActor() actor: Actor,
     @Body(zodPipe(contactCreateSchema)) body: ContactCreateInput,
+    @Headers('idempotency-key') idempotencyKey: string | undefined,
   ) {
-    const { contact, duplicates } = await this.contacts.createWithDuplicates(actor, body);
+    const { contact, duplicates } = await this.contacts.createWithDuplicates(
+      actor,
+      body,
+      parseIdempotencyKey(idempotencyKey),
+    );
     return { data: contact, meta: { duplicates } };
   }
 

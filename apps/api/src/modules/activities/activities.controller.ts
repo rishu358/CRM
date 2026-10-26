@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  Headers,
   HttpCode,
   Inject,
   Param,
@@ -26,6 +27,7 @@ import {
 } from '@crm/contracts';
 import type { Actor } from '@crm/core';
 import { CurrentActor } from '../../auth/auth.guard.js';
+import { parseIdempotencyKey } from '../../common/idempotency.js';
 import { zodPipe } from '../../common/zod-validation.pipe.js';
 import { ActivitiesService } from './activities.service.js';
 
@@ -63,8 +65,11 @@ export class ActivitiesController {
   async create(
     @CurrentActor() actor: Actor,
     @Body(zodPipe(activityCreateSchema)) body: ActivityCreateInput,
+    @Headers('idempotency-key') idempotencyKey: string | undefined,
   ) {
-    return { data: await this.activities.create(actor, body) };
+    return {
+      data: await this.activities.create(actor, body, parseIdempotencyKey(idempotencyKey)),
+    };
   }
 
   @Patch(':id')

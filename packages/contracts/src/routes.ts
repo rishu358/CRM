@@ -375,6 +375,10 @@ function standardObjectRoutes(object: {
       operationId: `create${name}`,
       tag: object.tag,
       summary: `Create a ${singular}`,
+      description:
+        'Accepts an `Idempotency-Key` header (1 to 128 letters, digits, `_ . : -`): a retry with ' +
+        'the same key and the same body returns the first answer and creates nothing more; the ' +
+        'same key with a different body is a 409. The key is remembered for 24 hours (ADR-0060).',
       auth: 'session',
       body: { name: `${name}Create`, schema: object.create },
       response: {
@@ -1044,7 +1048,8 @@ const leadRoutes: RouteDefinition[] = [
     summary: 'Convert a lead',
     description:
       'One transaction: contact, account and optional deal, then the lead is marked ' +
-      'converted (ADR-0022). Converting twice is refused, not repeated.',
+      'converted (ADR-0022). Converting twice is refused, not repeated, unless the retry carries ' +
+      'the same `Idempotency-Key` as the conversion that worked, which returns that answer (ADR-0060).',
     auth: 'session',
     params: leadParamsSchema,
     body: { name: 'LeadConvert', schema: leadConvertSchema },

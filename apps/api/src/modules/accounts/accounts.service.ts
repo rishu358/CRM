@@ -36,6 +36,7 @@ import { SEARCH_PROVIDER, type ApiSearchProvider } from '../../platform/search/s
 import { DatabaseService } from '../../database/database.service.js';
 import { AuditService, diffChanges } from '../../platform/audit.service.js';
 import { FieldMetadataService } from '../../platform/field-metadata.service.js';
+import { IdempotencyService } from '../../platform/idempotency.service.js';
 import { OutboxService } from '../../platform/outbox.service.js';
 import { AccountsRepository } from './accounts.repository.js';
 import {
@@ -78,6 +79,7 @@ export class AccountsService {
     @Inject(FieldMetadataService) private readonly fieldMetadata: FieldMetadataService,
     @Inject(AuditService) private readonly audit: AuditService,
     @Inject(OutboxService) private readonly outbox: OutboxService,
+    @Inject(IdempotencyService) private readonly idempotency: IdempotencyService,
     @Inject(SEARCH_PROVIDER) private readonly search: ApiSearchProvider,
   ) {}
 
@@ -164,16 +166,26 @@ export class AccountsService {
   async createWithDuplicates(
     actor: Actor,
     input: AccountCreateInput,
+    idempotencyKey?: string,
   ): Promise<{ account: SerializedAccount; duplicates: DuplicateMatch[] }> {
     assertCan(actor, 'create', { objectType: 'account' });
-    return this.inTenant(actor, async (tx) => {
-      const duplicates = await this.findDuplicates(tx, actor, {
-        domain: input.domain,
-        name: input.name,
-      });
-      const account = await this.createInTx(actor, tx, input);
-      return { account, duplicates };
-    });
+    return this.inTenant(actor, (tx) =>
+      this.idempotency.once(
+        tx,
+        actor,
+        idempotencyKey,
+        { objectType: 'account', action: 'create' },
+        input,
+        async () => {
+          const duplicates = await this.findDuplicates(tx, actor, {
+            domain: input.domain,
+            name: input.name,
+          });
+          const account = await this.createInTx(actor, tx, input);
+          return { account, duplicates };
+        },
+      ),
+    );
   }
 
   /**

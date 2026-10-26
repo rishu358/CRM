@@ -1,10 +1,8 @@
-import { createHash } from 'node:crypto';
 import { Inject, Injectable } from '@nestjs/common';
 import {
   assertCan,
   BULK_MAX_RECORDS,
   can,
-  ConflictError,
   DomainError,
   ForbiddenError,
   newId,
@@ -47,6 +45,7 @@ import { searchForList } from '../../common/record-search.js';
 import { DatabaseService } from '../../database/database.service.js';
 import { AuditService } from '../../platform/audit.service.js';
 import { FieldMetadataService } from '../../platform/field-metadata.service.js';
+import { hashRequest, IdempotencyService, reusedKey } from '../../platform/idempotency.service.js';
 import { OutboxService } from '../../platform/outbox.service.js';
 import { SEARCH_PROVIDER, type ApiSearchProvider } from '../../platform/search/search.tokens.js';
 import { AccountsService } from '../accounts/accounts.service.js';
@@ -55,7 +54,6 @@ import { ContactsService } from '../contacts/contacts.service.js';
 import { DealsService } from '../deals/deals.service.js';
 import { LeadsService } from '../leads/leads.service.js';
 import { buildBulkPatch } from './bulk-edit.js';
-import { BulkRepository } from './bulk.repository.js';
 
 /** What one object module offers a bulk action. Each is that module's own service method. */
 interface ObjectPort {
@@ -115,7 +113,7 @@ export class BulkService {
 
   constructor(
     @Inject(DatabaseService) private readonly database: DatabaseService,
-    @Inject(BulkRepository) private readonly repository: BulkRepository,
+    @Inject(IdempotencyService) private readonly idempotency: IdempotencyService,
     @Inject(FieldMetadataService) private readonly fieldMetadata: FieldMetadataService,
     @Inject(AuditService) private readonly audit: AuditService,
     @Inject(OutboxService) private readonly outbox: OutboxService,
@@ -173,8 +171,8 @@ export class BulkService {
     try {
       return await this.inTenant(actor, async (tx) => {
         if (idempotencyKey !== undefined) {
-          await this.repository.lockKey(tx, actor.tenantId, actor.userId, idempotencyKey);
-          const stored = await this.repository.find(
+          await this.idempotency.lockKey(tx, actor.tenantId, actor.userId, idempotencyKey);
+          const stored = await this.idempotency.find(
             tx,
             actor.tenantId,
             actor.userId,
@@ -182,9 +180,7 @@ export class BulkService {
           );
           if (stored !== null) {
             if (stored.requestHash !== requestHash) {
-              throw new ConflictError(
-                'This Idempotency-Key was already used for a different request',
-              );
+              throw reusedKey();
             }
             return { ...(stored.result as unknown as BulkResult), replayed: true };
           }
@@ -195,8 +191,8 @@ export class BulkService {
         if (input.dryRun) throw new RolledBack(result);
 
         if (idempotencyKey !== undefined) {
-          await this.repository.sweep(tx, actor.tenantId, actor.userId);
-          await this.repository.insert(tx, {
+          await this.idempotency.sweep(tx, actor.tenantId, actor.userId);
+          await this.idempotency.insert(tx, {
             id: newId(),
             tenantId: actor.tenantId,
             idempotencyKey,
@@ -549,20 +545,4 @@ export class BulkService {
   private inTenant<T>(actor: Actor, work: (tx: Tx) => Promise<T>): Promise<T> {
     return this.database.runInTenant({ tenantId: actor.tenantId, userId: actor.userId }, work);
   }
-}
-
-/** A stable fingerprint of a request: key order and `dryRun`-style defaults do not change it. */
-function hashRequest(input: BulkActionInput): string {
-  return createHash('sha256').update(canonicalJson(input)).digest('hex');
-}
-
-function canonicalJson(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
-  if (value !== null && typeof value === 'object') {
-    const entries = Object.entries(value as Record<string, unknown>)
-      .filter(([, v]) => v !== undefined)
-      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
-    return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${canonicalJson(v)}`).join(',')}}`;
-  }
-  return JSON.stringify(value) ?? 'null';
 }

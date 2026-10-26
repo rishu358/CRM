@@ -640,6 +640,7 @@
         "tags": [
           "Accounts"
         ],
+        "description": "Accepts an `Idempotency-Key` header (1 to 128 letters, digits, `_ . : -`): a retry with the same key and the same body returns the first answer and creates nothing more; the same key with a different body is a 409. The key is remembered for 24 hours (ADR-0060).",
         "requestBody": {
           "required": true,
           "content": {
@@ -1371,6 +1372,7 @@
         "tags": [
           "Activities"
         ],
+        "description": "Accepts an `Idempotency-Key` header (1 to 128 letters, digits, `_ . : -`): a retry with the same key and the same body returns the first answer and creates nothing more; the same key with a different body is a 409. The key is remembered for 24 hours (ADR-0060).",
         "requestBody": {
           "required": true,
           "content": {
@@ -4715,6 +4717,7 @@
         "tags": [
           "Contacts"
         ],
+        "description": "Accepts an `Idempotency-Key` header (1 to 128 letters, digits, `_ . : -`): a retry with the same key and the same body returns the first answer and creates nothing more; the same key with a different body is a 409. The key is remembered for 24 hours (ADR-0060).",
         "requestBody": {
           "required": true,
           "content": {
@@ -6130,6 +6133,7 @@
         "tags": [
           "Deals"
         ],
+        "description": "Accepts an `Idempotency-Key` header (1 to 128 letters, digits, `_ . : -`): a retry with the same key and the same body returns the first answer and creates nothing more; the same key with a different body is a 409. The key is remembered for 24 hours (ADR-0060).",
         "requestBody": {
           "required": true,
           "content": {
@@ -9234,6 +9238,7 @@
         "tags": [
           "Leads"
         ],
+        "description": "Accepts an `Idempotency-Key` header (1 to 128 letters, digits, `_ . : -`): a retry with the same key and the same body returns the first answer and creates nothing more; the same key with a different body is a 409. The key is remembered for 24 hours (ADR-0060).",
         "requestBody": {
           "required": true,
           "content": {
@@ -9779,7 +9784,7 @@
         "tags": [
           "Leads"
         ],
-        "description": "One transaction: contact, account and optional deal, then the lead is marked converted (ADR-0022). Converting twice is refused, not repeated.",
+        "description": "One transaction: contact, account and optional deal, then the lead is marked converted (ADR-0022). Converting twice is refused, not repeated, unless the retry carries the same `Idempotency-Key` as the conversion that worked, which returns that answer (ADR-0060).",
         "parameters": [
           {
             "name": "id",

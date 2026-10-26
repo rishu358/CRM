@@ -36,6 +36,7 @@ import { SEARCH_PROVIDER, type ApiSearchProvider } from '../../platform/search/s
 import { DatabaseService } from '../../database/database.service.js';
 import { AuditService, diffChanges } from '../../platform/audit.service.js';
 import { FieldMetadataService } from '../../platform/field-metadata.service.js';
+import { IdempotencyService } from '../../platform/idempotency.service.js';
 import { OutboxService } from '../../platform/outbox.service.js';
 import { ActivitiesRepository } from './activities.repository.js';
 import {
@@ -77,6 +78,7 @@ export class ActivitiesService {
     @Inject(FieldMetadataService) private readonly fieldMetadata: FieldMetadataService,
     @Inject(AuditService) private readonly audit: AuditService,
     @Inject(OutboxService) private readonly outbox: OutboxService,
+    @Inject(IdempotencyService) private readonly idempotency: IdempotencyService,
     @Inject(SEARCH_PROVIDER) private readonly search: ApiSearchProvider,
   ) {}
 
@@ -167,8 +169,21 @@ export class ActivitiesService {
     });
   }
 
-  async create(actor: Actor, input: ActivityCreateInput): Promise<SerializedActivity> {
-    return this.inTenant(actor, (tx) => this.createInTx(actor, tx, input));
+  async create(
+    actor: Actor,
+    input: ActivityCreateInput,
+    idempotencyKey?: string,
+  ): Promise<SerializedActivity> {
+    return this.inTenant(actor, (tx) =>
+      this.idempotency.once(
+        tx,
+        actor,
+        idempotencyKey,
+        { objectType: 'activity', action: 'create' },
+        input,
+        () => this.createInTx(actor, tx, input),
+      ),
+    );
   }
 
   /**

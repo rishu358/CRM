@@ -1,4 +1,5 @@
 import {
+  IDEMPOTENCY_WINDOW_HOURS,
   newId,
   PURGE_BATCH_SIZE,
   PURGE_SWEEP_INTERVAL_HOURS,
@@ -6,8 +7,12 @@ import {
 } from '@crm/core';
 import {
   allRecyclableDescriptors,
+  and,
   auditLogs,
+  bulkOperations,
+  eq,
   hardDelete,
+  lt,
   outboxEvents,
   POLYMORPHIC_REFERENCE_TABLE_LIST,
   removeReferences,
@@ -81,6 +86,20 @@ export function runPurgeSweep(deps: PurgeDeps = {}): EventHandler {
         sql`select (now() - make_interval(days => ${retentionDays}))::text as cutoff`,
       )
     ).rows[0] as unknown as { cutoff: string };
+
+    // Remembered Idempotency-Key answers hold a copy of a record, so they go on the same schedule
+    // (ADR-0060). One statement, bounded by the (tenant, user, time) index, and safe to run twice.
+    await tx
+      .delete(bulkOperations)
+      .where(
+        and(
+          eq(bulkOperations.tenantId, event.tenant_id),
+          lt(
+            bulkOperations.createdAt,
+            sql`now() - make_interval(hours => ${IDEMPOTENCY_WINDOW_HOURS})`,
+          ),
+        ),
+      );
 
     let purgedTotal = 0;
 

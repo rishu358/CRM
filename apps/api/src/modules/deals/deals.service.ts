@@ -40,6 +40,7 @@ import { DatabaseService } from '../../database/database.service.js';
 import { AuditService, diffChanges } from '../../platform/audit.service.js';
 import { CurrencyConverter } from '../../platform/exchange-rates/currency-converter.service.js';
 import { FieldMetadataService } from '../../platform/field-metadata.service.js';
+import { IdempotencyService } from '../../platform/idempotency.service.js';
 import { OutboxService } from '../../platform/outbox.service.js';
 import { AccountsService } from '../accounts/accounts.service.js';
 import { ContactsService } from '../contacts/contacts.service.js';
@@ -104,6 +105,7 @@ export class DealsService {
     @Inject(FieldMetadataService) private readonly fieldMetadata: FieldMetadataService,
     @Inject(AuditService) private readonly audit: AuditService,
     @Inject(OutboxService) private readonly outbox: OutboxService,
+    @Inject(IdempotencyService) private readonly idempotency: IdempotencyService,
     @Inject(PipelinesService) private readonly pipelines: PipelinesService,
     @Inject(AccountsService) private readonly accounts: AccountsService,
     @Inject(ContactsService) private readonly contacts: ContactsService,
@@ -250,8 +252,21 @@ export class DealsService {
     });
   }
 
-  async create(actor: Actor, input: DealCreateInput): Promise<SerializedDeal> {
-    return this.inTenant(actor, (tx) => this.createInTx(actor, tx, input));
+  async create(
+    actor: Actor,
+    input: DealCreateInput,
+    idempotencyKey?: string,
+  ): Promise<SerializedDeal> {
+    return this.inTenant(actor, (tx) =>
+      this.idempotency.once(
+        tx,
+        actor,
+        idempotencyKey,
+        { objectType: 'deal', action: 'create' },
+        input,
+        () => this.createInTx(actor, tx, input),
+      ),
+    );
   }
 
   /**

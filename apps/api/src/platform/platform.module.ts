@@ -4,6 +4,7 @@ import { createStorageProvider } from '@crm/storage';
 import { API_ENV_TOKEN, type ApiEnv } from '../config/env.js';
 import { AuditService } from './audit.service.js';
 import { FieldMetadataService } from './field-metadata.service.js';
+import { IdempotencyService } from './idempotency.service.js';
 import { CurrencyConverter } from './exchange-rates/currency-converter.service.js';
 import { EXCHANGE_RATE_SOURCE } from './exchange-rates/exchange-rate.source.js';
 import { ManualExchangeRateSource } from './exchange-rates/manual-exchange-rate.source.js';
@@ -31,6 +32,7 @@ import { STORAGE_PROVIDER } from './storage/storage.tokens.js';
     OutboxService,
     OwnershipRegistry,
     FieldMetadataService,
+    IdempotencyService,
     ActorRateLimitService,
     AddressRateLimitService,
     // Redis when REDIS_URL is set, this process's own counts when it is not (ADR-0053). Every rate limit
@@ -62,6 +64,7 @@ import { STORAGE_PROVIDER } from './storage/storage.tokens.js';
     OutboxService,
     OwnershipRegistry,
     FieldMetadataService,
+    IdempotencyService,
     ActorRateLimitService,
     AddressRateLimitService,
     RATE_LIMIT_COUNTER,
