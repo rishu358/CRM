@@ -4,7 +4,8 @@ import { Badge, SortableTh, Table, TableCard, THead, Td, Th, Tr } from '@crm/ui'
 import type { DealRecord, StageRecord } from '../lib/deals';
 import { DEFAULT_PREFERENCES, formatDate, formatMoney } from '../lib/format';
 import { t, type TranslationKey } from '../lib/i18n';
-import { EmptyCell, RecordLink } from './table-parts';
+import { EmptyCell, RecordLink, SelectAllTh, SelectRowTd } from './table-parts';
+import type { Selection } from '../lib/selection';
 import { customCellText } from './custom-fields';
 import type { FieldDefinitionView } from '../lib/fields';
 
@@ -42,6 +43,7 @@ export function DealsTable({
   customColumns = [],
   sort,
   onSortChange,
+  selection,
 }: {
   deals: readonly DealRecord[];
   stages: readonly StageRecord[];
@@ -49,6 +51,8 @@ export function DealsTable({
   /** `field` or `-field`, exactly as it goes to the API. */
   sort: string;
   onSortChange: (sort: string) => void;
+  /** Row checkboxes, when the list offers bulk actions. */
+  selection?: Selection;
 }) {
   const active = sort.startsWith('-')
     ? { field: sort.slice(1), descending: true }
@@ -106,6 +110,7 @@ export function DealsTable({
       <Table>
         <THead>
           <Tr className="hover:bg-transparent">
+            {selection === undefined ? null : <SelectAllTh selection={selection} />}
             {columns.map((column) => {
               const numeric = NUMERIC_COLUMNS.has(column.key);
               if (column.sortKey === null) {
@@ -136,6 +141,13 @@ export function DealsTable({
         <tbody>
           {deals.map((deal) => (
             <Tr key={deal.id}>
+              {selection === undefined ? null : (
+                <SelectRowTd
+                  selection={selection}
+                  id={deal.id}
+                  name={deal.name ?? t('field.empty')}
+                />
+              )}
               {columns.map((column) => {
                 const content = cell(deal, column);
                 return (

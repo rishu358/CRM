@@ -335,121 +335,139 @@ export class DealsService {
   async update(actor: Actor, id: string, input: DealUpdateInput): Promise<SerializedDeal> {
     assertCan(actor, 'update', { objectType: 'deal' });
 
-    return this.inTenant(actor, async (tx) => {
-      const existing = await this.loadOrNotFound(tx, actor, id);
-      assertCan(actor, 'update', {
-        objectType: 'deal',
-        record: await recordRefFor(tx, actor, existing.ownerId),
-      });
+    return this.inTenant(actor, (tx) => this.updateInTx(actor, tx, id, input));
+  }
 
-      const fields = await this.fieldMetadata.forObject(tx, actor.tenantId, 'deal');
-      assertWritableDealFields(actor, input, fields);
+  /**
+   * Update a deal inside a transaction somebody else owns.
+   *
+   * Bulk edit changes many records and reports each one's outcome, so it needs
+   * the very same checks, version guard, audit entry and outbox event `update`
+   * performs, without opening a second transaction. Every guarantee `update`
+   * gives holds here too: it is the same code, not a copy of it (ADR-0056).
+   */
+  async updateInTx(
+    actor: Actor,
+    tx: Tx,
+    id: string,
+    input: DealUpdateInput,
+  ): Promise<SerializedDeal> {
+    assertCan(actor, 'update', { objectType: 'deal' });
 
-      await this.assertLinks(tx, actor, input.accountId, input.primaryContactId, input.contacts);
+    const existing = await this.loadOrNotFound(tx, actor, id);
+    assertCan(actor, 'update', {
+      objectType: 'deal',
+      record: await recordRefFor(tx, actor, existing.ownerId),
+    });
 
-      const stage = await this.placementForUpdate(tx, actor, existing, input);
-      const state = this.stageState(stage, existing, input.probability, input.lostReason);
+    const fields = await this.fieldMetadata.forObject(tx, actor.tenantId, 'deal');
+    assertWritableDealFields(actor, input, fields);
 
-      const patch = this.buildPatch(actor, input, existing, fields);
+    await this.assertLinks(tx, actor, input.accountId, input.primaryContactId, input.contacts);
 
-      const updated = await this.translateStageState(() =>
-        this.repository.updateWithVersion(tx, actor.tenantId, id, input.version, {
-          ...patch,
-          pipelineId: stage.pipelineId,
-          stageId: stage.id,
-          ...state,
-          updatedBy: actor.userId,
-        }),
-      );
+    const stage = await this.placementForUpdate(tx, actor, existing, input);
+    const state = this.stageState(stage, existing, input.probability, input.lostReason);
 
-      if (updated === null) {
-        // The row exists — we just loaded it — so a zero-row update means the
-        // version moved: somebody else saved first. 409, never a silent clobber.
-        throw new VersionConflictError('deal');
-      }
+    const patch = this.buildPatch(actor, input, existing, fields);
 
-      const before = await this.repository.peopleFor(tx, actor.tenantId, [id]);
-      const previousPeople = before.get(id) ?? [];
-      const people =
-        input.contacts === undefined
-          ? previousPeople
-          : await this.writePeople(tx, actor, id, input.contacts);
+    const updated = await this.translateStageState(() =>
+      this.repository.updateWithVersion(tx, actor.tenantId, id, input.version, {
+        ...patch,
+        pipelineId: stage.pipelineId,
+        stageId: stage.id,
+        ...state,
+        updatedBy: actor.userId,
+      }),
+    );
 
-      const changes = diffChanges(existing, updated);
-      if (input.contacts !== undefined && !samePeople(previousPeople, people)) {
-        changes['contacts'] = { old: previousPeople, new: people };
-      }
+    if (updated === null) {
+      // The row exists — we just loaded it — so a zero-row update means the
+      // version moved: somebody else saved first. 409, never a silent clobber.
+      throw new VersionConflictError('deal');
+    }
 
-      await this.audit.record(tx, actor, {
-        action: 'update',
+    const before = await this.repository.peopleFor(tx, actor.tenantId, [id]);
+    const previousPeople = before.get(id) ?? [];
+    const people =
+      input.contacts === undefined
+        ? previousPeople
+        : await this.writePeople(tx, actor, id, input.contacts);
+
+    const changes = diffChanges(existing, updated);
+    if (input.contacts !== undefined && !samePeople(previousPeople, people)) {
+      changes['contacts'] = { old: previousPeople, new: people };
+    }
+
+    await this.audit.record(tx, actor, {
+      action: 'update',
+      objectType: 'deal',
+      recordId: id,
+      changes,
+    });
+
+    const stageChanged = existing.stageId !== updated.stageId;
+    if (stageChanged) {
+      const from = await this.pipelines.findStage(tx, actor.tenantId, existing.stageId);
+      await this.outbox.publish(tx, actor, {
+        eventType: 'deal.stage_changed.v1',
         objectType: 'deal',
         recordId: id,
-        changes,
+        payload: {
+          pipelineId: updated.pipelineId,
+          fromStageId: existing.stageId,
+          fromStageName: from?.name ?? null,
+          toStageId: stage.id,
+          toStageName: stage.name,
+          stageType: stage.stageType,
+        },
       });
+    }
 
-      const stageChanged = existing.stageId !== updated.stageId;
-      if (stageChanged) {
-        const from = await this.pipelines.findStage(tx, actor.tenantId, existing.stageId);
-        await this.outbox.publish(tx, actor, {
-          eventType: 'deal.stage_changed.v1',
-          objectType: 'deal',
-          recordId: id,
-          payload: {
-            pipelineId: updated.pipelineId,
-            fromStageId: existing.stageId,
-            fromStageName: from?.name ?? null,
-            toStageId: stage.id,
-            toStageName: stage.name,
-            stageType: stage.stageType,
-          },
-        });
-      }
+    const otherChanges = Object.keys(changes).filter(
+      (key) => !stageChanged || !STAGE_DERIVED_COLUMNS.has(key),
+    );
+    if (otherChanges.length > 0) {
+      await this.outbox.publish(tx, actor, {
+        eventType: 'deal.updated.v1',
+        objectType: 'deal',
+        recordId: id,
+        payload: { changedFields: otherChanges },
+      });
+    }
 
-      const otherChanges = Object.keys(changes).filter(
-        (key) => !stageChanged || !STAGE_DERIVED_COLUMNS.has(key),
-      );
-      if (otherChanges.length > 0) {
-        await this.outbox.publish(tx, actor, {
-          eventType: 'deal.updated.v1',
-          objectType: 'deal',
-          recordId: id,
-          payload: { changedFields: otherChanges },
-        });
-      }
-
-      return serializeDeal(actor, updated, fields, people);
-    });
+    return serializeDeal(actor, updated, fields, people);
   }
 
   async remove(actor: Actor, id: string, version: number): Promise<void> {
     assertCan(actor, 'delete', { objectType: 'deal' });
 
-    await this.inTenant(actor, async (tx) => {
-      const existing = await this.loadOrNotFound(tx, actor, id);
-      assertCan(actor, 'delete', {
-        objectType: 'deal',
-        record: await recordRefFor(tx, actor, existing.ownerId),
-      });
+    await this.inTenant(actor, (tx) => this.removeInTx(actor, tx, id, version));
+  }
 
-      const deleted = await this.repository.softDelete(
-        tx,
-        actor.tenantId,
-        id,
-        actor.userId,
-        version,
-      );
-      if (deleted === null) throw new VersionConflictError('deal');
+  /**
+   * Soft-delete a deal inside a transaction somebody else owns (see `updateInTx`).
+   */
+  async removeInTx(actor: Actor, tx: Tx, id: string, version: number): Promise<void> {
+    assertCan(actor, 'delete', { objectType: 'deal' });
 
-      await this.audit.record(tx, actor, {
-        action: 'delete',
-        objectType: 'deal',
-        recordId: id,
-      });
-      await this.outbox.publish(tx, actor, {
-        eventType: 'deal.deleted.v1',
-        objectType: 'deal',
-        recordId: id,
-      });
+    const existing = await this.loadOrNotFound(tx, actor, id);
+    assertCan(actor, 'delete', {
+      objectType: 'deal',
+      record: await recordRefFor(tx, actor, existing.ownerId),
+    });
+
+    const deleted = await this.repository.softDelete(tx, actor.tenantId, id, actor.userId, version);
+    if (deleted === null) throw new VersionConflictError('deal');
+
+    await this.audit.record(tx, actor, {
+      action: 'delete',
+      objectType: 'deal',
+      recordId: id,
+    });
+    await this.outbox.publish(tx, actor, {
+      eventType: 'deal.deleted.v1',
+      objectType: 'deal',
+      recordId: id,
     });
   }
 

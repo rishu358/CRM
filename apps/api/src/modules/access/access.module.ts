@@ -44,6 +44,6 @@ import { TeamsService } from './teams.service.js';
     ExplainerService,
     MemberDirectory,
   ],
-  exports: [MemberDirectory],
+  exports: [MemberDirectory, OwnershipService],
 })
 export class AccessModule {}

@@ -391,6 +391,11 @@ const TAG_DESCRIPTIONS: ReadonlyArray<{ name: string; description: string }> = [
   { name: 'Activities', description: 'Tasks, calls, meetings, notes and My Day.' },
   { name: 'Search', description: 'One query across every object the caller may read.' },
   { name: 'Notifications', description: 'The bell.' },
+  { name: 'Saved Views', description: 'A list’s search, filters, columns and sort, under a name.' },
+  {
+    name: 'Bulk Actions',
+    description: 'Edit, assign, delete and tag many records; the workspace’s tags.',
+  },
 ];
 
 /** `/contacts/{id}` sorts before `/contacts/{id}/links`; deterministic either way. */

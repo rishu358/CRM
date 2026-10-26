@@ -1,6 +1,8 @@
+import { Checkbox, Td, Th } from '@crm/ui';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { t } from '../lib/i18n';
+import type { Selection } from '../lib/selection';
 
 /**
  * The link that opens a record, in the first column of every list.
@@ -25,4 +27,48 @@ export function RecordLink({ href, children }: { href: string; children: ReactNo
 /** What a cell shows when there is nothing to show. */
 export function EmptyCell() {
   return <span className="text-muted-foreground">{t('field.empty')}</span>;
+}
+
+/**
+ * The header cell that ticks every row on screen (MVP_SPEC M4, bulk actions).
+ *
+ * A tri-state: ticked when every loaded row is, mixed when some are. Keyboard and
+ * screen-reader users get a real checkbox with a name, not a styled cell.
+ */
+export function SelectAllTh({ selection }: { selection: Selection }) {
+  return (
+    <Th className="w-10 pr-0">
+      <Checkbox
+        hideLabel
+        label={t('bulk.selectAll')}
+        checked={selection.allVisibleSelected}
+        onChange={selection.toggleAllVisible}
+        ref={(input) => {
+          if (input !== null) input.indeterminate = selection.someVisibleSelected;
+        }}
+      />
+    </Th>
+  );
+}
+
+/** The cell that ticks one row. The name is what the row is called, so the box has a name. */
+export function SelectRowTd({
+  selection,
+  id,
+  name,
+}: {
+  selection: Selection;
+  id: string;
+  name: string;
+}) {
+  return (
+    <Td className="w-10 pr-0">
+      <Checkbox
+        hideLabel
+        label={t('bulk.selectRow', { name })}
+        checked={selection.isSelected(id)}
+        onChange={() => selection.toggle(id)}
+      />
+    </Td>
+  );
 }

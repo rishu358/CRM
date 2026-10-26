@@ -8,6 +8,7 @@ import {
   type InfiniteData,
 } from '@tanstack/react-query';
 import { api, type ApiRequestError, type ItemEnvelope, type ListEnvelope } from './api-client';
+import { listKey, listSearchParams, type ListParams } from './list-view';
 
 /**
  * Server state for leads (CLAUDE.md §9).
@@ -85,21 +86,21 @@ export interface ConvertInput {
 
 export const leadKeys = {
   all: ['leads'] as const,
-  list: (search: string) => ['leads', 'list', search] as const,
+  list: (params: ListParams) => ['leads', 'list', listKey(params)] as const,
   detail: (id: string) => ['leads', 'detail', id] as const,
   matches: (id: string) => ['leads', 'conversion-matches', id] as const,
 };
 
 /** Infinite scroll over the keyset cursor (ADR-0012). */
-export function useLeadList(search: string) {
+export function useLeadList(params: ListParams) {
   return useInfiniteQuery<ListEnvelope<LeadRecord>, ApiRequestError>({
-    queryKey: leadKeys.list(search),
+    queryKey: leadKeys.list(params),
     initialPageParam: null as string | null,
     queryFn: ({ pageParam }) => {
-      const params = new URLSearchParams({ limit: '50', sort: '-created_at' });
-      if (search.length > 0) params.set('q', search);
-      if (typeof pageParam === 'string') params.set('cursor', pageParam);
-      return api.get<ListEnvelope<LeadRecord>>(`/leads?${params.toString()}`);
+      const query = listSearchParams(params, {
+        cursor: typeof pageParam === 'string' ? pageParam : null,
+      });
+      return api.get<ListEnvelope<LeadRecord>>(`/leads?${query.toString()}`);
     },
     getNextPageParam: (lastPage) => lastPage.meta.nextCursor,
   });

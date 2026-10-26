@@ -10,6 +10,7 @@ import {
 } from '@tanstack/react-query';
 import type { MoneyValue } from './accounts';
 import { api, type ApiRequestError, type ItemEnvelope, type ListEnvelope } from './api-client';
+import { listKey, listSearchParams, type ListParams } from './list-view';
 
 /**
  * Server state for deals and pipelines (CLAUDE.md §9).
@@ -89,8 +90,8 @@ export const dealKeys = {
   columns: (pipelineId: string) => ['deals', 'column', pipelineId] as const,
   column: (pipelineId: string, stageId: string, search: string) =>
     ['deals', 'column', pipelineId, stageId, search] as const,
-  list: (pipelineId: string, search: string, sort: string) =>
-    ['deals', 'list', pipelineId, search, sort] as const,
+  list: (pipelineId: string, params: ListParams) =>
+    ['deals', 'list', pipelineId, listKey(params)] as const,
   detail: (id: string) => ['deals', 'detail', id] as const,
 };
 
@@ -138,16 +139,16 @@ export function useStageDeals(pipelineId: string, stageId: string, search: strin
 }
 
 /** The list view: every deal in a pipeline, in the order the user chose. */
-export function useDealList(pipelineId: string, search: string, sort: string) {
+export function useDealList(pipelineId: string, params: ListParams) {
   return useInfiniteQuery<ListEnvelope<DealRecord>, ApiRequestError>({
-    queryKey: dealKeys.list(pipelineId, search, sort),
+    queryKey: dealKeys.list(pipelineId, params),
     initialPageParam: null as string | null,
     queryFn: ({ pageParam }) => {
-      const params = new URLSearchParams({ limit: '50', sort });
-      params.append('filter', `pipeline_id:eq:${pipelineId}`);
-      if (search.length > 0) params.set('q', search);
-      if (typeof pageParam === 'string') params.set('cursor', pageParam);
-      return api.get<ListEnvelope<DealRecord>>(`/deals?${params.toString()}`);
+      const query = listSearchParams(params, {
+        cursor: typeof pageParam === 'string' ? pageParam : null,
+        extraFilters: [`pipeline_id:eq:${pipelineId}`],
+      });
+      return api.get<ListEnvelope<DealRecord>>(`/deals?${query.toString()}`);
     },
     getNextPageParam: (lastPage) => lastPage.meta.nextCursor,
     enabled: pipelineId.length > 0,

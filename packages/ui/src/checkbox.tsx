@@ -6,6 +6,11 @@ export interface CheckboxProps extends Omit<InputHTMLAttributes<HTMLInputElement
   label: ReactNode;
   /** What ticking it means, in a sentence, for when the label alone is not enough. */
   description?: ReactNode;
+  /**
+   * Keep the label for assistive technology but draw only the box: for a checkbox in a table row
+   * or a header, where the row itself says what is being ticked.
+   */
+  hideLabel?: boolean;
 }
 
 /**
@@ -18,7 +23,7 @@ export interface CheckboxProps extends Omit<InputHTMLAttributes<HTMLInputElement
  * its edge is the control border that `contrast.test.ts` holds to 3:1.
  */
 export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(function Checkbox(
-  { label, description, className, id, ...props },
+  { label, description, hideLabel = false, className, id, ...props },
   ref,
 ) {
   const generatedId = useId();
@@ -26,29 +31,42 @@ export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(function Che
   const descriptionId = `${inputId}-description`;
 
   return (
-    <div className={cn('flex items-start gap-3', className)}>
+    <div className={cn('flex items-start', !hideLabel && 'gap-3', className)}>
       <input
         ref={ref}
         id={inputId}
         type="checkbox"
         aria-describedby={description === undefined ? undefined : descriptionId}
+        // With the label hidden the name is an attribute, not a text node: a hidden `<label>`
+        // would put the row's name into the page's text a second time, where a screen reader
+        // does not need it and a test that looks for the name finds two.
+        aria-label={hideLabel && typeof label === 'string' ? label : undefined}
         className={cn(
-          'mt-0.5 h-4 w-4 shrink-0 cursor-pointer rounded border border-input bg-card accent-primary',
+          hideLabel ? 'mt-0' : 'mt-0.5',
+          'h-4 w-4 shrink-0 cursor-pointer rounded border border-input bg-card accent-primary',
           'transition-colors duration-fast hover:border-foreground/40',
           'disabled:cursor-not-allowed disabled:opacity-50',
         )}
         {...props}
       />
-      <div className="min-w-0">
-        <label htmlFor={inputId} className="cursor-pointer text-sm font-medium text-foreground">
-          {label}
-        </label>
-        {description === undefined ? null : (
-          <p id={descriptionId} className="mt-0.5 text-sm text-muted-foreground">
-            {description}
-          </p>
-        )}
-      </div>
+      {hideLabel ? (
+        typeof label === 'string' ? null : (
+          <label htmlFor={inputId} className="sr-only">
+            {label}
+          </label>
+        )
+      ) : (
+        <div className="min-w-0">
+          <label htmlFor={inputId} className="cursor-pointer text-sm font-medium text-foreground">
+            {label}
+          </label>
+          {description === undefined ? null : (
+            <p id={descriptionId} className="mt-0.5 text-sm text-muted-foreground">
+              {description}
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 });

@@ -8,6 +8,7 @@ import {
   type InfiniteData,
 } from '@tanstack/react-query';
 import { api, type ApiRequestError, type ItemEnvelope, type ListEnvelope } from './api-client';
+import { listKey, listSearchParams, type ListParams } from './list-view';
 
 /**
  * Server state for accounts (CLAUDE.md §9).
@@ -61,7 +62,7 @@ export interface AccountRecord {
 
 export const accountKeys = {
   all: ['accounts'] as const,
-  list: (search: string, sort: string) => ['accounts', 'list', search, sort] as const,
+  list: (params: ListParams) => ['accounts', 'list', listKey(params)] as const,
   detail: (id: string) => ['accounts', 'detail', id] as const,
 };
 
@@ -72,15 +73,15 @@ export const accountKeys = {
  * sequence entirely, so the cached pages of the previous sort are not a prefix
  * of the new one and must not be reused.
  */
-export function useAccountList(search: string, sort: string) {
+export function useAccountList(params: ListParams) {
   return useInfiniteQuery<ListEnvelope<AccountRecord>, ApiRequestError>({
-    queryKey: accountKeys.list(search, sort),
+    queryKey: accountKeys.list(params),
     initialPageParam: null as string | null,
     queryFn: ({ pageParam }) => {
-      const params = new URLSearchParams({ limit: '50', sort });
-      if (search.length > 0) params.set('q', search);
-      if (typeof pageParam === 'string') params.set('cursor', pageParam);
-      return api.get<ListEnvelope<AccountRecord>>(`/accounts?${params.toString()}`);
+      const query = listSearchParams(params, {
+        cursor: typeof pageParam === 'string' ? pageParam : null,
+      });
+      return api.get<ListEnvelope<AccountRecord>>(`/accounts?${query.toString()}`);
     },
     getNextPageParam: (lastPage) => lastPage.meta.nextCursor,
   });

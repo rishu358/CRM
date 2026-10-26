@@ -8,6 +8,7 @@ import {
   type InfiniteData,
 } from '@tanstack/react-query';
 import { api, type ApiRequestError, type ItemEnvelope, type ListEnvelope } from './api-client';
+import { listKey, listSearchParams, type ListParams } from './list-view';
 
 /**
  * Server state for contacts (CLAUDE.md §9).
@@ -33,20 +34,20 @@ export interface ContactRecord {
 
 export const contactKeys = {
   all: ['contacts'] as const,
-  list: (search: string) => ['contacts', 'list', search] as const,
+  list: (params: ListParams) => ['contacts', 'list', listKey(params)] as const,
   detail: (id: string) => ['contacts', 'detail', id] as const,
 };
 
 /** Infinite scroll over the keyset cursor (ADR-0012). */
-export function useContactList(search: string) {
+export function useContactList(params: ListParams) {
   return useInfiniteQuery<ListEnvelope<ContactRecord>, ApiRequestError>({
-    queryKey: contactKeys.list(search),
+    queryKey: contactKeys.list(params),
     initialPageParam: null as string | null,
     queryFn: ({ pageParam }) => {
-      const params = new URLSearchParams({ limit: '50', sort: '-created_at' });
-      if (search.length > 0) params.set('q', search);
-      if (typeof pageParam === 'string') params.set('cursor', pageParam);
-      return api.get<ListEnvelope<ContactRecord>>(`/contacts?${params.toString()}`);
+      const query = listSearchParams(params, {
+        cursor: typeof pageParam === 'string' ? pageParam : null,
+      });
+      return api.get<ListEnvelope<ContactRecord>>(`/contacts?${query.toString()}`);
     },
     getNextPageParam: (lastPage) => lastPage.meta.nextCursor,
   });

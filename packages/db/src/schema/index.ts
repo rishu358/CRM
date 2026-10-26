@@ -12,3 +12,4 @@ export * from './attachments.js';
 export * from './data-rights.js';
 export * from './onboarding.js';
 export * from './entitlements.js';
+export * from './bulk.js';

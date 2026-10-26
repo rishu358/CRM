@@ -3,7 +3,8 @@
 import { flexRender, getCoreRowModel, useReactTable, type ColumnDef } from '@tanstack/react-table';
 import { useMemo } from 'react';
 import type { LeadRecord } from '../lib/leads';
-import { RecordLink, EmptyCell } from './table-parts';
+import { RecordLink, EmptyCell, SelectAllTh, SelectRowTd } from './table-parts';
+import type { Selection } from '../lib/selection';
 import { formatDate, DEFAULT_PREFERENCES } from '../lib/format';
 import { Badge, Table, TableCard, THead, Td, Th, Tr } from '@crm/ui';
 import { t, type TranslationKey } from '../lib/i18n';
@@ -54,12 +55,20 @@ function displayValue(value: unknown): string {
   return JSON.stringify(value);
 }
 
+function leadName(lead: LeadRecord): string {
+  const name = [lead.firstName, lead.lastName].filter(Boolean).join(' ');
+  return name.length > 0 ? name : (lead.company ?? t('field.empty'));
+}
+
 export function LeadsTable({
   leads,
   customColumns = [],
+  selection,
 }: {
   leads: readonly LeadRecord[];
   customColumns?: readonly FieldDefinitionView[];
+  /** Row checkboxes, when the list offers bulk actions. */
+  selection?: Selection;
 }) {
   const columns = useMemo<ColumnDef<LeadRecord>[]>(() => {
     const present = new Set<string>();
@@ -124,6 +133,7 @@ export function LeadsTable({
         <THead>
           {table.getHeaderGroups().map((headerGroup) => (
             <Tr key={headerGroup.id} className="hover:bg-transparent">
+              {selection === undefined ? null : <SelectAllTh selection={selection} />}
               {headerGroup.headers.map((header) => (
                 <Th key={header.id}>
                   {flexRender(header.column.columnDef.header, header.getContext())}
@@ -136,6 +146,13 @@ export function LeadsTable({
         <tbody>
           {table.getRowModel().rows.map((row) => (
             <Tr key={row.id}>
+              {selection === undefined ? null : (
+                <SelectRowTd
+                  selection={selection}
+                  id={row.original.id}
+                  name={leadName(row.original)}
+                />
+              )}
               {row.getVisibleCells().map((cell) => (
                 <Td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</Td>
               ))}
