@@ -189,6 +189,12 @@ export function ListViewBar({
           </Select>
         )}
 
+        {views.isError && views.error.status !== 403 ? (
+          <p role="status" className="text-sm text-muted-foreground">
+            {t('views.loadError')}
+          </p>
+        ) : null}
+
         <Button variant="outline" onClick={() => setDialog('filters')} data-testid="filters-button">
           <FilterIcon className="h-4 w-4" />
           {t('views.filters')}

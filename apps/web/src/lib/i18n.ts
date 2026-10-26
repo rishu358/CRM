@@ -1302,6 +1302,7 @@ export const en = {
   'views.all': 'All records',
   'views.mine': 'My views',
   'views.shared': 'Shared with me',
+  'views.loadError': 'Your saved views could not be loaded. Filtering and sorting still work.',
   'views.unavailable': '{name} (uses a field you cannot see)',
   'views.filters': 'Filters',
   'views.sortBy': 'Sort by',
