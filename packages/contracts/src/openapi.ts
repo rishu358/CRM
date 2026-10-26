@@ -69,6 +69,7 @@ const STATUS_BY_ERROR_CODE: Readonly<Record<ErrorCode, number>> = {
   [ErrorCode.DUPLICATE_RECORDS]: 409,
   [ErrorCode.LAST_ADMINISTRATOR]: 409,
   [ErrorCode.ROLE_IN_USE]: 409,
+  [ErrorCode.IDEMPOTENT_RECORD_UNAVAILABLE]: 409,
   [ErrorCode.VALIDATION_FAILED]: 422,
   [ErrorCode.RATE_LIMITED]: 429,
   [ErrorCode.INTERNAL]: 500,

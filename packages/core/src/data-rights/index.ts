@@ -26,9 +26,9 @@ export const PURGE_SWEEP_INTERVAL_HOURS = 24;
 /**
  * How long an `Idempotency-Key` is remembered, with the answer it was given (ADR-0060).
  *
- * The answer is a copy of a record, so it is not kept longer than a retry could need it. The API
- * forgets a person's older answers whenever they next use a key; the purge sweep forgets the rest, so
- * nothing outlives this window by more than one sweep interval.
+ * What is remembered is the id of what was created, not its content, and it is not kept longer than a
+ * retry could need it. The API forgets a person's older keys whenever they next use one; the purge
+ * sweep forgets the rest, so nothing outlives this window by more than one sweep interval.
  */
 export const IDEMPOTENCY_WINDOW_HOURS = 24;
 

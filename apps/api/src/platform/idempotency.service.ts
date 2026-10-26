@@ -1,12 +1,27 @@
 import { createHash } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
-import { ConflictError, IDEMPOTENCY_WINDOW_HOURS, newId, type Actor } from '@crm/core';
+import {
+  ConflictError,
+  ForbiddenError,
+  IDEMPOTENCY_WINDOW_HOURS,
+  IdempotentRecordUnavailableError,
+  newId,
+  NotFoundError,
+  type Actor,
+} from '@crm/core';
+import { markIdempotentReplay } from '../common/request-context.js';
 import { bulkOperations, type BulkOperationRow, type Tx, and, eq, lt, sql } from '@crm/db';
 
 /** What a remembered answer is filed under, so a key reused for something else is noticed. */
 export interface IdempotentOperation {
   readonly objectType: string;
   readonly action: string;
+}
+
+/** What is remembered about a request that worked: the id of its record, and ids and names only. */
+export interface IdempotentReference {
+  readonly recordId: string;
+  readonly [more: string]: unknown;
 }
 
 /**
@@ -22,14 +37,25 @@ export interface IdempotentOperation {
  *
  *   1. take a lock named by (workspace, person, key), so a second request with the same key waits for
  *      the first to finish instead of running beside it;
- *   2. look for an answer stored under that key. Found, and for the same request: return it, and do
- *      nothing else. Found, for a different request: refuse with 409, never answer with the wrong record;
- *   3. otherwise do the work, and store its answer in the same transaction.
+ *   2. look for a reference stored under that key. Found, and for the same request: re-read the record
+ *      it names and return that, doing nothing else. Found, for a different request: refuse with 409,
+ *      never answer with the wrong record;
+ *   3. otherwise do the work, and store a reference to what it created in the same transaction.
  *
- * Because the answer is stored in the transaction that created the record, the two exist together or
- * not at all: there is no window in which the record is there and the key is not (a crash there would
- * make the retry a duplicate), and a failed request leaves nothing behind, so the retry can succeed.
- * The lock is released with the transaction, so the waiting request then reads the stored answer.
+ * Because the reference is stored in the transaction that created the record, the two exist together
+ * or not at all: there is no window in which the record is there and the key is not (a crash there
+ * would make the retry a duplicate), and a failed request leaves nothing behind, so the retry can
+ * succeed. The lock is released with the transaction, so the waiting request then replays.
+ *
+ * ## What is stored: a reference, never the record
+ *
+ * Only the id of what was created (and, for a lead conversion, the ids of what it made or linked and
+ * which fields it skipped). A replay **re-reads the record through the same read path and serializer
+ * as `GET`**, as the same person, so it shows the record as it is now, honours field permissions as
+ * they are now, and there is no copy of anybody's data in this table to find, expire or erase. If the
+ * record has been deleted since, or the person can no longer read it, the replay says so with
+ * `IDEMPOTENT_RECORD_UNAVAILABLE` (409), not a 404 that would look as though the first request never
+ * created anything.
  *
  * ## Whose key
  *
@@ -37,22 +63,19 @@ export interface IdempotentOperation {
  * workspace, is a different key. Row-level security gives the workspace; the table's restrictive
  * policy gives the person (migration 0023); and every statement here names both anyway.
  *
- * ## What is stored
- *
- * The answer, as the service returned it, which is what the person was shown: field permissions were
- * applied when it was built. It is kept for `IDEMPOTENCY_WINDOW_HOURS`: a person's older answers are
- * deleted whenever they next use a key, and the worker's retention sweep deletes the rest.
- *
  * The table is called `bulk_operations` because that is what first used it; a rename is a migration
- * with nothing to gain but a name.
+ * with nothing to gain but a name. A person's older keys are deleted whenever they next use one, and
+ * the worker's daily sweep deletes the rest after `IDEMPOTENCY_WINDOW_HOURS`.
  */
 @Injectable()
 export class IdempotencyService {
   /**
-   * Do `work` once per (person, key). Without a key this is `work()`: idempotency is opt-in.
+   * Do `work` once per (person, key). Without a key this is `work().value`: idempotency is opt-in.
    *
    * `request` is whatever identifies the request (its body, and the id when the route has one); two
    * requests are "the same" when it has the same content, whatever the order of its keys.
+   * `work` returns the answer and a `reference` to remember, which must hold ids and nothing else;
+   * `replay` turns that reference back into an answer by re-reading.
    */
   async once<T>(
     tx: Tx,
@@ -60,19 +83,28 @@ export class IdempotencyService {
     key: string | undefined,
     operation: IdempotentOperation,
     request: unknown,
-    work: () => Promise<T>,
+    work: () => Promise<{ readonly answer: T; readonly reference: IdempotentReference }>,
+    replay: (reference: IdempotentReference) => Promise<T>,
   ): Promise<T> {
-    if (key === undefined) return work();
+    if (key === undefined) return (await work()).answer;
 
     const requestHash = hashRequest({ ...operation, request });
     await this.lockKey(tx, actor.tenantId, actor.userId, key);
     const stored = await this.find(tx, actor.tenantId, actor.userId, key);
     if (stored !== null) {
       if (stored.requestHash !== requestHash) throw reusedKey();
-      return stored.result as T;
+      markIdempotentReplay();
+      try {
+        return await replay(stored.result as unknown as IdempotentReference);
+      } catch (error) {
+        if (error instanceof NotFoundError || error instanceof ForbiddenError) {
+          throw new IdempotentRecordUnavailableError();
+        }
+        throw error;
+      }
     }
 
-    const answer = await work();
+    const { answer, reference } = await work();
 
     await this.sweep(tx, actor.tenantId, actor.userId);
     await this.insert(tx, {
@@ -82,8 +114,7 @@ export class IdempotencyService {
       objectType: operation.objectType,
       action: operation.action,
       requestHash,
-      // Through JSON, so what is replayed is exactly what was stored, whatever the in-memory shape.
-      result: JSON.parse(JSON.stringify(answer)) as Record<string, unknown>,
+      result: reference,
       createdBy: actor.userId,
       updatedBy: actor.userId,
     });

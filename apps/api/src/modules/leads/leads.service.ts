@@ -157,20 +157,27 @@ export class LeadsService {
   }
 
   async getById(actor: Actor, id: string): Promise<SerializedLead> {
+    return this.inTenant(actor, (tx) => this.getByIdInTx(actor, tx, id));
+  }
+
+  /**
+   * Read one lead inside a transaction somebody else owns, exactly as `getById` does: same
+   * permission checks, same 404 for what is out of scope, same serializer. A replayed
+   * `Idempotency-Key` re-reads the record it created through this (ADR-0060).
+   */
+  async getByIdInTx(actor: Actor, tx: Tx, id: string): Promise<SerializedLead> {
     assertCan(actor, 'read', { objectType: 'lead' });
 
-    return this.inTenant(actor, async (tx) => {
-      const row = await this.loadOrNotFound(tx, actor, id);
-      // Record-level check. Out of scope raises 404, not 403, so the endpoint
-      // cannot be used to discover that an id exists (CLAUDE.md §5.5).
-      assertCan(actor, 'read', {
-        objectType: 'lead',
-        record: await recordRefFor(tx, actor, row.ownerId),
-      });
-
-      const fields = await this.fieldMetadata.forObject(tx, actor.tenantId, 'lead');
-      return serializeLead(actor, row, fields);
+    const row = await this.loadOrNotFound(tx, actor, id);
+    // Record-level check. Out of scope raises 404, not 403, so the endpoint
+    // cannot be used to discover that an id exists (CLAUDE.md §5.5).
+    assertCan(actor, 'read', {
+      objectType: 'lead',
+      record: await recordRefFor(tx, actor, row.ownerId),
     });
+
+    const fields = await this.fieldMetadata.forObject(tx, actor.tenantId, 'lead');
+    return serializeLead(actor, row, fields);
   }
 
   /**
@@ -250,7 +257,20 @@ export class LeadsService {
             excludeLeadId: row.id,
           });
 
-          return { lead: serializeLead(actor, row, fields), duplicates };
+          return {
+            answer: { lead: serializeLead(actor, row, fields), duplicates },
+            reference: { recordId: row.id },
+          };
+        },
+        async (reference) => {
+          const lead = await this.getByIdInTx(actor, tx, reference.recordId);
+          const duplicates = await this.duplicatesFor(tx, actor, {
+            email: (lead['email'] as string | null | undefined) ?? null,
+            phone: (lead['phone'] as string | null | undefined) ?? null,
+            company: (lead['company'] as string | null | undefined) ?? null,
+            excludeLeadId: reference.recordId,
+          });
+          return { lead, duplicates };
         },
       ),
     );
@@ -623,14 +643,36 @@ export class LeadsService {
             });
           }
 
-          return {
+          const result: LeadConversionResult = {
             lead: serializeLead(actor, converted, leadFields) as LeadConversionResult['lead'],
             contact: { id: contactId, created: contactCreated },
             account: accountId === null ? null : { id: accountId, created: accountCreated },
             deal: dealId === null ? null : { id: dealId },
             skippedFields: skipped,
           };
+          // Ids, flags and field names only: the lead itself is re-read on a replay.
+          return {
+            answer: result,
+            reference: {
+              recordId: id,
+              contact: result.contact,
+              account: result.account,
+              deal: result.deal,
+              skippedFields: result.skippedFields,
+            },
+          };
         },
+        async (reference) => ({
+          lead: (await this.getByIdInTx(
+            actor,
+            tx,
+            reference.recordId,
+          )) as LeadConversionResult['lead'],
+          contact: reference['contact'] as LeadConversionResult['contact'],
+          account: reference['account'] as LeadConversionResult['account'],
+          deal: reference['deal'] as LeadConversionResult['deal'],
+          skippedFields: reference['skippedFields'] as string[],
+        }),
       ),
     );
   }

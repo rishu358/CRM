@@ -75,6 +75,12 @@ export const ErrorCode = {
   /** A role still has members, so it cannot be deleted until they are moved. */
   ROLE_IN_USE: 'ROLE_IN_USE',
   /**
+   * A retry carried the `Idempotency-Key` of a request that did create its record, but that record has
+   * since been deleted or can no longer be read by the caller (ADR-0060). Said plainly rather than as a
+   * 404, which would look as though the first request never created anything.
+   */
+  IDEMPOTENT_RECORD_UNAVAILABLE: 'IDEMPOTENT_RECORD_UNAVAILABLE',
+  /**
    * The change hands out more than the person making it holds. Distinct from
    * `FORBIDDEN`: they may edit roles, just not beyond their own reach (ADR-0033).
    */
@@ -164,6 +170,16 @@ export class VersionConflictError extends DomainError {
 export class ConflictError extends DomainError {
   constructor(message: string, details: readonly ErrorDetail[] = []) {
     super(ErrorCode.CONFLICT, message, 409, details);
+  }
+}
+
+export class IdempotentRecordUnavailableError extends DomainError {
+  constructor() {
+    super(
+      ErrorCode.IDEMPOTENT_RECORD_UNAVAILABLE,
+      'This request was already carried out and created a record, which has since been deleted or is no longer visible to you. Use a new Idempotency-Key to create another.',
+      409,
+    );
   }
 }
 

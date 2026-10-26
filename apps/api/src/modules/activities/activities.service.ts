@@ -152,21 +152,28 @@ export class ActivitiesService {
   }
 
   async getById(actor: Actor, id: string): Promise<SerializedActivity> {
+    return this.inTenant(actor, (tx) => this.getByIdInTx(actor, tx, id));
+  }
+
+  /**
+   * Read one activity inside a transaction somebody else owns, exactly as `getById` does: same
+   * permission checks, same 404 for what is out of scope, same serializer. A replayed
+   * `Idempotency-Key` re-reads the record it created through this (ADR-0060).
+   */
+  async getByIdInTx(actor: Actor, tx: Tx, id: string): Promise<SerializedActivity> {
     assertCan(actor, 'read', { objectType: 'activity' });
 
-    return this.inTenant(actor, async (tx) => {
-      const row = await this.loadOrNotFound(tx, actor, id);
-      // Out of scope raises 404, not 403, so the endpoint cannot be used to
-      // discover that an id exists (CLAUDE.md §5.5).
-      assertCan(actor, 'read', {
-        objectType: 'activity',
-        record: await recordRefFor(tx, actor, row.assignedTo),
-      });
-
-      const fields = await this.fieldMetadata.forObject(tx, actor.tenantId, 'activity');
-      const links = await this.resolveLinks(tx, actor, [row]);
-      return serializeActivity(actor, row, fields, links.get(row.id) ?? []);
+    const row = await this.loadOrNotFound(tx, actor, id);
+    // Out of scope raises 404, not 403, so the endpoint cannot be used to
+    // discover that an id exists (CLAUDE.md §5.5).
+    assertCan(actor, 'read', {
+      objectType: 'activity',
+      record: await recordRefFor(tx, actor, row.assignedTo),
     });
+
+    const fields = await this.fieldMetadata.forObject(tx, actor.tenantId, 'activity');
+    const links = await this.resolveLinks(tx, actor, [row]);
+    return serializeActivity(actor, row, fields, links.get(row.id) ?? []);
   }
 
   async create(
@@ -181,7 +188,11 @@ export class ActivitiesService {
         idempotencyKey,
         { objectType: 'activity', action: 'create' },
         input,
-        () => this.createInTx(actor, tx, input),
+        async () => {
+          const activity = await this.createInTx(actor, tx, input);
+          return { answer: activity, reference: { recordId: activity['id'] as string } };
+        },
+        (reference) => this.getByIdInTx(actor, tx, reference.recordId),
       ),
     );
   }

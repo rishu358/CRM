@@ -140,7 +140,7 @@ describe('what the sweep removes', () => {
 });
 
 describe('remembered Idempotency-Key answers (ADR-0060)', () => {
-  /** A stored answer holds a copy of a record, so it is not kept past the window. */
+  /** A remembered key is only kept for the window. */
   async function rememberedAnswer(options: { hoursAgo: number; tenantId?: string }) {
     const userId = await harness.user('Admin');
     const id = newId();

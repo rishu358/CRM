@@ -378,7 +378,9 @@ function standardObjectRoutes(object: {
       description:
         'Accepts an `Idempotency-Key` header (1 to 128 letters, digits, `_ . : -`): a retry with ' +
         'the same key and the same body returns the first answer and creates nothing more; the ' +
-        'same key with a different body is a 409. The key is remembered for 24 hours (ADR-0060).',
+        'same key with a different body is a 409. A retry re-reads the record as the caller may ' +
+        'see it now and says `Idempotent-Replayed: true`; if the record has been deleted since, it ' +
+        'is a 409 `IDEMPOTENT_RECORD_UNAVAILABLE`. The key is remembered for 24 hours (ADR-0060).',
       auth: 'session',
       body: { name: `${name}Create`, schema: object.create },
       response: {

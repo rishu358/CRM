@@ -152,6 +152,41 @@ describe.each(ROUTES)('POST $url', (route) => {
     expect(await countRows(route, marker)).toBe(1);
   });
 
+  it('says a replay is a replay, and a first answer is not', async () => {
+    const marker = `Header ${newId()}`;
+    const k = key();
+    const first = await post(route, adminA.token, route.body(marker), k);
+    const retry = await post(route, adminA.token, route.body(marker), k);
+    expect(first.headers['idempotent-replayed']).toBeUndefined();
+    expect(retry.headers['idempotent-replayed']).toBe('true');
+  });
+
+  it('remembers the record’s id and nothing of its content', async () => {
+    const marker = `Reference ${newId()}`;
+    const k = key();
+    const first = await post(route, adminA.token, route.body(marker), k);
+    const stored = await superuser.query(
+      `select result::text as result from bulk_operations where tenant_id = $1 and idempotency_key = $2`,
+      [tenantA, k],
+    );
+    const text = (stored.rows[0] as { result: string }).result;
+    expect(text).toContain(route.idOf(first.body));
+    expect(text).not.toContain(marker);
+  });
+
+  it('says so plainly, not 404, when the record it created has been deleted since', async () => {
+    const marker = `Gone ${newId()}`;
+    const k = key();
+    const first = await post(route, adminA.token, route.body(marker), k);
+    await superuser.query(`update ${route.table} set deleted_at = now() where id = $1`, [
+      route.idOf(first.body),
+    ]);
+    const retry = await post(route, adminA.token, route.body(marker), k);
+    expect(retry.status).toBe(409);
+    expect((retry.body['error'] as { code: string }).code).toBe('IDEMPOTENT_RECORD_UNAVAILABLE');
+    expect(await countRows(route, marker)).toBe(1);
+  });
+
   it('writes the audit entry and the created event once, not once per retry', async () => {
     const marker = `Audit ${newId()}`;
     const k = key();
@@ -292,19 +327,31 @@ describe('a key is not a way to read somebody else’s answer', () => {
     );
   });
 
-  it('keeps a hidden field out of a replay as it was out of the first answer', async () => {
-    const roleId = await harness.fixtures.createRole(tenantA, `No phone ${newId()}`);
+  it('honours field permissions as they are now: a field hidden since the first answer is not replayed', async () => {
+    const roleId = await harness.fixtures.createRole(tenantA, `Phone later hidden ${newId()}`);
     await harness.fixtures.grantAll(tenantA, roleId, 'contact', 'own');
-    await harness.fixtures.setFieldPermission(tenantA, roleId, 'contact', 'phone', 'hidden');
-    const blind = await user(tenantA, roleId);
+    const person = await user(tenantA, roleId);
     const k = key();
-    const marker = `Blind ${newId()}`;
-    const first = await post(ROUTES[1]!, blind.token, { lastName: marker }, k);
+    const marker = `Later ${newId()}`;
+    const first = await post(
+      ROUTES[1]!,
+      person.token,
+      { lastName: marker, phone: '+919800012345' },
+      k,
+    );
     expect(first.status).toBe(201);
-    const replay = await post(ROUTES[1]!, blind.token, { lastName: marker }, k);
+    expect((first.body['data'] as { phone?: string }).phone).toBe('+919800012345');
+
+    await harness.fixtures.setFieldPermission(tenantA, roleId, 'contact', 'phone', 'hidden');
+    const replay = await post(
+      ROUTES[1]!,
+      person.token,
+      { lastName: marker, phone: '+919800012345' },
+      k,
+    );
+    // The replay re-reads the record as they may see it now, so the hidden value is gone.
     expect(replay.status).toBe(201);
-    expect(replay.body).toEqual(first.body);
-    expect(JSON.stringify(replay.body)).not.toContain('phone');
+    expect(JSON.stringify(replay.body)).not.toContain('+919800012345');
   });
 });
 

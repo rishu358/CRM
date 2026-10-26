@@ -87,7 +87,7 @@ export function runPurgeSweep(deps: PurgeDeps = {}): EventHandler {
       )
     ).rows[0] as unknown as { cutoff: string };
 
-    // Remembered Idempotency-Key answers hold a copy of a record, so they go on the same schedule
+    // Remembered Idempotency-Keys (the id of what each created, nothing else) go on the same schedule
     // (ADR-0060). One statement, bounded by the (tenant, user, time) index, and safe to run twice.
     await tx
       .delete(bulkOperations)
