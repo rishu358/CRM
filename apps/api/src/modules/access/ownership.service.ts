@@ -55,10 +55,12 @@ class RolledBack<T> extends Error {
  * with the same `<object>.updated.v1` event an ordinary edit emits — so search
  * indexing, the timeline and notifications follow without knowing this exists.
  *
- * The assignment rules are the ones the modules apply to `ownerId` today
- * (`resolveOwner` in each service, `resolveAssignee` for activities), so this
- * endpoint is not a way around them: moving a record to another person needs
- * `all` scope; handing out an activity follows the actor's scope.
+ * Who may hand records to whom: `all` scope to anybody in the workspace who can see that kind of
+ * record; `team` scope (the default Manager, MVP_SPEC section 4 "reassign work") to the actor or to
+ * somebody on one of the actor's teams, and only records inside the actor's `team` reach; `own`
+ * scope not at all. Pilot finding F2: this used to demand `all` scope for everything except
+ * activities, so a Manager could not move a lead. The single-record `ownerId` edit in each module
+ * service still asks for `all` scope (`resolveOwner`), see the follow-up in the pull request.
  *
  * ## The preview is the real thing, rolled back
  *
@@ -180,11 +182,32 @@ export class OwnershipService {
     const targetTeams =
       (await teamIdsByUser(tx, actor.tenantId, [input.toOwnerId])).get(input.toOwnerId) ?? [];
 
+    // On `team` scope the new owner must be the actor or share a team with them, so that what is
+    // handed over stays inside the reach that allowed handing it over (a manager cannot use this to
+    // move a record out of sight). `all` scope may hand to anybody in the workspace. Somebody
+    // outside the team is answered exactly as somebody who does not exist, so this is not a way to
+    // learn who else is a member of the workspace (CLAUDE.md section 5.5).
+    const outsideTeam = new Set(
+      permitted.filter((objectType) => {
+        const update = can(actor, 'update', { objectType });
+        return (
+          update.allowed &&
+          update.scope === 'team' &&
+          targetActor.userId !== actor.userId &&
+          !targetTeams.some((id) => actor.teamIds.includes(id as never))
+        );
+      }),
+    );
+    if (outsideTeam.size === permitted.length) {
+      throw new ValidationError([{ path: 'toOwnerId', message: 'Unknown member' }]);
+    }
+
     const items: RunOutcome['items'] = [];
     let remaining = 0;
 
     for (const objectType of permitted) {
-      const refusal = this.targetRefusal(actor, targetActor, objectType, targetTeams);
+      if (outsideTeam.has(objectType)) continue;
+      const refusal = this.targetRefusal(targetActor, objectType);
       if (refusal !== null) {
         if (explicit) throw refusal;
         continue;
@@ -264,40 +287,24 @@ export class OwnershipService {
       return new FieldNotWritableError([OWNER_FIELD[objectType]]);
     }
 
-    if (objectType === 'activity') {
-      if (update.scope === 'own') {
-        return new ValidationError([
-          { path: 'toOwnerId', message: 'You cannot assign work to another user' },
-        ]);
-      }
-    } else if (update.scope !== 'all') {
+    // `own` scope: handing a record to somebody else would push it out of the actor's own reach.
+    // `team` and `all` may reassign; where to, is settled per person in `targetRefusal`.
+    if (update.scope === 'own') {
       return new ValidationError([
-        { path: 'toOwnerId', message: 'You cannot assign records to another user' },
+        {
+          path: 'toOwnerId',
+          message:
+            objectType === 'activity'
+              ? 'You cannot assign work to another user'
+              : 'You cannot assign records to another user',
+        },
       ]);
     }
     return null;
   }
 
   /** Whether this particular person may be handed this kind of record. */
-  private targetRefusal(
-    actor: Actor,
-    target: Actor,
-    objectType: OwnedObject,
-    targetTeams: readonly string[],
-  ): Error | null {
-    if (objectType === 'activity') {
-      const update = can(actor, 'update', { objectType });
-      if (
-        update.allowed &&
-        update.scope === 'team' &&
-        !targetTeams.some((id) => actor.teamIds.includes(id as never))
-      ) {
-        return new ValidationError([
-          { path: 'toOwnerId', message: 'You cannot assign work to that user' },
-        ]);
-      }
-    }
-
+  private targetRefusal(target: Actor, objectType: OwnedObject): Error | null {
     // A record handed to somebody who cannot see that kind of record would
     // vanish from everyone's view but an administrator's.
     if (!can(target, 'read', { objectType }).allowed) {

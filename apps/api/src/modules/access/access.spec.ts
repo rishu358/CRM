@@ -941,14 +941,10 @@ describe('reassignment', () => {
     });
   });
 
-  it('lets a manager hand a team activity to a teammate, but not a record to anyone', async () => {
+  it('lets a manager hand a team activity to a teammate', async () => {
     const activity = await harness.fixtures.createActivity(tenantId, {
       assignedTo: priya.userId,
       subject: 'Team task',
-    });
-    const contact = await harness.fixtures.createContact(tenantId, {
-      ownerId: priya.userId,
-      lastName: 'Team record',
     });
 
     const task = await request(harness, {
@@ -964,20 +960,171 @@ describe('reassignment', () => {
     });
     expect(task.status).toBe(200);
     expect(task.body['data']).toMatchObject({ moved: [{ objectType: 'activity', count: 1 }] });
+  });
 
-    const record = await request(harness, {
-      method: 'POST',
-      url: '/api/v1/ownership/reassign',
-      token: rahul.token,
-      body: {
-        mode: 'records',
-        objectType: 'contact',
-        recordIds: [contact],
-        toOwnerId: rahul.userId,
+  /**
+   * MVP_SPEC section 4: the Manager "sees the team's leads/deals, reassigns work". The default
+   * Manager holds `team` scope, so reassigning is allowed inside the team: records the manager can
+   * edit, handed to somebody on the manager's own team (or to the manager). Pilot finding F2: it used
+   * to answer 422 for every record, so only an Owner or Admin could move a lead.
+   */
+  describe('a manager on team scope', () => {
+    const preview = (token: string, body: Record<string, unknown>) =>
+      request(harness, { method: 'POST', url: '/api/v1/ownership/preview', token, body });
+
+    it.each(['contact', 'lead', 'account'] as const)(
+      'hands a teammate record (%s) to another person on the team',
+      async (objectType) => {
+        const teammate = await person(roles.get('Sales Rep')!, `Teammate ${objectType}`);
+        await harness.fixtures.createTeam(tenantId, `Team ${objectType} ${teammate.userId}`, [
+          rahul.userId,
+          teammate.userId,
+        ]);
+        const id =
+          objectType === 'contact'
+            ? await harness.fixtures.createContact(tenantId, { ownerId: priya.userId })
+            : objectType === 'lead'
+              ? await harness.fixtures.createLead(tenantId, { ownerId: priya.userId })
+              : await harness.fixtures.createAccount(tenantId, { ownerId: priya.userId });
+
+        const body = { mode: 'records', objectType, recordIds: [id], toOwnerId: teammate.userId };
+        const asked = await preview(rahul.token, body);
+        expect(asked.status).toBe(200);
+        expect(asked.body['data']).toMatchObject({ items: [{ objectType, willMove: 1 }] });
+
+        const run = await request(harness, {
+          method: 'POST',
+          url: '/api/v1/ownership/reassign',
+          token: rahul.token,
+          body,
+        });
+        expect(run.status).toBe(200);
+        expect(run.body['data']).toMatchObject({ moved: [{ objectType, count: 1 }], skipped: 0 });
+
+        const audit = (await harness.fixtures.auditEntries(tenantId, objectType)).find(
+          (entry) => entry.recordId === id,
+        )!;
+        expect(audit).toMatchObject({ action: 'update' });
       },
+    );
+
+    it('hands a deal to the manager', async () => {
+      const pipeline = await harness.fixtures.createPipeline(tenantId, `Reassign ${priya.userId}`, [
+        { name: 'Open', stageType: 'open', probability: 10 },
+      ]);
+      const id = await harness.fixtures.createDeal(tenantId, {
+        ownerId: priya.userId,
+        pipelineId: pipeline.pipelineId,
+        stageId: pipeline.stageIds[0]!,
+      });
+      const run = await request(harness, {
+        method: 'POST',
+        url: '/api/v1/ownership/reassign',
+        token: rahul.token,
+        body: { mode: 'records', objectType: 'deal', recordIds: [id], toOwnerId: rahul.userId },
+      });
+      expect(run.status).toBe(200);
+      expect(run.body['data']).toMatchObject({ moved: [{ objectType: 'deal', count: 1 }] });
     });
-    // The same rule an ordinary edit applies: reassigning a record is an `all`-scope act.
-    expect(record.status).toBe(422);
+
+    it('moves everything one teammate owns, but only inside the manager reach', async () => {
+      const leaver = await person(roles.get('Sales Rep')!, 'Leaving Lata');
+      const outsider = await person(roles.get('Sales Rep')!, 'Outside Omi');
+      await harness.fixtures.createTeam(tenantId, `Leavers ${leaver.userId}`, [
+        rahul.userId,
+        leaver.userId,
+      ]);
+      const mine = await contacts(leaver.userId, 3);
+
+      // A teammate's whole book to the manager.
+      const run = await request(harness, {
+        method: 'POST',
+        url: '/api/v1/ownership/reassign',
+        token: rahul.token,
+        body: {
+          mode: 'owner',
+          fromOwnerId: leaver.userId,
+          toOwnerId: rahul.userId,
+          objectTypes: ['contact'],
+        },
+      });
+      expect(run.status).toBe(200);
+      expect(run.body['data']).toMatchObject({ moved: [{ objectType: 'contact', count: 3 }] });
+      for (const id of mine) expect(await ownerOf(id)).toBe(rahul.userId);
+
+      // Somebody outside every team the manager is on: nothing moves.
+      const theirs = await contacts(outsider.userId, 2);
+      const refused = await request(harness, {
+        method: 'POST',
+        url: '/api/v1/ownership/reassign',
+        token: rahul.token,
+        body: {
+          mode: 'owner',
+          fromOwnerId: outsider.userId,
+          toOwnerId: rahul.userId,
+          objectTypes: ['contact'],
+        },
+      });
+      expect(refused.body['data']).toMatchObject({ moved: [] });
+      for (const id of theirs) expect(await ownerOf(id)).toBe(outsider.userId);
+    });
+
+    it('does not touch a record owned outside the team, and counts it as skipped', async () => {
+      // Not Bhavin: an earlier test here puts him on a team with Rahul.
+      const far = await person(roles.get('Sales Rep')!, 'Far Farhan');
+      await harness.fixtures.createTeam(tenantId, `Far ${far.userId}`, [far.userId]);
+      const southern = await harness.fixtures.createContact(tenantId, { ownerId: far.userId });
+      const run = await request(harness, {
+        method: 'POST',
+        url: '/api/v1/ownership/reassign',
+        token: rahul.token,
+        body: {
+          mode: 'records',
+          objectType: 'contact',
+          recordIds: [southern],
+          toOwnerId: rahul.userId,
+        },
+      });
+      expect(run.status).toBe(200);
+      expect(run.body['data']).toEqual({ moved: [], skipped: 1, remaining: 0 });
+      expect(await ownerOf(southern)).toBe(far.userId);
+    });
+
+    it('will not push a record out of the team: the new owner must share a team with the manager', async () => {
+      const far = await person(roles.get('Sales Rep')!, 'Distant Dev');
+      await harness.fixtures.createTeam(tenantId, `Distant ${far.userId}`, [far.userId]);
+      const mine = await harness.fixtures.createContact(tenantId, { ownerId: priya.userId });
+      const run = await request(harness, {
+        method: 'POST',
+        url: '/api/v1/ownership/reassign',
+        token: rahul.token,
+        body: {
+          mode: 'records',
+          objectType: 'contact',
+          recordIds: [mine],
+          toOwnerId: far.userId,
+        },
+      });
+      expect(run.status).toBe(422);
+      expect(await ownerOf(mine)).toBe(priya.userId);
+    });
+
+    it('does not make a Sales Rep (own scope) able to reassign', async () => {
+      const mine = await harness.fixtures.createContact(tenantId, { ownerId: priya.userId });
+      const run = await request(harness, {
+        method: 'POST',
+        url: '/api/v1/ownership/reassign',
+        token: priya.token,
+        body: {
+          mode: 'records',
+          objectType: 'contact',
+          recordIds: [mine],
+          toOwnerId: rahul.userId,
+        },
+      });
+      expect(run.status).toBe(422);
+      expect(await ownerOf(mine)).toBe(priya.userId);
+    });
   });
 });
 
