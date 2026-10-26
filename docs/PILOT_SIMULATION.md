@@ -34,6 +34,7 @@ weeks (30 working days), in 18 minutes of real time. The last full run was on 26
 | F1  | high     | Two-factor sign-in cannot be set up by typing the key the page shows: the codes it gives are always refused.                 |
 | F2  | high     | A Manager cannot reassign work (answer 422), although the role description and the spec say they can.                        |
 | F3  | high     | A Manager can delete a team member's record, see it in the Recycle Bin, but "Restore" answers 404 and it stays deleted.      |
+| F19 | high     | Saved views and bulk actions (edit, assign, delete, tag), listed as MVP in the spec, are not built: no routes, no screens.   |
 | F4  | medium   | A second contact with the same e-mail address is created without any warning (25 of 25 tries); reps cannot delete it.        |
 | F5  | medium   | Every phone number in an exported file starts with an apostrophe (198 of 198), so it is wrong in a spreadsheet.              |
 | F6  | medium   | `POST /accounts` ignores the `Idempotency-Key` header: sending it twice makes two accounts.                                  |
@@ -354,6 +355,18 @@ own record works, and the owner can restore anyone's. So a manager's accidental 
 undone by the manager. Likely cause: the restore re-checks team scope against a row that is already soft-deleted
 (unverified, from the symptom).
 
+**F19. Saved views and bulk actions are in the MVP spec but not built (high, verified absent).**
+[MVP_SPEC.md](MVP_SPEC.md) lists them as MVP in three places: the data model has a `saved_views` table (section 6.1,
+line 111); M4 says "List view: column chooser, sort, filters (any field incl. custom), saved views, bulk
+edit/assign/delete/tag" (line 179); and the build plan puts "saved views, bulk actions" in week 4 (line 347). On
+`origin/master` at the time of this run the table exists (migration 0001) but there is **no API module, no screen and no
+bulk edit, delete or tag endpoint**. Checked two ways: the generated `docs/openapi.json` has 96 paths and none is for
+saved views, bulk actions or tags (the only bulk operation is the owner's `/ownership/reassign`, which F2 shows a
+Manager cannot use); and the simulation asked for `/saved-views`, `/views`, `POST|PATCH /contacts/bulk` and `/tags` and got
+404 for each, in all three companies. Not built or worked around here, as asked. Effect on a pilot: a rep cannot keep
+"my open leads this week" as a list, and a manager cannot reassign, delete or tag twenty records at once. The
+other sessions that are building them were not checked.
+
 ### Medium
 
 **F4. Duplicate contacts are created silently (medium, verified, 25 of 25 attempts).**
@@ -441,11 +454,10 @@ RFC 6238 advises refusing a reuse (low, verified).
 ### What is not there (information, not defects)
 
 Asked for by their obvious address and answered 404 (route missing), so these are not built on `master` at the time
-of this run: **saved views**, **bulk edit / assign / delete from a list** (the only bulk action is the owner's
-reassign), **tags**, **editing pipelines and stages** (every company gets the same six-stage pipeline: the coaching
+of this run: **tags**, **editing pipelines and stages** (every company gets the same six-stage pipeline: the coaching
 institute's "short pipeline" and the repair company's "service stages" had to use it as it is), and the Phase 2
 candidates: **products and price books, quotes, a report builder, automations, webhooks and API keys**. Saved views and bulk
-actions are being built in other sessions.
+actions are F19 above.
 
 ### What the screens showed
 
@@ -516,7 +528,7 @@ Evidence from the run:
 1. **Fix F1 to F6** (F2 and F3 are the manager role). They are small, they are about trust (two-factor, undo, no silent
    duplicates, a clean export, safe retries), and a real owner will meet each in the first week. None needs a new
    feature.
-2. **Finish saved views and bulk actions**, which [MVP_SPEC.md](MVP_SPEC.md) section 7 (M4) already promises and which are
+2. **Finish saved views and bulk actions (F19)**, which [MVP_SPEC.md](MVP_SPEC.md) section 7 (M4) and the week 4 plan already promise and which are
    not on `master`. Reps cannot delete (F11), duplicates are easy to make (F4) and there is no merge: bulk assign,
    bulk delete and merge are what a manager would need first. (Being built in other sessions at the time of the run.)
 3. **Make moving in possible (F7):** an import for deals, link-to-account and owner columns in the contact import,
