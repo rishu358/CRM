@@ -1,8 +1,9 @@
 import { createHash } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 import {
-  ConflictError,
   ForbiddenError,
+  IdempotencyInProgressError,
+  IdempotencyKeyReusedError,
   IDEMPOTENCY_WINDOW_HOURS,
   IdempotentRecordUnavailableError,
   newId,
@@ -128,9 +129,21 @@ export class IdempotencyService {
    * second would fail on the unique index *after* creating the record twice.
    */
   async lockKey(tx: Tx, tenantId: string, userId: string, key: string): Promise<void> {
-    await tx.execute(
-      sql`select pg_advisory_xact_lock(hashtextextended(${`bulk:${tenantId}:${userId}:${key}`}, 0))`,
-    );
+    // The wait is bounded, so a request that is stuck cannot hold the next one, and its connection,
+    // for ever: after `LOCK_WAIT_SECONDS` the caller is told to come back, and the retry is a replay.
+    // The timeout covers this statement only; whatever was set before is put back afterwards.
+    const previous = (await tx.execute(sql`select current_setting('lock_timeout') as value`))
+      .rows[0] as { value: string };
+    await tx.execute(sql`select set_config('lock_timeout', ${`${LOCK_WAIT_SECONDS}s`}, true)`);
+    try {
+      await tx.execute(
+        sql`select pg_advisory_xact_lock(hashtextextended(${`bulk:${tenantId}:${userId}:${key}`}, 0))`,
+      );
+    } catch (error) {
+      if (isLockTimeout(error)) throw new IdempotencyInProgressError(LOCK_WAIT_SECONDS);
+      throw error;
+    }
+    await tx.execute(sql`select set_config('lock_timeout', ${previous.value}, true)`);
   }
 
   async find(
@@ -175,8 +188,24 @@ export class IdempotencyService {
 }
 
 /** The one answer for a key used for a different request than the one it first named. */
-export function reusedKey(): ConflictError {
-  return new ConflictError('This Idempotency-Key was already used for a different request');
+export function reusedKey(): IdempotencyKeyReusedError {
+  return new IdempotencyKeyReusedError();
+}
+
+/** How long a second request with the same key waits for the first, in whole seconds. */
+const LOCK_WAIT_SECONDS = 3;
+
+/** Postgres `lock_not_available` (SQLSTATE 55P03), through whatever wrapped it. */
+function isLockTimeout(error: unknown): boolean {
+  let current: unknown = error;
+  const seen = new Set<unknown>();
+  while (current !== null && current !== undefined && !seen.has(current)) {
+    seen.add(current);
+    if (typeof current === 'object' && (current as { code?: unknown }).code === '55P03')
+      return true;
+    current = current instanceof Error ? current.cause : undefined;
+  }
+  return false;
 }
 
 /** A stable fingerprint of a request: key order, and absent values, do not change it. */

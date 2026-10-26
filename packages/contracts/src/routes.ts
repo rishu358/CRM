@@ -299,6 +299,13 @@ const RECORD: readonly ErrorCode[] = [ErrorCode.NOT_FOUND];
 /** A write that carries `version` can lose the optimistic lock (CLAUDE.md §7). */
 const VERSIONED: readonly ErrorCode[] = [ErrorCode.NOT_FOUND, ErrorCode.VERSION_CONFLICT];
 
+/** What a route that accepts an `Idempotency-Key` can answer on top of its own errors (ADR-0060). */
+const IDEMPOTENT: readonly ErrorCode[] = [
+  ErrorCode.IDEMPOTENCY_KEY_REUSED,
+  ErrorCode.IDEMPOTENCY_IN_PROGRESS,
+  ErrorCode.IDEMPOTENT_RECORD_UNAVAILABLE,
+];
+
 /** A write through the field layer can name a field the caller may not write. */
 const WRITABLE: readonly ErrorCode[] = [ErrorCode.FIELD_NOT_WRITABLE];
 
@@ -391,7 +398,7 @@ function standardObjectRoutes(object: {
         data: object.record,
         ...(object.createMeta === undefined ? {} : { meta: object.createMeta }),
       },
-      errors: [...WRITABLE, ...(object.createErrors ?? [])],
+      errors: [...WRITABLE, ...IDEMPOTENT, ...(object.createErrors ?? [])],
     },
     {
       method: 'PATCH',
@@ -1062,7 +1069,7 @@ const leadRoutes: RouteDefinition[] = [
       description: 'What the conversion created or linked.',
       data: leadConversionResultSchema,
     },
-    errors: [...VERSIONED, ErrorCode.CONFLICT],
+    errors: [...VERSIONED, ...IDEMPOTENT, ErrorCode.CONFLICT],
   },
 ];
 
@@ -1760,7 +1767,7 @@ const bulkRoutes: RouteDefinition[] = [
       description: 'What was changed and what was skipped.',
       data: bulkResultSchema,
     },
-    errors: [ErrorCode.CONFLICT, ...WRITABLE],
+    errors: [ErrorCode.CONFLICT, ...IDEMPOTENT, ...WRITABLE],
   },
   {
     method: 'GET',

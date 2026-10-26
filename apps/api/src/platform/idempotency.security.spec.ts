@@ -218,6 +218,7 @@ describe.each(ROUTES)('POST $url', (route) => {
 
     const different = await post(route, adminA.token, route.body(markerB), k);
     expect(different.status).toBe(409);
+    expect((different.body['error'] as { code: string }).code).toBe('IDEMPOTENCY_KEY_REUSED');
     expect(await countRows(route, markerB)).toBe(0);
     expect(await countRows(route, markerA)).toBe(1);
   });
@@ -353,6 +354,54 @@ describe('a key is not a way to read somebody else’s answer', () => {
     expect(replay.status).toBe(201);
     expect(JSON.stringify(replay.body)).not.toContain('+919800012345');
   });
+});
+
+describe('the same key on another route is another operation, refused', () => {
+  it('answers 409 IDEMPOTENCY_KEY_REUSED, and creates nothing on the second route', async () => {
+    const k = key();
+    const marker = `Route ${newId()}`;
+    const account = await post(ROUTES[0]!, adminA.token, ROUTES[0]!.body(marker), k);
+    expect(account.status).toBe(201);
+    // Same key, a body that would be valid on the other route too.
+    const contact = await post(ROUTES[1]!, adminA.token, ROUTES[1]!.body(marker), k);
+    expect(contact.status).toBe(409);
+    expect((contact.body['error'] as { code: string }).code).toBe('IDEMPOTENCY_KEY_REUSED');
+    expect(await countRows(ROUTES[1]!, marker)).toBe(0);
+  });
+});
+
+describe('a request stuck on a key does not hold a connection for ever', () => {
+  it('waits a few seconds for the first request, then answers 409 IDEMPOTENCY_IN_PROGRESS with Retry-After', async () => {
+    const route = ROUTES[0]!;
+    const k = key();
+    const marker = `Stuck ${newId()}`;
+
+    // Another session holds the very lock the first request of this key would hold.
+    const holder = await rawSuperuser.connect();
+    try {
+      await holder.query('select pg_advisory_lock(hashtextextended($1, 0))', [
+        `bulk:${tenantA}:${adminA.userId}:${k}`,
+      ]);
+      const started = Date.now();
+      const response = await post(route, adminA.token, route.body(marker), k);
+      const waited = Date.now() - started;
+
+      expect(response.status).toBe(409);
+      expect((response.body['error'] as { code: string }).code).toBe('IDEMPOTENCY_IN_PROGRESS');
+      expect(Number(response.headers['retry-after'])).toBeGreaterThan(0);
+      // Bounded: it gave up after the lock timeout, not after the test's own.
+      expect(waited).toBeGreaterThanOrEqual(2000);
+      expect(waited).toBeLessThan(10_000);
+      expect(await countRows(route, marker)).toBe(0);
+    } finally {
+      await holder.query('select pg_advisory_unlock_all()');
+      holder.release();
+    }
+
+    // Once the first request is gone the retry goes through.
+    const retry = await post(route, adminA.token, route.body(marker), k);
+    expect(retry.status).toBe(201);
+  }, 30_000);
 });
 
 describe('converting a lead', () => {

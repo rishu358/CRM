@@ -28,14 +28,25 @@ work, replay)`, shared by the bulk actions and by every create route. No new tab
   as they are now. There is no copy of personal data to expire, to find for an erasure request, or to outlive a
   permission change.
 - **Behaviour.** The same key with the same request returns the first answer and writes nothing (no second
-  record, audit entry or event), with `Idempotent-Replayed: true`. The same key with a different request
-  (body, route or record) is `409 CONFLICT`, as it is for bulk actions. Requests racing on one key wait for each
-  other on an advisory lock and so create one record: the later ones are answered as replays rather than being
-  refused. A request that fails stores nothing, so the retry can succeed. Without a key nothing changes. If the
-  record has been deleted since, or the person can no longer read it, the replay answers `409
-IDEMPOTENT_RECORD_UNAVAILABLE`, not a 404 that would look as though the first request created nothing. A key
-  belongs to one person in one workspace (row-level security plus the table's restrictive policy plus named
-  statements). The existing key rules apply: 1 to 128 of letters, digits and `_ . : -`, and a key is not logged.
+  record, audit entry or event), with `Idempotent-Replayed: true`. The note is found by workspace, person and key
+  (the table's unique index, under row-level security and the restrictive "own" policy), and it carries a
+  fingerprint of the operation (object, action, route's record and body). So **the same key on a different
+  route, or with a different body, is a different request** and is refused with `409 IDEMPOTENCY_KEY_REUSED`, the
+  same as bulk actions; it is never answered with the other request's record. That code is distinct from
+  `409 IDEMPOTENCY_IN_PROGRESS`, for a request whose twin is still running.
+- **A stuck request cannot hold others.** Requests racing on one key wait for each other on an advisory lock, but
+  the wait is bounded: `lock_timeout` of 3 seconds for that one statement. If the first request has not finished
+  by then, the caller gets `409 IDEMPOTENCY_IN_PROGRESS` with `Retry-After: 3`, nothing is written, and the retry
+  is answered as a replay once the first finishes. A request that fails stores nothing, so the retry can succeed.
+  Without a key nothing changes. If the record has been deleted since, or the person can no longer read it, the
+  replay answers `409 IDEMPOTENT_RECORD_UNAVAILABLE`, not a 404 that would look as though the first request
+  created nothing. A key belongs to one person in one workspace (tested: another person, and another workspace,
+  using the same text get independent records and never see the first one's). The existing key rules apply: 1 to
+  128 of letters, digits and `_ . : -`, and a key is not logged. All three codes are listed in the OpenAPI
+  document on every route that takes the header.
+- **What the table holds** is ids, flags and field names only (the record's id; for a conversion also the ids it
+  made or linked, whether each was created, and the names of fields it could not copy). A test asserts that the
+  stored text contains the id and none of the record's content.
 - **Routes covered:** `POST /accounts`, `/contacts`, `/leads`, `/deals`, `/activities` and
   `POST /leads/{id}/convert`. The bulk actions keep the same table and the same rule (they already carried the
   header). The duplicate warning (ADR-0023) and the key therefore cannot be bypassed by bulk: bulk edit, assign,

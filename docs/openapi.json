@@ -683,7 +683,7 @@
             }
           },
           "409": {
-            "description": "The write conflicts with the record’s current state. `error.code` is one of: `CONFLICT`.",
+            "description": "The write conflicts with the record’s current state. `error.code` is one of: `CONFLICT`, `IDEMPOTENCY_IN_PROGRESS`, `IDEMPOTENCY_KEY_REUSED`, `IDEMPOTENT_RECORD_UNAVAILABLE`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1406,6 +1406,16 @@
           },
           "403": {
             "description": "Authenticated, but not permitted. `error.code` is one of: `FIELD_NOT_WRITABLE`, `FORBIDDEN`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The write conflicts with the record’s current state. `error.code` is one of: `IDEMPOTENCY_IN_PROGRESS`, `IDEMPOTENCY_KEY_REUSED`, `IDEMPOTENT_RECORD_UNAVAILABLE`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4508,7 +4518,7 @@
             }
           },
           "409": {
-            "description": "The write conflicts with the record’s current state. `error.code` is one of: `CONFLICT`.",
+            "description": "The write conflicts with the record’s current state. `error.code` is one of: `CONFLICT`, `IDEMPOTENCY_IN_PROGRESS`, `IDEMPOTENCY_KEY_REUSED`, `IDEMPOTENT_RECORD_UNAVAILABLE`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4751,6 +4761,16 @@
           },
           "403": {
             "description": "Authenticated, but not permitted. `error.code` is one of: `FIELD_NOT_WRITABLE`, `FORBIDDEN`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The write conflicts with the record’s current state. `error.code` is one of: `IDEMPOTENCY_IN_PROGRESS`, `IDEMPOTENCY_KEY_REUSED`, `IDEMPOTENT_RECORD_UNAVAILABLE`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -6176,7 +6196,7 @@
             }
           },
           "409": {
-            "description": "The write conflicts with the record’s current state. `error.code` is one of: `CONFLICT`.",
+            "description": "The write conflicts with the record’s current state. `error.code` is one of: `CONFLICT`, `IDEMPOTENCY_IN_PROGRESS`, `IDEMPOTENCY_KEY_REUSED`, `IDEMPOTENT_RECORD_UNAVAILABLE`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -9281,7 +9301,7 @@
             }
           },
           "409": {
-            "description": "The write conflicts with the record’s current state. `error.code` is one of: `DUPLICATE_RECORDS`.",
+            "description": "The write conflicts with the record’s current state. `error.code` is one of: `DUPLICATE_RECORDS`, `IDEMPOTENCY_IN_PROGRESS`, `IDEMPOTENCY_KEY_REUSED`, `IDEMPOTENT_RECORD_UNAVAILABLE`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -9849,7 +9869,7 @@
             }
           },
           "409": {
-            "description": "The write conflicts with the record’s current state. `error.code` is one of: `CONFLICT`, `VERSION_CONFLICT`.",
+            "description": "The write conflicts with the record’s current state. `error.code` is one of: `CONFLICT`, `IDEMPOTENCY_IN_PROGRESS`, `IDEMPOTENCY_KEY_REUSED`, `IDEMPOTENT_RECORD_UNAVAILABLE`, `VERSION_CONFLICT`.",
             "content": {
               "application/json": {
                 "schema": {
