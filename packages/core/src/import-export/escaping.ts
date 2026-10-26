@@ -77,10 +77,34 @@ export function startsFormula(value: string): boolean {
  * Make one cell safe to open.
  *
  * Idempotent in the sense that matters: an already-escaped value starts with
- * `'`, which is not a trigger, so re-escaping leaves it alone.
+ * `'`, which is not a trigger, so re-escaping leaves it alone. A plain E.164 phone number is left as
+ * it is (see `isPlainPhoneNumber`).
  */
 export function escapeSpreadsheetCell(value: string): string {
-  return startsFormula(value) ? FORMULA_ESCAPE_PREFIX + value : value;
+  return startsFormula(value) && !isPlainPhoneNumber(value) ? FORMULA_ESCAPE_PREFIX + value : value;
+}
+
+/**
+ * A value that is exactly an E.164 phone number: `+`, a non-zero digit, then 1 to 14 digits (the
+ * pattern every phone field is validated against). Written out in `[0-9]`, not `\d`, so no other
+ * script's digits can pass, and anchored at both ends with no `m` flag, so a trailing line break
+ * does not pass either.
+ *
+ * Every phone number begins with `+`, so escaping by first character alone put an apostrophe in
+ * front of every phone cell of every export (pilot finding F5). This is the one exception, and it
+ * is safe because of what is *not* in the value: after the plus there are only digits, so a
+ * spreadsheet can read it as nothing but a number. A formula needs a function name, a cell
+ * reference, an operator or a separator, and a DDE command needs `|` and `!`; none of them can
+ * occur here. A value with anything extra, even a space or a second `+`, is not matched and is
+ * escaped like any other cell that starts with `+`.
+ *
+ * A spreadsheet may still show a CSV phone number as a plain number, without the plus; use the
+ * `.xlsx` export, which stores it as text, to see it exactly as written.
+ */
+const PLAIN_E164 = /^\+[1-9][0-9]{1,14}$/;
+
+export function isPlainPhoneNumber(value: string): boolean {
+  return PLAIN_E164.test(value);
 }
 
 /**

@@ -534,3 +534,86 @@ describe('the other objects', () => {
     expect(deals.rows[0]?.['Amount']).toBe('1500.75 INR');
   });
 });
+
+/**
+ * Pilot finding F5: a phone number is `+91...`, so the "first character" rule put an apostrophe in
+ * front of every phone cell. A value that is exactly an E.164 number is now written as it is; any
+ * other cell that starts with `+` is still neutralised (CLAUDE.md §5.11).
+ */
+describe('§5.11: phone numbers are written as numbers, attacks that look like them are not', () => {
+  const ATTACKS = [
+    "+91+cmd|' /c calc'!A0",
+    '+919876543210+1',
+    '+91=HYPERLINK("http://evil.example/","x")',
+    '+91 98765 43210',
+  ];
+
+  it('writes a stored phone and WhatsApp-style number without an apostrophe, in CSV and in XLSX', async () => {
+    const tag = unique();
+    const email = `phone-${tag}@x.io`;
+    await h.fixtures.createContact(h.tenantId, {
+      ownerId: owner,
+      lastName: 'Phoned',
+      email,
+      phone: '+919876543210',
+    });
+
+    const { rows } = await exportCsv(owner, { filter: [`email:eq:${email}`] });
+    expect(rows[0]?.['Phone']).toBe('+919876543210');
+
+    const jobId = await h.requestExport({
+      userId: owner,
+      objectType: 'contact',
+      format: 'xlsx',
+      query: { filter: [`email:eq:${email}`] },
+    });
+    const job = await h.exportJob(jobId);
+    expect(job.status, job.failureReason ?? '').toBe('completed');
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(Buffer.from(h.storage.bytesOf(job.storageKey)) as never);
+    const sheet = workbook.worksheets[0]!;
+    const values: unknown[] = [];
+    sheet.eachRow((row) => row.eachCell((cell) => values.push(cell.value)));
+    expect(values).toContain('+919876543210');
+    expect(values).not.toContain("'+919876543210");
+  });
+
+  it.each(ATTACKS)('still neutralises %s when it is a custom field value', async (attack) => {
+    const email = `atk-${unique()}@x.io`;
+    await seedContact({ email, customFields: { notes: attack } });
+    const { rows } = await exportCsv(owner, { filter: [`email:eq:${email}`] });
+    expect(rows[0]?.['Notes']).toBe(`'${attack}`);
+  });
+
+  it('gives the same phone back when the exported file is imported again', async () => {
+    const tag = unique();
+    const email = `roundtrip-${tag}@x.io`;
+    await h.fixtures.createContact(h.tenantId, {
+      ownerId: owner,
+      lastName: 'Roundtrip',
+      email,
+      phone: '+919812345678',
+    });
+    const first = await exportCsv(owner, { filter: [`email:eq:${email}`] });
+    expect(first.rows[0]?.['Phone']).toBe('+919812345678');
+
+    const analyzed = await h.analyze({
+      userId: owner,
+      bytes: csv([
+        ['Last', 'Email', 'Phone'],
+        ['Roundtrip', `again-${tag}@x.io`, first.rows[0]?.['Phone'] ?? ''],
+      ]),
+    });
+    await h.start(analyzed.id, {
+      mapping: [
+        { column: 0, field: 'last_name' },
+        { column: 1, field: 'email' },
+        { column: 2, field: 'phone' },
+      ],
+    });
+    await h.drain();
+    expect((await h.job(analyzed.id)).createdCount).toBe(1);
+    const again = await exportCsv(owner, { filter: [`email:eq:again-${tag}@x.io`] });
+    expect(again.rows[0]?.['Phone']).toBe('+919812345678');
+  });
+});
