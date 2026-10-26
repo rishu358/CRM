@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
+import { authenticatorCode } from './totp';
 
 /**
  * The authentication screens, end to end (MVP_SPEC M1).
@@ -160,11 +161,8 @@ test.describe('security settings', () => {
     const secret = (await page.locator('code').first().textContent())?.trim() ?? '';
     expect(secret.length).toBeGreaterThan(0);
 
-    // Generate a live code with the same implementation the API verifies with.
-    const { createOTP } = await import('@better-auth/utils/otp');
-    await page
-      .getByLabel('Authentication code')
-      .fill(await createOTP(secret, { digits: 6, period: 30 }).totp());
+    // Generate a live code from the key as shown, the way an authenticator app reads it.
+    await page.getByLabel('Authentication code').fill(authenticatorCode(secret));
     await page.getByRole('button', { name: 'Confirm' }).click();
     await expect(page.getByRole('button', { name: 'Turn off' })).toBeVisible();
 
@@ -178,9 +176,7 @@ test.describe('security settings', () => {
       page.getByText('Enter the six-digit code from your authenticator app.'),
     ).toBeVisible();
 
-    await page
-      .getByLabel('Authentication code')
-      .fill(await createOTP(secret, { digits: 6, period: 30 }).totp());
+    await page.getByLabel('Authentication code').fill(authenticatorCode(secret));
     await page.getByRole('button', { name: 'Verify' }).click();
     await page.waitForURL('**/dashboard');
     await page.goto('/contacts');

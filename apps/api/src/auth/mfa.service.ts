@@ -55,7 +55,7 @@ export class MfaService {
     const secret = this.totp.generateSecret();
     const backupCodes = generateBackupCodes(BACKUP_CODE_COUNT);
 
-    const encryptedSecret = await this.totp.encryptSecret(secret);
+    const encryptedSecret = await this.totp.encryptSecret(this.totp.toStoredSecret(secret));
     const encryptedCodes = await this.totp.encryptSecret(
       JSON.stringify({ hashes: hashBackupCodes(backupCodes) } satisfies BackupCodeState),
     );
