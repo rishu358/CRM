@@ -1,0 +1,23 @@
+node_modules
+dist
+.next
+.turbo
+coverage
+pnpm-lock.yaml
+# Written by the E2E global setup from the seed's output; never committed.
+# It is git-ignored, so CI never sees it — but anyone who has run the suite
+# locally has one, and that is exactly when they are about to commit.
+apps/web/e2e/.credentials.json
+dist
+# Generated and rewritten by Next on every build.
+apps/web/next-env.d.ts
+# Sibling checkouts the desktop app creates for parallel sessions.
+# They are whole copies of this repo, not source to format from here.
+.claude/worktrees/
+
+# Generated from the Zod contracts by `pnpm openapi:generate` (ADR-0027).
+# Prettier collapses short arrays and the generator does not, so formatting it
+# here would put `format:check` and `openapi:check` in a loop neither can win.
+docs/openapi.json
+# The shared work log is untracked and lives outside git (CLAUDE.md §14.2); it is not source.
+WORK_LOG.md

@@ -1,0 +1,50 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
+
+/**
+ * Per-request context (CLAUDE.md §8).
+ *
+ * Every log line carries requestId, tenantId and userId, and `X-Request-Id`
+ * goes back on every response, so a user's report can be traced to exact log
+ * lines without anyone guessing.
+ *
+ * Held in AsyncLocalStorage rather than passed through every signature. It is
+ * **read-only context for observability**: authorization never reads the tenant
+ * from here. Tenant scoping comes from the Actor the guard resolved and from
+ * `withTenant`, so an empty context can never widen access — it only makes logs
+ * less useful.
+ */
+export interface RequestContext {
+  readonly requestId: string;
+  readonly tenantId: string | null;
+  readonly userId: string | null;
+  readonly ipAddress: string | null;
+  readonly userAgent: string | null;
+}
+
+const storage = new AsyncLocalStorage<RequestContext>();
+
+export function runWithRequestContext<T>(context: RequestContext, work: () => T): T {
+  return storage.run(context, work);
+}
+
+export function currentRequestContext(): RequestContext | undefined {
+  return storage.getStore();
+}
+
+export function currentRequestId(): string {
+  return storage.getStore()?.requestId ?? 'no-request-id';
+}
+
+/**
+ * Attach the authenticated identity once the guard has resolved it.
+ *
+ * Replaces the store's contents in place so that log lines emitted later in the
+ * same request carry the identity. Returns a new object rather than mutating a
+ * frozen one.
+ */
+export function withIdentity(
+  context: RequestContext,
+  identity: { tenantId: string | null; userId: string | null },
+): RequestContext {
+  return { ...context, ...identity };
+}

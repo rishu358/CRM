@@ -1,0 +1,18 @@
+# TLS termination and routing for deploy/docker-compose.prod.example.yml.
+#
+# Caddy obtains and renews certificates by itself. The browser only ever talks to APP_HOST; the
+# web app forwards its own `/api/proxy` calls to the API over the private network, attaching the
+# session. API_HOST exists for what must be reachable directly: the OAuth callback and, later,
+# the public API.
+
+{$APP_HOST} {
+	encode zstd gzip
+	reverse_proxy web:3000
+}
+
+{$API_HOST} {
+	encode zstd gzip
+	# Never cache an API answer in front of the application.
+	header Cache-Control "no-store"
+	reverse_proxy api:3001
+}

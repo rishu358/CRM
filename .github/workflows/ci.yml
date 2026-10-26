@@ -1,0 +1,310 @@
+name: CI
+
+on:
+  push:
+    # Both names on purpose: this repository's default branch is `master`,
+    # and a workflow listening only for `main` would never run on a push.
+    branches: [main, master]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# Read-only everywhere: nothing in this workflow writes to the repository.
+#
+# The jobs that need an S3 server pull our MinIO mirror from GHCR using the
+# GHCR_PULL_TOKEN secret, not GITHUB_TOKEN. The mirror is a user-owned private
+# package, and GITHUB_TOKEN is refused with 403 even after granting the
+# repository Actions access to it; `packages: read` below does not help with a
+# package owned by a user rather than by this repository. GHCR_PULL_TOKEN is a
+# classic PAT with the single scope read:packages.
+permissions:
+  contents: read
+  packages: read
+
+env:
+  NODE_VERSION: '24'
+  PNPM_VERSION: '9.15.4'
+
+jobs:
+  static:
+    name: Lint, types, format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm format:check
+      - run: pnpm lint
+      - run: pnpm typecheck
+      # A pull request that changes an endpoint without regenerating the
+      # document fails here (ADR-0027). The same assertion runs inside
+      # `pnpm test`, so the gate holds even if this job is reordered; it is
+      # here as well because a one-second answer beats a ten-minute one.
+      # Must stay after `typecheck`, which is what compiles @crm/core to dist.
+      - run: pnpm openapi:check
+      # `.env.example`, the staging and production templates and docs/CONFIGURATION.md are generated
+      # from the configuration registry (ADR-0044); a variable added or changed without regenerating
+      # them fails here, so the documentation cannot drift from the code.
+      - run: pnpm config:check
+
+  test:
+    name: Unit and integration tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # Integration tests start their own Postgres via Testcontainers. That image
+      # is public, but s3.integration.spec.ts also starts our private GHCR MinIO
+      # mirror, so this job needs the login too — it fails with "error from
+      # registry: unauthorized" without it.
+      - name: Log in to GHCR
+        run: echo "${{ secrets.GHCR_PULL_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+      - run: pnpm test
+
+  security:
+    name: Tenant isolation and permissions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # s3.integration.spec.ts starts MinIO through Testcontainers, and that image
+      # is our private GHCR mirror, so Docker must be logged in before it pulls.
+      - name: Log in to GHCR
+        run: echo "${{ secrets.GHCR_PULL_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+      # This job must never be made optional or allowed to fail (CLAUDE.md §4).
+      - run: pnpm test:security
+
+  audit:
+    name: Dependency audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm audit --audit-level=high
+
+  hygiene:
+    name: Secrets, commit messages, repository scripts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Every commit of every ref: gitleaks looks at what was ever committed, not only the tip,
+          # and the commit-message check needs the pull request's base branch.
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      # Fails closed: an error, an unreadable repository or zero commits scanned is a failure, never
+      # a pass (scripts/scan-secrets.sh says why). Rules and reviewed exceptions: .gitleaks.toml.
+      - name: Scan the full history for secrets
+        run: bash scripts/scan-secrets.sh
+      - name: Tests for the repository scripts
+        run: node --test "scripts/**/*.test.mjs"
+      - name: Documentation links and pnpm commands still resolve
+        run: node scripts/check-docs.mjs
+      - name: Commit messages follow Conventional Commits
+        if: github.event_name == 'pull_request'
+        run: node scripts/check-commit-message.mjs --range "origin/${{ github.base_ref }}..HEAD"
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+
+  e2e:
+    name: End-to-end
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16.6-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: crm
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d crm"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7.4-alpine
+        ports: ['6379:6379']
+    env:
+      # Every process in this job shares one environment, including database credentials, and the
+      # web app is started with NODE_ENV=production. Outside local development the web app refuses to
+      # start holding a secret meant for another process (ADR-0044), so say this is a local run.
+      APP_ENV: local
+      DATABASE_URL: postgres://crm_app:crm_app_dev@localhost:5432/crm
+      DATABASE_MIGRATION_URL: postgres://crm_migrator:crm_migrator_dev@localhost:5432/crm
+      DATABASE_AUTH_URL: postgres://crm_auth:crm_auth_dev@localhost:5432/crm
+      DATABASE_WORKER_URL: postgres://crm_worker:crm_worker_dev@localhost:5432/crm
+      # Only the worker holds this one (ADR-0032): the single role allowed to
+      # redact the audit `changes` column for a subject being erased. Unset, an
+      # erasure request fails with "not configured" by design, rather than
+      # erasing the record and leaving its history readable — which is exactly
+      # what the governance erase spec hit here.
+      DATABASE_ERASURE_URL: postgres://crm_erasure:crm_erasure_dev@localhost:5432/crm
+      REDIS_URL: redis://localhost:6379
+      AUTH_SECRET: ci-only-secret-at-least-32-characters-long
+      API_URL: http://localhost:3001
+      WEB_URL: http://localhost:3000
+      # Object storage: attachments.spec.ts and import-export.spec.ts exercise
+      # presigned upload and download, so the suite needs a real S3 endpoint.
+      STORAGE_PROVIDER: s3
+      S3_ENDPOINT: http://localhost:19000
+      S3_PUBLIC_ENDPOINT: http://localhost:19000
+      S3_BUCKET: crm-files
+      S3_REGION: us-east-1
+      S3_ACCESS_KEY_ID: crm_minio
+      S3_SECRET_ACCESS_KEY: crm_minio_ci_secret
+      S3_FORCE_PATH_STYLE: 'true'
+      # Playwright drives the UI far faster than a person, so the default
+      # per-IP/user/tenant limits (§5.14) would reject requests mid-suite.
+      RATE_LIMIT_WINDOW_SECONDS: '60'
+      RATE_LIMIT_MAX_PER_IP: '100000'
+      RATE_LIMIT_MAX_PER_USER: '100000'
+      RATE_LIMIT_MAX_PER_TENANT: '100000'
+      # The sign-in throttle needs raising too, and for a sharper reason: the
+      # whole suite signs in from one address, over a hundred times. At the
+      # production defaults the progressive delay grows until sign-in stops
+      # returning, so tests hang on waitForURL('**/dashboard') and fail at
+      # authentication rather than at whatever they were testing. These are the
+      # values the suite is run with locally.
+      AUTH_RATE_LIMIT_WINDOW_SECONDS: '900'
+      AUTH_RATE_LIMIT_MAX_PER_IP: '100000'
+      AUTH_THROTTLE_MAX_DELAY_MS: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      # The MinIO mirror below lives in our private GHCR package.
+      - name: Log in to GHCR
+        run: echo "${{ secrets.GHCR_PULL_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+      # MinIO runs as a plain container rather than a `services:` entry
+      # because it needs the `server /data` command, and service containers
+      # cannot override a command. Same pinned digest as docker-compose.yml.
+      - name: Start MinIO and create the bucket
+        run: |
+          docker run -d --name crm-minio -p 19000:9000 \
+            -e MINIO_ROOT_USER=crm_minio \
+            -e MINIO_ROOT_PASSWORD=crm_minio_ci_secret \
+            ghcr.io/rishu358/crm-minio@sha256:53bb27d3dbdf27dc28bacb759062014b9c5d2636c9b32f115f5ee7b772aa6adf \
+            server /data
+          for _ in $(seq 1 30); do
+            if curl -fsS http://localhost:19000/minio/health/ready > /dev/null; then
+              echo "MinIO ready"; break
+            fi
+            sleep 2
+          done
+          docker exec crm-minio mc alias set local http://127.0.0.1:9000 crm_minio crm_minio_ci_secret
+          docker exec crm-minio mc mb --ignore-existing local/crm-files
+      # The service container starts without our roles, so apply the same
+      # bootstrap the local Postgres image runs from its entrypoint.
+      - name: Bootstrap database roles
+        run: |
+          PGPASSWORD=postgres psql -h localhost -U postgres -d crm -f packages/db/sql/bootstrap/01-extensions-and-roles.sql
+      - run: pnpm db:migrate
+      - run: pnpm --filter @crm/web exec playwright install --with-deps chromium
+      - name: Start API and wait for it
+        run: |
+          pnpm --filter @crm/api start > /tmp/api.log 2>&1 &
+          for _ in $(seq 1 30); do
+            if curl -fsS http://localhost:3001/api/v1/health > /dev/null; then
+              echo "API ready"; exit 0
+            fi
+            sleep 2
+          done
+          # Print why. Without this the step only ever said "did not become ready",
+          # and the actual reason had to be dug out of the raw job log.
+          echo "API did not become ready. Its output:" >&2
+          cat /tmp/api.log >&2
+          exit 1
+        env:
+          # Deliberately not `production`. The production configuration guard
+          # (ADR-0041) refuses a placeholder AUTH_SECRET, EMAIL_PROVIDER=console
+          # and an http S3_PUBLIC_ENDPOINT — all of which this job uses on purpose —
+          # so the API exited at once. The guard is right; CI is not production.
+          # `development` matches what the suite is run with locally. The web app
+          # below still serves a real production build.
+          NODE_ENV: development
+      # Import, export, recycle-bin and data-rights flows are BullMQ jobs, so
+      # their specs hang without a worker draining the queue.
+      - name: Start the worker
+        run: pnpm --filter @crm/worker start > /tmp/worker.log 2>&1 &
+        env:
+          # Same reason as the API above.
+          NODE_ENV: development
+      # Start the web app on `next start`, not `next dev`. playwright.config.ts
+      # sets `reuseExistingServer: true`, so Playwright attaches to this server
+      # instead of spawning the dev one, which is how the suite is run locally.
+      - name: Start the web app and wait for it
+        run: |
+          pnpm --filter @crm/web start > /tmp/web.log 2>&1 &
+          for _ in $(seq 1 60); do
+            if curl -fsS http://localhost:3000 > /dev/null; then
+              echo "Web ready"; exit 0
+            fi
+            sleep 2
+          done
+          echo "Web did not become ready. Its output:" >&2
+          cat /tmp/web.log >&2
+          echo "--- worker output, in case it died first ---" >&2
+          cat /tmp/worker.log >&2 || true
+          exit 1
+        env:
+          # The web app does run a production build; APP_ENV=local at job level is
+          # what keeps the scope guard (CLAUDE.md §13.4) from rejecting the database
+          # and S3 credentials this shared env block hands to every process.
+          NODE_ENV: production
+      - run: pnpm --filter @crm/web exec playwright test
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: apps/web/playwright-report/
+          retention-days: 7

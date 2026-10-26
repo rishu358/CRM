@@ -1,0 +1,22 @@
+# Who must review what. GitHub requests these people automatically on a pull request, and with
+# branch protection ("Require review from Code Owners") a change cannot merge without them.
+#
+# The handle below is the git user of this repository's author. Replace or extend it with the real
+# maintainers (and teams, as @org/team) when ownership changes: docs/HANDOVER.md lists what else
+# changes hands. The last matching pattern wins, so the narrow rules sit below the general one.
+
+*                              @rishu358
+
+# Security-sensitive: tenant isolation, permissions, auth, secrets, and what production refuses.
+/packages/db/sql/              @rishu358
+/packages/db/migrations/       @rishu358
+/packages/core/src/permissions/ @rishu358
+/packages/core/src/config/     @rishu358
+/apps/api/src/auth/            @rishu358
+/.gitleaks.toml                @rishu358
+/.githooks/                    @rishu358
+/.github/                      @rishu358
+/deploy/                       @rishu358
+/CLAUDE.md                     @rishu358
+/SECURITY.md                   @rishu358
+/LICENSE                       @rishu358

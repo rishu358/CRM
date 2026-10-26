@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+# Pre-commit: scan what is about to be committed for secrets (CLAUDE.md §5.8).
+#
+# Enable once per clone:  pnpm hooks:install   (sets core.hooksPath to .githooks)
+# Bypass in an emergency: git commit --no-verify   (CI scans the full history regardless)
+#
+# How it scans: the STAGED version of each added or changed file is written to a temporary
+# directory and gitleaks scans that directory. It does not ask gitleaks to read git itself, on
+# purpose: inside a container a git worktree's `.git` points at a path that does not exist, and
+# gitleaks then reports "0 commits scanned, no leaks found" and exits 0. A secret check that passes
+# because it could not look is worse than none, so this one never depends on git in the container.
+#
+# Uses a local `gitleaks` if there is one, else Docker, and otherwise says so loudly and lets the
+# commit through: a hook that blocks every commit on a laptop without the tool gets switched off,
+# and CI is the check that cannot be skipped. Findings are redacted; nothing secret is printed.
+
+set -uo pipefail
+cd "$(git rev-parse --show-toplevel)"
+
+IMAGE="ghcr.io/gitleaks/gitleaks:v8.30.1"
+
+scan_dir=$(mktemp -d)
+trap 'rm -rf "$scan_dir"' EXIT
+
+staged=0
+while IFS= read -r -d '' file; do
+  mkdir -p "$scan_dir/$(dirname "$file")"
+  git show ":$file" > "$scan_dir/$file"
+  staged=$((staged + 1))
+done < <(git diff --cached --name-only --diff-filter=ACMR -z)
+
+if [ "$staged" -eq 0 ]; then exit 0; fi
+
+# The same rules and the same reviewed exceptions as CI.
+cp .gitleaks.toml "$scan_dir/.gitleaks.toml"
+ARGS=(dir . --config .gitleaks.toml --redact --no-banner --verbose)
+
+if command -v gitleaks >/dev/null 2>&1; then
+  (cd "$scan_dir" && gitleaks "${ARGS[@]}")
+  status=$?
+elif command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
+  # MSYS_NO_PATHCONV: Git Bash on Windows would otherwise rewrite the container path.
+  host_dir=$(cd "$scan_dir" && (pwd -W 2>/dev/null || pwd))
+  MSYS_NO_PATHCONV=1 docker run --rm -v "$host_dir:/scan" -w /scan "$IMAGE" "${ARGS[@]}"
+  status=$?
+else
+  echo "[pre-commit] gitleaks is not installed and Docker is not running: $staged staged file(s) were NOT scanned." >&2
+  echo "[pre-commit] Install gitleaks (https://github.com/gitleaks/gitleaks) so this check can run. CI will still scan." >&2
+  exit 0
+fi
+
+if [ "$status" -ne 0 ]; then
+  echo "" >&2
+  echo "[pre-commit] Possible secret in the staged changes (values are redacted above), or gitleaks failed." >&2
+  echo "[pre-commit] Remove it and rotate it if it was ever real. If it is a reviewed false positive," >&2
+  echo "[pre-commit] add a narrow allowlist entry (one file AND a line pattern) to .gitleaks.toml with a" >&2
+  echo "[pre-commit] reason; never loosen a rule." >&2
+  exit 1
+fi

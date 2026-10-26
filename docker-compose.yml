@@ -1,0 +1,107 @@
+# Local development infrastructure.
+# Production uses managed Postgres/Redis; this file only ever serves dev + CI.
+services:
+  postgres:
+    image: postgres:16.6-alpine
+    container_name: crm-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: crm
+      # Deterministic collation so index behaviour matches CI and production.
+      POSTGRES_INITDB_ARGS: '--locale=C.UTF-8 --encoding=UTF8'
+    ports:
+      # Deliberately not the default ports. This machine already runs a native
+      # PostgreSQL service on 5432 and another Redis on 6379; two listeners on
+      # one port make connections land somewhere surprising rather than fail
+      # cleanly, which is a miserable thing to debug.
+      - '15432:5432'
+    volumes:
+      - crm-postgres-data:/var/lib/postgresql/data
+      - ./packages/db/sql/bootstrap:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d crm']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    command:
+      - postgres
+      # Surface slow queries during development so we catch N+1 early.
+      - -c
+      - log_min_duration_statement=200
+
+  redis:
+    image: redis:7.4-alpine
+    container_name: crm-redis
+    restart: unless-stopped
+    ports:
+      - '16379:6379'
+    volumes:
+      - crm-redis-data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    command: ['redis-server', '--appendonly', 'yes']
+
+  # S3-compatible object storage for import files and generated exports
+  # (CLAUDE.md §5.12, ADR-0009). Production uses S3 or R2; the app only ever
+  # talks to it through the StorageProvider interface. The bucket is created
+  # (and kept private) by `pnpm infra:up`, via packages/storage/scripts.
+  minio:
+    # Pinned by digest, not a floating tag: RELEASE.2025-09-07T16-13-09Z.
+    # Our own mirror, because MinIO's images are no longer publicly pullable
+    # (quay.io 401s on the manifest, Docker Hub denies anonymous pulls), which
+    # broke CI and every fresh clone. See deploy/minio-mirror.Dockerfile.
+    image: ghcr.io/rishu358/crm-minio@sha256:53bb27d3dbdf27dc28bacb759062014b9c5d2636c9b32f115f5ee7b772aa6adf
+    container_name: crm-minio
+    restart: unless-stopped
+    environment:
+      MINIO_ROOT_USER: crm_minio
+      MINIO_ROOT_PASSWORD: crm_minio_dev_secret
+    ports:
+      # Off the defaults for the same reason as Postgres and Redis above: this
+      # machine may already run one.
+      - '19000:9000'
+      - '19001:9001'
+    volumes:
+      - crm-minio-data:/data
+    healthcheck:
+      test: ['CMD', 'mc', 'ready', 'local']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    command: ['server', '/data', '--console-address', ':9001']
+
+  # A local inbox for the mail the application sends in development: verification and password-reset
+  # links arrive here instead of being printed to a log. Nothing is delivered anywhere. Development
+  # only: production uses a real provider (docs/PROVIDERS.md), and the application refuses plain-text
+  # SMTP when NODE_ENV=production.
+  #
+  # Pinned by digest, not a floating tag: v1.32.0, a multi-platform index (amd64, arm64, 386).
+  # Pulls anonymously from the project's own registry, so there is no mirror to maintain, unlike MinIO
+  # above. If upstream ever stops being publicly pullable, mirror it the way
+  # deploy/minio-mirror.Dockerfile does.
+  mailpit:
+    image: ghcr.io/axllent/mailpit@sha256:0790692be935ea4420d085694f7985b1f692ca6a8771ab0e0bd8ba75ac180498
+    container_name: crm-mailpit
+    restart: unless-stopped
+    environment:
+      # Messages live in memory and are capped, so a long-running dev stack does not grow without bound.
+      MP_MAX_MESSAGES: '500'
+    ports:
+      # Off the defaults (1025 and 8025) for the same reason as the services above.
+      - '11025:1025' # SMTP: what the API and worker send to (SMTP_PORT)
+      - '18025:8025' # the inbox, in a browser
+    healthcheck:
+      test: ['CMD', '/mailpit', 'readyz']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  crm-minio-data:
+  crm-postgres-data:
+  crm-redis-data:

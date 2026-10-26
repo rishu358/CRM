@@ -1,0 +1,45 @@
+# dependencies
+node_modules/
+.pnpm-store/
+
+# build output
+dist/
+build/
+.next/
+out/
+*.tsbuildinfo
+
+# turbo
+.turbo/
+
+# env & secrets — never commit (CLAUDE.md §5.8)
+.env
+.env.*
+!.env.example
+
+# test & coverage
+coverage/
+playwright-report/
+test-results/
+blob-report/
+.playwright/
+
+# logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# editor / os
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# local database volumes
+.docker-data/
+mutation-report.json
+
+# production environment files: filled in on the host, never committed (CLAUDE.md §5.8)
+deploy/*.env
+!deploy/*.env.example

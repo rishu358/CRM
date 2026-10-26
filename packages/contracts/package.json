@@ -1,0 +1,42 @@
+{
+  "name": "@crm/contracts",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./accounts": {
+      "types": "./dist/accounts.d.ts",
+      "default": "./dist/accounts.js"
+    },
+    "./contacts": {
+      "types": "./dist/contacts.d.ts",
+      "default": "./dist/contacts.js"
+    },
+    "./auth": {
+      "types": "./dist/auth.d.ts",
+      "default": "./dist/auth.js"
+    }
+  },
+  "scripts": {
+    "lint": "eslint src",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests",
+    "build": "tsc -p tsconfig.build.json"
+  },
+  "dependencies": {
+    "@crm/core": "workspace:^",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@crm/config": "workspace:^",
+    "@types/node": "^26.6.5",
+    "typescript": "5.9.3",
+    "vitest": "^5.0.5"
+  }
+}

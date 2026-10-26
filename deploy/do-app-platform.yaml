@@ -1,0 +1,194 @@
+# DigitalOcean App Platform spec for the CRM API and worker, Bangalore (BLR1). ADR-0042.
+#
+# This file is a TEMPLATE. It is not valid for `doctl` until it has been rendered, because secrets
+# are written as @@NAME@@ and never as values (CLAUDE.md §5.8). Render it, do not edit the output:
+#
+#   deploy/render-do-app-spec.sh deploy/do-app.secrets.env | doctl apps create --spec -
+#   deploy/render-do-app-spec.sh deploy/do-app.secrets.env | doctl apps update <app-id> --spec -
+#
+# (`@@` rather than `${...}` because App Platform reserves `${...}` for its own bindable variables.)
+# The renderer refuses to run with any required value missing, prints no value, and writes nothing
+# to disk. App Platform encrypts every `type: SECRET` value on first submission.
+#
+# What this deploys, and what it deliberately does not:
+#
+#   api      service   Fastify API, from the `api` image target. The only public thing in this file.
+#   worker   worker    Outbox relay and every background handler, from the `worker` image target.
+#                      A *worker*, not a service: it serves no HTTP, so it gets no route, no port and
+#                      no HTTP health check (the platform restarts a worker whose process exits).
+#   migrate  job       `PRE_DEPLOY`: runs the `migrate` image to completion before the new api and
+#                      worker start. If it fails, the deployment fails and the old version keeps
+#                      serving. Migrations are forward-only and additive (CLAUDE.md §7).
+#
+#   NOT here: the web app (Vercel, region bom1, apps/web/vercel.json), Postgres, Valkey and the
+#   Spaces bucket (managed services, created by hand first: docs/RUNBOOK.md §9.2).
+#
+#   NOT here, on purpose: a `databases:` component. Attaching the managed cluster would make
+#   ${db.DATABASE_URL} available, and that is the ADMIN role's connection string (`doadmin`, which
+#   has BYPASSRLS). Every database URL below is a hand-supplied secret for a role the bootstrap
+#   built (`crm_app`, `crm_auth`, `crm_worker`, `crm_erasure`, `crm_migrator`). The API and worker
+#   also refuse to start if a connection turns out to bypass row-level security
+#   (packages/core/src/config/production.ts, `assertConnectedRoles`).
+#
+# Images: build each target from deploy/Dockerfile and push it to your DigitalOcean Container
+# Registry (docs/RUNBOOK.md §9.5). App Platform's own Dockerfile build offers no way to choose one
+# stage of a multi-stage file, and building once then promoting the same image is the safer release
+# anyway. The images hold no personal data, so where the registry lives is not a residency matter.
+# `tag` is the release (a git SHA or version), never `latest`.
+
+name: crm
+region: blr
+
+alerts:
+  - rule: DEPLOYMENT_FAILED
+  - rule: DOMAIN_FAILED
+
+# The API's public hostname, taken from API_URL. Use a custom domain from the start: the API must
+# know its own https address at boot (API_URL, used for OAuth redirects and checked by the
+# production config), and the generated *.ondigitalocean.app name is not known until the app exists.
+domains:
+  - domain: '@@API_HOST@@'
+    type: PRIMARY
+
+services:
+  - name: api
+    image:
+      registry_type: DOCR
+      repository: crm-api
+      tag: '@@CRM_VERSION@@'
+    http_port: 3001
+    # One instance until rate limits are Redis-backed (docs/RUNBOOK.md §4, §8): with N instances each
+    # keeps its own counters, so every limit is N times looser.
+    instance_count: 1
+    instance_size_slug: apps-s-1vcpu-1gb
+    routes:
+      - path: /
+    # Liveness only, deliberately: it touches nothing. /api/v1/health/ready also pings Postgres, and
+    # a platform that restarts the API whenever the database blips turns a blip into an outage.
+    # Point an external uptime monitor at /ready instead (RUNBOOK §9.9). The API refuses to listen
+    # at all if its configuration is unsafe or a database role bypasses RLS, so a bad deploy never
+    # becomes healthy and App Platform keeps the previous version.
+    health_check:
+      http_path: /api/v1/health
+      initial_delay_seconds: 20
+      period_seconds: 15
+      timeout_seconds: 5
+      failure_threshold: 5
+    envs:
+      - { key: NODE_ENV, value: production, scope: RUN_TIME }
+      - { key: API_PORT, value: '3001', scope: RUN_TIME }
+      - { key: LOG_LEVEL, value: info, scope: RUN_TIME }
+      # Public addresses. WEB_URL is the Vercel site; API_URL is this service's own public origin.
+      - { key: WEB_URL, value: '@@WEB_URL@@', scope: RUN_TIME }
+      - { key: API_URL, value: '@@API_URL@@', scope: RUN_TIME }
+      # multi_tenant: anyone can sign up. single_tenant: sign-up closed, one workspace made with
+      # `tenant:create` (ADR-0046). The web app on Vercel must be set to the same value.
+      - { key: DEPLOYMENT_MODE, value: '@@DEPLOYMENT_MODE@@', scope: RUN_TIME }
+      - { key: CORS_ORIGINS, value: '@@WEB_URL@@', scope: RUN_TIME }
+      - { key: AUTH_SECRET, value: '@@AUTH_SECRET@@', scope: RUN_TIME, type: SECRET }
+      # Two roles, two pools (ADR-0002). Never doadmin, never crm_migrator.
+      - { key: DATABASE_URL, value: '@@DATABASE_URL@@', scope: RUN_TIME, type: SECRET }
+      - { key: DATABASE_AUTH_URL, value: '@@DATABASE_AUTH_URL@@', scope: RUN_TIME, type: SECRET }
+      # The provider's CA certificate (public), base64 of the PEM: `base64 -w0 ca.crt`. Without it Node
+      # refuses DigitalOcean's certificate and the API cannot connect (ADR-0042). Verification stays on.
+      # A small pool: a managed Postgres has few connections to give (docs/RUNBOOK.md §9.7). The auth
+      # pool is a quarter of this, minimum two.
+      - { key: DATABASE_POOL_MAX, value: '6', scope: RUN_TIME }
+      - { key: DATABASE_CA_CERT, value: '@@DATABASE_CA_CERT@@', scope: RUN_TIME }
+      # Valkey speaks the Redis protocol. Optional today: nothing reads it until Redis-backed rate
+      # limiting lands, and the API logs a warning while it is empty. Use the rediss:// (TLS) URL.
+      - { key: REDIS_URL, value: '@@REDIS_URL@@', scope: RUN_TIME, type: SECRET }
+      - { key: EMAIL_PROVIDER, value: resend, scope: RUN_TIME }
+      - { key: EMAIL_FROM, value: '@@EMAIL_FROM@@', scope: RUN_TIME }
+      - { key: RESEND_API_KEY, value: '@@RESEND_API_KEY@@', scope: RUN_TIME, type: SECRET }
+      - { key: STORAGE_PROVIDER, value: s3, scope: RUN_TIME }
+      - { key: S3_BUCKET, value: '@@S3_BUCKET@@', scope: RUN_TIME }
+      # DigitalOcean's own examples sign with us-east-1 and let the endpoint pick the datacenter.
+      - { key: S3_REGION, value: '@@S3_REGION@@', scope: RUN_TIME }
+      - { key: S3_ENDPOINT, value: '@@S3_ENDPOINT@@', scope: RUN_TIME }
+      - { key: S3_PUBLIC_ENDPOINT, value: '@@S3_PUBLIC_ENDPOINT@@', scope: RUN_TIME }
+      # Path style keeps the presigned URL's host equal to S3_PUBLIC_ENDPOINT, which is the only
+      # origin the web app's CSP lets the browser upload to. Virtual-hosted style would put the bucket
+      # in the hostname and the browser would block the upload.
+      - { key: S3_FORCE_PATH_STYLE, value: 'true', scope: RUN_TIME }
+      - { key: S3_ACCESS_KEY_ID, value: '@@S3_ACCESS_KEY_ID@@', scope: RUN_TIME, type: SECRET }
+      - {
+          key: S3_SECRET_ACCESS_KEY,
+          value: '@@S3_SECRET_ACCESS_KEY@@',
+          scope: RUN_TIME,
+          type: SECRET,
+        }
+
+workers:
+  - name: worker
+    image:
+      registry_type: DOCR
+      repository: crm-worker
+      tag: '@@CRM_VERSION@@'
+    instance_count: 1
+    instance_size_slug: apps-s-1vcpu-1gb
+    # Finish the batch in hand before stopping. Handlers are idempotent (CLAUDE.md §6), so a hard
+    # stop is safe but wasteful.
+    termination:
+      grace_period_seconds: 30
+    envs:
+      - { key: NODE_ENV, value: production, scope: RUN_TIME }
+      - { key: LOG_LEVEL, value: info, scope: RUN_TIME }
+      # Where a digest email points people back to.
+      - { key: WEB_URL, value: '@@WEB_URL@@', scope: RUN_TIME }
+      # DATABASE_URL is required by the worker's configuration even though it relays as crm_worker.
+      # crm_erasure is the narrow audit-redaction role (ADR-0032); without it an erasure request
+      # fails loudly rather than leaving history intact.
+      - { key: DATABASE_URL, value: '@@DATABASE_URL@@', scope: RUN_TIME, type: SECRET }
+      - {
+          key: DATABASE_WORKER_URL,
+          value: '@@DATABASE_WORKER_URL@@',
+          scope: RUN_TIME,
+          type: SECRET,
+        }
+      - {
+          key: DATABASE_ERASURE_URL,
+          value: '@@DATABASE_ERASURE_URL@@',
+          scope: RUN_TIME,
+          type: SECRET,
+        }
+      - { key: DATABASE_POOL_MAX, value: '4', scope: RUN_TIME }
+      - { key: DATABASE_CA_CERT, value: '@@DATABASE_CA_CERT@@', scope: RUN_TIME }
+      - { key: EMAIL_PROVIDER, value: resend, scope: RUN_TIME }
+      - { key: EMAIL_FROM, value: '@@EMAIL_FROM@@', scope: RUN_TIME }
+      - { key: RESEND_API_KEY, value: '@@RESEND_API_KEY@@', scope: RUN_TIME, type: SECRET }
+      - { key: STORAGE_PROVIDER, value: s3, scope: RUN_TIME }
+      - { key: S3_BUCKET, value: '@@S3_BUCKET@@', scope: RUN_TIME }
+      - { key: S3_REGION, value: '@@S3_REGION@@', scope: RUN_TIME }
+      - { key: S3_ENDPOINT, value: '@@S3_ENDPOINT@@', scope: RUN_TIME }
+      - { key: S3_PUBLIC_ENDPOINT, value: '@@S3_PUBLIC_ENDPOINT@@', scope: RUN_TIME }
+      - { key: S3_FORCE_PATH_STYLE, value: 'true', scope: RUN_TIME }
+      - { key: S3_ACCESS_KEY_ID, value: '@@S3_ACCESS_KEY_ID@@', scope: RUN_TIME, type: SECRET }
+      - {
+          key: S3_SECRET_ACCESS_KEY,
+          value: '@@S3_SECRET_ACCESS_KEY@@',
+          scope: RUN_TIME,
+          type: SECRET,
+        }
+
+jobs:
+  - name: migrate
+    kind: PRE_DEPLOY
+    image:
+      registry_type: DOCR
+      repository: crm-migrate
+      tag: '@@CRM_VERSION@@'
+    instance_count: 1
+    instance_size_slug: apps-s-1vcpu-1gb
+    envs:
+      - { key: NODE_ENV, value: production, scope: RUN_TIME }
+      # The one place crm_migrator is used. The migrate image reads DATABASE_URL as well (the
+      # compose example passes both), so it receives crm_app's, as there.
+      - {
+          key: DATABASE_MIGRATION_URL,
+          value: '@@DATABASE_MIGRATION_URL@@',
+          scope: RUN_TIME,
+          type: SECRET,
+        }
+      - { key: DATABASE_URL, value: '@@DATABASE_URL@@', scope: RUN_TIME, type: SECRET }
+      - { key: DATABASE_CA_CERT, value: '@@DATABASE_CA_CERT@@', scope: RUN_TIME }

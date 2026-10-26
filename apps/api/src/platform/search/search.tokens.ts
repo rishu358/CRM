@@ -1,0 +1,24 @@
+import type { SearchProvider } from '@crm/core';
+import type { Tx } from '@crm/db';
+
+/**
+ * The injection token for whichever search engine is configured (ADR-0009).
+ *
+ * Here, in the platform module, and not in the search module: the five record modules ask it which of
+ * their records match a list's search box (ADR-0041 §5), and the search module depends on them, so a
+ * provider that lived in the search module would make the dependency a cycle. Swapping the engine is
+ * still one line, now in `platform.module.ts`.
+ *
+ * A string token, like `EMAIL_PROVIDER` and `EXCHANGE_RATE_SOURCE`, and named explicitly at every
+ * constructor with `@Inject` — esbuild emits no decorator metadata, so an interface-typed parameter
+ * without it resolves to nothing and the API exits silently at boot while the tests still pass
+ * (ADR-0016).
+ *
+ * `Tx` is baked into the type on purpose. The Postgres provider needs the caller's tenant-scoped
+ * transaction, because that is where RLS gets its tenant from; a provider in another process ignores
+ * the handle and must enforce `SearchRequest.tenantId` itself (ADR-0028 §6). Typing it means a
+ * replacement has to decide that deliberately rather than by omission.
+ */
+export const SEARCH_PROVIDER = 'SEARCH_PROVIDER';
+
+export type ApiSearchProvider = SearchProvider<Tx>;
