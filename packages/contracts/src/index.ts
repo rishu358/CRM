@@ -12,6 +12,8 @@ export * from './exports.js';
 export * from './attachments.js';
 export * from './audit.js';
 export * from './recycle-bin.js';
+export * from './saved-views.js';
+export * from './bulk.js';
 export * from './data-rights.js';
 export * from './auth.js';
 export * from './invitations.js';

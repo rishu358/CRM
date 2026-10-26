@@ -21,3 +21,4 @@ export * from './outbound/index.js';
 export * from './config/production.js';
 export * from './deployment/index.js';
 export * from './entitlements/index.js';
+export * from './bulk/index.js';
