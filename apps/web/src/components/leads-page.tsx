@@ -15,12 +15,21 @@ import {
   Toolbar,
 } from '@crm/ui';
 import { useState } from 'react';
+import { filterStrings, useListView } from '../lib/list-view';
+import { useSelection } from '../lib/selection';
 import { flattenLeadPages, useCreateLead, useLeadList } from '../lib/leads';
 import { t } from '../lib/i18n';
 import { useCreateShortcut } from '../lib/shortcuts';
 import { AppShell } from './app-shell';
+import { BulkBar } from './bulk-bar';
+import { ListViewBar } from './list-view-bar';
 import { LeadsTable } from './leads-table';
-import { CustomColumnsChooser, useCustomColumns } from './custom-fields';
+import {
+  CustomColumnsChooser,
+  customColumnKeys,
+  customFieldKeys,
+  useCustomColumns,
+} from './custom-fields';
 import { ExportButton } from './export-button';
 import { ImportLink } from './import-link';
 import { NewLeadDialog } from './new-lead-dialog';
@@ -33,16 +42,28 @@ import { NewLeadDialog } from './new-lead-dialog';
  * refused — but a bare error page would leave the user with nothing to do.
  */
 export function LeadsPage() {
-  const [search, setSearch] = useState('');
   const customColumns = useCustomColumns('lead');
+  const view = useListView({
+    defaultSort: '-created_at',
+    getColumns: () => customFieldKeys(customColumns.chosen),
+    setColumns: (keys) =>
+      customColumns.setChosen(customColumnKeys(customColumns.definitions, keys)),
+  });
+  const search = view.q;
+  const setSearch = view.setQ;
+  const clearFilters = () => {
+    view.setQ('');
+    view.setConditions([]);
+  };
   const [creating, setCreating] = useState(false);
 
   // `C` does what the New button does, on whichever list is on screen.
   useCreateShortcut(() => setCreating(true));
 
-  const query = useLeadList(search);
+  const query = useLeadList(view.params);
   const create = useCreateLead();
   const leads = flattenLeadPages(query.data);
+  const selection = useSelection(leads.map((record) => record.id));
 
   const content = () => {
     if (query.isPending) return <TableSkeleton rows={8} columns={5} label={t('common.loading')} />;
@@ -66,7 +87,7 @@ export function LeadsPage() {
           }
           action={
             query.error.code === 'SEARCH_TIMEOUT' ? (
-              <Button variant="outline" onClick={() => setSearch('')}>
+              <Button variant="outline" onClick={clearFilters}>
                 {t('common.clearSearch')}
               </Button>
             ) : (
@@ -83,13 +104,13 @@ export function LeadsPage() {
       // An empty search result is a different situation from an empty database,
       // and offering "add your first lead" to someone who just mistyped a
       // name would be unhelpful.
-      return search.length > 0 ? (
+      return view.isFiltered ? (
         <EmptyState
           icon={<NoResultsIcon className="h-5 w-5" />}
           title={t('leads.noResults.title')}
           description={t('leads.noResults.description')}
           action={
-            <Button variant="outline" onClick={() => setSearch('')}>
+            <Button variant="outline" onClick={clearFilters}>
               {t('common.clearSearch')}
             </Button>
           }
@@ -114,7 +135,17 @@ export function LeadsPage() {
 
     return (
       <div className="space-y-4">
-        <LeadsTable leads={leads} customColumns={customColumns.chosenDefinitions} />
+        <BulkBar
+          objectType="lead"
+          selection={selection}
+          filter={{ q: view.q, conditions: [...view.conditions] }}
+          hasMore={query.hasNextPage}
+        />
+        <LeadsTable
+          leads={leads}
+          customColumns={customColumns.chosenDefinitions}
+          selection={selection}
+        />
         <ListFooter
           end={
             query.hasNextPage ? (
@@ -165,10 +196,17 @@ export function LeadsPage() {
           <>
             <CustomColumnsChooser state={customColumns} />
             <ImportLink objectType="lead" />
-            <ExportButton objectType="lead" q={search} sort="-created_at" />
+            <ExportButton
+              objectType="lead"
+              q={search}
+              sort={view.sort}
+              filter={filterStrings(view.conditions)}
+            />
           </>
         }
       />
+
+      <ListViewBar objectType="lead" view={view} />
 
       {content()}
 

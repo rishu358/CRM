@@ -15,12 +15,21 @@ import {
   Toolbar,
 } from '@crm/ui';
 import { useState } from 'react';
+import { filterStrings, useListView } from '../lib/list-view';
+import { useSelection } from '../lib/selection';
 import { flattenPages, useContactList, useCreateContact } from '../lib/contacts';
 import { t } from '../lib/i18n';
 import { useCreateShortcut } from '../lib/shortcuts';
 import { AppShell } from './app-shell';
+import { BulkBar } from './bulk-bar';
+import { ListViewBar } from './list-view-bar';
 import { ContactsTable } from './contacts-table';
-import { CustomColumnsChooser, useCustomColumns } from './custom-fields';
+import {
+  CustomColumnsChooser,
+  customColumnKeys,
+  customFieldKeys,
+  useCustomColumns,
+} from './custom-fields';
 import { ExportButton } from './export-button';
 import { ImportLink } from './import-link';
 import { NewContactDialog } from './new-contact-dialog';
@@ -33,16 +42,28 @@ import { NewContactDialog } from './new-contact-dialog';
  * refused — but a bare error page would leave the user with nothing to do.
  */
 export function ContactsPage() {
-  const [search, setSearch] = useState('');
   const customColumns = useCustomColumns('contact');
+  const view = useListView({
+    defaultSort: '-created_at',
+    getColumns: () => customFieldKeys(customColumns.chosen),
+    setColumns: (keys) =>
+      customColumns.setChosen(customColumnKeys(customColumns.definitions, keys)),
+  });
+  const search = view.q;
+  const setSearch = view.setQ;
+  const clearFilters = () => {
+    view.setQ('');
+    view.setConditions([]);
+  };
   const [creating, setCreating] = useState(false);
 
   // `C` does what the New button does, on whichever list is on screen.
   useCreateShortcut(() => setCreating(true));
 
-  const query = useContactList(search);
+  const query = useContactList(view.params);
   const create = useCreateContact();
   const contacts = flattenPages(query.data);
+  const selection = useSelection(contacts.map((record) => record.id));
 
   const content = () => {
     if (query.isPending) return <TableSkeleton rows={8} columns={5} label={t('common.loading')} />;
@@ -66,7 +87,7 @@ export function ContactsPage() {
           }
           action={
             query.error.code === 'SEARCH_TIMEOUT' ? (
-              <Button variant="outline" onClick={() => setSearch('')}>
+              <Button variant="outline" onClick={clearFilters}>
                 {t('common.clearSearch')}
               </Button>
             ) : (
@@ -83,13 +104,13 @@ export function ContactsPage() {
       // An empty search result is a different situation from an empty database,
       // and offering "add your first contact" to someone who just mistyped a
       // name would be unhelpful.
-      return search.length > 0 ? (
+      return view.isFiltered ? (
         <EmptyState
           icon={<NoResultsIcon className="h-5 w-5" />}
           title={t('contacts.noResults.title')}
           description={t('contacts.noResults.description')}
           action={
-            <Button variant="outline" onClick={() => setSearch('')}>
+            <Button variant="outline" onClick={clearFilters}>
               {t('common.clearSearch')}
             </Button>
           }
@@ -114,7 +135,17 @@ export function ContactsPage() {
 
     return (
       <div className="space-y-4">
-        <ContactsTable contacts={contacts} customColumns={customColumns.chosenDefinitions} />
+        <BulkBar
+          objectType="contact"
+          selection={selection}
+          filter={{ q: view.q, conditions: [...view.conditions] }}
+          hasMore={query.hasNextPage}
+        />
+        <ContactsTable
+          contacts={contacts}
+          customColumns={customColumns.chosenDefinitions}
+          selection={selection}
+        />
         <ListFooter
           end={
             query.hasNextPage ? (
@@ -165,10 +196,17 @@ export function ContactsPage() {
           <>
             <CustomColumnsChooser state={customColumns} />
             <ImportLink objectType="contact" />
-            <ExportButton objectType="contact" q={search} sort="-created_at" />
+            <ExportButton
+              objectType="contact"
+              q={search}
+              sort={view.sort}
+              filter={filterStrings(view.conditions)}
+            />
           </>
         }
       />
+
+      <ListViewBar objectType="contact" view={view} />
 
       {content()}
 

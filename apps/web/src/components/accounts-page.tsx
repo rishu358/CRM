@@ -15,13 +15,18 @@ import {
   Toolbar,
 } from '@crm/ui';
 import { useMemo, useState } from 'react';
+import { filterStrings, useListView } from '../lib/list-view';
+import { useSelection } from '../lib/selection';
 import { flattenAccountPages, useAccountList, useCreateAccount } from '../lib/accounts';
 import { t } from '../lib/i18n';
 import { useCreateShortcut } from '../lib/shortcuts';
 import { AppShell } from './app-shell';
+import { BulkBar } from './bulk-bar';
+import { ListViewBar } from './list-view-bar';
 import { ACCOUNT_COLUMNS, AccountsTable, DEFAULT_ACCOUNT_COLUMNS } from './accounts-table';
 import { ColumnChooser } from './column-chooser';
-import { customColumnOptions, useCustomColumns } from './custom-fields';
+import { CUSTOM_COLUMN_PREFIX, customColumnOptions, useCustomColumns } from './custom-fields';
+import type { FieldDefinitionView } from '../lib/fields';
 import { ExportButton } from './export-button';
 import { ImportLink } from './import-link';
 import { NewAccountDialog } from './new-account-dialog';
@@ -33,19 +38,50 @@ import { NewAccountDialog } from './new-account-dialog';
  * no-permission. The no-permission branch is cosmetic — the API already
  * refused — but a bare error page would leave the user with nothing to do.
  */
+/** The field key a column is saved under in a view: custom fields by key, the rest by API key. */
+function columnToFieldKey(column: string): string {
+  if (column.startsWith(CUSTOM_COLUMN_PREFIX)) return column.slice(CUSTOM_COLUMN_PREFIX.length);
+  return ACCOUNT_COLUMNS.find((candidate) => candidate.key === column)?.sortKey ?? column;
+}
+
+/** The columns a view's field keys stand for; none (or none this person can use) is the default set. */
+function fieldKeysToColumns(
+  keys: readonly string[],
+  custom: readonly FieldDefinitionView[],
+): string[] {
+  const columns = keys.flatMap((key) => {
+    if (custom.some((definition) => definition.key === key)) return [CUSTOM_COLUMN_PREFIX + key];
+    const builtIn = ACCOUNT_COLUMNS.find((candidate) => candidate.sortKey === key);
+    return builtIn === undefined ? [] : [builtIn.key];
+  });
+  return columns.length > 0 ? columns : [...DEFAULT_ACCOUNT_COLUMNS];
+}
+
 export function AccountsPage() {
-  const [search, setSearch] = useState('');
   const customColumns = useCustomColumns('account');
-  const [sort, setSort] = useState('-created_at');
   const [visibleColumns, setVisibleColumns] = useState<string[]>([...DEFAULT_ACCOUNT_COLUMNS]);
+  const view = useListView({
+    defaultSort: '-created_at',
+    getColumns: () => visibleColumns.map(columnToFieldKey),
+    setColumns: (keys) => setVisibleColumns(fieldKeysToColumns(keys, customColumns.definitions)),
+  });
+  const search = view.q;
+  const setSearch = view.setQ;
+  const sort = view.sort;
+  const setSort = view.setSort;
+  const clearFilters = () => {
+    view.setQ('');
+    view.setConditions([]);
+  };
   const [creating, setCreating] = useState(false);
 
   // `C` does what the New button does, on whichever list is on screen.
   useCreateShortcut(() => setCreating(true));
 
-  const query = useAccountList(search, sort);
+  const query = useAccountList(view.params);
   const create = useCreateAccount();
   const accounts = flattenAccountPages(query.data);
+  const selection = useSelection(accounts.map((record) => record.id));
 
   /**
    * Only offer a column the API actually sent.
@@ -84,7 +120,7 @@ export function AccountsPage() {
           }
           action={
             query.error.code === 'SEARCH_TIMEOUT' ? (
-              <Button variant="outline" onClick={() => setSearch('')}>
+              <Button variant="outline" onClick={clearFilters}>
                 {t('common.clearSearch')}
               </Button>
             ) : (
@@ -101,13 +137,13 @@ export function AccountsPage() {
       // An empty search result is a different situation from an empty
       // database, and offering "add your first account" to someone who just
       // mistyped a name would be unhelpful.
-      return search.length > 0 ? (
+      return view.isFiltered ? (
         <EmptyState
           icon={<NoResultsIcon className="h-5 w-5" />}
           title={t('accounts.noResults.title')}
           description={t('accounts.noResults.description')}
           action={
-            <Button variant="outline" onClick={() => setSearch('')}>
+            <Button variant="outline" onClick={clearFilters}>
               {t('common.clearSearch')}
             </Button>
           }
@@ -132,12 +168,19 @@ export function AccountsPage() {
 
     return (
       <div className="space-y-4">
+        <BulkBar
+          objectType="account"
+          selection={selection}
+          filter={{ q: view.q, conditions: [...view.conditions] }}
+          hasMore={query.hasNextPage}
+        />
         <AccountsTable
           accounts={accounts}
           visibleColumns={visibleColumns}
           customFields={customColumns.definitions}
           sort={sort}
           onSortChange={setSort}
+          selection={selection}
         />
         <ListFooter
           end={
@@ -195,10 +238,17 @@ export function AccountsPage() {
               />
             ) : null}
             <ImportLink objectType="account" />
-            <ExportButton objectType="account" q={search} sort={sort} />
+            <ExportButton
+              objectType="account"
+              q={search}
+              sort={sort}
+              filter={filterStrings(view.conditions)}
+            />
           </>
         }
       />
+
+      <ListViewBar objectType="account" view={view} />
 
       {content()}
 

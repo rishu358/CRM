@@ -19,6 +19,8 @@ import {
   Toolbar,
 } from '@crm/ui';
 import { useEffect, useState } from 'react';
+import { filterStrings, useListView } from '../lib/list-view';
+import { useSelection } from '../lib/selection';
 import {
   flattenDealPages,
   useCreateDeal,
@@ -30,9 +32,16 @@ import { t } from '../lib/i18n';
 import { consumeIntent, onIntent } from '../lib/palette-intent';
 import { useCreateShortcut } from '../lib/shortcuts';
 import { AppShell } from './app-shell';
+import { BulkBar } from './bulk-bar';
 import { DealsBoard } from './deals-board';
+import { ListViewBar } from './list-view-bar';
 import { DealsTable } from './deals-table';
-import { CustomColumnsChooser, useCustomColumns } from './custom-fields';
+import {
+  CustomColumnsChooser,
+  customColumnKeys,
+  customFieldKeys,
+  useCustomColumns,
+} from './custom-fields';
 import { ExportButton } from './export-button';
 import { NewDealDialog } from './new-deal-dialog';
 
@@ -46,10 +55,22 @@ type View = 'board' | 'list';
  * refused — but a bare error page would leave the user with nothing to do.
  */
 export function DealsPage() {
-  const [view, setView] = useState<View>('board');
-  const [search, setSearch] = useState('');
+  const [mode, setMode] = useState<View>('board');
   const customColumns = useCustomColumns('deal');
-  const [sort, setSort] = useState('-created_at');
+  const view = useListView({
+    defaultSort: '-created_at',
+    getColumns: () => customFieldKeys(customColumns.chosen),
+    setColumns: (keys) =>
+      customColumns.setChosen(customColumnKeys(customColumns.definitions, keys)),
+  });
+  const search = view.q;
+  const setSearch = view.setQ;
+  const sort = view.sort;
+  const setSort = view.setSort;
+  const clearFilters = () => {
+    view.setQ('');
+    view.setConditions([]);
+  };
   const [chosenPipelineId, setChosenPipelineId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
 
@@ -87,8 +108,9 @@ export function DealsPage() {
     available[0];
 
   const board = useDealBoard(pipeline?.id);
-  const list = useDealList(view === 'list' ? (pipeline?.id ?? '') : '', search, sort);
+  const list = useDealList(mode === 'list' ? (pipeline?.id ?? '') : '', view.params);
   const listed = flattenDealPages(list.data);
+  const selection = useSelection(listed.map((record) => record.id));
 
   const boardIsEmpty =
     board.data !== undefined && board.data.data.columns.every((column) => column.count === 0);
@@ -149,7 +171,7 @@ export function DealsPage() {
       );
     }
 
-    if (view === 'board') return <DealsBoard pipeline={pipeline} search={search} />;
+    if (mode === 'board') return <DealsBoard pipeline={pipeline} search={search} />;
 
     if (list.isPending) return <TableSkeleton rows={8} columns={5} label={t('common.loading')} />;
 
@@ -164,7 +186,7 @@ export function DealsPage() {
           }
           action={
             list.error.code === 'SEARCH_TIMEOUT' ? (
-              <Button variant="outline" onClick={() => setSearch('')}>
+              <Button variant="outline" onClick={clearFilters}>
                 {t('common.clearSearch')}
               </Button>
             ) : (
@@ -184,7 +206,7 @@ export function DealsPage() {
           title={t('deals.noResults.title')}
           description={t('deals.noResults.description')}
           action={
-            <Button variant="outline" onClick={() => setSearch('')}>
+            <Button variant="outline" onClick={clearFilters}>
               {t('common.clearSearch')}
             </Button>
           }
@@ -194,12 +216,20 @@ export function DealsPage() {
 
     return (
       <div className="space-y-4">
+        <BulkBar
+          objectType="deal"
+          selection={selection}
+          filter={{ q: view.q, conditions: [...view.conditions] }}
+          hasMore={list.hasNextPage}
+          stages={pipeline.stages}
+        />
         <DealsTable
           deals={listed}
           stages={pipeline.stages}
           customColumns={customColumns.chosenDefinitions}
           sort={sort}
           onSortChange={setSort}
+          selection={selection}
         />
         <ListFooter
           end={
@@ -271,8 +301,8 @@ export function DealsPage() {
           <>
             <SegmentedControl<View>
               label={t('deals.view')}
-              value={view}
-              onChange={setView}
+              value={mode}
+              onChange={setMode}
               options={[
                 {
                   value: 'board',
@@ -286,17 +316,23 @@ export function DealsPage() {
                 },
               ]}
             />
-            {view === 'list' ? <CustomColumnsChooser state={customColumns} /> : null}
+            {mode === 'list' ? <CustomColumnsChooser state={customColumns} /> : null}
             {/* Deals are exported, not imported: a row would have to name a pipeline and a stage. */}
             <ExportButton
               objectType="deal"
               q={search}
               sort={sort}
-              filter={pipeline === undefined ? undefined : [`pipeline_id:eq:${pipeline.id}`]}
+              filter={
+                pipeline === undefined
+                  ? undefined
+                  : [`pipeline_id:eq:${pipeline.id}`, ...filterStrings(view.conditions)]
+              }
             />
           </>
         }
       />
+
+      {mode === 'list' ? <ListViewBar objectType="deal" view={view} /> : null}
 
       {content()}
 

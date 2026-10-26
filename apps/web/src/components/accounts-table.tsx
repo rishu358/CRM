@@ -5,7 +5,8 @@ import { useMemo } from 'react';
 import type { AccountRecord } from '../lib/accounts';
 import { SortableTh, Table, TableCard, THead, Td, Th, Tr } from '@crm/ui';
 import { DEFAULT_PREFERENCES, formatDate, formatMoney } from '../lib/format';
-import { EmptyCell, RecordLink } from './table-parts';
+import { EmptyCell, RecordLink, SelectAllTh, SelectRowTd } from './table-parts';
+import type { Selection } from '../lib/selection';
 import { t, type TranslationKey } from '../lib/i18n';
 import { CUSTOM_COLUMN_PREFIX, customCellText } from './custom-fields';
 import type { FieldDefinitionView } from '../lib/fields';
@@ -86,6 +87,7 @@ export function AccountsTable({
   customFields = [],
   sort,
   onSortChange,
+  selection,
 }: {
   accounts: readonly AccountRecord[];
   visibleColumns: readonly string[];
@@ -94,6 +96,8 @@ export function AccountsTable({
   /** `field` or `-field`, exactly as it goes to the API. */
   sort: string;
   onSortChange: (sort: string) => void;
+  /** Row checkboxes, when the list offers bulk actions. */
+  selection?: Selection;
 }) {
   const active = sort.startsWith('-')
     ? { field: sort.slice(1), descending: true }
@@ -161,6 +165,7 @@ export function AccountsTable({
         <THead>
           {table.getHeaderGroups().map((headerGroup) => (
             <Tr key={headerGroup.id} className="hover:bg-transparent">
+              {selection === undefined ? null : <SelectAllTh selection={selection} />}
               {headerGroup.headers.map((header) => {
                 const column = ACCOUNT_COLUMNS.find((candidate) => candidate.key === header.id);
                 const numeric = NUMERIC_COLUMNS.has(header.id);
@@ -192,6 +197,13 @@ export function AccountsTable({
         <tbody>
           {table.getRowModel().rows.map((row) => (
             <Tr key={row.id}>
+              {selection === undefined ? null : (
+                <SelectRowTd
+                  selection={selection}
+                  id={row.original.id}
+                  name={row.original.name ?? t('field.empty')}
+                />
+              )}
               {row.getVisibleCells().map((cell) => (
                 <Td key={cell.id} numeric={NUMERIC_COLUMNS.has(cell.column.id)}>
                   {flexRender(cell.column.columnDef.cell, cell.getContext())}
