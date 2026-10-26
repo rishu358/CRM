@@ -131,13 +131,38 @@ ownerSuite('creating and editing an account', (getPage) => {
     const dialog = page.getByRole('dialog');
     await expect(dialog).toBeVisible();
 
-    const name = `Testcase Traders ${Date.now().toString().slice(-6)}`;
+    // The domain is as unique as the name: a second run against the same data must not look like a
+    // duplicate of the first (the duplicate prompt, ADR-0023, would then stand in the way of saving).
+    const stamp = Date.now().toString().slice(-6);
+    const name = `Testcase Traders ${stamp}`;
     await dialog.getByLabel('Account name').fill(name);
-    await dialog.getByLabel('Website domain').fill('testcase.example');
+    await dialog.getByLabel('Website domain').fill(`testcase-${stamp}.example`);
     await dialog.getByRole('button', { name: 'Save' }).click();
 
     await expect(dialog).toBeHidden();
     await expect(page.getByRole('link', { name, exact: true })).toBeVisible();
+  });
+
+  test('shows the duplicate prompt, and does not block, when the name matches an account', async () => {
+    const page = getPage();
+
+    await page.getByRole('button', { name: 'New account' }).click();
+    const dialog = page.getByRole('dialog');
+    // The seed's account Lotus Design Studio, which the owner may read.
+    await dialog.getByLabel('Account name').fill('Lotus Design Studio');
+    await dialog.getByRole('button', { name: 'Save' }).click();
+
+    // Nothing was saved yet: the prompt is shown first, with the match and why.
+    const prompt = dialog.getByTestId('duplicate-prompt');
+    await expect(prompt).toBeVisible();
+    await expect(prompt.getByRole('link', { name: 'Lotus Design Studio' })).toBeVisible();
+    await expect(prompt).toContainText('similar name');
+
+    // "Back to edit" returns to the form with what was typed still in it. Not saved anyway here:
+    // a second Lotus Design Studio would make the other tests of this list ambiguous.
+    await prompt.getByRole('button', { name: 'Back to edit' }).click();
+    await expect(dialog.getByLabel('Account name')).toHaveValue('Lotus Design Studio');
+    await expect(dialog.getByRole('button', { name: 'Save' })).toBeVisible();
   });
 
   test('rejects an account with no name', async () => {

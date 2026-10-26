@@ -181,3 +181,25 @@ logged by every proxy between the browser and us (CLAUDE.md §5.8).
 - **`word_similarity` instead of `similarity`.** Rejected for the false
   positives in §1.
 - **Fuzzy match on person names.** Rejected for the reason in §1.
+
+## Amendment (2026-10-26): contacts and accounts entered by hand
+
+The first version of this decision checked a lead being created and a lead being converted, and nothing else.
+A contact or an account typed in by hand was saved with no check at all (pilot finding F4: 25 of 25 second
+contacts with the same e-mail address went in without a word), although the import has had its own
+skip-or-update choice since it was built.
+
+Contacts and accounts now follow the lead rule in section 2, unchanged: `POST /contacts/duplicate-check` and
+`POST /accounts/duplicate-check` (a body, not a URL; they need `create` on that object), and a create answers
+201 whatever it matches, with the matches in `meta.duplicates`. The matches are the same as in section 1 for
+that object (contacts: exact e-mail and exact phone; accounts: same domain, or a name above the 0.5
+similarity), and the five rules of section 3 apply as they do for leads, tested in
+`contacts.duplicates.security.spec.ts` and `accounts.duplicates.security.spec.ts`. The matches are looked up
+before the insert in the same transaction, so the new record never matches itself. The "New contact" and "New
+account" dialogs ask first and offer "open it", "back to edit" and "save anyway".
+
+What did not change, and is worth knowing: a Sales Rep on `own` scope is still not told about a colleague's
+contact (section 3, rule 2), so in a team where reps each hold their own customers a duplicate across two
+reps stays invisible to them. A manager or an administrator, whose scope reaches both, sees it. Whether a
+small team should be given wider reading for this purpose is a product decision for the owner, not a
+default to loosen quietly.

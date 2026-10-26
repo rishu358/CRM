@@ -22,6 +22,7 @@ import {
   parseSort,
   toFilterList,
   type AccountCreateInput,
+  type AccountDuplicateCheckInput,
   type AccountListQuery,
   type AccountUpdateInput,
   type DuplicateMatch,
@@ -153,6 +154,38 @@ export class AccountsService {
 
   async create(actor: Actor, input: AccountCreateInput): Promise<SerializedAccount> {
     return this.inTenant(actor, (tx) => this.createInTx(actor, tx, input));
+  }
+
+  /**
+   * Create an account, and report which existing accounts it may duplicate (ADR-0023): the same
+   * domain, or a name that is close. Offered, never imposed, and looked up before the insert in the
+   * same transaction so the new row cannot match itself. See `ContactsService.createWithDuplicates`.
+   */
+  async createWithDuplicates(
+    actor: Actor,
+    input: AccountCreateInput,
+  ): Promise<{ account: SerializedAccount; duplicates: DuplicateMatch[] }> {
+    assertCan(actor, 'create', { objectType: 'account' });
+    return this.inTenant(actor, async (tx) => {
+      const duplicates = await this.findDuplicates(tx, actor, {
+        domain: input.domain,
+        name: input.name,
+      });
+      const account = await this.createInTx(actor, tx, input);
+      return { account, duplicates };
+    });
+  }
+
+  /**
+   * What would this account duplicate, before it is saved? Needs `create` on accounts (ADR-0023
+   * rule 5). Nothing is written.
+   */
+  async checkDuplicates(
+    actor: Actor,
+    input: AccountDuplicateCheckInput,
+  ): Promise<DuplicateMatch[]> {
+    assertCan(actor, 'create', { objectType: 'account' });
+    return this.inTenant(actor, (tx) => this.findDuplicates(tx, actor, input));
   }
 
   /**

@@ -22,6 +22,23 @@ const optionalNameSchema = z.string().trim().max(120);
 /** Values for custom fields. Shape only here; meaning comes from metadata. */
 const customFieldsSchema = z.record(z.string(), z.unknown());
 
+/**
+ * What the check made before saving a contact is given: the things a person has typed so far
+ * (ADR-0023). Every field is optional; a check with none of them matches nothing.
+ */
+export const contactDuplicateCheckSchema = z
+  .object({
+    email: z
+      .email()
+      .max(254)
+      .transform((value) => value.toLowerCase())
+      .nullish(),
+    phone: z.string().regex(E164, 'Phone must be in E.164 format').nullish(),
+  })
+  .strict();
+
+export type ContactDuplicateCheckInput = z.infer<typeof contactDuplicateCheckSchema>;
+
 export const contactCreateSchema = z
   .object({
     firstName: optionalNameSchema.nullish(),
