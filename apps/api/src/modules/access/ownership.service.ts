@@ -120,6 +120,26 @@ export class OwnershipService {
     });
   }
 
+  /**
+   * Reassign inside a transaction somebody else owns (bulk assign, ADR-0056).
+   *
+   * Same code as `reassign`, so a bulk assign cannot be a way round the rules a reassignment
+   * has: the actor's `update` scope selects the records, the owner field must be writable, only
+   * `all` scope may hand a record to somebody else, and the new owner must be able to see it.
+   * Returns the ids that moved, per object type, which the response of `reassign` does not carry.
+   */
+  async reassignInTx(
+    tx: Tx,
+    actor: Actor,
+    input: ReassignInput,
+  ): Promise<{ objectType: OwnedObject; movedIds: string[] }[]> {
+    const outcome = await this.run(tx, actor, input);
+    return outcome.items.map((item) => ({
+      objectType: item.objectType,
+      movedIds: item.moved.map((row) => row.id),
+    }));
+  }
+
   // -------------------------------------------------------------------------
 
   private async run(tx: Tx, actor: Actor, input: ReassignInput): Promise<RunOutcome> {
