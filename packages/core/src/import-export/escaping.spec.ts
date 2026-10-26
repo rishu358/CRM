@@ -189,3 +189,68 @@ describe('unescapeSpreadsheetCell: an export can be re-imported', () => {
     }
   });
 });
+
+/**
+ * Pilot finding F5: every phone number is `+91...`, so every phone cell in an export began with an
+ * apostrophe (198 of 198), which shows in a spreadsheet or is carried back in on import.
+ *
+ * A value that is exactly an E.164 number (`+`, a non-zero digit, then 1 to 14 digits, the pattern the
+ * API validates phones against) is left alone. That is safe because nothing but digits follows the
+ * plus: a spreadsheet can only read it as a number, and there is no function name, cell reference,
+ * operator, separator (`|`, `!`, `,`, `;`), quote or space for a formula or a DDE command to be made
+ * of. Every other cell that starts with `+` is still escaped, including a phone with anything extra.
+ */
+describe('a plain E.164 phone number is not escaped (F5)', () => {
+  it.each(['+919876543210', '+14155552671', '+442071838750', '+12', '+123456789012345'])(
+    'leaves %s as it is, in every writer',
+    (phone) => {
+      expect(startsFormula(phone)).toBe(true); // it does start with a trigger character...
+      expect(escapeSpreadsheetCell(phone)).toBe(phone); // ...and is still exempt
+      expect(toExportCell(phone)).toBe(phone);
+    },
+  );
+
+  it.each([
+    ['a formula after the number', '+919876543210+1'],
+    ['a DDE payload that starts like a number', "+91+cmd|' /c calc'!A0"],
+    ['a formula that starts like a number', '+1+1'],
+    ['a function call', '+SUM(1,2)'],
+    ['a cell reference', '+A1'],
+    ['a hyperlink', '+91=HYPERLINK("http://evil/","x")'],
+    ['spaces inside', '+91 98765 43210'],
+    ['a dash inside', '+91-98765-43210'],
+    ['a leading space', ' +919876543210'],
+    ['a trailing space', '+919876543210 '],
+    ['a trailing line feed', '+919876543210\n'],
+    ['a trailing carriage return', '+919876543210\r'],
+    ['a trailing tab', '+919876543210\t'],
+    ['a leading zero after the plus', '+0919876543210'],
+    ['too many digits (16)', '+1234567890123456'],
+    ['a single digit', '+9'],
+    ['a decimal point', '+91.9876543210'],
+    ['an exponent', '+1E5'],
+    ['a full-width digit', '+９１９８７６５４３２１０'],
+    ['an Arabic-Indic digit', '+٩١٩٨٧٦٥٤٣٢١٠'],
+    ['a plus on its own', '+'],
+    ['two pluses', '++919876543210'],
+  ])('still escapes %s', (_name, value) => {
+    expect(escapeSpreadsheetCell(value)).toBe(`'${value}`);
+    expect(toExportCell(value)).toBe(`'${value}`);
+  });
+
+  it('does not exempt the other triggers: a minus or equals in front of a number is still escaped', () => {
+    for (const value of ['-919876543210', '=919876543210', '@919876543210', '\t+919876543210']) {
+      expect(escapeSpreadsheetCell(value), JSON.stringify(value)).toBe(`'${value}`);
+    }
+  });
+
+  it('still undoes the apostrophe that earlier exports put in front of a phone number', () => {
+    expect(unescapeSpreadsheetCell("'+919876543210")).toBe('+919876543210');
+    expect(unescapeSpreadsheetCell('+919876543210')).toBe('+919876543210');
+  });
+
+  it('round-trips: export then import gives back the same phone, with and without the exemption', () => {
+    const phone = '+919876543210';
+    expect(unescapeSpreadsheetCell(toExportCell(phone))).toBe(phone);
+  });
+});
