@@ -20,8 +20,13 @@ copies no Zoho wording, design or icons, and it holds no data from anyone's Zoho
 4. **Where we can win:** setup in 10 minutes (a goal, not yet proven), the security and data-rights work
    already built, WhatsApp and GST as everyday features instead of add-ons, and no feature locks on the
    cheapest plan if you choose that. Section 5 says which of these I could and could not check.
-5. **I could not do the live look in your own Zoho account.** Claude in Chrome shows no connected browser
-   (checked several times). See section 2. Nothing in this file comes from your account.
+5. **The live look in your own Zoho was done from your screenshots, not through Chrome.** Claude in Chrome
+   never connected. You sent eleven screenshots: first run, Home, Reports and the dashboard intro. Section 8
+   says what they show. They do not cover lists, Kanban, automation, email or WhatsApp settings.
+6. **What the screenshots changed:** Zoho's first-run is three questions and a pre-ticked sample-data box.
+   Its Home checklist is about setting up (team, pipeline, email, data, integrations), ours is about doing
+   work. Its ready-made reports are empty with no hint in a new account, which we can beat. Build a few
+   ready-made reports before a report builder.
 
 ## 2. How this was researched, and what is missing
 
@@ -31,18 +36,17 @@ copies no Zoho wording, design or icons, and it holds no data from anyone's Zoho
 | Zoho help pages and developer docs (workflow rules, Blueprint, forecasting, reports, WhatsApp, modules) | Partly       | Read through a summarising tool, not word for word. Good enough for "what does it do". Treat exact limits from these pages as unverified. The feature page is exact. |
 | Bigin (Zoho's cheap small-business CRM) pricing                                                         | Partly       | Page shows US dollars only for me. No rupee price found. Rupee price is unverified.                                                                                  |
 | Third-party review sites                                                                                | Yes, thin    | A few Capterra and Software Finder comments. Anecdotes, not facts. Marked unverified below.                                                                          |
-| **Your own signed-in Zoho, read-only, through Claude in Chrome**                                        | **No**       | No Chrome browser is connected to Claude from this session, so I stopped that part as instructed. I did not try to sign in.                                          |
-| Your nine earlier screenshots                                                                           | Not seen     | They were in another conversation.                                                                                                                                   |
+| **Your own signed-in Zoho, read-only, through Claude in Chrome**                                        | **No**       | No Chrome browser was ever connected to Claude from this session, so I stopped that part as instructed. I did not try to sign in.                                    |
+| Your screenshots of your Zoho account (eleven images, taken 25 Oct 2026)                                | Yes, partly  | Seen on 2026-10-26. They cover first run, Home, the Reports list, three report views and the dashboard intro. Section 8. They are not saved in the repository.       |
 | Our own app                                                                                             | Yes, by code | I read the spec, the routes, the API controllers and the screens. I did not run the app for this report, so "yes" means the code exists.                             |
 
-**What the live look would have added** (still wanted): how Home and first-run onboarding feel, the Leads and
-Contacts list filters, the Kanban and its stage prompts, Reports folders and the builder, the dashboard
-component types, Forecasts, the Workflow Rules screen, email and WhatsApp channel settings, Marketplace and
-the sample data. Everything in the table that is about how a screen _feels_ is therefore missing, and the
-Zoho column is based on public documents only.
+**Still not seen** (the screenshots do not cover these): the Leads and Contacts lists and their filters, the
+Deals Kanban and its stage prompts, the report builder itself, Forecasts, Activities, the Workflow Rules
+screen, email and WhatsApp channel settings, Marketplace and the Setup area. For those, the Zoho column in
+section 3 is based on public documents only.
 
-**To finish the live look,** either connect Claude in Chrome to this machine and sign in to Zoho yourself, or
-re-share the nine screenshots. Then a short follow-up can add a "how it feels" column.
+**To see more,** send screenshots of those screens, or connect Claude in Chrome (install the extension, open
+its side panel in Chrome and sign in with the same account as this app) and sign in to Zoho yourself.
 
 How "size to build" is judged: small is up to about a week, medium is one to three weeks, large is a month or
 more. These are my rough guesses for one developer using Claude Code. They are unverified.
@@ -151,7 +155,7 @@ because a trial user hits them in the first hour.
 4. **Products, quotes with GST, PDF.** This is how a deal turns into money, and a GST-correct quote is our best chance to beat Zoho where it is thin. Check Zoho's own quote first (section 7, question 6). _(Large.)_
 5. **Email on the record: send and log first, two-way sync later.** Reps live in email; the first cut can be small and safe. _(Medium first cut, Large for full sync.)_
 6. **Simple automation: trigger, condition, action.** Our event queue is ready; start with assign owner, create task, notify, send template message. _(Large.)_
-7. **Reports and a configurable dashboard, then forecasts.** Owners want to see numbers their own way, but this is the most work and needs the data from steps 1 to 6. _(Large.)_
+7. **A few ready-made reports with a date filter, then a configurable dashboard (KPI, chart, funnel, target meter first), then forecasts, then a report builder.** Owners want their numbers, but Zoho's own ready-made reports sit empty until email, calls and meetings are logged (section 8), so the data from steps 1 to 6 comes first. _(Medium for the ready-made reports, Large for the builder.)_
 8. **API keys and outgoing webhooks.** Lets customers connect their own tools; the outbox is ready. _(Medium.)_
 9. **Self-serve billing (Razorpay or Stripe).** Needed before anyone pays, so its place depends on when hosting starts (question 3). _(Medium.)_
 
@@ -160,18 +164,50 @@ objects, AI, SSO, marketplace.
 
 ## 7. Questions only you can answer
 
-1. **Can you connect Claude in Chrome and sign in to Zoho yourself, or re-share the nine screenshots,** so I can add the "how it feels" part?
-2. **Which business type is first?** Jewellers, real estate, D2C or distributors need different things. Real estate wants forms, calls and WhatsApp early. Distributors want quotes and orders early. This can reorder section 6.
-3. **When do you need to charge money?** Hosting is deferred. If the first customers are free pilots, billing can wait.
-4. **WhatsApp after the chat button:** do you want approved template messages (needs a provider and Meta business checks, with per-message cost) or stop at the button for now?
-5. **Email:** which mailbox do your first customers use: Gmail, Outlook or Zoho Mail? That sets which connection we build first.
-6. **GST quotes:** do you need only GSTIN, HSN or SAC and the CGST/SGST/IGST split on a quote, or also government e-invoicing? The second is much bigger. I would also like to check Zoho's own quote in your account.
-7. **Plan limits:** do we copy Zoho's habit of limiting fields, pipelines and records per plan, or price only by number of users? This decides how we use our plan switch (`packages/core/src/entitlements`).
-8. **Free plan:** do we match Zoho's free 3 users, or something else?
-9. **Languages:** do the first customers need Hindi or other Indian languages in the screens?
-10. **Tally or Zoho Books:** do your buyers expect a link to their accounts software? I have not verified how much they care.
+1. **Can you send screenshots of the screens section 8 lists as not seen** (Leads list with filters, Deals Kanban, Workflow Rules, email and WhatsApp settings, Marketplace, Setup)? Or connect Claude in Chrome.
+2. **Should sample data be switched on by default** when a new workspace is created, as Zoho does? Today it is a button you press on the setup page.
+3. **Which business type is first?** Jewellers, real estate, D2C or distributors need different things. Real estate wants forms, calls and WhatsApp early. Distributors want quotes and orders early. This can reorder section 6.
+4. **When do you need to charge money?** Hosting is deferred. If the first customers are free pilots, billing can wait.
+5. **WhatsApp after the chat button:** do you want approved template messages (needs a provider and Meta business checks, with per-message cost) or stop at the button for now?
+6. **Email:** which mailbox do your first customers use: Gmail, Outlook or Zoho Mail? That sets which connection we build first.
+7. **GST quotes:** do you need only GSTIN, HSN or SAC and the CGST/SGST/IGST split on a quote, or also government e-invoicing? The second is much bigger. I would also like to check Zoho's own quote in your account.
+8. **Plan limits:** do we copy Zoho's habit of limiting fields, pipelines and records per plan, or price only by number of users? This decides how we use our plan switch (`packages/core/src/entitlements`).
+9. **Free plan:** do we match Zoho's free 3 users, or something else?
+10. **Languages:** do the first customers need Hindi or other Indian languages in the screens?
+11. **Tally or Zoho Books:** do your buyers expect a link to their accounts software? I have not verified how much they care.
 
-## 8. Sources
+## 8. How it feels: what your screenshots show
+
+You sent eleven images of your own Zoho account, taken on 25 Oct 2026 between 6:51 and 6:59 pm. The account
+is new: it has sample data and no activity. I describe the screens in my own words and leave out names,
+account numbers and any data. The images are kept outside the repository.
+
+Two limits. Static pictures show layout and wording of steps, not how fast or smooth anything is. And only
+these screens were shared, so this is a slice of Zoho, not all of it.
+
+| Screen                 | What it does                                                                                                                                                                                                                                                                                                                                                                 | Compared with ours                                                                                                                                                                                                                                                                                                                                                    |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| First run              | The page loads its menu first and shows a spinner while the content arrives. Then one small welcome box asks three things, with a good guess filled in for each: time zone (India), language and currency style (India). A box to load sample data is already ticked. One button to go on.                                                                                   | Close to ours (`/setup`: company details, then sample data). The difference is that Zoho asks nothing else and starts with sample data on. Ours has a button on the setup page. Worth copying: three questions, sensible guesses, sample data on by default.                                                                                                          |
+| Home                   | A welcome banner with a one-minute video and a Skip link. Below it a "set up your CRM" card with five steps: invite your team, configure the deals pipeline, connect your email, migrate your existing data, add integrations. The first step is open on the right with a short reason and one big button. A link offers a live webinar.                                     | Ours has three steps, about doing work (invite the team, import contacts, add the first deal) and shows "2 of 3 done". Zoho's five are about setting up the system. Two of them (configure the pipeline, connect email) are things we cannot do yet, which supports sections 3 and 6. The skip link is worth copying.                                                 |
+| Navigation             | A left menu: Home, Reports, Analytics, Agents and MCP (its AI features) at the top. Below, a "teamspace" that groups modules into folders: Sales (Leads, Contacts, Accounts, Deals, Forecasts, Documents, Campaigns) and Activities (Tasks and more). The menu collapses to icons only. A bottom strip has pins, chats and contacts shortcuts and a Help button.             | Ours is a short menu in a few groups (dashboard, My Day, records, import, settings) with search on `Ctrl+K`. Zoho's grouping suits a product with dozens of modules; we have few. Teamspaces are not on Zoho's Free plan (feature page). Agents and MCP are AI items we have no equivalent for; I have no evidence that small Indian buyers ask for them. Unverified. |
+| Top bar                | Search for records, a quick-create plus button, an assistant, a bell, a calendar, settings and an apps menu. A few icons I could not identify from the picture.                                                                                                                                                                                                              | Ours has search (the command palette), a bell and sign-out. A quick-create plus is a small, useful idea we do not have as one button.                                                                                                                                                                                                                                 |
+| Reports list           | One page with an "All reports" selector, a search box and one Create Report button. A table of name, description, folder, last opened and created. A star on each row marks a favourite. Ready-made reports are grouped in folders. I saw an Email Reports folder and a Meeting Reports folder (email, call and check-in analytics, top templates, top users).               | We have no reports. The way ready-made reports arrive already sorted in folders, with a star, is the part to copy. The ready-made reports I saw are about email, calls and meetings, so they depend on that data being logged.                                                                                                                                        |
+| A report               | A Filter button opens a side panel: pick a field, pick a date range from presets (for example the current and previous six months), add more fields, then Apply or Clear. The chosen filter stays visible above the table with a Clear link. Edit and a Create Chart button sit at the top, with "updated less than a minute ago" and a refresh. The table scrolls sideways. | We have an export and a fixed dashboard only. The filter panel is a good pattern for our list screens too (section 3, filters). In this new account every report says "No data found" and nothing more. We already have a rule that every screen explains an empty state and offers a next step: that is a win.                                                       |
+| Dashboards (Analytics) | A two-step intro says the tool has ten parts you drag and drop. The second step shows them: KPI, chart, comparator, cohort, zone, funnel, target meter, anomaly detector, quadrant and stage. A link says which editions support them. Behind it, sample tiles: a count with its change against last month and a bar chart of amounts. A Create Dashboard button.            | Ours is one fixed dashboard of five figures (`/dashboard`). For a small business I would start with four of the ten: KPI, chart, funnel and target meter. The feature page also lists a waterfall part and a per-edition cap; I cannot tell from the intro whether the list differs by account. Unverified.                                                           |
+
+**What I take from it**
+
+1. **First run: copy the shape.** Three questions with good guesses, sample data on, a skip link. Compare question 2 in section 7.
+2. **Home checklist: keep ours about work, add what Zoho has.** Add "connect your email" and "set up your pipeline" once those exist.
+3. **Reports: ready-made first.** A few sorted, starred reports with a date filter give most of the value. The builder can wait. The ready-made reports we need are pipeline by stage, won and lost, leads by source, activity per person and overdue tasks.
+4. **Empty states are our edge.** Zoho shows a bare "No data found". Ours explain what to do.
+5. **Dashboards: four component types first.** KPI, chart, funnel and target meter.
+
+**Still not seen:** Leads and Contacts lists and their filters, the Deals Kanban, Activities, Forecasts, the
+report builder, Workflow Rules, email and WhatsApp settings, Marketplace, Setup. If you want those covered,
+send screenshots of them.
+
+## 9. Sources
 
 - Zoho CRM pricing: https://www.zoho.com/crm/zohocrm-pricing.html (read 2026-10-26)
 - Zoho CRM features by edition: https://www.zoho.com/crm/complete-feature-list.html (read 2026-10-26, page dated 12 May 2026)
@@ -184,4 +220,5 @@ objects, AI, SSO, marketplace.
 - Zoho developer API, modules: https://www.zoho.com/crm/developer/docs/api/v8/modules-api.html
 - Bigin pricing: https://www.bigin.com/pricing.html
 - Reviews (anecdotes only): Capterra and Software Finder pages for Zoho CRM
+- Your own screenshots of your Zoho account, 25 Oct 2026 (not in the repository)
 - Our own: `docs/MVP_SPEC.md`, `apps/web/src/app`, `apps/api/src/modules`, `packages/contracts/src/pagination.ts`, `docs/HANDOVER.md`
