@@ -1,4 +1,4 @@
-import { createOTP } from '@better-auth/utils/otp';
+import { authenticatorCode } from '../../testing/totp-reference.js';
 import { symmetricEncrypt } from 'better-auth/crypto';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
@@ -27,8 +27,8 @@ let superuser: pg.Pool;
 let tenantId: string;
 let roleId: string;
 
-async function totp(secret: string): Promise<string> {
-  return createOTP(secret, { digits: 6, period: 30 }).totp();
+function totp(secret: string): string {
+  return authenticatorCode(secret);
 }
 
 async function enrolled(harness: ApiHarness, label: string) {
@@ -36,7 +36,7 @@ async function enrolled(harness: ApiHarness, label: string) {
   const email = `${label}-${user.userId.slice(-8)}@example.com`;
   const mfa = harness.app.get(MfaService);
   const enrolment = await mfa.begin(user.userId, email);
-  await mfa.activate(user.userId, await totp(enrolment.secret));
+  await mfa.activate(user.userId, totp(enrolment.secret));
   return { userId: user.userId, secret: enrolment.secret, backupCodes: enrolment.backupCodes };
 }
 
@@ -93,9 +93,7 @@ describe('an authenticator enrolled under the old key', () => {
 
   it('still works when the new key is deployed with the old one as a previous key', async () => {
     const user = await enrolled(oldApp, 'bridge');
-    expect(await bridgeApp.app.get(MfaService).verify(user.userId, await totp(user.secret))).toBe(
-      true,
-    );
+    expect(await bridgeApp.app.get(MfaService).verify(user.userId, totp(user.secret))).toBe(true);
     // A backup code too: that list is encrypted the same way.
     expect(
       await bridgeApp.app.get(MfaService).verify(user.userId, user.backupCodes[0] as string),
@@ -104,9 +102,9 @@ describe('an authenticator enrolled under the old key', () => {
 
   it('cannot be read at all by the new key alone, which is what the previous key is for', async () => {
     const user = await enrolled(oldApp, 'alone');
-    await expect(
-      newApp.app.get(MfaService).verify(user.userId, await totp(user.secret)),
-    ).rejects.toThrow('AUTH_SECRET_PREVIOUS');
+    await expect(newApp.app.get(MfaService).verify(user.userId, totp(user.secret))).rejects.toThrow(
+      'AUTH_SECRET_PREVIOUS',
+    );
   });
 });
 
@@ -130,9 +128,9 @@ describe('rotating', () => {
       expect(rows['totp']).toMatch(new RegExp(`^k1\\.${keyId(NEW)}\\.`));
       expect(rows['backup_codes']).toMatch(new RegExp(`^k1\\.${keyId(NEW)}\\.`));
       // Readable by the application that holds only the new key.
-      expect(
-        await newApp.app.get(MfaService).verify(person.userId, await totp(person.secret)),
-      ).toBe(true);
+      expect(await newApp.app.get(MfaService).verify(person.userId, totp(person.secret))).toBe(
+        true,
+      );
       expect(await newApp.app.get(MfaService).remainingBackupCodes(person.userId)).toBe(
         person.backupCodes.length,
       );
@@ -156,7 +154,8 @@ describe('rotating', () => {
 
   it('upgrades a value written before key ids existed, and reports it as legacy', async () => {
     const person = await enrolled(oldApp, 'legacy');
-    const legacy = await symmetricEncrypt({ key: OLD, data: person.secret });
+    // What the totp factor holds in the clear is `base32:<key>` (ADR-0057); only the wrapping is old.
+    const legacy = await symmetricEncrypt({ key: OLD, data: `base32:${person.secret}` });
     await superuser.query(
       `update mfa_factors set secret = $1 where user_id = $2 and type = 'totp'`,
       [legacy, person.userId],
@@ -166,9 +165,7 @@ describe('rotating', () => {
     expect(report.keys['legacy']).toBe(1);
     expect(report.rotated).toBe(2);
     expect((await stored(person.userId))['totp']).toMatch(new RegExp(`^k1\\.${keyId(NEW)}\\.`));
-    expect(await newApp.app.get(MfaService).verify(person.userId, await totp(person.secret))).toBe(
-      true,
-    );
+    expect(await newApp.app.get(MfaService).verify(person.userId, totp(person.secret))).toBe(true);
   });
 
   it('leaves a value it cannot read exactly as it was, and says so', async () => {

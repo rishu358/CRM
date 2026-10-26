@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
-import { createOTP } from '@better-auth/utils/otp';
+import { authenticatorCode, secretFromOtpauthUrl } from '../testing/totp-reference.js';
 import { request, startApiHarness, tokenFromEmail, type ApiHarness } from '../testing/harness.js';
 
 /**
@@ -412,9 +412,11 @@ describe('TOTP MFA', () => {
       backupCodes: string[];
     };
     expect(data.otpauthUrl).toContain('otpauth://totp/');
+    // What a person types by hand and what the QR link carries are the same key (pilot finding F1).
+    expect(secretFromOtpauthUrl(data.otpauthUrl)).toBe(data.secret);
     expect(data.backupCodes).toHaveLength(10);
 
-    const code = await createOTP(data.secret, { digits: 6, period: 30 }).totp();
+    const code = authenticatorCode(data.secret);
     const activate = await request(harness, {
       method: 'POST',
       url: '/api/v1/auth/mfa/activate',
@@ -437,7 +439,7 @@ describe('TOTP MFA', () => {
     // No session is issued yet: a correct password alone must not be enough.
     expect(JSON.stringify(challenged.body)).not.toContain('"token"');
 
-    const code = await createOTP(secret, { digits: 6, period: 30 }).totp();
+    const code = authenticatorCode(secret);
     const verified = await request(harness, {
       method: 'POST',
       url: '/api/v1/auth/mfa/verify',
@@ -491,7 +493,7 @@ describe('TOTP MFA', () => {
 
     // The challenge token was consumed by that attempt, so the correct code
     // cannot rescue it — a guessing run gets one try per password submission.
-    const code = await createOTP(secret, { digits: 6, period: 30 }).totp();
+    const code = authenticatorCode(secret);
     const late = await request(harness, {
       method: 'POST',
       url: '/api/v1/auth/mfa/verify',
@@ -528,7 +530,7 @@ describe('TOTP MFA', () => {
       method: 'POST',
       url: '/api/v1/auth/mfa/activate',
       token: signedIn.token,
-      body: { code: await createOTP(secret, { digits: 6, period: 30 }).totp() },
+      body: { code: authenticatorCode(secret) },
     });
 
     const allowed = await request(harness, {

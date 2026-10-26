@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
-import { createOTP } from '@better-auth/utils/otp';
+import { authenticatorCode } from '../testing/totp-reference.js';
 import pg from 'pg';
 import {
   dataOf,
@@ -530,7 +530,7 @@ describe('one-time tokens', () => {
       method: 'POST',
       url: '/api/v1/auth/mfa/activate',
       token: a.token,
-      body: { code: await createOTP(secret, { digits: 6, period: 30 }).totp() },
+      body: { code: authenticatorCode(secret) },
     });
 
     const challenged = await request(harness, {
@@ -540,7 +540,7 @@ describe('one-time tokens', () => {
     });
     const challengeToken = dataOf<{ challengeToken: string }>(challenged).challengeToken;
 
-    const code = await createOTP(secret, { digits: 6, period: 30 }).totp();
+    const code = authenticatorCode(secret);
     const first = await request(harness, {
       method: 'POST',
       url: '/api/v1/auth/mfa/verify',
