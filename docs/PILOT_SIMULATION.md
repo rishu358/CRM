@@ -41,7 +41,7 @@ weeks (30 working days), in 18 minutes of real time. The last full run was on 26
 | F8  | medium   | Fifty sign-ins from one address in 15 minutes lock everyone at that address out for about 7 minutes (successful ones count). |
 | F9  | medium   | A few requests were very slow (12 over 5 s, the worst about 12 s) in an otherwise fast run. Cause not found. Unverified.     |
 
-**What the findings suggest for Phase 2** is in section 8. In short: fix F1 to F6 and the manager role first (small,
+**What the findings suggest for Phase 2** is in section 8. In short: fix F1 to F6 first (two of them are the manager role; they are small,
 and they touch trust), finish the saved views and bulk actions the spec already promises, make moving a business
 in possible (import deals, dates), and let a company edit its pipeline. Which new feature comes next (quotes with GST,
 automation, a WhatsApp button) is a judgement the run cannot settle: the mix of work in it was chosen by the
@@ -128,7 +128,7 @@ administrator routes, signed-out and made-up sessions, sign-out, wrong password,
   a regulator's list. Unit test: 500 generated numbers all match the shape.
 - **GSTINs.** Right shape (15 characters), a real state code (the state of the made-up city), a made-up PAN part,
   and a **check character that is wrong on purpose**, so none can be a live registration. The product checks the
-  shape only (it accepted every one), which is itself a small finding (F10). Unit tests check the shape and that
+  shape only (it accepted every one), which is itself a small finding (F12). Unit tests check the shape and that
   the check character is never the correct one.
 - **Addresses.** City, state and the first three digits of the postal code are real in the sense that they are
   consistent; the street line is made up.
@@ -513,7 +513,7 @@ should confirm or overturn.
 
 Evidence from the run:
 
-1. **Fix F1 to F6 and the manager role (F2, F3).** They are small, they are about trust (two-factor, undo, no silent
+1. **Fix F1 to F6** (F2 and F3 are the manager role). They are small, they are about trust (two-factor, undo, no silent
    duplicates, a clean export, safe retries), and a real owner will meet each in the first week. None needs a new
    feature.
 2. **Finish saved views and bulk actions**, which [MVP_SPEC.md](MVP_SPEC.md) section 7 (M4) already promises and which are
