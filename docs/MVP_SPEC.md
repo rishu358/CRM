@@ -186,6 +186,9 @@ P1: `record_lookup, formula, rollup, file`. Values are validated in `packages/co
 
 - [ ] Inline edit saves optimistically; a conflicting edit (stale `version`) shows "updated by X, reload?" instead of overwriting.
 - [ ] Converting a lead whose email matches an existing contact offers "link to existing" instead of creating a duplicate.
+- [x] A saved view stores a list's search, filters, columns and sort, shared as private, team or everyone; a person sees only the views their visibility names, only the author changes one, and a field hidden from a role cannot be put in a view by that role, nor read out of a shared one. (`saved-views.security.spec.ts`, `saved-views.spec.ts` in `@crm/api`; `saved-views.security.spec.ts` in `@crm/db`; ADR-0056)
+- [x] Bulk edit, assign, delete and tag change at most 200 records per call, by id or by a list filter, in one transaction with a report of what changed and what was skipped and why; each record gets the audit entry, the outbox event and the version check a single edit gets; a caller with `own` scope cannot touch, or learn about, a colleague's or another tenant's record; a retried `Idempotency-Key` does not do the work twice. (`bulk.security.spec.ts`, `bulk.spec.ts`; ADR-0056)
+- [ ] The saved-view picker, filter builder and bulk action bar work from the keyboard on Contacts, Accounts, Leads and Deals, in light and dark. (`e2e/saved-views-bulk.spec.ts` covers Contacts; the other three lists are wired the same way and are not separately exercised.)
 
 ### M5. Deals & Pipeline (P0)
 
