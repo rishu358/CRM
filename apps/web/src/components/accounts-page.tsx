@@ -176,12 +176,6 @@ export function AccountsPage() {
           onSortChange={setSort}
           selection={selection}
         />
-        <BulkBar
-          objectType="account"
-          selection={selection}
-          filter={{ q: view.q, conditions: [...view.conditions] }}
-          hasMore={query.hasNextPage}
-        />
         <ListFooter
           end={
             query.hasNextPage ? (
@@ -251,6 +245,13 @@ export function AccountsPage() {
       <ListViewBar objectType="account" view={view} />
 
       {content()}
+
+      <BulkBar
+        objectType="account"
+        selection={selection}
+        filter={{ q: view.q, conditions: [...view.conditions] }}
+        hasMore={query.hasNextPage}
+      />
 
       {creating ? (
         <NewAccountDialog

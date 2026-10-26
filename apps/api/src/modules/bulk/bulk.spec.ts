@@ -40,6 +40,12 @@ const get = async (path: string) =>
     await request(harness, { method: 'GET', url: `/api/v1/${path}`, token: admin.token }),
   );
 
+/** The tags on a contact the test just made; an id that is missing is the test's mistake, not a result. */
+async function tagsOf(id: string | undefined): Promise<string[]> {
+  if (id === undefined) throw new Error('This test expected a contact to have been made');
+  return harness.fixtures.recordTagNames(tenantId, 'contact', id);
+}
+
 async function makeContacts(count: number, prefix: string, ownerId = admin.userId) {
   const created: string[] = [];
   for (let index = 0; index < count; index += 1) {
@@ -326,7 +332,7 @@ describe('tags', () => {
     expect(again.changed).toBe(0);
     expect(again.skipped.map((s) => s.reason)).toEqual(['no_change', 'no_change']);
     expect(await harness.fixtures.tagCount(tenantId)).toBe(tagsAfterFirst);
-    expect(await harness.fixtures.recordTagNames(tenantId, 'contact', a)).toEqual(['VIP']);
+    expect(await tagsOf(a)).toEqual(['VIP']);
 
     const listed = dataOf<{ name: string }[]>(
       await request(harness, { method: 'GET', url: '/api/v1/tags', token: admin.token }),
@@ -349,8 +355,8 @@ describe('tags', () => {
       target: { kind: 'ids', ids: [a] },
     });
     expect(removed.changedIds).toEqual([a]);
-    expect(await harness.fixtures.recordTagNames(tenantId, 'contact', a)).toEqual(['Warm']);
-    expect(await harness.fixtures.recordTagNames(tenantId, 'contact', b)).toEqual(['Cold', 'Warm']);
+    expect(await tagsOf(a)).toEqual(['Warm']);
+    expect(await tagsOf(b)).toEqual(['Cold', 'Warm']);
 
     // Removing a tag that does not exist is "nothing to do", not an error and not a new tag.
     const count = await harness.fixtures.tagCount(tenantId);
@@ -423,7 +429,7 @@ describe('filter targets, the cap and the cursor', () => {
       },
     });
     expect(result.changedIds).toEqual([a]);
-    expect(await harness.fixtures.recordTagNames(tenantId, 'contact', b)).toEqual([]);
+    expect(await tagsOf(b)).toEqual([]);
   });
 
   it('handles at most 200 per call and hands back a cursor for the rest', async () => {
@@ -481,7 +487,7 @@ describe('dry run', () => {
     expect(result).toMatchObject({ dryRun: true, matched: 3, changed: 2 });
     expect(result.skipped).toEqual([{ id: missing, reason: 'not_found' }]);
 
-    expect(await harness.fixtures.recordTagNames(tenantId, 'contact', a)).toEqual([]);
+    expect(await tagsOf(a)).toEqual([]);
     expect(await harness.fixtures.tagCount(tenantId)).toBe(tagsBefore);
     expect((await harness.fixtures.auditEntries(tenantId, 'contact')).length).toBe(auditBefore);
 

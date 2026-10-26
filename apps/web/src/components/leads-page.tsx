@@ -140,12 +140,6 @@ export function LeadsPage() {
           customColumns={customColumns.chosenDefinitions}
           selection={selection}
         />
-        <BulkBar
-          objectType="lead"
-          selection={selection}
-          filter={{ q: view.q, conditions: [...view.conditions] }}
-          hasMore={query.hasNextPage}
-        />
         <ListFooter
           end={
             query.hasNextPage ? (
@@ -209,6 +203,13 @@ export function LeadsPage() {
       <ListViewBar objectType="lead" view={view} />
 
       {content()}
+
+      <BulkBar
+        objectType="lead"
+        selection={selection}
+        filter={{ q: view.q, conditions: [...view.conditions] }}
+        hasMore={query.hasNextPage}
+      />
 
       {creating ? (
         <NewLeadDialog

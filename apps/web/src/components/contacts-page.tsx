@@ -140,12 +140,6 @@ export function ContactsPage() {
           customColumns={customColumns.chosenDefinitions}
           selection={selection}
         />
-        <BulkBar
-          objectType="contact"
-          selection={selection}
-          filter={{ q: view.q, conditions: [...view.conditions] }}
-          hasMore={query.hasNextPage}
-        />
         <ListFooter
           end={
             query.hasNextPage ? (
@@ -209,6 +203,13 @@ export function ContactsPage() {
       <ListViewBar objectType="contact" view={view} />
 
       {content()}
+
+      <BulkBar
+        objectType="contact"
+        selection={selection}
+        filter={{ q: view.q, conditions: [...view.conditions] }}
+        hasMore={query.hasNextPage}
+      />
 
       {creating ? (
         <NewContactDialog

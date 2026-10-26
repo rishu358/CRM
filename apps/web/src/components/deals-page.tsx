@@ -224,13 +224,6 @@ export function DealsPage() {
           onSortChange={setSort}
           selection={selection}
         />
-        <BulkBar
-          objectType="deal"
-          selection={selection}
-          filter={{ q: view.q, conditions: [...view.conditions] }}
-          hasMore={list.hasNextPage}
-          stages={pipeline.stages}
-        />
         <ListFooter
           end={
             list.hasNextPage ? (
@@ -335,6 +328,16 @@ export function DealsPage() {
       {mode === 'list' ? <ListViewBar objectType="deal" view={view} /> : null}
 
       {content()}
+
+      {mode === 'list' ? (
+        <BulkBar
+          objectType="deal"
+          selection={selection}
+          filter={{ q: view.q, conditions: [...view.conditions] }}
+          hasMore={list.hasNextPage}
+          stages={pipeline?.stages}
+        />
+      ) : null}
 
       {creating && pipeline !== undefined ? (
         <NewDealDialog

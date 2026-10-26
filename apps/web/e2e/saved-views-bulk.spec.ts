@@ -119,6 +119,44 @@ test.describe('bulk actions', () => {
     await expect(page.getByRole('link', { name: `${prefix}A` })).toHaveCount(0);
   });
 
+  test('the report stays on screen after the list under it has emptied, however slowly it refreshes', async ({
+    page,
+  }) => {
+    await signIn(page, credentials.owner);
+    const prefix = `Slow${Date.now().toString().slice(-6)}`;
+    for (const suffix of ['A', 'B']) await createContact(page, `${prefix}${suffix}`);
+
+    await page.reload();
+    await page.getByTestId('filters-button').click();
+    const filters = page.getByTestId('filter-dialog');
+    await filters.getByRole('button', { name: 'Add a condition' }).click();
+    await filters.getByLabel('Field', { exact: true }).selectOption({ label: 'Last name' });
+    await filters.getByLabel('Condition', { exact: true }).selectOption({ label: 'starts with' });
+    await filters.getByLabel('Value', { exact: true }).fill(prefix);
+    await page.getByTestId('filters-apply').click();
+    await expect(page.getByRole('link', { name: `${prefix}A` })).toBeVisible();
+
+    await page.getByRole('checkbox', { name: 'Select all records on screen' }).check();
+    await page.getByTestId('bulk-bar').getByRole('button', { name: 'Delete' }).click();
+
+    // A slow network, or a slow server on a busy day: the list is refreshed two seconds after the
+    // delete lands. By then every ticked row is gone, the selection is empty and the list is
+    // empty. The report of what was done must still be there to read, and to close.
+    await page.route('**/api/proxy/contacts?**', async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+      await route.continue();
+    });
+    await page.getByTestId('bulk-confirm').click();
+    await expect(page.getByTestId('bulk-result')).toContainText('2 records changed');
+
+    // Longer than the delayed refresh, and then some.
+    await page.waitForTimeout(3500);
+    await expect(page.getByTestId('bulk-result')).toContainText('2 records changed');
+    await page.getByTestId('bulk-close').click();
+    await expect(page.getByTestId('bulk-dialog')).toHaveCount(0);
+    await page.unroute('**/api/proxy/contacts?**');
+  });
+
   test('a row can be ticked from the keyboard', async ({ page }) => {
     await signIn(page, credentials.owner);
     const box = page.getByRole('checkbox', { name: /^Select .*Reddy$/ });
@@ -137,7 +175,10 @@ test.describe('bulk actions', () => {
 
     await page.getByRole('checkbox', { name: 'Select all records on screen' }).check();
     await page.getByTestId('bulk-bar').getByRole('button', { name: 'Tag' }).click();
-    await page.getByTestId('bulk-dialog').getByLabel('Tags').fill('rep-e2e');
+    await page
+      .getByTestId('bulk-dialog')
+      .getByLabel('Tags')
+      .fill(`rep-e2e-${Date.now().toString().slice(-6)}`);
     await page.getByTestId('bulk-confirm').click();
     // Exactly the contacts the rep can see: the two they own.
     await expect(page.getByTestId('bulk-result')).toContainText('2 records changed');
