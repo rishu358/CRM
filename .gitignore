@@ -43,3 +43,6 @@ mutation-report.json
 # production environment files: filled in on the host, never committed (CLAUDE.md §5.8)
 deploy/*.env
 !deploy/*.env.example
+
+# Pilot simulation: state and results of a local run (scripts/pilot)
+.pilot/

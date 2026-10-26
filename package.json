@@ -28,6 +28,8 @@
     "setup": "node scripts/setup.mjs",
     "hooks:install": "git config core.hooksPath .githooks",
     "test:scripts": "node --test \"scripts/**/*.test.mjs\"",
+    "pilot:seed": "node scripts/pilot/seed.mjs",
+    "pilot:run": "node scripts/pilot/run.mjs",
     "infra:up": "docker compose up -d && pnpm infra:bucket",
     "infra:bucket": "tsx --env-file-if-exists=.env packages/storage/scripts/ensure-bucket.mts",
     "infra:down": "docker compose down",
