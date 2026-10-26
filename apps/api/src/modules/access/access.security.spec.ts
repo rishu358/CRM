@@ -468,6 +468,33 @@ describe('(a) tenant A cannot reach tenant B', () => {
     expect(toB.status).toBe(422);
   });
 
+  it('keeps a team-scope manager inside the team: no B records, no B people, no strangers’ records', async () => {
+    const reassign = (recordIds: string[], toOwnerId: string) =>
+      request(harness, {
+        method: 'POST',
+        url: '/api/v1/ownership/reassign',
+        token: manager.token,
+        body: { mode: 'records', objectType: 'contact', recordIds, toOwnerId },
+      });
+
+    // B's record: skipped, never changed (RLS), and the answer is the same as for a missing one.
+    const rivals = await reassign([contactB], manager.userId);
+    expect(rivals.status).toBe(200);
+    expect(dataOf(rivals)).toMatchObject({ moved: [], skipped: 1 });
+    expect(await harness.fixtures.auditEntries(tenantB, 'contact')).toEqual([]);
+
+    // A colleague's record outside the manager's teams (the manager is on none here): skipped.
+    const outside = await reassign([ownedByRepContact], manager.userId);
+    expect(dataOf(outside)).toMatchObject({ moved: [], skipped: 1 });
+
+    // B's person as the target: indistinguishable from an unknown member.
+    const mine = await harness.fixtures.createContact(tenantA, {
+      ownerId: manager.userId,
+      lastName: 'ManagerOwned',
+    });
+    expect((await reassign([mine], adminB.userId)).status).toBe(422);
+  });
+
   it('never names B in an explanation of A’s record', async () => {
     const response = await request(harness, {
       method: 'GET',

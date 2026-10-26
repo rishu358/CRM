@@ -16,6 +16,7 @@ import {
   restoreDeleted,
   selectDeletedById,
   selectDeletedPage,
+  teamIdsByUser,
   type DeletedRecordRow,
   type RecyclableDescriptor,
   type Tx,
@@ -112,9 +113,17 @@ export class RecycleBinService {
       // way, so the endpoint is not an existence oracle (CLAUDE.md §5.5).
       if (existing === null) throw new NotFoundError(objectType);
 
+      // `team` scope is a fact about the owner's teams, so the record must carry them. With the owner
+      // alone a `team` grant can never match a teammate's record (pilot finding F3).
+      const ownerTeamIds =
+        existing.owner_id === null
+          ? []
+          : ((await teamIdsByUser(tx, actor.tenantId, [existing.owner_id])).get(
+              existing.owner_id,
+            ) ?? []);
       assertCan(actor, 'delete', {
         objectType,
-        record: { ownerId: existing.owner_id },
+        record: { ownerId: existing.owner_id, ownerTeamIds },
       });
 
       const restored = await restoreDeleted(

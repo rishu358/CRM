@@ -166,7 +166,7 @@ P1: `record_lookup, formula, rollup, file`. Values are validated in `packages/co
 ### M3. Users, Roles & Permissions (P0)
 
 - Admin UI: users, teams, roles; per-object CRUD + export/import permissions with `own/team/all` scope; field-level hidden/read/write. The permission matrix also covers the M11 capabilities — `audit_log`, `tenant_data` and `data_subject` are object types like any other, so reading history, exporting the workspace and erasing a person are granted as rows rather than inferred from a role name.
-- Record ownership + reassignment (single and bulk).
+- Record ownership + reassignment (single and bulk). **Built:** `all` scope reassigns anywhere; a Manager on `team` scope reassigns inside the team (the new owner is the Manager or shares a team with them); `own` scope cannot (ADR-0058).
 - Support impersonation (P1): only with tenant Owner consent, time-limited, banner shown, fully audited.
 
 **Acceptance**

@@ -177,6 +177,113 @@ describe('record scope (CLAUDE.md §10b)', () => {
   });
 });
 
+describe('a manager on `team` scope (pilot finding F3)', () => {
+  /**
+   * The default Manager deletes with `team` scope. Restore is the inverse of delete and uses the same
+   * rule, so whatever the manager could delete they can put back. Until this was fixed, restore asked
+   * `can()` about a record that carried only its owner, which a `team` grant cannot match, so it
+   * answered 404 and the record stayed deleted.
+   */
+  let manager: { token: string; userId: string };
+  let teammate: { token: string; userId: string };
+  let outsider: { token: string; userId: string };
+
+  beforeAll(async () => {
+    manager = await userWithRole(tenantA, rolesA.get('Manager')!);
+    teammate = await userWithRole(tenantA, rolesA.get('Sales Rep')!);
+    outsider = await userWithRole(tenantA, rolesA.get('Sales Rep')!);
+    await harness.fixtures.createTeam(tenantA, `Bin team ${newId()}`, [
+      manager.userId,
+      teammate.userId,
+    ]);
+    await harness.fixtures.createTeam(tenantA, `Bin other team ${newId()}`, [outsider.userId]);
+  });
+
+  const del = (token: string, path: string) =>
+    request(harness, { method: 'DELETE', url: `/api/v1/${path}?version=1`, token });
+
+  it('restores a teammate’s contact, lead, account and deal that the same manager deleted', async () => {
+    const pipeline = await harness.fixtures.createPipeline(tenantA, `Bin pipe ${newId()}`, [
+      { name: 'Open', stageType: 'open', probability: 10 },
+    ]);
+    const records: { objectType: string; path: string; id: string }[] = [
+      {
+        objectType: 'contact',
+        path: 'contacts',
+        id: await harness.fixtures.createContact(tenantA, { ownerId: teammate.userId }),
+      },
+      {
+        objectType: 'lead',
+        path: 'leads',
+        id: await harness.fixtures.createLead(tenantA, { ownerId: teammate.userId }),
+      },
+      {
+        objectType: 'account',
+        path: 'accounts',
+        id: await harness.fixtures.createAccount(tenantA, { ownerId: teammate.userId }),
+      },
+      {
+        objectType: 'deal',
+        path: 'deals',
+        id: await harness.fixtures.createDeal(tenantA, {
+          ownerId: teammate.userId,
+          pipelineId: pipeline.pipelineId,
+          stageId: pipeline.stageIds[0]!,
+        }),
+      },
+    ];
+
+    for (const record of records) {
+      const deleted = await del(manager.token, `${record.path}/${record.id}`);
+      expect(deleted.status, `delete ${record.objectType}`).toBeLessThan(300);
+
+      const listed = await list(manager.token, record.objectType, '&limit=100');
+      const entry = (listed.body['data'] as { id: string; version: number }[]).find(
+        (row) => row.id === record.id,
+      );
+      expect(entry, `${record.objectType} is in the Bin`).toBeDefined();
+
+      const restored = await restore(manager.token, record.objectType, record.id, entry!.version);
+      expect(restored.status, `restore ${record.objectType}`).toBe(200);
+      const live = await rowsOf<{ deleted_at: Date | null }>(
+        `select deleted_at from ${record.path} where id = $1`,
+        [record.id],
+      );
+      expect(live[0]?.deleted_at, `${record.objectType} is live again`).toBeNull();
+    }
+  });
+
+  it('still answers 404, and leaves the record deleted, for a record outside the team', async () => {
+    const elsewhere = await deletedContact(tenantA, outsider.userId, 'OtherTeam');
+    expect(idsOf(await list(manager.token, 'contact', '&limit=100'))).not.toContain(elsewhere);
+
+    const response = await restore(manager.token, 'contact', elsewhere);
+    expect(response.status).toBe(404);
+    const row = await rowsOf<{ deleted_at: Date | null }>(
+      'select deleted_at from contacts where id = $1',
+      [elsewhere],
+    );
+    expect(row[0]?.deleted_at).not.toBeNull();
+  });
+
+  it('judges the owner’s team at restore time: a teammate who has left cannot be restored for', async () => {
+    const mover = await userWithRole(tenantA, rolesA.get('Sales Rep')!);
+    const team = await harness.fixtures.createTeam(tenantA, `Bin movers ${newId()}`, [
+      manager.userId,
+      mover.userId,
+    ]);
+    const deleted = await deletedContact(tenantA, mover.userId, 'Leaver');
+    expect((await restore(manager.token, 'contact', deleted)).status).toBe(200);
+
+    const deletedAgain = await deletedContact(tenantA, mover.userId, 'Leaver2');
+    await superuser.query('delete from team_members where team_id = $1 and user_id = $2', [
+      team,
+      mover.userId,
+    ]);
+    expect((await restore(manager.token, 'contact', deletedAgain)).status).toBe(404);
+  });
+});
+
 describe('restore re-checks permission at restore time (MVP_SPEC M4)', () => {
   it('refuses a role that can read but not delete', async () => {
     const roleId = await harness.fixtures.createRole(tenantA, `Reader ${newId()}`);
