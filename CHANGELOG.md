@@ -10,6 +10,9 @@ a working version, and the first tag will be cut from a green `master` (see
 
 ### Added
 
+- **Pilot simulation:** three made-up businesses and six simulated weeks of their work driven through the real API
+  (`pnpm pilot:seed`, `pnpm pilot:run`), with security probes and a plain-English report of what broke
+  ([`docs/PILOT_SIMULATION.md`](docs/PILOT_SIMULATION.md)). Developer tooling only; nothing here ships.
 - **Deployment to DigitalOcean (Bangalore) with the web app on Vercel (Mumbai):** an App Platform spec
   and a secret renderer, a Vercel region pin, a script that verifies and bootstraps a managed Postgres
   cluster, and a runbook section (ADR-0042, ADR-0043).

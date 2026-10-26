@@ -19,15 +19,16 @@ Start with the row that matches what you are doing.
 
 ## Reference
 
-| Document                                 | What it is                                                                                         |
-| ---------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| [MVP_SPEC.md](MVP_SPEC.md)               | The product and technical specification: what it does and why. The source of truth.                |
-| [openapi.json](openapi.json)             | The API, generated from the code. CI fails if it is stale.                                         |
-| [PERF.md](PERF.md)                       | The load test at a million contacts: method, results, caveats.                                     |
-| [ACCESSIBILITY.md](ACCESSIBILITY.md)     | The accessibility review and what is enforced.                                                     |
-| [SECURITY_REVIEW.md](SECURITY_REVIEW.md) | The security review of the hardening passes.                                                       |
-| [legal/](legal/README.md)                | Draft terms, privacy policy and data-processing agreement. **Unreviewed: read the warning first.** |
-| [design/](design)                        | Design notes and before/after screenshots.                                                         |
+| Document                                   | What it is                                                                                         |
+| ------------------------------------------ | -------------------------------------------------------------------------------------------------- |
+| [MVP_SPEC.md](MVP_SPEC.md)                 | The product and technical specification: what it does and why. The source of truth.                |
+| [openapi.json](openapi.json)               | The API, generated from the code. CI fails if it is stale.                                         |
+| [PERF.md](PERF.md)                         | The load test at a million contacts: method, results, caveats.                                     |
+| [PILOT_SIMULATION.md](PILOT_SIMULATION.md) | Three made-up businesses over six simulated weeks: how to run it, numbers, what broke.             |
+| [ACCESSIBILITY.md](ACCESSIBILITY.md)       | The accessibility review and what is enforced.                                                     |
+| [SECURITY_REVIEW.md](SECURITY_REVIEW.md)   | The security review of the hardening passes.                                                       |
+| [legal/](legal/README.md)                  | Draft terms, privacy policy and data-processing agreement. **Unreviewed: read the warning first.** |
+| [design/](design)                          | Design notes and before/after screenshots.                                                         |
 
 ## Keeping it true
 
