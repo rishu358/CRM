@@ -9,6 +9,7 @@ import { AccountsModule } from './modules/accounts/accounts.module.js';
 import { AuditLogModule } from './modules/audit/audit-log.module.js';
 import { ActivitiesModule } from './modules/activities/activities.module.js';
 import { AttachmentsModule } from './modules/attachments/attachments.module.js';
+import { BulkModule } from './modules/bulk/bulk.module.js';
 import { ContactsModule } from './modules/contacts/contacts.module.js';
 import { DataRightsModule } from './modules/data-rights/data-rights.module.js';
 import { DealsModule } from './modules/deals/deals.module.js';
@@ -22,6 +23,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
 import { PipelinesModule } from './modules/pipelines/pipelines.module.js';
 import { OnboardingModule } from './modules/onboarding/onboarding.module.js';
 import { RecycleBinModule } from './modules/recycle-bin/recycle-bin.module.js';
+import { SavedViewsModule } from './modules/saved-views/saved-views.module.js';
 import { SearchModule } from './modules/search/search.module.js';
 import { OpenApiController } from './openapi/openapi.controller.js';
 import { PlatformModule } from './platform/platform.module.js';
@@ -63,6 +65,8 @@ export class AppModule {
         OnboardingModule,
         DashboardModule,
         CustomizationModule,
+        SavedViewsModule,
+        BulkModule,
       ],
       controllers: [HealthController, OpenApiController],
       providers: [{ provide: APP_GUARD, useExisting: AuthGuard }],

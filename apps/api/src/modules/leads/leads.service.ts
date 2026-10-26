@@ -247,87 +247,99 @@ export class LeadsService {
   async update(actor: Actor, id: string, input: LeadUpdateInput): Promise<SerializedLead> {
     assertCan(actor, 'update', { objectType: 'lead' });
 
-    return this.inTenant(actor, async (tx) => {
-      const existing = await this.loadOrNotFound(tx, actor, id);
-      assertCan(actor, 'update', {
-        objectType: 'lead',
-        record: await recordRefFor(tx, actor, existing.ownerId),
-      });
+    return this.inTenant(actor, (tx) => this.updateInTx(actor, tx, id, input));
+  }
 
-      // A converted lead is a record of what happened, not a working record:
-      // editing it would let it drift from the contact it became (ADR-0022).
-      if (existing.status === 'converted') throw alreadyConverted();
+  /**
+   * Update a lead inside a transaction somebody else owns.
+   *
+   * Bulk edit changes many records and reports each one's outcome, so it needs
+   * the very same checks, version guard, audit entry and outbox event `update`
+   * performs, without opening a second transaction. Every guarantee `update`
+   * gives holds here too: it is the same code, not a copy of it (ADR-0056).
+   */
+  async updateInTx(
+    actor: Actor,
+    tx: Tx,
+    id: string,
+    input: LeadUpdateInput,
+  ): Promise<SerializedLead> {
+    assertCan(actor, 'update', { objectType: 'lead' });
 
-      const fields = await this.fieldMetadata.forObject(tx, actor.tenantId, 'lead');
-      assertWritableLeadFields(actor, input, fields);
-
-      const patch = this.buildPatch(actor, input, existing, fields);
-
-      const updated = await this.repository.updateWithVersion(
-        tx,
-        actor.tenantId,
-        id,
-        input.version,
-        {
-          ...patch,
-          updatedBy: actor.userId,
-        },
-      );
-
-      if (updated === null) {
-        // The row exists — we just loaded it — so a zero-row update means the
-        // version moved: somebody else saved first. 409, never a silent clobber.
-        throw new VersionConflictError('lead');
-      }
-
-      const changes = diffChanges(existing, updated);
-
-      await this.audit.record(tx, actor, {
-        action: 'update',
-        objectType: 'lead',
-        recordId: id,
-        changes,
-      });
-      await this.outbox.publish(tx, actor, {
-        eventType: 'lead.updated.v1',
-        objectType: 'lead',
-        recordId: id,
-        payload: { changedFields: Object.keys(changes) },
-      });
-
-      return serializeLead(actor, updated, fields);
+    const existing = await this.loadOrNotFound(tx, actor, id);
+    assertCan(actor, 'update', {
+      objectType: 'lead',
+      record: await recordRefFor(tx, actor, existing.ownerId),
     });
+
+    // A converted lead is a record of what happened, not a working record:
+    // editing it would let it drift from the contact it became (ADR-0022).
+    if (existing.status === 'converted') throw alreadyConverted();
+
+    const fields = await this.fieldMetadata.forObject(tx, actor.tenantId, 'lead');
+    assertWritableLeadFields(actor, input, fields);
+
+    const patch = this.buildPatch(actor, input, existing, fields);
+
+    const updated = await this.repository.updateWithVersion(tx, actor.tenantId, id, input.version, {
+      ...patch,
+      updatedBy: actor.userId,
+    });
+
+    if (updated === null) {
+      // The row exists — we just loaded it — so a zero-row update means the
+      // version moved: somebody else saved first. 409, never a silent clobber.
+      throw new VersionConflictError('lead');
+    }
+
+    const changes = diffChanges(existing, updated);
+
+    await this.audit.record(tx, actor, {
+      action: 'update',
+      objectType: 'lead',
+      recordId: id,
+      changes,
+    });
+    await this.outbox.publish(tx, actor, {
+      eventType: 'lead.updated.v1',
+      objectType: 'lead',
+      recordId: id,
+      payload: { changedFields: Object.keys(changes) },
+    });
+
+    return serializeLead(actor, updated, fields);
   }
 
   async remove(actor: Actor, id: string, version: number): Promise<void> {
     assertCan(actor, 'delete', { objectType: 'lead' });
 
-    await this.inTenant(actor, async (tx) => {
-      const existing = await this.loadOrNotFound(tx, actor, id);
-      assertCan(actor, 'delete', {
-        objectType: 'lead',
-        record: await recordRefFor(tx, actor, existing.ownerId),
-      });
+    await this.inTenant(actor, (tx) => this.removeInTx(actor, tx, id, version));
+  }
 
-      const deleted = await this.repository.softDelete(
-        tx,
-        actor.tenantId,
-        id,
-        actor.userId,
-        version,
-      );
-      if (deleted === null) throw new VersionConflictError('lead');
+  /**
+   * Soft-delete a lead inside a transaction somebody else owns (see `updateInTx`).
+   */
+  async removeInTx(actor: Actor, tx: Tx, id: string, version: number): Promise<void> {
+    assertCan(actor, 'delete', { objectType: 'lead' });
 
-      await this.audit.record(tx, actor, {
-        action: 'delete',
-        objectType: 'lead',
-        recordId: id,
-      });
-      await this.outbox.publish(tx, actor, {
-        eventType: 'lead.deleted.v1',
-        objectType: 'lead',
-        recordId: id,
-      });
+    const existing = await this.loadOrNotFound(tx, actor, id);
+    assertCan(actor, 'delete', {
+      objectType: 'lead',
+      record: await recordRefFor(tx, actor, existing.ownerId),
+    });
+
+    const deleted = await this.repository.softDelete(tx, actor.tenantId, id, actor.userId, version);
+    if (deleted === null) throw new VersionConflictError('lead');
+
+    await this.audit.record(tx, actor, {
+      action: 'delete',
+      objectType: 'lead',
+      recordId: id,
+    });
+    await this.outbox.publish(tx, actor, {
+      eventType: 'lead.deleted.v1',
+      objectType: 'lead',
+      recordId: id,
     });
   }
 

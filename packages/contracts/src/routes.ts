@@ -181,6 +181,15 @@ import {
   recycleBinRestoreSchema,
   recycleBinRestoredSchema,
 } from './recycle-bin.js';
+import {
+  savedViewCreateSchema,
+  savedViewDeleteQuerySchema,
+  savedViewListQuerySchema,
+  savedViewParamsSchema,
+  savedViewSchema,
+  savedViewUpdateSchema,
+} from './saved-views.js';
+import { bulkActionSchema, bulkResultSchema, tagSchema } from './bulk.js';
 
 /**
  * The route registry: one entry per endpoint the API actually serves.
@@ -1580,6 +1589,142 @@ const recycleBinRoutes: RouteDefinition[] = [
   },
 ];
 
+const savedViewRoutes: RouteDefinition[] = [
+  {
+    method: 'GET',
+    path: '/saved-views',
+    operationId: 'listSavedViews',
+    tag: 'Saved Views',
+    summary: 'The saved views of one list the caller may see',
+    description:
+      'Private ones are the caller’s own; team ones are the caller’s teams’; tenant ones are ' +
+      'everyone’s (enforced by row-level security as well as here). Needs `read` on the object ' +
+      'type. A view that uses a field the caller may not read comes back `applicable: false`, ' +
+      'without its filter, sort or that column, so it cannot be used to learn the field exists. ' +
+      'A view is applied by sending its search, conditions and sort to the list endpoint, which ' +
+      'validates them again against the caller’s permissions.',
+    auth: 'session',
+    query: savedViewListQuerySchema,
+    response: {
+      kind: 'object',
+      status: 200,
+      name: 'SavedViewListResponse',
+      description: 'The views, the caller’s own first.',
+      data: savedViewSchema.array(),
+    },
+    errors: [],
+  },
+  {
+    method: 'POST',
+    path: '/saved-views',
+    operationId: 'createSavedView',
+    tag: 'Saved Views',
+    summary: 'Save the current state of a list',
+    description:
+      'Fields in the filter, sort and columns must be real, active and readable by the caller; ' +
+      'a hidden field is "Unknown field", as on the list. Private always; `team` needs the ' +
+      'caller to be on a team; `tenant` needs `update` on `tenant_settings`. A name is unique ' +
+      'per person and object type. Audited.',
+    auth: 'session',
+    body: { name: 'SavedViewCreate', schema: savedViewCreateSchema },
+    response: {
+      kind: 'object',
+      status: 201,
+      name: 'SavedViewResponse',
+      description: 'The new view.',
+      data: savedViewSchema,
+    },
+    errors: [ErrorCode.CONFLICT],
+  },
+  {
+    method: 'PATCH',
+    path: '/saved-views/{id}',
+    operationId: 'updateSavedView',
+    tag: 'Saved Views',
+    summary: 'Rename, re-share or change a saved view',
+    description:
+      'Only the person who made it. `version` is required; a stale one is a 409. 403 for a ' +
+      'shared view the caller can see but did not make; 404 for one they cannot see.',
+    auth: 'session',
+    params: savedViewParamsSchema,
+    body: { name: 'SavedViewUpdate', schema: savedViewUpdateSchema },
+    response: {
+      kind: 'object',
+      status: 200,
+      name: 'SavedViewUpdateResponse',
+      description: 'The view as it is now.',
+      data: savedViewSchema,
+    },
+    errors: [...VERSIONED, ErrorCode.CONFLICT],
+  },
+  {
+    method: 'DELETE',
+    path: '/saved-views/{id}',
+    operationId: 'deleteSavedView',
+    tag: 'Saved Views',
+    summary: 'Delete a saved view',
+    description:
+      'Only the person who made it. A hard delete: a view is configuration, not a record, ' +
+      'so it has no Recycle Bin. Audited.',
+    auth: 'session',
+    params: savedViewParamsSchema,
+    query: savedViewDeleteQuerySchema,
+    response: { kind: 'empty', status: 204, description: 'Deleted.' },
+    errors: VERSIONED,
+  },
+];
+
+const bulkRoutes: RouteDefinition[] = [
+  {
+    method: 'POST',
+    path: '/bulk-actions',
+    operationId: 'runBulkAction',
+    tag: 'Bulk Actions',
+    summary: 'Edit, assign, delete or tag many records at once',
+    description:
+      'At most 200 records per call, named by id or chosen by a list filter (a `nextCursor` ' +
+      'comes back when more match; send it as `after`). One transaction; each record is ' +
+      'attempted on its own, so one that cannot be changed is skipped and reported and the ' +
+      'rest still go through, while an unexpected failure rolls the whole call back. Every ' +
+      'record is held to what a single edit or delete holds it to: `can()` with its owner, ' +
+      'field-level write permission, the version check, an audit entry and an outbox event. ' +
+      '`skipped[].reason`: `not_found` covers a missing, deleted, other-tenant or ' +
+      'out-of-scope id alike (it never says which); `not_permitted` is said only of a record ' +
+      'the caller can see. Bulk edit may only change a short list of fields plus active ' +
+      'custom fields. `dryRun` reports without changing anything. Accepts an ' +
+      '`Idempotency-Key` header: a retry returns the stored answer with `replayed: true`.',
+    auth: 'session',
+    body: { name: 'BulkAction', schema: bulkActionSchema },
+    response: {
+      kind: 'object',
+      status: 200,
+      name: 'BulkResultResponse',
+      description: 'What was changed and what was skipped.',
+      data: bulkResultSchema,
+    },
+    errors: [ErrorCode.CONFLICT, ...WRITABLE],
+  },
+  {
+    method: 'GET',
+    path: '/tags',
+    operationId: 'listTags',
+    tag: 'Bulk Actions',
+    summary: 'The workspace’s tags',
+    description:
+      'By name, for the picker. Tags are created the first time a bulk action uses one, ' +
+      'and a name matches whatever its case.',
+    auth: 'session',
+    response: {
+      kind: 'object',
+      status: 200,
+      name: 'TagListResponse',
+      description: 'The tags.',
+      data: tagSchema.array(),
+    },
+    errors: [],
+  },
+];
+
 const dataRightsRoutes: RouteDefinition[] = [
   {
     method: 'POST',
@@ -2538,6 +2683,8 @@ export const API_ROUTES: readonly RouteDefinition[] = [
   ...accessRoutes,
   ...auditRoutes,
   ...recycleBinRoutes,
+  ...savedViewRoutes,
+  ...bulkRoutes,
   ...dataRightsRoutes,
   ...onboardingRoutes,
   ...dashboardRoutes,

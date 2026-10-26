@@ -13,6 +13,12 @@ a working version, and the first tag will be cut from a green `master` (see
 - **Pilot simulation:** three made-up businesses and six simulated weeks of their work driven through the real API
   (`pnpm pilot:seed`, `pnpm pilot:run`), with security probes and a plain-English report of what broke
   ([`docs/PILOT_SIMULATION.md`](docs/PILOT_SIMULATION.md)). Developer tooling only; nothing here ships.
+- **Saved views and bulk actions on the Contacts, Accounts, Leads and Deals lists (MVP_SPEC M4,
+  ADR-0056):** a filter builder and sort control, saved views shared privately, with a team or with
+  everyone (enforced by row-level security as well as by the service), row checkboxes and a bulk bar to
+  edit a field, change the owner, tag and delete up to 200 records at a time or everything a filter
+  matches, with a report of what was skipped and why. Migration 0023. `POST /api/v1/bulk-actions`,
+  `/api/v1/saved-views`, `GET /api/v1/tags`.
 - **Deployment to DigitalOcean (Bangalore) with the web app on Vercel (Mumbai):** an App Platform spec
   and a secret renderer, a Vercel region pin, a script that verifies and bootstraps a managed Postgres
   cluster, and a runbook section (ADR-0042, ADR-0043).

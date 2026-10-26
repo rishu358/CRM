@@ -423,6 +423,22 @@ export function customColumnOptions(
   }));
 }
 
+/** The chooser keys for these field keys: only the ones that are custom fields this person can see. */
+export function customColumnKeys(
+  definitions: readonly FieldDefinitionView[],
+  keys: readonly string[],
+): string[] {
+  const known = new Set(definitions.map((definition) => definition.key));
+  return keys.filter((key) => known.has(key)).map((key) => CUSTOM_COLUMN_PREFIX + key);
+}
+
+/** The field keys behind chooser keys: what a saved view stores. */
+export function customFieldKeys(chosen: readonly string[]): string[] {
+  return chosen
+    .filter((key) => key.startsWith(CUSTOM_COLUMN_PREFIX))
+    .map((key) => key.slice(CUSTOM_COLUMN_PREFIX.length));
+}
+
 /** The chooser for the extras, or nothing when the company has defined none this person can see. */
 export function CustomColumnsChooser({ state }: { state: CustomColumns }) {
   if (state.definitions.length === 0) return null;

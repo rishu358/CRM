@@ -171,15 +171,25 @@ describe('verifyDummy', () => {
   it('costs about what a real verification costs', async () => {
     const hash = await hasher.hash(PASSWORD);
     await hasher.verifyDummy(PASSWORD); // builds the dummy hash
-    const time = async (work: () => Promise<unknown>) => {
+    const once = async (work: () => Promise<unknown>) => {
       const start = performance.now();
-      for (let i = 0; i < 3; i += 1) await work();
-      return (performance.now() - start) / 3;
+      await work();
+      return performance.now() - start;
     };
-    const real = await time(() => hasher.verify(hash, 'wrong'));
-    const dummy = await time(() => hasher.verifyDummy('wrong'));
+    // A busy machine slows some runs, and a shared runner can slow one measurement and not the
+    // other: an average over three back-to-back runs once saw a real check of 81 ms against a dummy
+    // of 30 ms. So take alternating samples and compare the fastest of each, which is the cost of
+    // the work itself with the interruptions left out.
+    const real: number[] = [];
+    const dummy: number[] = [];
+    for (let i = 0; i < 7; i += 1) {
+      real.push(await once(() => hasher.verify(hash, 'wrong')));
+      dummy.push(await once(() => hasher.verifyDummy('wrong')));
+    }
+    const fastestReal = Math.min(...real);
+    const fastestDummy = Math.min(...dummy);
     // The same algorithm at the same settings: well within a factor of two of each other.
-    expect(dummy).toBeGreaterThan(real / 2);
-    expect(dummy).toBeLessThan(real * 2);
+    expect(fastestDummy).toBeGreaterThan(fastestReal / 2);
+    expect(fastestDummy).toBeLessThan(fastestReal * 2);
   });
 });

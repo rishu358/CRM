@@ -47,3 +47,4 @@ export * from './access/records.js';
 export * from './access/record-ref.js';
 export * from './access/reassign.js';
 export * from './onboarding/index.js';
+export * from './bulk/index.js';

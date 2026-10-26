@@ -63,3 +63,4 @@ supersedes the old one and update the old one's **Status** to
 | [0053](0053-shared-rate-limits.md)                               | Rate limits are counted in Redis, once, for every API instance                | Accepted |
 | [0054](0054-database-test-suite-isolation-and-teardown.md)       | Isolation, teardown and resource budget in the database test suite            | Accepted |
 | [0055](0055-ended-sessions-send-the-person-to-sign-in.md)        | A session that has ended sends the person to the sign-in screen               | Accepted |
+| [0056](0056-saved-views-and-bulk-actions.md)                     | Saved views and bulk actions: shared queries, many records, one transaction   | Accepted |

@@ -29,21 +29,21 @@ weeks (30 working days), in 18 minutes of real time. The last full run was on 26
 
 **What broke or hurt, in order of importance** (full list in section 6):
 
-| #   | Severity | In one line                                                                                                                  |
-| --- | -------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| F1  | high     | Two-factor sign-in cannot be set up by typing the key the page shows: the codes it gives are always refused.                 |
-| F2  | high     | A Manager cannot reassign work (answer 422), although the role description and the spec say they can.                        |
-| F3  | high     | A Manager can delete a team member's record, see it in the Recycle Bin, but "Restore" answers 404 and it stays deleted.      |
-| F19 | high     | Saved views and bulk actions (edit, assign, delete, tag), listed as MVP in the spec, are not built: no routes, no screens.   |
-| F4  | medium   | A second contact with the same e-mail address is created without any warning (25 of 25 tries); reps cannot delete it.        |
-| F5  | medium   | Every phone number in an exported file starts with an apostrophe (198 of 198), so it is wrong in a spreadsheet.              |
-| F6  | medium   | `POST /accounts` ignores the `Idempotency-Key` header: sending it twice makes two accounts.                                  |
-| F7  | medium   | A business cannot bring its history over: no original dates, no deals import, contact import cannot link to an account.      |
-| F8  | medium   | Fifty sign-ins from one address in 15 minutes lock everyone at that address out for about 7 minutes (successful ones count). |
-| F9  | medium   | A few requests were very slow (12 over 5 s, the worst about 12 s) in an otherwise fast run. Cause not found. Unverified.     |
+| #   | Severity | In one line                                                                                                                                     |
+| --- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| F1  | high     | Two-factor sign-in cannot be set up by typing the key the page shows: the codes it gives are always refused.                                    |
+| F2  | high     | A Manager cannot reassign work (answer 422), although the role description and the spec say they can.                                           |
+| F3  | high     | A Manager can delete a team member's record, see it in the Recycle Bin, but "Restore" answers 404 and it stays deleted.                         |
+| F19 | high     | Saved views and bulk actions, listed as MVP in the spec, were not built when the run was made. Fixed since by PR 10 (`201434e`); not re-tested. |
+| F4  | medium   | A second contact with the same e-mail address is created without any warning (25 of 25 tries); reps cannot delete it.                           |
+| F5  | medium   | Every phone number in an exported file starts with an apostrophe (198 of 198), so it is wrong in a spreadsheet.                                 |
+| F6  | medium   | `POST /accounts` ignores the `Idempotency-Key` header: sending it twice makes two accounts.                                                     |
+| F7  | medium   | A business cannot bring its history over: no original dates, no deals import, contact import cannot link to an account.                         |
+| F8  | medium   | Fifty sign-ins from one address in 15 minutes lock everyone at that address out for about 7 minutes (successful ones count).                    |
+| F9  | medium   | A few requests were very slow (12 over 5 s, the worst about 12 s) in an otherwise fast run. Cause not found. Unverified.                        |
 
 **What the findings suggest for Phase 2** is in section 8. In short: fix F1 to F6 first (two of them are the manager role; they are small,
-and they touch trust), finish the saved views and bulk actions the spec already promises, make moving a business
+and they touch trust), test the saved views and bulk actions that PR 10 has since merged (F19), make moving a business
 in possible (import deals, dates), and let a company edit its pipeline. Which new feature comes next (quotes with GST,
 automation, a WhatsApp button) is a judgement the run cannot settle: the mix of work in it was chosen by the
 script's author.
@@ -355,17 +355,24 @@ own record works, and the owner can restore anyone's. So a manager's accidental 
 undone by the manager. Likely cause: the restore re-checks team scope against a row that is already soft-deleted
 (unverified, from the symptom).
 
-**F19. Saved views and bulk actions are in the MVP spec but not built (high, verified absent).**
+**F19. Saved views and bulk actions were in the MVP spec but not built when the simulation ran (high; since fixed by
+PR 10, not re-tested here).**
 [MVP_SPEC.md](MVP_SPEC.md) lists them as MVP in three places: the data model has a `saved_views` table (section 6.1,
 line 111); M4 says "List view: column chooser, sort, filters (any field incl. custom), saved views, bulk
 edit/assign/delete/tag" (line 179); and the build plan puts "saved views, bulk actions" in week 4 (line 347). On
-`origin/master` at the time of this run the table exists (migration 0001) but there is **no API module, no screen and no
-bulk edit, delete or tag endpoint**. Checked two ways: the generated `docs/openapi.json` has 96 paths and none is for
-saved views, bulk actions or tags (the only bulk operation is the owner's `/ownership/reassign`, which F2 shows a
-Manager cannot use); and the simulation asked for `/saved-views`, `/views`, `POST|PATCH /contacts/bulk` and `/tags` and got
-404 for each, in all three companies. Not built or worked around here, as asked. Effect on a pilot: a rep cannot keep
-"my open leads this week" as a list, and a manager cannot reassign, delete or tag twenty records at once. The
-other sessions that are building them were not checked.
+`origin/master` when the run was made, the table existed (migration 0001) but there was **no API module, no screen and
+no bulk edit, delete or tag endpoint**. Checked two ways: the generated `docs/openapi.json` had 96 paths and none was for
+saved views, bulk actions or tags (the only bulk operation was the owner's `/ownership/reassign`, which F2 shows a
+Manager cannot use); and the simulation asked for `/saved-views`, `/views`, `POST|PATCH /contacts/bulk` and `/tags` and
+got 404 for each, in all three companies. Effect on a pilot: a rep could not keep "my open leads this week" as a
+list, and a manager could not reassign, delete or tag twenty records at once.
+
+**Status: fixed by PR 10, merged on 26 October 2026 (merge commit `201434e`, "saved views, filters, bulk actions and
+tags API", ADR-0056).** It adds `/api/v1/saved-views`, `/api/v1/bulk-actions` and `GET /api/v1/tags`, the list screens'
+filter builder and bulk bar, and migration 0023. **The simulation was NOT re-run against it**, so the runner has not
+exercised those routes and every number in this report predates them. In particular the runner still reports the
+three missing routes as 404 "not available" if it is run against a database from before the merge, and does not yet
+call the new ones.
 
 ### Medium
 
@@ -457,7 +464,7 @@ Asked for by their obvious address and answered 404 (route missing), so these ar
 of this run: **tags**, **editing pipelines and stages** (every company gets the same six-stage pipeline: the coaching
 institute's "short pipeline" and the repair company's "service stages" had to use it as it is), and the Phase 2
 candidates: **products and price books, quotes, a report builder, automations, webhooks and API keys**. Saved views and bulk
-actions are F19 above.
+actions were missing at the time (F19, now merged).
 
 ### What the screens showed
 
@@ -528,9 +535,9 @@ Evidence from the run:
 1. **Fix F1 to F6** (F2 and F3 are the manager role). They are small, they are about trust (two-factor, undo, no silent
    duplicates, a clean export, safe retries), and a real owner will meet each in the first week. None needs a new
    feature.
-2. **Finish saved views and bulk actions (F19)**, which [MVP_SPEC.md](MVP_SPEC.md) section 7 (M4) and the week 4 plan already promise and which are
-   not on `master`. Reps cannot delete (F11), duplicates are easy to make (F4) and there is no merge: bulk assign,
-   bulk delete and merge are what a manager would need first. (Being built in other sessions at the time of the run.)
+2. **Test saved views and bulk actions (F19)** now that PR 10 has merged them (MVP_SPEC M4 and the week 4 plan promise them). The runner
+   needs to be taught the new routes first. Reps cannot delete (F11), duplicates are easy to make (F4) and there is no merge: bulk assign and
+   bulk delete were what a manager would need first, and a merge is still missing.
 3. **Make moving in possible (F7):** an import for deals, link-to-account and owner columns in the contact import,
    and a way to carry original dates. Without it each pilot starts with a week of manual work.
 4. **Let a company edit its pipeline and stages.** All three got the same six stages because there is no way to change

@@ -230,52 +230,69 @@ export class AccountsService {
   async update(actor: Actor, id: string, input: AccountUpdateInput): Promise<SerializedAccount> {
     assertCan(actor, 'update', { objectType: 'account' });
 
-    return this.inTenant(actor, async (tx) => {
-      const existing = await this.loadOrNotFound(tx, actor, id);
-      assertCan(actor, 'update', {
-        objectType: 'account',
-        record: await recordRefFor(tx, actor, existing.ownerId),
-      });
+    return this.inTenant(actor, (tx) => this.updateInTx(actor, tx, id, input));
+  }
 
-      const fields = await this.fieldMetadata.forObject(tx, actor.tenantId, 'account');
-      assertWritableAccountFields(actor, input, fields);
+  /**
+   * Update a account inside a transaction somebody else owns.
+   *
+   * Bulk edit changes many records and reports each one's outcome, so it needs
+   * the very same checks, version guard, audit entry and outbox event `update`
+   * performs, without opening a second transaction. Every guarantee `update`
+   * gives holds here too: it is the same code, not a copy of it (ADR-0056).
+   */
+  async updateInTx(
+    actor: Actor,
+    tx: Tx,
+    id: string,
+    input: AccountUpdateInput,
+  ): Promise<SerializedAccount> {
+    assertCan(actor, 'update', { objectType: 'account' });
 
-      if (input.parentAccountId != null) {
-        await this.assertParentIsUsable(tx, actor, id, input.parentAccountId);
-      }
-
-      const patch = this.buildPatch(actor, input, existing, fields);
-
-      const updated = await this.withCycleTranslated(() =>
-        this.repository.updateWithVersion(tx, actor.tenantId, id, input.version, {
-          ...patch,
-          updatedBy: actor.userId,
-        }),
-      );
-
-      if (updated === null) {
-        // The row exists — we just loaded it — so a zero-row update means the
-        // version moved: somebody else saved first. 409, never a silent clobber.
-        throw new VersionConflictError('account');
-      }
-
-      const changes = diffChanges(existing, updated);
-
-      await this.audit.record(tx, actor, {
-        action: 'update',
-        objectType: 'account',
-        recordId: id,
-        changes,
-      });
-      await this.outbox.publish(tx, actor, {
-        eventType: 'account.updated.v1',
-        objectType: 'account',
-        recordId: id,
-        payload: { changedFields: Object.keys(changes) },
-      });
-
-      return serializeAccount(actor, updated, fields);
+    const existing = await this.loadOrNotFound(tx, actor, id);
+    assertCan(actor, 'update', {
+      objectType: 'account',
+      record: await recordRefFor(tx, actor, existing.ownerId),
     });
+
+    const fields = await this.fieldMetadata.forObject(tx, actor.tenantId, 'account');
+    assertWritableAccountFields(actor, input, fields);
+
+    if (input.parentAccountId != null) {
+      await this.assertParentIsUsable(tx, actor, id, input.parentAccountId);
+    }
+
+    const patch = this.buildPatch(actor, input, existing, fields);
+
+    const updated = await this.withCycleTranslated(() =>
+      this.repository.updateWithVersion(tx, actor.tenantId, id, input.version, {
+        ...patch,
+        updatedBy: actor.userId,
+      }),
+    );
+
+    if (updated === null) {
+      // The row exists — we just loaded it — so a zero-row update means the
+      // version moved: somebody else saved first. 409, never a silent clobber.
+      throw new VersionConflictError('account');
+    }
+
+    const changes = diffChanges(existing, updated);
+
+    await this.audit.record(tx, actor, {
+      action: 'update',
+      objectType: 'account',
+      recordId: id,
+      changes,
+    });
+    await this.outbox.publish(tx, actor, {
+      eventType: 'account.updated.v1',
+      objectType: 'account',
+      recordId: id,
+      payload: { changedFields: Object.keys(changes) },
+    });
+
+    return serializeAccount(actor, updated, fields);
   }
 
   /**
@@ -290,32 +307,33 @@ export class AccountsService {
   async remove(actor: Actor, id: string, version: number): Promise<void> {
     assertCan(actor, 'delete', { objectType: 'account' });
 
-    await this.inTenant(actor, async (tx) => {
-      const existing = await this.loadOrNotFound(tx, actor, id);
-      assertCan(actor, 'delete', {
-        objectType: 'account',
-        record: await recordRefFor(tx, actor, existing.ownerId),
-      });
+    await this.inTenant(actor, (tx) => this.removeInTx(actor, tx, id, version));
+  }
 
-      const deleted = await this.repository.softDelete(
-        tx,
-        actor.tenantId,
-        id,
-        actor.userId,
-        version,
-      );
-      if (deleted === null) throw new VersionConflictError('account');
+  /**
+   * Soft-delete a account inside a transaction somebody else owns (see `updateInTx`).
+   */
+  async removeInTx(actor: Actor, tx: Tx, id: string, version: number): Promise<void> {
+    assertCan(actor, 'delete', { objectType: 'account' });
 
-      await this.audit.record(tx, actor, {
-        action: 'delete',
-        objectType: 'account',
-        recordId: id,
-      });
-      await this.outbox.publish(tx, actor, {
-        eventType: 'account.deleted.v1',
-        objectType: 'account',
-        recordId: id,
-      });
+    const existing = await this.loadOrNotFound(tx, actor, id);
+    assertCan(actor, 'delete', {
+      objectType: 'account',
+      record: await recordRefFor(tx, actor, existing.ownerId),
+    });
+
+    const deleted = await this.repository.softDelete(tx, actor.tenantId, id, actor.userId, version);
+    if (deleted === null) throw new VersionConflictError('account');
+
+    await this.audit.record(tx, actor, {
+      action: 'delete',
+      objectType: 'account',
+      recordId: id,
+    });
+    await this.outbox.publish(tx, actor, {
+      eventType: 'account.deleted.v1',
+      objectType: 'account',
+      recordId: id,
     });
   }
 
