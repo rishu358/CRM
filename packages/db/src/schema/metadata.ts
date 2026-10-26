@@ -76,6 +76,8 @@ export const savedViews = pgTable(
       .default(sql`'[]'::jsonb`),
     /** private | team | tenant */
     visibility: text('visibility').notNull().default('private'),
+    /** Optimistic locking: a second editor's stale save is refused, not merged (migration 0023). */
+    version: integer('version').notNull().default(1),
   },
   (table) => [
     index('saved_views_tenant_object_idx').on(table.tenantId, table.objectType),

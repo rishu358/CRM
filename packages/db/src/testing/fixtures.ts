@@ -1023,4 +1023,47 @@ export class Fixtures {
       [newId(), tenantId, objectType, key, label, type],
     );
   }
+
+  /** The tag names on one record, as stored. */
+  async recordTagNames(
+    tenantId: string,
+    objectType: 'account' | 'contact' | 'lead' | 'deal',
+    recordId: string,
+  ): Promise<string[]> {
+    const result = await this.pool.query<{ name: string }>(
+      `SELECT t.name FROM record_tags rt JOIN tags t ON t.id = rt.tag_id
+       WHERE rt.tenant_id = $1 AND rt.object_type = $2 AND rt.record_id = $3
+       ORDER BY lower(t.name)`,
+      [tenantId, objectType, recordId],
+    );
+    return result.rows.map((row) => row.name);
+  }
+
+  /** How many tags a workspace holds. */
+  async tagCount(tenantId: string): Promise<number> {
+    const result = await this.pool.query<{ count: string }>(
+      `SELECT count(*)::text AS count FROM tags WHERE tenant_id = $1`,
+      [tenantId],
+    );
+    return Number(result.rows[0]?.count ?? '0');
+  }
+
+  /** The Idempotency-Keys a person's bulk actions are remembered under. */
+  async bulkOperationKeys(tenantId: string, userId: string): Promise<string[]> {
+    const result = await this.pool.query<{ idempotency_key: string }>(
+      `SELECT idempotency_key FROM bulk_operations
+       WHERE tenant_id = $1 AND created_by = $2 ORDER BY created_at`,
+      [tenantId, userId],
+    );
+    return result.rows.map((row) => row.idempotency_key);
+  }
+
+  /** Make every remembered bulk answer in a workspace look `hours` old. */
+  async ageBulkOperations(tenantId: string, hours: number): Promise<void> {
+    await this.pool.query(
+      `UPDATE bulk_operations SET created_at = now() - make_interval(hours => $2)
+       WHERE tenant_id = $1`,
+      [tenantId, hours],
+    );
+  }
 }
