@@ -66,6 +66,10 @@
     "./file-safety": {
       "types": "./dist/file-safety/index.d.ts",
       "default": "./dist/file-safety/index.js"
+    },
+    "./whatsapp": {
+      "types": "./dist/whatsapp/index.d.ts",
+      "default": "./dist/whatsapp/index.js"
     }
   },
   "scripts": {
