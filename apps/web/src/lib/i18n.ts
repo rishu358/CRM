@@ -205,7 +205,7 @@ export const en = {
   'whatsapp.newTab': 'Opens in a new tab.',
   'whatsapp.someone': 'this person',
   'whatsapp.invalid':
-    'This number is not in international format, for example +919876543210, so WhatsApp cannot open it. Edit the number to fix it.',
+    'Not in international format, like +919876543210, so WhatsApp cannot open it. Edit the number to fix it.',
   'field.hidden': 'Hidden',
   'field.save': 'Save',
   'field.cancel': 'Cancel',

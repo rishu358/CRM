@@ -96,7 +96,7 @@ export function InlineField({
             disabled={readOnly}
             onClick={startEditing}
             aria-label={`${t('field.edit')}: ${label}`}
-            className="group flex min-h-8 w-full max-w-sm items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors duration-fast hover:bg-accent disabled:cursor-default disabled:hover:bg-transparent"
+            className={`group flex min-h-8 ${trailing === undefined ? 'w-full' : 'w-auto'} max-w-sm items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors duration-fast hover:bg-accent disabled:cursor-default disabled:hover:bg-transparent`}
           >
             {value === null || value === undefined || value === '' ? (
               <span className="text-muted-foreground">{t('field.empty')}</span>
