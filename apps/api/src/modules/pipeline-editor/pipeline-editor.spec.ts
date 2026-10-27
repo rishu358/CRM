@@ -390,26 +390,17 @@ describe('changing a stage', () => {
       }),
       201,
     );
-    // Open stages come before the closed ones, so the new open stage cannot become won in place.
+    // The new open stage sits right before Won, so becoming a won stage in place keeps the order valid.
     const stage = stageNamed(extra, 'Maybe won');
-    const refused = await patchStage(extra, stage, { stageType: 'won' });
+    const retyped = dataOf<Pipeline>(await patchStage(extra, stage, { stageType: 'won' }), 200);
+    expect(stageNamed(retyped, 'Maybe won')).toMatchObject({ stageType: 'won', probability: 100 });
+    expect(retyped.version).toBeGreaterThan(extra.version);
+
+    // A stage in front of other open stages cannot become won: open stages come first.
+    const first = stageNamed(retyped, 'Lead in');
+    const refused = await patchStage(retyped, first, { stageType: 'won' });
     expect(refused.status).toBe(422);
     expect(errorOf(refused).details?.[0]?.message).toMatch(/Open stages come first/);
-
-    // Reorder it to the end of the open ones is already the case; make a second closed stage instead.
-    const closed = dataOf<Pipeline>(
-      await api('POST', `/pipelines/${pipeline.id}/stages`, {
-        name: 'Won later',
-        stageType: 'lost',
-      }),
-      201,
-    );
-    const lostStage = stageNamed(closed, 'Won later');
-    const retyped = dataOf<Pipeline>(
-      await patchStage(closed, lostStage, { stageType: 'won' }),
-      200,
-    );
-    expect(stageNamed(retyped, 'Won later')).toMatchObject({ stageType: 'won', probability: 100 });
   });
 
   it('refuses to retype a stage that holds deals, live or in the Recycle Bin', async () => {
@@ -603,7 +594,9 @@ describe('ordering', () => {
     const ids = inUse(pipeline).map((stage) => stage.id);
     let version = pipeline.version;
     for (let round = 0; round < 6; round += 1) {
-      const rotated = [...ids.slice(round % 3, 3), ...ids.slice(0, round % 3), ids[3]!, ids[4]!];
+      // Never the order it already has, or the request is (rightly) a no-op.
+      const shift = (round % 2) + 1;
+      const rotated = [...ids.slice(shift, 3), ...ids.slice(0, shift), ids[3]!, ids[4]!];
       const responses = await Promise.all(
         [0, 1, 2].map(() =>
           api('POST', `/pipelines/${pipeline.id}/stages/order`, { version, stageIds: rotated }),

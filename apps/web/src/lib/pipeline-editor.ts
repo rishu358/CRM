@@ -64,6 +64,37 @@ function store(client: QueryClient, pipeline: ManagedPipeline): void {
   );
 }
 
+/**
+ * Edits to one pipeline run one at a time, in the order they were made.
+ *
+ * Without this, renaming a stage and then, a moment later, changing its probability would send
+ * both with the stage's old `version`: the second would be refused as stale by the server for the
+ * person's own first edit. The scope queues them, and each takes the version the cache holds when
+ * it actually runs (see `latestVersion`), which by then includes the first one's result. A change
+ * made by somebody else is still caught: the cache does not know about it until it refetches.
+ */
+function scopeOf(pipelineId: string): { id: string } {
+  return { id: `pipeline-editor-${pipelineId}` };
+}
+
+function latestStageVersion(
+  client: QueryClient,
+  pipelineId: string,
+  stageId: string,
+  fallback: number,
+): number {
+  const list = client.getQueryData<ManagedPipelineList>(pipelineEditorKeys.managed);
+  const stage = list?.data
+    .find((pipeline) => pipeline.id === pipelineId)
+    ?.stages.find((entry) => entry.id === stageId);
+  return stage?.version ?? fallback;
+}
+
+function latestPipelineVersion(client: QueryClient, pipelineId: string, fallback: number): number {
+  const list = client.getQueryData<ManagedPipelineList>(pipelineEditorKeys.managed);
+  return list?.data.find((pipeline) => pipeline.id === pipelineId)?.version ?? fallback;
+}
+
 /** A new `Idempotency-Key` per user action, so a retry of one click cannot add two stages. */
 function newKey(): string {
   return globalThis.crypto.randomUUID();
@@ -98,8 +129,12 @@ export function useUpdateStage(pipelineId: string) {
     { stageId: string; input: StageUpdateInput },
     { previous: ManagedPipelineList | undefined }
   >({
+    scope: scopeOf(pipelineId),
     mutationFn: ({ stageId, input }) =>
-      api.patch<ItemEnvelope<ManagedPipeline>>(`/pipelines/${pipelineId}/stages/${stageId}`, input),
+      api.patch<ItemEnvelope<ManagedPipeline>>(`/pipelines/${pipelineId}/stages/${stageId}`, {
+        ...input,
+        version: latestStageVersion(client, pipelineId, stageId, input.version),
+      }),
     onMutate: async ({ stageId, input }) => {
       await client.cancelQueries({ queryKey: pipelineEditorKeys.managed });
       const previous = client.getQueryData<ManagedPipelineList>(pipelineEditorKeys.managed);
@@ -150,8 +185,12 @@ export function useOrderStages(pipelineId: string) {
     StageOrderInput,
     { previous: ManagedPipelineList | undefined }
   >({
+    scope: scopeOf(pipelineId),
     mutationFn: (input) =>
-      api.post<ItemEnvelope<ManagedPipeline>>(`/pipelines/${pipelineId}/stages/order`, input),
+      api.post<ItemEnvelope<ManagedPipeline>>(`/pipelines/${pipelineId}/stages/order`, {
+        ...input,
+        version: latestPipelineVersion(client, pipelineId, input.version),
+      }),
     onMutate: async (input) => {
       await client.cancelQueries({ queryKey: pipelineEditorKeys.managed });
       const previous = client.getQueryData<ManagedPipelineList>(pipelineEditorKeys.managed);

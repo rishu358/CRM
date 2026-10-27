@@ -1233,7 +1233,8 @@ export const en = {
   'pipelines.row.type': 'Type of stage {name}',
   'pipelines.row.typeLocked': 'Deals are in this stage, so its type cannot change.',
   'pipelines.row.probability': 'Probability of stage {name}, in percent',
-  'pipelines.row.deals': '{count} deals',
+  'pipelines.row.deals.one': '{count} deal',
+  'pipelines.row.deals.other': '{count} deals',
   'pipelines.row.moveUp': 'Move {name} up',
   'pipelines.row.moveDown': 'Move {name} down',
   'pipelines.row.retire': 'Retire {name}',
@@ -1244,7 +1245,9 @@ export const en = {
   'pipelines.retired.description':
     'No new deals go here. Past activity still shows the stage by name, and you can bring one back.',
   'pipelines.retired.on': 'retired {date}',
-  'pipelines.retired.done': '{name} was retired. {count} deals were moved.',
+  'pipelines.retired.done.none': '{name} was retired.',
+  'pipelines.retired.done.one': '{name} was retired. {count} deal was moved.',
+  'pipelines.retired.done.other': '{name} was retired. {count} deals were moved.',
   'pipelines.add.title': 'Add a stage',
   'pipelines.add.description':
     'An open stage goes after your other open stages. A won or lost stage goes at the end.',
@@ -1257,7 +1260,8 @@ export const en = {
   'pipelines.retire.body':
     'A retired stage is hidden from the board and from new deals. Nothing is deleted, and you can restore it later.',
   'pipelines.retire.noDeals': 'No deals are in this stage.',
-  'pipelines.retire.affected': '{count} deals are in this stage and will move.',
+  'pipelines.retire.affected.one': '{count} deal is in this stage and will move.',
+  'pipelines.retire.affected.other': '{count} deals are in this stage and will move.',
   'pipelines.retire.inBin': 'Deals in the Recycle Bin move too: {count}.',
   'pipelines.retire.target': 'Move the deals to',
   'pipelines.retire.targetHint':
@@ -1267,7 +1271,8 @@ export const en = {
   'pipelines.retire.tooMany':
     'This stage holds too many deals to move at once (the limit is {max}). Move some on the board first.',
   'pipelines.retire.confirm': 'Retire stage',
-  'pipelines.retire.confirmMove': 'Move {count} deals and retire',
+  'pipelines.retire.confirmMove.one': 'Move {count} deal and retire',
+  'pipelines.retire.confirmMove.other': 'Move {count} deals and retire',
   'pipelines.empty.title': 'No pipelines yet',
   'pipelines.empty.description': 'Your company has no pipeline to edit.',
   'pipelines.error.title': 'Could not load the pipelines',

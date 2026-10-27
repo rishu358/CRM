@@ -114,9 +114,15 @@ test.describe.serial('an owner reshapes the Wholesale pipeline', () => {
     );
 
     const probability = page.getByLabel(`Probability of stage ${SECOND_NAME}, in percent`);
+    // The edit shows at once (optimistic) and is saved a moment later; reload only once the server
+    // has answered, or the reload would cancel the save this test is about.
+    const saved = page.waitForResponse(
+      (response) => response.request().method() === 'PATCH' && response.url().includes('/stages/'),
+    );
     await probability.fill('65');
     await probability.press('Enter');
     await expect(probability).toHaveValue('65');
+    expect((await saved).status()).toBe(200);
 
     await page.reload();
     await page.getByLabel('Pipeline', { exact: true }).selectOption({ label: 'Wholesale' });
@@ -168,21 +174,19 @@ test.describe.serial('an owner reshapes the Wholesale pipeline', () => {
     dealId = created.data.id;
 
     await openEditor(page);
-    await expect(rowFor(page, SECOND_NAME).getByTestId('stage-deals')).toContainText('1 deals');
+    await expect(rowFor(page, SECOND_NAME).getByTestId('stage-deals')).toContainText('1 deal');
 
     await page.getByRole('button', { name: `Retire ${SECOND_NAME}` }).click();
     const dialog = page.getByRole('dialog', { name: `Retire ${SECOND_NAME}?` });
-    await expect(dialog.getByTestId('retire-deal-count')).toContainText(
-      '1 deals are in this stage',
-    );
+    await expect(dialog.getByTestId('retire-deal-count')).toContainText('1 deal is in this stage');
 
     // Asking for a target is not optional: the confirm button names the count.
     await dialog.getByLabel('Move the deals to').selectOption({ label: 'Enquiry' });
-    await dialog.getByRole('button', { name: 'Move 1 deals and retire' }).click();
+    await dialog.getByRole('button', { name: 'Move 1 deal and retire' }).click();
     await expect(dialog).toBeHidden();
 
     await expect(page.getByTestId('pipeline-notice')).toContainText(
-      `${SECOND_NAME} was retired. 1 deals were moved.`,
+      `${SECOND_NAME} was retired. 1 deal was moved.`,
     );
     expect(await stageNames(page)).not.toContain(SECOND_NAME);
     await expect(page.getByTestId('retired-stages')).toContainText(SECOND_NAME);

@@ -389,7 +389,14 @@ function PipelineEditor({
                       className="figures text-sm text-muted-foreground"
                       data-testid="stage-deals"
                     >
-                      {t('pipelines.row.deals', { count: stage.dealCount })}
+                      {t(
+                        stage.dealCount === 1
+                          ? 'pipelines.row.deals.one'
+                          : 'pipelines.row.deals.other',
+                        {
+                          count: stage.dealCount,
+                        },
+                      )}
                     </span>
                   </div>
 
@@ -534,11 +541,16 @@ function PipelineEditor({
               {
                 onSuccess: (answer) => {
                   setRetiring(null);
+                  const count = answer.data.movedDeals;
                   setNotice(
-                    t('pipelines.retired.done', {
-                      name: retiring.name,
-                      count: answer.data.movedDeals,
-                    }),
+                    t(
+                      count === 0
+                        ? 'pipelines.retired.done.none'
+                        : count === 1
+                          ? 'pipelines.retired.done.one'
+                          : 'pipelines.retired.done.other',
+                      { name: retiring.name, count },
+                    ),
                   );
                 },
               },

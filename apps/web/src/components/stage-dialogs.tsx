@@ -159,7 +159,14 @@ export function RetireStageDialog({
         ) : (
           <>
             <p className="text-sm font-medium" data-testid="retire-deal-count">
-              {t('pipelines.retire.affected', { count: stage.dealCount })}
+              {t(
+                stage.dealCount === 1
+                  ? 'pipelines.retire.affected.one'
+                  : 'pipelines.retire.affected.other',
+                {
+                  count: stage.dealCount,
+                },
+              )}
               {stage.recycleBinDealCount > 0
                 ? ` ${t('pipelines.retire.inBin', { count: stage.recycleBinDealCount })}`
                 : ''}
@@ -209,7 +216,14 @@ export function RetireStageDialog({
           >
             {held === 0
               ? t('pipelines.retire.confirm')
-              : t('pipelines.retire.confirmMove', { count: held })}
+              : t(
+                  held === 1
+                    ? 'pipelines.retire.confirmMove.one'
+                    : 'pipelines.retire.confirmMove.other',
+                  {
+                    count: held,
+                  },
+                )}
           </Button>
         </div>
       </div>
