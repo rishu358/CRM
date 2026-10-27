@@ -91,9 +91,21 @@ Facts that shape the design, found in the code rather than assumed:
 - A company can reshape its pipeline without a deploy, and nothing a deal or a report depends on moves under it.
 - The board, the dashboard and the deals list read only the stages in use; reports that classify by stage type
   (won this month) read every stage, retired ones included.
-- The count of deals in each stage is a grouped scan of the company's deals. It is fine at the sizes the product
-  targets; a `(tenant_id, stage_id)` index built concurrently would help at millions of rows and is not in this
-  migration, which runs in a transaction.
+- **Open follow-up: an index on `deals (tenant_id, stage_id)`.** CLAUDE.md section 7 asks for one on every
+  foreign key, and `deals.stage_id` has none that covers all rows: the existing `deals_tenant_stage_created_idx`
+  is partial (`deleted_at IS NULL`), so it serves the board but not a question about every deal, including those
+  in the Recycle Bin. Three things here ask that question: the count of deals per stage on the editor screen, the
+  retirement's lock-and-move, and the two triggers that look for any deal in a stage (the existing type-stable one
+  from 0008 and the new refuse-to-retire one in 0024). The migration runner wraps every file in one transaction
+  (`migrator.ts`; 0007, 0018 and 0021 say the same) and has no non-transactional convention, so
+  `CREATE INDEX CONCURRENTLY` cannot be a migration file today, and a plain `CREATE INDEX` would lock writes on
+  `deals` for as long as it builds. It is therefore **not** in 0024. Cost without it: those queries scan the
+  company's deals through a tenant-leading index and filter by stage; the trigger's `EXISTS` stops at the first
+  deal it finds, so it is slow only for a stage with no deals (the case where a retirement proceeds), roughly a
+  scan of one company's deals. That is acceptable at the sizes the product targets now and is bounded by a
+  retirement being a rare, deliberate act. The fix is to build the index outside the runner, concurrently, before a
+  company holds millions of deals (the recipe in 0016), or to teach the runner a no-transaction file convention
+  first. Both are separate decisions.
 - Retiring is forward-only in effect: the deals' old stage is remembered only in the audit log and the timeline,
   which is where history belongs.
 - Drag-and-drop reordering is not built; Move up and Move down are the keyboard and touch path.
