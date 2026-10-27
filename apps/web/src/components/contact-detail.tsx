@@ -13,6 +13,7 @@ import {
   PageHeader,
   Skeleton,
 } from '@crm/ui';
+import { whatsAppTarget } from '@crm/core/whatsapp';
 import Link from 'next/link';
 import { useContact, useUpdateContact } from '../lib/contacts';
 import { DEFAULT_PREFERENCES, formatDateTime, formatName } from '../lib/format';
@@ -20,10 +21,12 @@ import { t } from '../lib/i18n';
 import { useRecordView } from '../lib/activities';
 import { AppShell } from './app-shell';
 import { BackLink } from './back-link';
+import { useBrand } from './brand-provider';
 import { WhoCanSeeButton } from './who-can-see';
 import { ActivityPanel } from './activity-panel';
 import { AttachmentPanel } from './attachment-panel';
 import { InlineField } from './inline-field';
+import { WhatsAppChat } from './whatsapp-chat';
 import { CustomFieldsCard } from './custom-fields';
 
 /**
@@ -60,6 +63,7 @@ export function ContactDetail({ id }: { id: string }) {
 
   const query = useContact(id);
   const update = useUpdateContact();
+  const { whatsappLinkBase } = useBrand();
 
   if (query.isPending) {
     return (
@@ -101,6 +105,9 @@ export function ContactDetail({ id }: { id: string }) {
 
   const contact = query.data.data;
   const record = contact as unknown as Record<string, unknown>;
+  // Which number a chat would use. Built from what the API returned, so a number
+  // the caller may not read (absent from the payload) is never offered.
+  const chat = whatsAppTarget(whatsappLinkBase, contact);
 
   // A 409 means a colleague saved while this user was editing. Offering a
   // reload is the honest response: we will not guess whose version wins.
@@ -158,6 +165,11 @@ export function ContactDetail({ id }: { id: string }) {
                   label={t(field.label)}
                   type={field.type}
                   value={record[field.key] as string | null | undefined}
+                  trailing={
+                    chat?.source === field.key ? (
+                      <WhatsAppChat name={formatName(contact)} target={chat} />
+                    ) : undefined
+                  }
                   onSave={(next) => {
                     update.mutate({
                       id: contact.id,

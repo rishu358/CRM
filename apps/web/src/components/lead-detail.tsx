@@ -13,6 +13,7 @@ import {
   Select,
   Skeleton,
 } from '@crm/ui';
+import { whatsAppTarget } from '@crm/core/whatsapp';
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
 import { DEFAULT_PREFERENCES, formatDate, formatDateTime, formatName } from '../lib/format';
@@ -21,11 +22,13 @@ import { OPEN_LEAD_STATUSES, useLead, useUpdateLead } from '../lib/leads';
 import { useRecordView } from '../lib/activities';
 import { AppShell } from './app-shell';
 import { BackLink } from './back-link';
+import { useBrand } from './brand-provider';
 import { WhoCanSeeButton } from './who-can-see';
 import { ActivityPanel } from './activity-panel';
 import { AttachmentPanel } from './attachment-panel';
 import { ConvertLeadDialog } from './convert-lead-dialog';
 import { InlineField } from './inline-field';
+import { WhatsAppChat } from './whatsapp-chat';
 import { CustomFieldsCard } from './custom-fields';
 
 /**
@@ -65,6 +68,7 @@ export function LeadDetail({ id }: { id: string }) {
 
   const query = useLead(id);
   const update = useUpdateLead();
+  const { whatsappLinkBase } = useBrand();
   const [converting, setConverting] = useState(false);
 
   if (query.isPending) {
@@ -108,6 +112,8 @@ export function LeadDetail({ id }: { id: string }) {
   const lead = query.data.data;
   const record = lead as unknown as Record<string, unknown>;
   const converted = lead.status === 'converted';
+  // Leads carry a phone number only, so a chat always uses it.
+  const chat = whatsAppTarget(whatsappLinkBase, lead);
 
   // A 409 means a colleague saved while this user was editing. Offering a
   // reload is the honest response: we will not guess whose version wins.
@@ -228,6 +234,11 @@ export function LeadDetail({ id }: { id: string }) {
                   type={field.type}
                   readOnly={converted}
                   value={record[field.key] as string | null | undefined}
+                  trailing={
+                    chat?.source === field.key ? (
+                      <WhatsAppChat name={formatName(lead)} target={chat} />
+                    ) : undefined
+                  }
                   onSave={(next) => {
                     update.mutate({
                       id: lead.id,

@@ -1,7 +1,7 @@
 'use client';
 
 import { Button, EditIcon, Input } from '@crm/ui';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { t } from '../lib/i18n';
 
 /**
@@ -20,12 +20,15 @@ export function InlineField({
   readOnly = false,
   onSave,
   type = 'text',
+  trailing,
 }: {
   label: string;
   value: string | null | undefined;
   readOnly?: boolean;
   type?: 'text' | 'email' | 'tel' | 'url' | 'number' | 'date';
   onSave: (next: string | null) => void;
+  /** Something that belongs beside the value, such as a chat button; hidden while editing. */
+  trailing?: ReactNode;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
@@ -87,26 +90,29 @@ export function InlineField({
           </Button>
         </div>
       ) : (
-        <button
-          type="button"
-          disabled={readOnly}
-          onClick={startEditing}
-          aria-label={`${t('field.edit')}: ${label}`}
-          className="group flex min-h-8 w-full max-w-sm items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors duration-fast hover:bg-accent disabled:cursor-default disabled:hover:bg-transparent"
-        >
-          {value === null || value === undefined || value === '' ? (
-            <span className="text-muted-foreground">{t('field.empty')}</span>
-          ) : (
-            <span className="min-w-0 truncate">{value}</span>
-          )}
-          {/* The "this is editable" cue, quiet until you point at it or tab to it. */}
-          {readOnly ? null : (
-            <EditIcon
-              aria-hidden="true"
-              className="h-3.5 w-3.5 shrink-0 text-muted-foreground opacity-0 transition-opacity duration-fast group-hover:opacity-100 group-focus-visible:opacity-100"
-            />
-          )}
-        </button>
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <button
+            type="button"
+            disabled={readOnly}
+            onClick={startEditing}
+            aria-label={`${t('field.edit')}: ${label}`}
+            className={`group flex min-h-8 ${trailing === undefined ? 'w-full' : 'w-auto'} max-w-sm items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors duration-fast hover:bg-accent disabled:cursor-default disabled:hover:bg-transparent`}
+          >
+            {value === null || value === undefined || value === '' ? (
+              <span className="text-muted-foreground">{t('field.empty')}</span>
+            ) : (
+              <span className="min-w-0 truncate">{value}</span>
+            )}
+            {/* The "this is editable" cue, quiet until you point at it or tab to it. */}
+            {readOnly ? null : (
+              <EditIcon
+                aria-hidden="true"
+                className="h-3.5 w-3.5 shrink-0 text-muted-foreground opacity-0 transition-opacity duration-fast group-hover:opacity-100 group-focus-visible:opacity-100"
+              />
+            )}
+          </button>
+          {trailing}
+        </div>
       )}
     </div>
   );

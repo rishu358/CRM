@@ -198,6 +198,14 @@ export const en = {
   'convert.error.changed': 'This lead changed while you were converting it. Reload and try again.',
 
   'field.empty': 'Not set',
+  'whatsapp.button': 'WhatsApp',
+  'whatsapp.label': 'Chat with {name} on WhatsApp.',
+  'whatsapp.uses.whatsapp': 'Uses the WhatsApp number {number}.',
+  'whatsapp.uses.phone': 'Uses the phone number {number}, because no WhatsApp number is saved.',
+  'whatsapp.newTab': 'Opens in a new tab.',
+  'whatsapp.someone': 'this person',
+  'whatsapp.invalid':
+    'Not in international format, like +919876543210, so WhatsApp cannot open it. Edit the number to fix it.',
   'field.hidden': 'Hidden',
   'field.save': 'Save',
   'field.cancel': 'Cancel',

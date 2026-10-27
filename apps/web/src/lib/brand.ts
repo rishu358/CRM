@@ -21,6 +21,7 @@ export interface BrandEnv {
   readonly BRAND_FAVICON_URL?: string | undefined;
   readonly BRAND_COLOR?: string | undefined;
   readonly BRAND_COLOR_DARK?: string | undefined;
+  readonly WHATSAPP_LINK_BASE: string;
 }
 
 /**
@@ -36,6 +37,8 @@ export interface PublicBrand {
   readonly supportEmail: string | null;
   readonly termsUrl: string | null;
   readonly privacyUrl: string | null;
+  /** The address the WhatsApp chat button is built on (`WHATSAPP_LINK_BASE`); operator configuration. */
+  readonly whatsappLinkBase: string;
 }
 
 export function publicBrand(env: BrandEnv): PublicBrand {
@@ -47,6 +50,7 @@ export function publicBrand(env: BrandEnv): PublicBrand {
     supportEmail: env.SUPPORT_EMAIL ?? null,
     termsUrl: env.TERMS_URL ?? null,
     privacyUrl: env.PRIVACY_URL ?? null,
+    whatsappLinkBase: env.WHATSAPP_LINK_BASE,
   };
 }
 

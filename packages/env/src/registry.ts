@@ -210,6 +210,33 @@ export const REGISTRY = {
     example: '#3ad0d8',
     note: 'Must be light enough to read as text on the dark background (4.5:1), or the web app refuses to start.',
   }),
+  WHATSAPP_LINK_BASE: defaultedChecked(
+    {
+      scopes: ['web'],
+      group: 'branding',
+      description:
+        'Where the "WhatsApp" button on a contact, account or lead sends the person: this address plus the number, for example https://wa.me/919876543210. The default is WhatsApp\'s own chat address; leave it unset unless WhatsApp changes it.',
+      example: 'https://wa.me',
+      note: "Operator setting, never something a user or tenant can change: the person's phone number is part of the address, so whichever host is set here is sent people's phone numbers. Only an https address with a host and nothing else (no user name, path, query or fragment) is accepted, or the web app refuses to start.",
+    },
+    {
+      default: 'https://wa.me',
+      check: (value) => {
+        try {
+          const url = new URL(value);
+          return (
+            url.protocol === 'https:' &&
+            url.username === '' &&
+            url.password === '' &&
+            (value === url.origin || value === `${url.origin}/`)
+          );
+        } catch {
+          return false;
+        }
+      },
+      message: 'must be an https address with a host only: no user name, path, query or fragment',
+    },
+  ),
 
   // ---- defaults for new workspaces ---------------------------------------------------------
   DEFAULT_CURRENCY: defaultedChecked(
