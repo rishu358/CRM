@@ -65,7 +65,7 @@ function toManagedPipeline(
 }
 
 /**
- * The pipeline and stage editor (MVP_SPEC M5, M9; ADR-0061).
+ * The pipeline and stage editor (MVP_SPEC M5, M9; ADR-0062).
  *
  * The same five steps every module follows, in the same order:
  *   1. authorize with `can()` against the `pipeline` object before anything else

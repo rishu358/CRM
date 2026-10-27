@@ -38,7 +38,7 @@ import { AppShell } from './app-shell';
 import { AddStageDialog, RetireStageDialog, detailFor } from './stage-dialogs';
 
 /**
- * The pipeline and stage editor (MVP_SPEC M5, M9; ADR-0061).
+ * The pipeline and stage editor (MVP_SPEC M5, M9; ADR-0062).
  *
  * A company shapes the stages its deals move through: rename, re-weight, reorder, add, retire and
  * restore. The screen mirrors the rules the API enforces (open stages first, one of each kind kept,

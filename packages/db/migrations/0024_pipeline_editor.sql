@@ -1,4 +1,4 @@
--- Pipeline and stage editor (MVP_SPEC M5, M9; ADR-0061).
+-- Pipeline and stage editor (MVP_SPEC M5, M9; ADR-0062).
 --
 -- Until now a pipeline's stages were written once, by provisioning, and read
 -- ever after. A company editing its own pipeline needs four things the tables

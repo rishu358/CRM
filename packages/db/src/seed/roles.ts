@@ -136,7 +136,7 @@ const TENANT_SETTINGS_GRANT: SystemRoleGrant = {
 };
 
 /**
- * The pipeline and stage editor (MVP_SPEC M5, M9; ADR-0061).
+ * The pipeline and stage editor (MVP_SPEC M5, M9; ADR-0062).
  *
  * Owner and Admin, like the other company-wide configuration. Migration 0024
  * backfills the same rows for tenants that already exist. A custom role gets

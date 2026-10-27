@@ -15,7 +15,7 @@ import { dashboardKeys } from './dashboard';
 import { dealKeys } from './deals';
 
 /**
- * Server state for the pipeline and stage editor (CLAUDE.md §9, MVP_SPEC M5, ADR-0061).
+ * Server state for the pipeline and stage editor (CLAUDE.md §9, MVP_SPEC M5, ADR-0062).
  *
  * The editor has its own list (`/pipelines/manage`: retired stages and deal counts included), and
  * the board and dashboard have theirs. They are different questions with different cache entries,

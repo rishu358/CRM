@@ -26,10 +26,10 @@ const PIPELINE_EDITOR_NOTE =
   'rename, re-weight, retype or reorder, `delete` to retire one); Owner and Admin have all four. ' +
   'Answers the whole pipeline as the editor sees it afterwards, so a screen redraws from one answer. ' +
   'A pipeline always keeps one open, one won and one lost stage in use, open stages first, at most ' +
-  '20 in all (ADR-0061).';
+  '20 in all (ADR-0062).';
 
 /**
- * The pipeline and stage editor's routes (MVP_SPEC M5, M9; ADR-0061), kept beside their schemas
+ * The pipeline and stage editor's routes (MVP_SPEC M5, M9; ADR-0062), kept beside their schemas
  * and spread into `API_ROUTES`.
  */
 export const pipelineEditorRoutes: RouteDefinition[] = [

@@ -34,7 +34,7 @@
  * CLAUDE.md §5.3 forbid.
  *
  * `pipeline` is the same kind of thing for the pipeline and stage editor
- * (MVP_SPEC M5, M9; ADR-0061). Reshaping the stages every deal moves through is
+ * (MVP_SPEC M5, M9; ADR-0062). Reshaping the stages every deal moves through is
  * a company-wide configuration change, not an edit to a deal, so it is its own
  * grant: `deal:update` (a rep dragging a card) must never imply it. Seeing the
  * pipelines on the board stays `deal:read`; `pipeline:read` is the editor's view,

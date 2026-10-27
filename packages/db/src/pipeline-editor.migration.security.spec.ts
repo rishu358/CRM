@@ -10,7 +10,7 @@ import { packageRootFrom } from './package-root.js';
 
 /**
  * Migration 0024 applied to a database that already has companies in it
- * (MVP_SPEC M5, M9; ADR-0061), and what it makes the database refuse.
+ * (MVP_SPEC M5, M9; ADR-0062), and what it makes the database refuse.
  *
  * The statements that exist for *existing* data (granting Owner and Admin the new `pipeline` right,
  * building the unique indexes over stages that are already there) run against zero rows in every

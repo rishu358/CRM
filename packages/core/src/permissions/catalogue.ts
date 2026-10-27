@@ -125,7 +125,7 @@ export const GRANT_CATALOGUE: readonly GrantCatalogueEntry[] = [
     actions: ['read', 'update'],
     scopes: ADMIN_SCOPES,
   },
-  // The pipeline and stage editor (ADR-0061). `create` adds a stage, `update` renames,
+  // The pipeline and stage editor (ADR-0062). `create` adds a stage, `update` renames,
   // reorders and re-weights, `delete` retires one (stages are never hard-deleted).
   {
     objectType: 'pipeline',

@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { stageTypeSchema } from './deals.js';
 
 /**
- * The pipeline and stage editor (MVP_SPEC M5, M9; ADR-0061).
+ * The pipeline and stage editor (MVP_SPEC M5, M9; ADR-0062).
  *
  * Every write returns the whole pipeline as the editor sees it afterwards, so
  * the screen redraws from one answer rather than patching its own copy. Every

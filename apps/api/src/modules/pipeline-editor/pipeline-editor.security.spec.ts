@@ -3,7 +3,7 @@ import { dataOf, request, startApiHarness, type ApiHarness } from '../../testing
 
 /**
  * The mandatory per-module security suites (CLAUDE.md §10) for the pipeline and stage editor
- * (MVP_SPEC M5, M9; ADR-0061). Through the real HTTP stack, with the production guards, pipes and
+ * (MVP_SPEC M5, M9; ADR-0062). Through the real HTTP stack, with the production guards, pipes and
  * database roles:
  *
  *   (a) tenant A cannot list, read, change or retire tenant B's pipelines and stages

@@ -259,7 +259,7 @@ export const pipelines = pgTable(
     position: integer('position').notNull().default(0),
     isDefault: boolean('is_default').notNull().default(false),
     isActive: boolean('is_active').notNull().default(true),
-    /** Bumped by every edit to the pipeline's stages, so a stale editor gets a 409 (ADR-0061). */
+    /** Bumped by every edit to the pipeline's stages, so a stale editor gets a 409 (ADR-0062). */
     version: integer('version').notNull().default(1),
   },
   (table) => [

@@ -55,7 +55,7 @@ export interface StageRuleInput {
    * The deal is being moved from one stage to another stage of the same kind
    * because its stage was retired, not because anybody closed it again. A won
    * or lost deal then keeps the moment it closed and its reason, so tidying a
-   * pipeline does not move "won this month" (ADR-0061). Ignored for open
+   * pipeline does not move "won this month" (ADR-0062). Ignored for open
    * stages and when the deal was not already closed.
    */
   readonly keepClosedState?: boolean | undefined;

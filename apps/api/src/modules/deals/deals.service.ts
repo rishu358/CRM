@@ -735,7 +735,7 @@ export class DealsService {
     const targetStageId = input.stageId ?? existing.stageId;
 
     // A shared lock on the stage row: the pipeline editor locks it before retiring the stage, so a
-    // deal cannot be placed in a stage that is being retired (ADR-0061).
+    // deal cannot be placed in a stage that is being retired (ADR-0062).
     const stage = await this.pipelines.findStageForPlacement(tx, actor.tenantId, targetStageId);
     if (stage === null || stage.isRetired || stage.pipelineId !== targetPipelineId) {
       throw stageNotInPipeline();

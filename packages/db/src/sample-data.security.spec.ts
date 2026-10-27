@@ -263,7 +263,7 @@ describe('loading sample data', () => {
     expect(await load(w)).toEqual(LOADED);
   });
 
-  it('never puts a deal in a stage the pipeline editor retired (ADR-0061)', async () => {
+  it('never puts a deal in a stage the pipeline editor retired (ADR-0062)', async () => {
     const w = await workspace();
     // Retire the first open stage, which is where the loader would have put its first deal.
     await su.query(

@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
 /**
- * The pipeline and stage editor, end to end (MVP_SPEC M5, M9, ADR-0061).
+ * The pipeline and stage editor, end to end (MVP_SPEC M5, M9, ADR-0062).
  *
  * Through the browser because the claim crosses every layer: the administrator's screen, the API
  * that enforces the stage rules, and the deals board that has to draw the result at once. The

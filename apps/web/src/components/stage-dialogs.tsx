@@ -12,7 +12,7 @@ import type { ApiRequestError } from '../lib/api-client';
 import { t } from '../lib/i18n';
 
 /**
- * The two dialogs of the pipeline editor (MVP_SPEC M5, ADR-0061): adding a stage, and retiring one.
+ * The two dialogs of the pipeline editor (MVP_SPEC M5, ADR-0062): adding a stage, and retiring one.
  *
  * Both only ask. The rules (names, probabilities, which deals may go where) are enforced by the API
  * and answered here as a sentence; what the form mirrors is for feedback, never enforcement.

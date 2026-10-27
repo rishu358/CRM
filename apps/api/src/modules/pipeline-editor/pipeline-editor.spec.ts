@@ -3,7 +3,7 @@ import { MAX_STAGES_PER_PIPELINE } from '@crm/core';
 import { dataOf, request, startApiHarness, type ApiHarness } from '../../testing/harness.js';
 
 /**
- * Behavioural tests for the pipeline and stage editor (MVP_SPEC M5, M9; ADR-0061).
+ * Behavioural tests for the pipeline and stage editor (MVP_SPEC M5, M9; ADR-0062).
  *
  * Real Postgres with RLS, the production guards and pipes: the stage rules, the ordering, the
  * concurrency and the move of deals out of a retired stage are database behaviour, and a mock would

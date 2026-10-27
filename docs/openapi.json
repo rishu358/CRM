@@ -11549,7 +11549,7 @@
         "tags": [
           "Pipelines"
         ],
-        "description": "A new open stage goes after the last open stage; a new won or lost stage goes last. The name is trimmed and unique within the pipeline ignoring case. A won stage is at 100% and a lost stage at 0%. Accepts an `Idempotency-Key` header: a retry returns the pipeline as it is now and adds no second stage. Needs the `pipeline` grant for the action (`read` to look, `create` to add a stage, `update` to rename, re-weight, retype or reorder, `delete` to retire one); Owner and Admin have all four. Answers the whole pipeline as the editor sees it afterwards, so a screen redraws from one answer. A pipeline always keeps one open, one won and one lost stage in use, open stages first, at most 20 in all (ADR-0061).",
+        "description": "A new open stage goes after the last open stage; a new won or lost stage goes last. The name is trimmed and unique within the pipeline ignoring case. A won stage is at 100% and a lost stage at 0%. Accepts an `Idempotency-Key` header: a retry returns the pipeline as it is now and adds no second stage. Needs the `pipeline` grant for the action (`read` to look, `create` to add a stage, `update` to rename, re-weight, retype or reorder, `delete` to retire one); Owner and Admin have all four. Answers the whole pipeline as the editor sees it afterwards, so a screen redraws from one answer. A pipeline always keeps one open, one won and one lost stage in use, open stages first, at most 20 in all (ADR-0062).",
         "parameters": [
           {
             "name": "pipelineId",
@@ -11673,7 +11673,7 @@
         "tags": [
           "Pipelines"
         ],
-        "description": "Carries the stage `version`; a stale one is a 409. Changing the type is refused while any deal, live or in the Recycle Bin, is in the stage, because it would change what those deals mean. Renaming never rewrites history: past timeline entries keep the name they were written with. Needs the `pipeline` grant for the action (`read` to look, `create` to add a stage, `update` to rename, re-weight, retype or reorder, `delete` to retire one); Owner and Admin have all four. Answers the whole pipeline as the editor sees it afterwards, so a screen redraws from one answer. A pipeline always keeps one open, one won and one lost stage in use, open stages first, at most 20 in all (ADR-0061).",
+        "description": "Carries the stage `version`; a stale one is a 409. Changing the type is refused while any deal, live or in the Recycle Bin, is in the stage, because it would change what those deals mean. Renaming never rewrites history: past timeline entries keep the name they were written with. Needs the `pipeline` grant for the action (`read` to look, `create` to add a stage, `update` to rename, re-weight, retype or reorder, `delete` to retire one); Owner and Admin have all four. Answers the whole pipeline as the editor sees it afterwards, so a screen redraws from one answer. A pipeline always keeps one open, one won and one lost stage in use, open stages first, at most 20 in all (ADR-0062).",
         "parameters": [
           {
             "name": "pipelineId",
@@ -11807,7 +11807,7 @@
         "tags": [
           "Pipelines"
         ],
-        "description": "A stage is retired, never deleted: its row, its history and its past timeline entries stay. If it holds deals (live or in the Recycle Bin) the request must name `moveDealsToStageId`, another stage in use in the same pipeline and of the same type: open to open, won to won, lost to lost. Every deal is moved in the same transaction by the same rules as a drag on the board, with an audit entry and a `deal.stage_changed` event each; won and lost deals keep the date they closed and their lost reason. At most 2000 deals at a time. The last open, won or lost stage in use cannot be retired. Needs the `pipeline` grant for the action (`read` to look, `create` to add a stage, `update` to rename, re-weight, retype or reorder, `delete` to retire one); Owner and Admin have all four. Answers the whole pipeline as the editor sees it afterwards, so a screen redraws from one answer. A pipeline always keeps one open, one won and one lost stage in use, open stages first, at most 20 in all (ADR-0061).",
+        "description": "A stage is retired, never deleted: its row, its history and its past timeline entries stay. If it holds deals (live or in the Recycle Bin) the request must name `moveDealsToStageId`, another stage in use in the same pipeline and of the same type: open to open, won to won, lost to lost. Every deal is moved in the same transaction by the same rules as a drag on the board, with an audit entry and a `deal.stage_changed` event each; won and lost deals keep the date they closed and their lost reason. At most 2000 deals at a time. The last open, won or lost stage in use cannot be retired. Needs the `pipeline` grant for the action (`read` to look, `create` to add a stage, `update` to rename, re-weight, retype or reorder, `delete` to retire one); Owner and Admin have all four. Answers the whole pipeline as the editor sees it afterwards, so a screen redraws from one answer. A pipeline always keeps one open, one won and one lost stage in use, open stages first, at most 20 in all (ADR-0062).",
         "parameters": [
           {
             "name": "pipelineId",
@@ -11941,7 +11941,7 @@
         "tags": [
           "Pipelines"
         ],
-        "description": "The stage comes back empty, placed by the same rule as a new stage of its type. It is refused (409) if another stage in use now has its name. Needs the `pipeline` grant for the action (`read` to look, `create` to add a stage, `update` to rename, re-weight, retype or reorder, `delete` to retire one); Owner and Admin have all four. Answers the whole pipeline as the editor sees it afterwards, so a screen redraws from one answer. A pipeline always keeps one open, one won and one lost stage in use, open stages first, at most 20 in all (ADR-0061).",
+        "description": "The stage comes back empty, placed by the same rule as a new stage of its type. It is refused (409) if another stage in use now has its name. Needs the `pipeline` grant for the action (`read` to look, `create` to add a stage, `update` to rename, re-weight, retype or reorder, `delete` to retire one); Owner and Admin have all four. Answers the whole pipeline as the editor sees it afterwards, so a screen redraws from one answer. A pipeline always keeps one open, one won and one lost stage in use, open stages first, at most 20 in all (ADR-0062).",
         "parameters": [
           {
             "name": "pipelineId",
@@ -12075,7 +12075,7 @@
         "tags": [
           "Pipelines"
         ],
-        "description": "Names every stage in use, first to last, with the pipeline `version`: a list that leaves one out, repeats one or names a retired or foreign one is refused, and so is a stale version (409). All or nothing, in one transaction; two reorders at once are applied one after the other and never leave two stages in one place. Needs the `pipeline` grant for the action (`read` to look, `create` to add a stage, `update` to rename, re-weight, retype or reorder, `delete` to retire one); Owner and Admin have all four. Answers the whole pipeline as the editor sees it afterwards, so a screen redraws from one answer. A pipeline always keeps one open, one won and one lost stage in use, open stages first, at most 20 in all (ADR-0061).",
+        "description": "Names every stage in use, first to last, with the pipeline `version`: a list that leaves one out, repeats one or names a retired or foreign one is refused, and so is a stale version (409). All or nothing, in one transaction; two reorders at once are applied one after the other and never leave two stages in one place. Needs the `pipeline` grant for the action (`read` to look, `create` to add a stage, `update` to rename, re-weight, retype or reorder, `delete` to retire one); Owner and Admin have all four. Answers the whole pipeline as the editor sees it afterwards, so a screen redraws from one answer. A pipeline always keeps one open, one won and one lost stage in use, open stages first, at most 20 in all (ADR-0062).",
         "parameters": [
           {
             "name": "pipelineId",
@@ -12199,7 +12199,7 @@
         "tags": [
           "Pipelines"
         ],
-        "description": "What the editor draws: stages in use in board order, then retired ones, each with its `version`, how many deals sit in it and how many of those are in the Recycle Bin. Needs `read` on `pipeline`; the board itself uses `GET /pipelines`, which needs only deal read access and lists stages in use. Needs the `pipeline` grant for the action (`read` to look, `create` to add a stage, `update` to rename, re-weight, retype or reorder, `delete` to retire one); Owner and Admin have all four. Answers the whole pipeline as the editor sees it afterwards, so a screen redraws from one answer. A pipeline always keeps one open, one won and one lost stage in use, open stages first, at most 20 in all (ADR-0061).",
+        "description": "What the editor draws: stages in use in board order, then retired ones, each with its `version`, how many deals sit in it and how many of those are in the Recycle Bin. Needs `read` on `pipeline`; the board itself uses `GET /pipelines`, which needs only deal read access and lists stages in use. Needs the `pipeline` grant for the action (`read` to look, `create` to add a stage, `update` to rename, re-weight, retype or reorder, `delete` to retire one); Owner and Admin have all four. Answers the whole pipeline as the editor sees it afterwards, so a screen redraws from one answer. A pipeline always keeps one open, one won and one lost stage in use, open stages first, at most 20 in all (ADR-0062).",
         "responses": {
           "200": {
             "description": "The pipelines.",

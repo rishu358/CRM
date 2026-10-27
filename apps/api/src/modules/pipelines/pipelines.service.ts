@@ -108,7 +108,7 @@ function probabilityMessage(stageType: StageKind): string {
  * Pipelines and stages (MVP_SPEC M5).
  *
  * Tenants get a seeded default pipeline, and a demo tenant gets a second one.
- * Reshaping the **stages** of a pipeline is the pipeline editor (ADR-0061): the
+ * Reshaping the **stages** of a pipeline is the pipeline editor (ADR-0062): the
  * `pipeline` grant, checked by `PipelineEditorService`, which calls the editor
  * methods at the bottom of this class inside its own transaction. Creating and
  * renaming whole pipelines is not built yet; it needs a decision on plan limits
@@ -223,7 +223,7 @@ export class PipelinesService {
   }
 
   // ---------------------------------------------------------------------------------------------
-  // The pipeline editor's operations (ADR-0061).
+  // The pipeline editor's operations (ADR-0062).
   //
   // Each runs inside the caller's transaction and assumes the caller has already authorized the
   // request. Every write starts from `lockPipeline`, which is what serializes writes to one

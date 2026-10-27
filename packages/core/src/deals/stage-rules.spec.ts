@@ -171,7 +171,7 @@ describe('open stages', () => {
   });
 });
 
-describe('keepClosedState (a retired stage tidied away, ADR-0061)', () => {
+describe('keepClosedState (a retired stage tidied away, ADR-0062)', () => {
   const otherWon: StageFacts = { id: 'won-2', stageType: 'won', probability: 100 };
   const otherLost: StageFacts = { id: 'lost-2', stageType: 'lost', probability: 0 };
   const wonDeal: DealStageSnapshot = {

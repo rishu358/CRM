@@ -32,7 +32,7 @@ import { zodPipe } from '../../common/zod-validation.pipe.js';
 import { PipelineEditorService } from './pipeline-editor.service.js';
 
 /**
- * `/api/v1/pipelines/manage` and `/api/v1/pipelines/:pipelineId/stages/...` (ADR-0007, ADR-0061).
+ * `/api/v1/pipelines/manage` and `/api/v1/pipelines/:pipelineId/stages/...` (ADR-0007, ADR-0062).
  *
  * Validate, hand off, wrap in the envelope. Who may edit a pipeline is decided in the service by
  * `can()` on the `pipeline` object; no route takes a company or a user.

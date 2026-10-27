@@ -1,4 +1,4 @@
-# ADR-0061: The pipeline and stage editor: ordering, retiring and moving deals
+# ADR-0062: The pipeline and stage editor: ordering, retiring and moving deals
 
 - **Status:** Accepted
 - **Date:** 2026-10-27

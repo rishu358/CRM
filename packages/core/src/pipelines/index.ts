@@ -1,5 +1,5 @@
 /**
- * The rules for editing a pipeline's stages (MVP_SPEC M5, M9; ADR-0061).
+ * The rules for editing a pipeline's stages (MVP_SPEC M5, M9; ADR-0062).
  *
  * Pure, like `deals/stage-rules.ts`: no database, no clock, so every rule here
  * is a unit test, and the API and anything that comes after it (an import, a
