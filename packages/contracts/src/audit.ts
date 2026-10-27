@@ -41,6 +41,8 @@ export const AUDIT_PLATFORM_OBJECT_TYPES = [
   'erasure_request',
   // A custom field or picklist being added, edited or switched off (MVP_SPEC M9, ADR-0039).
   'field_definition',
+  // A stage of a pipeline being added, renamed, retired or restored (MVP_SPEC M5, ADR-0061).
+  'pipeline_stage',
 ] as const;
 
 export const auditObjectTypeSchema = z.enum([...OBJECT_TYPES, ...AUDIT_PLATFORM_OBJECT_TYPES]);

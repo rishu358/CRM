@@ -263,6 +263,26 @@ describe('loading sample data', () => {
     expect(await load(w)).toEqual(LOADED);
   });
 
+  it('never puts a deal in a stage the pipeline editor retired (ADR-0061)', async () => {
+    const w = await workspace();
+    // Retire the first open stage, which is where the loader would have put its first deal.
+    await su.query(
+      `update pipeline_stages set archived_at = now()
+        where pipeline_id = $1 and stage_type = 'open'
+          and position = (select min(position) from pipeline_stages
+                           where pipeline_id = $1 and stage_type = 'open' and archived_at is null)`,
+      [w.pipelineId],
+    );
+    expect(await load(w)).toEqual(LOADED);
+    const inRetired = await su.query<{ n: string }>(
+      `select count(*)::text as n from deals d
+         join pipeline_stages s on s.id = d.stage_id
+        where d.tenant_id = $1 and s.archived_at is not null`,
+      [w.tenantId],
+    );
+    expect(Number(inRetired.rows[0]?.n)).toBe(0);
+  });
+
   it('writes amounts in minor units for the currency, not a fixed two decimals', async () => {
     for (const [currency, expected] of [
       ['INR', '8500000'], // 85,000.00 — two decimals

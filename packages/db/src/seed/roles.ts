@@ -135,6 +135,19 @@ const TENANT_SETTINGS_GRANT: SystemRoleGrant = {
   scope: 'all',
 };
 
+/**
+ * The pipeline and stage editor (MVP_SPEC M5, M9; ADR-0061).
+ *
+ * Owner and Admin, like the other company-wide configuration. Migration 0024
+ * backfills the same rows for tenants that already exist. A custom role gets
+ * nothing: the editor is an explicit grant.
+ */
+const PIPELINE_GRANT: SystemRoleGrant = {
+  objectType: 'pipeline',
+  actions: ['read', 'create', 'update', 'delete'],
+  scope: 'all',
+};
+
 const TENANT_DATA_GRANT: SystemRoleGrant = {
   objectType: 'tenant_data',
   actions: ['export'],
@@ -153,6 +166,7 @@ export const SYSTEM_ROLES: readonly SystemRoleDefinition[] = [
       TENANT_DATA_GRANT,
       DATA_SUBJECT_ERASE_GRANT,
       TENANT_SETTINGS_GRANT,
+      PIPELINE_GRANT,
     ],
   },
   {
@@ -165,6 +179,7 @@ export const SYSTEM_ROLES: readonly SystemRoleDefinition[] = [
       AUDIT_LOG_GRANT,
       DATA_SUBJECT_READ_GRANT,
       TENANT_SETTINGS_GRANT,
+      PIPELINE_GRANT,
     ],
   },
   {

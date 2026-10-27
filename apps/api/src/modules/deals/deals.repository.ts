@@ -222,6 +222,58 @@ export class DealsRepository {
     return rows[0] ?? null;
   }
 
+  /**
+   * Every deal in a stage, live and in the Recycle Bin, locked for the rest of the transaction.
+   *
+   * The pipeline editor moves them all out of a stage it is about to retire. A deal in the bin
+   * has to move too, or restoring it would put it in a stage that is no longer in use. Locking the
+   * rows stops a concurrent edit changing a deal between this read and the move.
+   */
+  async lockInStage(tx: Tx, tenantId: string, stageId: string, limit: number): Promise<Deal[]> {
+    return tx
+      .select()
+      .from(deals)
+      .where(and(eq(deals.tenantId, tenantId), eq(deals.stageId, stageId)))
+      .orderBy(asc(deals.createdAt), asc(deals.id))
+      .limit(limit)
+      .for('update');
+  }
+
+  /** Version-guarded stage move for a deal that may be in the Recycle Bin (see `lockInStage`). */
+  async moveWithVersion(
+    tx: Tx,
+    tenantId: string,
+    id: string,
+    expectedVersion: number,
+    patch: Partial<typeof deals.$inferInsert>,
+  ): Promise<Deal | null> {
+    const rows = await tx
+      .update(deals)
+      .set({ ...patch, version: expectedVersion + 1, updatedAt: new Date() })
+      .where(
+        and(eq(deals.tenantId, tenantId), eq(deals.id, id), eq(deals.version, expectedVersion)),
+      )
+      .returning();
+    return rows[0] ?? null;
+  }
+
+  /** How many deals each stage holds: live ones, and ones in the Recycle Bin. */
+  async countsByStage(
+    tx: Tx,
+    tenantId: string,
+  ): Promise<{ stageId: string; live: number; recycleBin: number }[]> {
+    const rows = await tx
+      .select({
+        stageId: deals.stageId,
+        live: sql<number>`count(*) filter (where ${deals.deletedAt} is null)::int`,
+        recycleBin: sql<number>`count(*) filter (where ${deals.deletedAt} is not null)::int`,
+      })
+      .from(deals)
+      .where(eq(deals.tenantId, tenantId))
+      .groupBy(deals.stageId);
+    return rows;
+  }
+
   /** Soft delete, so the record can be restored from the Recycle Bin. */
   async softDelete(
     tx: Tx,

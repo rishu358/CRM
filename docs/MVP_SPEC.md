@@ -200,6 +200,7 @@ P1: `record_lookup, formula, rollup, file`. Values are validated in `packages/co
 
 - [x] Dragging a deal updates the stage instantly (optimistic) and writes a timeline + audit entry.
 - [x] Moving a deal to a "won" stage sets `closed_at` and probability 100.
+- [ ] An administrator edits a pipeline's stages (add, rename, reorder, set probability, won or lost type, retire and restore) from Settings, Pipelines. Retiring a stage that holds deals names a stage of the same type to move them to, in one transaction, with an audit entry and an event per deal; the board and dashboard show the result at once; every rule is enforced by the API and the database, and the `pipeline` grant is separate from the deal grants. Creating, renaming or deleting whole pipelines is not built (plan limits undecided). (`pipeline-editor.spec.ts`, `pipeline-editor.security.spec.ts` in `@crm/api`; `pipeline-editor.migration.security.spec.ts` in `@crm/db`; `e2e/pipeline-editor.spec.ts`; ADR-0061; not yet confirmed green in CI)
 
 ### M6. Activities, Tasks & Notifications (P0)
 
