@@ -159,7 +159,12 @@ export class PipelineEditorService {
             reference: { recordId: stage.id, pipelineId },
           };
         },
-        (reference) => this.managed(tx, actor, String(reference['pipelineId'] ?? pipelineId)),
+        (reference) =>
+          this.managed(
+            tx,
+            actor,
+            typeof reference['pipelineId'] === 'string' ? reference['pipelineId'] : pipelineId,
+          ),
       ),
     );
   }
