@@ -33,7 +33,7 @@ describe('the base', () => {
     'https://chat.example/?a=1',
     'https://chat.example?a=1',
     'https://chat.example#x',
-    'https://chat.example/\evil.example',
+    'https://chat.example/\\evil.example',
     ' https://chat.example',
     'https://chat.example ',
     'HTTPS://CHAT.EXAMPLE',
