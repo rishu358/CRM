@@ -259,6 +259,8 @@ export const pipelines = pgTable(
     position: integer('position').notNull().default(0),
     isDefault: boolean('is_default').notNull().default(false),
     isActive: boolean('is_active').notNull().default(true),
+    /** Bumped by every edit to the pipeline's stages, so a stale editor gets a 409 (ADR-0062). */
+    version: integer('version').notNull().default(1),
   },
   (table) => [
     uniqueIndex('pipelines_tenant_name_key').on(table.tenantId, sql`lower(${table.name})`),
@@ -276,6 +278,10 @@ export const pipelineStages = pgTable(
     /** Whole percent. Fixed at 100 for won and 0 for lost. */
     probability: integer('probability').notNull().default(0),
     stageType: text('stage_type').$type<'open' | 'won' | 'lost'>().notNull().default('open'),
+    version: integer('version').notNull().default(1),
+    /** Set when the stage is retired. A retired stage keeps its row and takes no part in ordering. */
+    archivedAt: timestamptz('archived_at'),
+    archivedBy: uuid('archived_by'),
   },
   (table) => [
     index('pipeline_stages_pipeline_position_idx').on(
@@ -284,6 +290,13 @@ export const pipelineStages = pgTable(
       table.position,
       table.id,
     ),
+    // The partial unique indexes of 0024 (a position and a name are unique among the stages in use).
+    uniqueIndex('pipeline_stages_active_position_key')
+      .on(table.tenantId, table.pipelineId, table.position)
+      .where(sql`archived_at IS NULL`),
+    uniqueIndex('pipeline_stages_active_name_key')
+      .on(table.tenantId, table.pipelineId, sql`lower(${table.name})`)
+      .where(sql`archived_at IS NULL`),
   ],
 );
 

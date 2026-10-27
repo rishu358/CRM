@@ -33,6 +33,13 @@
  * `if (role === 'Owner')` somewhere in a service, is exactly what ADR-0008 and
  * CLAUDE.md §5.3 forbid.
  *
+ * `pipeline` is the same kind of thing for the pipeline and stage editor
+ * (MVP_SPEC M5, M9; ADR-0062). Reshaping the stages every deal moves through is
+ * a company-wide configuration change, not an edit to a deal, so it is its own
+ * grant: `deal:update` (a rep dragging a card) must never imply it. Seeing the
+ * pipelines on the board stays `deal:read`; `pipeline:read` is the editor's view,
+ * which also shows retired stages and how many deals sit in each.
+ *
  * They are kept apart rather than folded into one `data_rights` type because
  * the three differ in blast radius: a whole-workspace archive, one person's
  * file, and an irreversible erasure are not the same decision, and a single
@@ -53,6 +60,7 @@ export const OBJECT_TYPES = [
   'tenant_data',
   'data_subject',
   'tenant_settings',
+  'pipeline',
 ] as const;
 
 export type ObjectType = (typeof OBJECT_TYPES)[number];
@@ -178,6 +186,7 @@ export const ADMINISTRATIVE_OBJECT_TYPES = [
   'tenant_data',
   'data_subject',
   'tenant_settings',
+  'pipeline',
 ] as const;
 export type AdministrativeObjectType = (typeof ADMINISTRATIVE_OBJECT_TYPES)[number];
 

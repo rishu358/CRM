@@ -167,6 +167,7 @@ import {
   fieldUpdateSchema,
 } from './fields.js';
 import { auditEntrySchema, auditListQuerySchema } from './audit.js';
+import { pipelineEditorRoutes } from './pipeline-editor-routes.js';
 import {
   dataExportCreateSchema,
   dataExportJobSchema,
@@ -2717,6 +2718,7 @@ export const API_ROUTES: readonly RouteDefinition[] = [
     createErrors: [ErrorCode.CONFLICT],
   }),
   ...pipelineRoutes,
+  ...pipelineEditorRoutes,
   ...leadRoutes,
   ...standardObjectRoutes({
     tag: 'Leads',

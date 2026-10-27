@@ -51,6 +51,14 @@ export interface StageRuleInput {
   readonly lostReason?: string | null | undefined;
   /** Injected so the rules stay deterministic. */
   readonly now: Date;
+  /**
+   * The deal is being moved from one stage to another stage of the same kind
+   * because its stage was retired, not because anybody closed it again. A won
+   * or lost deal then keeps the moment it closed and its reason, so tidying a
+   * pipeline does not move "won this month" (ADR-0062). Ignored for open
+   * stages and when the deal was not already closed.
+   */
+  readonly keepClosedState?: boolean | undefined;
 }
 
 export interface DealStageState {
@@ -79,6 +87,7 @@ function trimmedOrNull(value: string | null | undefined): string | null {
 export function resolveStageState(input: StageRuleInput): DealStageState {
   const { stage, previous, now } = input;
   const unchangedStage = previous !== undefined && previous.stageId === stage.id;
+  const keepClosed = unchangedStage || input.keepClosedState === true;
   const suppliedReason = trimmedOrNull(input.lostReason);
 
   switch (stage.stageType) {
@@ -91,7 +100,7 @@ export function resolveStageState(input: StageRuleInput): DealStageState {
       }
       return {
         probability: 100,
-        closedAt: unchangedStage && previous.closedAt !== null ? previous.closedAt : now,
+        closedAt: keepClosed && previous?.closedAt != null ? previous.closedAt : now,
         lostReason: null,
       };
     }
@@ -102,7 +111,9 @@ export function resolveStageState(input: StageRuleInput): DealStageState {
       }
       // A reason already on file stays valid while the deal stays lost; one
       // that is being sent replaces it. Moving *into* lost has nothing on file.
-      const reason = suppliedReason ?? (unchangedStage ? trimmedOrNull(previous.lostReason) : null);
+      const reason =
+        suppliedReason ??
+        (keepClosed && previous !== undefined ? trimmedOrNull(previous.lostReason) : null);
       if (reason === null) {
         throw new StageRuleViolation(
           'lostReason',
@@ -111,7 +122,7 @@ export function resolveStageState(input: StageRuleInput): DealStageState {
       }
       return {
         probability: 0,
-        closedAt: unchangedStage && previous.closedAt !== null ? previous.closedAt : now,
+        closedAt: keepClosed && previous?.closedAt != null ? previous.closedAt : now,
         lostReason: reason,
       };
     }

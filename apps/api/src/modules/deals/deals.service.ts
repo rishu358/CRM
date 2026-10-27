@@ -5,6 +5,7 @@ import {
   buildCustomFieldsSchema,
   can,
   canReadField,
+  ForbiddenError,
   money,
   newId,
   NotFoundError,
@@ -434,19 +435,7 @@ export class DealsService {
     const stageChanged = existing.stageId !== updated.stageId;
     if (stageChanged) {
       const from = await this.pipelines.findStage(tx, actor.tenantId, existing.stageId);
-      await this.outbox.publish(tx, actor, {
-        eventType: 'deal.stage_changed.v1',
-        objectType: 'deal',
-        recordId: id,
-        payload: {
-          pipelineId: updated.pipelineId,
-          fromStageId: existing.stageId,
-          fromStageName: from?.name ?? null,
-          toStageId: stage.id,
-          toStageName: stage.name,
-          stageType: stage.stageType,
-        },
-      });
+      await this.publishStageChanged(tx, actor, id, updated.pipelineId, from, stage);
     }
 
     const otherChanges = Object.keys(changes).filter(
@@ -462,6 +451,122 @@ export class DealsService {
     }
 
     return serializeDeal(actor, updated, fields, people);
+  }
+
+  /**
+   * `deal.stage_changed.v1`: one event for a move, whoever made it (a drag, an edit, or the pipeline
+   * editor retiring a stage). The timeline renders it as "Moved from Qualified to Proposal" from
+   * the names carried here, so a later rename never rewrites what was written.
+   */
+  private async publishStageChanged(
+    tx: Tx,
+    actor: Actor,
+    dealId: string,
+    pipelineId: string,
+    from: StageInfo | null,
+    to: StageInfo,
+    extra: Record<string, unknown> = {},
+  ): Promise<void> {
+    await this.outbox.publish(tx, actor, {
+      eventType: 'deal.stage_changed.v1',
+      objectType: 'deal',
+      recordId: dealId,
+      payload: {
+        pipelineId,
+        fromStageId: from?.id ?? null,
+        fromStageName: from?.name ?? null,
+        toStageId: to.id,
+        toStageName: to.name,
+        stageType: to.stageType,
+        ...extra,
+      },
+    });
+  }
+
+  /**
+   * How many deals sit in each stage, live and in the Recycle Bin, for the pipeline editor.
+   *
+   * Counts every deal in the workspace, not only the ones the caller's record scope admits: the
+   * editor shows a number so that an administrator knows what retiring a stage will move, and a
+   * count of "the deals you can see" would understate it. Counts only; no record is disclosed.
+   */
+  async countsByStage(
+    tx: Tx,
+    tenantId: string,
+  ): Promise<Map<string, { live: number; recycleBin: number }>> {
+    const rows = await this.repository.countsByStage(tx, tenantId);
+    return new Map(
+      rows.map((row) => [row.stageId, { live: row.live, recycleBin: row.recycleBin }]),
+    );
+  }
+
+  /**
+   * Move every deal out of a stage that is being retired, into a stage of the same type.
+   *
+   * The same rules as a drag: `resolveStageState` decides `closed_at`, probability and lost reason
+   * (with one difference, below), the version guard and the database trigger still apply, and each
+   * deal gets its own audit entry and its own `deal.stage_changed.v1` event, so the timeline reads
+   * "Moved from X to Y" on every one of them. The differences are deliberate:
+   *
+   *  - a won or lost deal keeps the date it closed and its lost reason (`keepClosedState`), because
+   *    tidying a pipeline is not a deal being won again and must not move "won this month";
+   *  - deals in the Recycle Bin move too, so a restore lands in a stage that is in use;
+   *  - it is not limited by the caller's record scope, because retiring a stage is a company-wide
+   *    configuration change authorized by `pipeline:delete`. It does need `update` on deals at
+   *    `all` scope, so a role that can only see its own deals cannot reassign everybody's.
+   *
+   * Runs inside the caller's transaction. Returns how many moved.
+   */
+  async moveOutOfStage(
+    actor: Actor,
+    tx: Tx,
+    from: StageInfo,
+    to: StageInfo,
+    limit: number,
+  ): Promise<{ live: number; recycleBin: number }> {
+    const decision = assertCan(actor, 'update', { objectType: 'deal' });
+    if (!decision.allowed || decision.constraint.kind !== 'all') throw new ForbiddenError();
+
+    const rows = await this.repository.lockInStage(tx, actor.tenantId, from.id, limit + 1);
+    if (rows.length > limit) {
+      throw new ValidationError([
+        {
+          path: 'moveDealsToStageId',
+          message: `This stage holds more than ${limit} deals. Move some of them on the board first, then retire it.`,
+        },
+      ]);
+    }
+
+    let live = 0;
+    let recycleBin = 0;
+    for (const existing of rows) {
+      const state = this.stageStateKeepingClosed(to, existing);
+      const updated = await this.translateStageState(() =>
+        this.repository.moveWithVersion(tx, actor.tenantId, existing.id, existing.version, {
+          pipelineId: to.pipelineId,
+          stageId: to.id,
+          ...state,
+          updatedBy: actor.userId,
+        }),
+      );
+      // We hold the row lock, so a missed version here is a bug, not a race.
+      if (updated === null) throw new VersionConflictError('deal');
+
+      await this.audit.record(tx, actor, {
+        action: 'update',
+        objectType: 'deal',
+        recordId: existing.id,
+        changes: diffChanges(existing, updated),
+      });
+      await this.publishStageChanged(tx, actor, existing.id, updated.pipelineId, from, to, {
+        reason: 'stage_retired',
+      });
+
+      if (existing.deletedAt === null) live += 1;
+      else recycleBin += 1;
+    }
+
+    return { live, recycleBin };
   }
 
   async remove(actor: Actor, id: string, version: number): Promise<void> {
@@ -586,8 +691,12 @@ export class DealsService {
     stageId: string | undefined,
   ): Promise<StageInfo> {
     if (stageId !== undefined) {
-      const stage = await this.pipelines.findStage(tx, actor.tenantId, stageId);
-      if (stage === null || (pipelineId !== undefined && stage.pipelineId !== pipelineId)) {
+      const stage = await this.pipelines.findStageForPlacement(tx, actor.tenantId, stageId);
+      if (
+        stage === null ||
+        stage.isRetired ||
+        (pipelineId !== undefined && stage.pipelineId !== pipelineId)
+      ) {
         throw stageNotInPipeline();
       }
       await this.assertPipelineUsable(tx, actor, stage.pipelineId);
@@ -625,8 +734,10 @@ export class DealsService {
     const targetPipelineId = input.pipelineId ?? existing.pipelineId;
     const targetStageId = input.stageId ?? existing.stageId;
 
-    const stage = await this.pipelines.findStage(tx, actor.tenantId, targetStageId);
-    if (stage === null || stage.pipelineId !== targetPipelineId) {
+    // A shared lock on the stage row: the pipeline editor locks it before retiring the stage, so a
+    // deal cannot be placed in a stage that is being retired (ADR-0062).
+    const stage = await this.pipelines.findStageForPlacement(tx, actor.tenantId, targetStageId);
+    if (stage === null || stage.isRetired || stage.pipelineId !== targetPipelineId) {
       throw stageNotInPipeline();
     }
     if (targetPipelineId !== existing.pipelineId) {
@@ -662,6 +773,28 @@ export class DealsService {
               },
         probability,
         lostReason,
+        now: new Date(),
+      });
+    } catch (error) {
+      if (error instanceof StageRuleViolation) {
+        throw new ValidationError([{ path: error.path, message: error.message }]);
+      }
+      throw error;
+    }
+  }
+
+  /** `stageState` for a deal moved by a stage retirement: a closed deal keeps when it closed. */
+  private stageStateKeepingClosed(stage: StageInfo, previous: DealRow): DealStageState {
+    try {
+      return resolveStageState({
+        stage,
+        previous: {
+          stageId: previous.stageId,
+          probability: previous.probability,
+          closedAt: previous.closedAt,
+          lostReason: previous.lostReason,
+        },
+        keepClosedState: true,
         now: new Date(),
       });
     } catch (error) {

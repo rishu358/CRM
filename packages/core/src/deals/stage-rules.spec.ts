@@ -170,3 +170,55 @@ describe('open stages', () => {
     });
   });
 });
+
+describe('keepClosedState (a retired stage tidied away, ADR-0062)', () => {
+  const otherWon: StageFacts = { id: 'won-2', stageType: 'won', probability: 100 };
+  const otherLost: StageFacts = { id: 'lost-2', stageType: 'lost', probability: 0 };
+  const wonDeal: DealStageSnapshot = {
+    stageId: 'won-1',
+    probability: 100,
+    closedAt: EARLIER,
+    lostReason: null,
+  };
+
+  it('keeps the moment a won deal closed when it moves to another won stage', () => {
+    const state = resolveStageState({
+      stage: otherWon,
+      previous: wonDeal,
+      keepClosedState: true,
+      now: NOW,
+    });
+    expect(state).toEqual({ probability: 100, closedAt: EARLIER, lostReason: null });
+  });
+
+  it('keeps the closed moment and the reason of a lost deal', () => {
+    const state = resolveStageState({
+      stage: otherLost,
+      previous: lostDeal,
+      keepClosedState: true,
+      now: NOW,
+    });
+    expect(state).toEqual({ probability: 0, closedAt: EARLIER, lostReason: 'chose a competitor' });
+  });
+
+  it('is what a normal move does not do: without it a won deal closes again now', () => {
+    const state = resolveStageState({ stage: otherWon, previous: wonDeal, now: NOW });
+    expect(state.closedAt).toEqual(NOW);
+  });
+
+  it('does nothing for an open deal moved to another open stage', () => {
+    const state = resolveStageState({
+      stage: otherOpen,
+      previous: openDeal,
+      keepClosedState: true,
+      now: NOW,
+    });
+    expect(state).toEqual({ probability: 60, closedAt: null, lostReason: null });
+  });
+
+  it('still needs a reason to enter a lost stage from an open deal', () => {
+    expect(() =>
+      resolveStageState({ stage: lost, previous: openDeal, keepClosedState: true, now: NOW }),
+    ).toThrow(StageRuleViolation);
+  });
+});

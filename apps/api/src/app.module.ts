@@ -20,6 +20,7 @@ import { LeadsModule } from './modules/leads/leads.module.js';
 import { CustomizationModule } from './modules/customization/customization.module.js';
 import { DashboardModule } from './modules/dashboard/dashboard.module.js';
 import { NotificationsModule } from './modules/notifications/notifications.module.js';
+import { PipelineEditorModule } from './modules/pipeline-editor/pipeline-editor.module.js';
 import { PipelinesModule } from './modules/pipelines/pipelines.module.js';
 import { OnboardingModule } from './modules/onboarding/onboarding.module.js';
 import { RecycleBinModule } from './modules/recycle-bin/recycle-bin.module.js';
@@ -50,6 +51,7 @@ export class AppModule {
         ContactsModule,
         PipelinesModule,
         DealsModule,
+        PipelineEditorModule,
         LeadsModule,
         ActivitiesModule,
         AttachmentsModule,

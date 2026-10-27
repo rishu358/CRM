@@ -1,5 +1,5 @@
 import { minorUnitExponent, newId, toCurrency, type OpenLeadStatus } from '@crm/core';
-import { asc, desc, eq, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, isNull, sql } from 'drizzle-orm';
 import type { Tx } from '../client.js';
 import {
   accounts,
@@ -133,7 +133,8 @@ export async function loadSampleData(tx: Tx, ctx: SampleDataContext): Promise<Sa
   const stages = await tx
     .select()
     .from(pipelineStages)
-    .where(eq(pipelineStages.pipelineId, pipeline.id))
+    // Stages in use only: a deal cannot be placed in a stage the pipeline editor retired.
+    .where(and(eq(pipelineStages.pipelineId, pipeline.id), isNull(pipelineStages.archivedAt)))
     .orderBy(asc(pipelineStages.position), asc(pipelineStages.id));
   const open = stages.filter((stage) => stage.stageType === 'open');
   const won = stages.find((stage) => stage.stageType === 'won');
