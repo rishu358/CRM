@@ -52,6 +52,7 @@ export {
   LogOut as SignOutIcon,
   Mail as MailIcon,
   Menu as MenuIcon,
+  MessageCircle as ChatIcon,
   PanelLeftClose as PanelLeftCloseIcon,
   PanelLeftOpen as PanelLeftOpenIcon,
   Pencil as EditIcon,
