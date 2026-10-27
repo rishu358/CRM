@@ -152,3 +152,41 @@ describe('defaults for new workspaces', () => {
     );
   });
 });
+
+describe('WHATSAPP_LINK_BASE', () => {
+  it('is the standard chat address unless set, and an empty value is unset', () => {
+    expect(loadEnv('web', {}).WHATSAPP_LINK_BASE).toBe('https://wa.me');
+    expect(loadEnv('web', { WHATSAPP_LINK_BASE: '' }).WHATSAPP_LINK_BASE).toBe('https://wa.me');
+  });
+
+  it.each(['https://wa.me', 'https://wa.me/', 'https://chat.example:8443'])(
+    'accepts %s',
+    (value) => {
+      expect(loadEnv('web', { WHATSAPP_LINK_BASE: value }).WHATSAPP_LINK_BASE).toBe(value);
+    },
+  );
+
+  // The person's phone number is part of the address, so whatever this names is sent numbers.
+  it.each([
+    'http://wa.me',
+    'javascript:alert(1)',
+    'data:text/html,x',
+    '//wa.me',
+    'wa.me',
+    'https://user@wa.me',
+    'https://user:pw@wa.me',
+    'https://wa.me/send',
+    'https://wa.me?x=1',
+    'https://wa.me/?x=1',
+    'https://wa.me#x',
+    'not a url',
+  ])('refuses %s', (value) => {
+    expect(problems(() => loadEnv('web', { WHATSAPP_LINK_BASE: value }))).toContain(
+      'WHATSAPP_LINK_BASE',
+    );
+  });
+
+  it('is a web setting only, so the API and the worker do not carry it', () => {
+    expect('WHATSAPP_LINK_BASE' in loadEnv('api', API)).toBe(false);
+  });
+});
