@@ -4,6 +4,9 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { WhatsAppChat } from './whatsapp-chat';
 
+/** A made-up base: the component is given the configured one and names no host itself. */
+const BASE = 'https://chat.example';
+
 /**
  * The chat control as the browser is handed it. Rendered to markup (no DOM is
  * needed: the control has no state), then the attributes that matter are read
@@ -12,7 +15,7 @@ import { WhatsAppChat } from './whatsapp-chat';
  */
 function render(name: string, record: { whatsapp?: string | null; phone?: string | null }) {
   return renderToStaticMarkup(
-    createElement(WhatsAppChat, { name, target: whatsAppTarget(record) }),
+    createElement(WhatsAppChat, { name, target: whatsAppTarget(BASE, record) }),
   );
 }
 
@@ -25,7 +28,7 @@ function attribute(markup: string, name: string): string | null {
 describe('WhatsAppChat', () => {
   it('links to the WhatsApp number, in a new tab, safely', () => {
     const markup = render('Asha Rao', { whatsapp: '+919876543210', phone: '+14155552671' });
-    expect(attribute(markup, 'href')).toBe('https://wa.me/919876543210');
+    expect(attribute(markup, 'href')).toBe('https://chat.example/919876543210');
     expect(attribute(markup, 'target')).toBe('_blank');
     expect(attribute(markup, 'rel')).toBe('noopener noreferrer');
     expect(markup).toContain('data-source="whatsapp"');
@@ -42,7 +45,7 @@ describe('WhatsAppChat', () => {
 
   it('falls back to the phone number and says so', () => {
     const markup = render('Asha Rao', { whatsapp: null, phone: '+14155552671' });
-    expect(attribute(markup, 'href')).toBe('https://wa.me/14155552671');
+    expect(attribute(markup, 'href')).toBe('https://chat.example/14155552671');
     expect(markup).toContain('data-source="phone"');
     expect(attribute(markup, 'aria-label')).toContain('phone number +14155552671');
     expect(attribute(markup, 'aria-label')).toContain('no WhatsApp number is saved');
@@ -79,7 +82,7 @@ describe('WhatsAppChat', () => {
   it('does not use the phone when the WhatsApp number is there but wrong', () => {
     const markup = render('Asha Rao', { whatsapp: '98765', phone: '+14155552671' });
     expect(markup).toContain('data-testid="whatsapp-invalid"');
-    expect(markup).not.toContain('wa.me');
+    expect(markup).not.toContain('chat.example');
   });
 
   it('never lets a name break out of the attribute it is placed in', () => {

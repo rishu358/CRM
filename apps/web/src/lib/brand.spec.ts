@@ -6,7 +6,7 @@ import { buildCsp } from './csp';
  * The web app's branding (ADR-0045): what is handed to components, what goes on the root element,
  * what the content security policy lets through for images.
  */
-const bare: BrandEnv = { APP_NAME: 'CRM' };
+const bare: BrandEnv = { APP_NAME: 'CRM', WHATSAPP_LINK_BASE: 'https://chat.example' };
 
 describe('publicBrand', () => {
   it('hands components the name and whatever else is configured, and null for the rest', () => {
@@ -18,6 +18,7 @@ describe('publicBrand', () => {
       supportEmail: null,
       termsUrl: null,
       privacyUrl: null,
+      whatsappLinkBase: 'https://chat.example',
     });
     expect(
       publicBrand({
@@ -27,6 +28,7 @@ describe('publicBrand', () => {
         SUPPORT_EMAIL: 'help@example.com',
         TERMS_URL: 'https://example.com/terms',
         PRIVACY_URL: '/privacy',
+        WHATSAPP_LINK_BASE: 'https://chat.example',
       }),
     ).toEqual({
       signUpOpen: true,
@@ -36,6 +38,7 @@ describe('publicBrand', () => {
       supportEmail: 'help@example.com',
       termsUrl: 'https://example.com/terms',
       privacyUrl: '/privacy',
+      whatsappLinkBase: 'https://chat.example',
     });
   });
 });

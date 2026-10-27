@@ -21,6 +21,7 @@ import { t } from '../lib/i18n';
 import { useRecordView } from '../lib/activities';
 import { AppShell } from './app-shell';
 import { BackLink } from './back-link';
+import { useBrand } from './brand-provider';
 import { WhoCanSeeButton } from './who-can-see';
 import { ActivityPanel } from './activity-panel';
 import { AttachmentPanel } from './attachment-panel';
@@ -62,6 +63,7 @@ export function ContactDetail({ id }: { id: string }) {
 
   const query = useContact(id);
   const update = useUpdateContact();
+  const { whatsappLinkBase } = useBrand();
 
   if (query.isPending) {
     return (
@@ -105,7 +107,7 @@ export function ContactDetail({ id }: { id: string }) {
   const record = contact as unknown as Record<string, unknown>;
   // Which number a chat would use. Built from what the API returned, so a number
   // the caller may not read (absent from the payload) is never offered.
-  const chat = whatsAppTarget(contact);
+  const chat = whatsAppTarget(whatsappLinkBase, contact);
 
   // A 409 means a colleague saved while this user was editing. Offering a
   // reload is the honest response: we will not guess whose version wins.

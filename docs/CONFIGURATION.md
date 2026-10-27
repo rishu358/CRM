@@ -59,6 +59,7 @@ always wins over the file.
 | [`BRAND_FAVICON_URL`](#brand_favicon_url)                             | web                        | no            | no     |
 | [`BRAND_COLOR`](#brand_color)                                         | web                        | no            | no     |
 | [`BRAND_COLOR_DARK`](#brand_color_dark)                               | web                        | no            | no     |
+| [`WHATSAPP_LINK_BASE`](#whatsapp_link_base)                           | web                        | no            | no     |
 | [`DEFAULT_CURRENCY`](#default_currency)                               | api                        | no            | no     |
 | [`DEFAULT_TIMEZONE`](#default_timezone)                               | api                        | no            | no     |
 | [`DEFAULT_LOCALE`](#default_locale)                                   | api                        | no            | no     |
@@ -300,6 +301,17 @@ Primary colour of the dark theme, written #rrggbb. Unset keeps the built-in dark
 - **Secret:** no
 
 Must be light enough to read as text on the dark background (4.5:1), or the web app refuses to start.
+
+### `WHATSAPP_LINK_BASE`
+
+Where the "WhatsApp" button on a contact, account or lead sends the person: this address plus the number, for example https://wa.me/919876543210. The default is WhatsApp's own chat address; leave it unset unless WhatsApp changes it.
+
+- **Used by:** web
+- **Required:** no
+- **Secret:** no
+- **Default:** `https://wa.me`
+
+Operator setting, never something a user or tenant can change: the person's phone number is part of the address, so whichever host is set here is sent people's phone numbers. Only an https address with a host and nothing else (no user name, path, query or fragment) is accepted, or the web app refuses to start.
 
 ## Defaults for new workspaces
 

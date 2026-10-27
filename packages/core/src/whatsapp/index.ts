@@ -6,19 +6,18 @@
  * log nothing and hold no Meta account. The Business API is a separate, later
  * piece with its own provider adapter.
  *
- * This file is the only place that names the WhatsApp host and the only place
- * that turns a phone number into an address. That is deliberate: the number is
- * text a person typed or an import carried in, so everything that reaches an
- * `href` is decided here, once, and tested against hostile input.
+ * This file is the only place that turns a phone number into an address. That is
+ * deliberate: the number is text a person typed or an import carried in, so
+ * everything that reaches an `href` is decided here, once, and tested against
+ * hostile input.
  *
- * The host is a constant, not configuration (ADR-0061). It is the vendor's
- * published deep-link address, it is the same on every deployment, and making it
- * configurable would let a misconfiguration send people's phone numbers to
- * whatever host was configured.
+ * The host is not named here. It arrives as a parameter, from the configuration
+ * registry (`WHATSAPP_LINK_BASE`, ADR-0061, CLAUDE.md section 13.1). It is
+ * operator configuration, never tenant or user input, because whatever host it
+ * names is sent people's phone numbers. `isWhatsAppLinkBase` refuses anything
+ * but a plain https origin, so even a bad value cannot add a path, a query,
+ * credentials or another scheme.
  */
-
-/** The one place the WhatsApp chat host is named. */
-const WHATSAPP_CHAT_ORIGIN = 'https://wa.me';
 
 /**
  * Strict E.164 for a chat link: a plus sign, then 8 to 15 digits, the first not
@@ -29,6 +28,28 @@ const CHAT_NUMBER = /^\+[1-9][0-9]{7,14}$/;
 
 /** The longest first message put in a link, counted in characters a person sees. */
 export const WHATSAPP_MAX_TEXT_LENGTH = 500;
+
+/**
+ * Whether this is a base a chat link may be built on: an https origin and nothing
+ * more (no credentials, path, query or fragment). `https://wa.me` and
+ * `https://wa.me/` pass; `http://wa.me`, `https://user@wa.me` and
+ * `https://wa.me/x?y` do not.
+ */
+export function isWhatsAppLinkBase(value: unknown): value is string {
+  if (typeof value !== 'string') return false;
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    return false;
+  }
+  return (
+    url.protocol === 'https:' &&
+    url.username === '' &&
+    url.password === '' &&
+    (value === url.origin || value === `${url.origin}/`)
+  );
+}
 
 /** Whether this is a number a chat link can be built for. Whitespace makes it invalid. */
 export function isWhatsAppNumber(value: unknown): value is string {
@@ -68,21 +89,22 @@ function encode(text: string): string {
 }
 
 /**
- * The address that opens a WhatsApp chat with `number`, with `text` typed in
- * ready to send when it is given.
+ * The address that opens a WhatsApp chat with `number` on `base`, with `text`
+ * typed in ready to send when it is given.
  *
- * Returns null for anything that is not strict E.164 (see `isWhatsAppNumber`).
- * The only characters that can appear after the host are the digits of the
- * number and a percent-encoded query, so no scheme, host or path of the
- * caller's choosing can result.
+ * Returns null for a base that is not a plain https origin (see
+ * `isWhatsAppLinkBase`) and for anything that is not strict E.164 (see
+ * `isWhatsAppNumber`). The only characters that can appear after the base are
+ * the digits of the number and a percent-encoded query, so no scheme, host or
+ * path of the caller's choosing can result.
  *
  * `text` is optional. It is cleaned (invisible and control characters removed,
  * line endings made `\n`), capped at `WHATSAPP_MAX_TEXT_LENGTH` characters and
  * percent-encoded. Text that is empty once cleaned adds no query at all.
  */
-export function buildWhatsAppLink(number: unknown, text?: unknown): string | null {
-  if (!isWhatsAppNumber(number)) return null;
-  const link = `${WHATSAPP_CHAT_ORIGIN}/${number.slice(1)}`;
+export function buildWhatsAppLink(base: unknown, number: unknown, text?: unknown): string | null {
+  if (!isWhatsAppLinkBase(base) || !isWhatsAppNumber(number)) return null;
+  const link = `${new URL(base).origin}/${number.slice(1)}`;
   if (typeof text !== 'string') return link;
   const cleaned = cleanText(text);
   return cleaned.length === 0 ? link : `${link}?text=${encode(cleaned)}`;
@@ -110,12 +132,18 @@ const present = (value: string | null | undefined): value is string =>
  * no WhatsApp number at all. A WhatsApp number that is there but malformed is
  * reported as `invalid` rather than quietly swapped for the phone: the person
  * should fix the number they entered, not chat with one they did not choose.
- * Returns null when the record has neither, and the button is not shown.
+ * Returns null when the record has neither, and the button is not shown. A base
+ * that is not usable also returns null: that is a deployment fault, refused when
+ * the web app starts, and not something to blame on the person's number.
  */
-export function whatsAppTarget(record: {
-  readonly whatsapp?: string | null | undefined;
-  readonly phone?: string | null | undefined;
-}): WhatsAppTarget | null {
+export function whatsAppTarget(
+  base: unknown,
+  record: {
+    readonly whatsapp?: string | null | undefined;
+    readonly phone?: string | null | undefined;
+  },
+): WhatsAppTarget | null {
+  if (!isWhatsAppLinkBase(base)) return null;
   const source: WhatsAppSource | null = present(record.whatsapp)
     ? 'whatsapp'
     : present(record.phone)
@@ -123,7 +151,7 @@ export function whatsAppTarget(record: {
       : null;
   if (source === null) return null;
   const number = (source === 'whatsapp' ? record.whatsapp : record.phone) as string;
-  const href = buildWhatsAppLink(number);
+  const href = buildWhatsAppLink(base, number);
   return href === null
     ? { status: 'invalid', source, number }
     : { status: 'link', source, number, href };

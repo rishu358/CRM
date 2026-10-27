@@ -21,6 +21,7 @@ import { t, type TranslationKey } from '../lib/i18n';
 import { useRecordView } from '../lib/activities';
 import { AppShell } from './app-shell';
 import { BackLink } from './back-link';
+import { useBrand } from './brand-provider';
 import { WhoCanSeeButton } from './who-can-see';
 import { ActivityPanel } from './activity-panel';
 import { AttachmentPanel } from './attachment-panel';
@@ -121,6 +122,7 @@ export function AccountDetail({ id }: { id: string }) {
 
   const query = useAccount(id);
   const update = useUpdateAccount();
+  const { whatsappLinkBase } = useBrand();
 
   if (query.isPending) {
     return (
@@ -163,7 +165,7 @@ export function AccountDetail({ id }: { id: string }) {
   const account = query.data.data;
   const record = account as unknown as Record<string, unknown>;
   // Accounts carry a phone number only, so a chat always uses it.
-  const chat = whatsAppTarget(account);
+  const chat = whatsAppTarget(whatsappLinkBase, account);
 
   // A 409 means a colleague saved while this user was editing. Offering a
   // reload is the honest response: we will not guess whose version wins.
