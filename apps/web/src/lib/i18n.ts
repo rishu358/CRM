@@ -1497,6 +1497,87 @@ export const en = {
   'bulk.delete.body':
     'They move to the Recycle Bin and can be restored for 30 days. After that they are removed for good.',
   'bulk.delete.confirm': 'Delete',
+
+  // Merging duplicates (ADR-0064)
+  'merge.duplicates.title': 'Possible duplicates',
+  'merge.duplicates.none': 'Nothing here looks like a duplicate.',
+  'merge.duplicates.error': 'Possible duplicates could not be loaded.',
+  'merge.with': 'Merge with another record',
+  'merge.action': 'Merge',
+  'merge.action.with': 'Merge with {name}',
+  'merge.title': 'Merge records',
+  'merge.description.contact':
+    'Two contacts become one. Nothing is lost: everything that belonged to the one you merge away moves to the one you keep.',
+  'merge.description.account':
+    'Two companies become one. Nothing is lost: everything that belonged to the one you merge away moves to the one you keep.',
+  'merge.choose.search': 'Find the other record',
+  'merge.choose.placeholder.contact': 'Name, email or phone',
+  'merge.choose.placeholder.account': 'Company name, domain or phone',
+  'merge.choose.hint': 'Type at least two letters.',
+  'merge.choose.results': 'Matching records',
+  'merge.choose.pick': 'Choose',
+  'merge.choose.none': 'No other record matches.',
+  'merge.choose.error': 'The search could not be completed.',
+  'merge.keep.legend': 'Which record stays',
+  'merge.keep.this': 'Keep this one: {name}',
+  'merge.keep.thisHint': 'The other record is merged into this one and goes to the Recycle Bin.',
+  'merge.keep.theOther': 'Keep the other: {name}',
+  'merge.keep.otherHint': 'This record is merged into the other one and goes to the Recycle Bin.',
+  'merge.fields.title': 'Which value to keep',
+  'merge.fields.hint':
+    'Pick the value each field should have after the merge. Where the kept record has nothing and the other has something, the other’s is selected for you.',
+  'merge.fields.none': 'There are no fields to choose between.',
+  'merge.fields.field': 'Field',
+  'merge.fields.keeps': 'Kept record',
+  'merge.fields.takes': 'Other record',
+  'merge.fields.same': 'Same in both',
+  'merge.back': 'Back',
+  'merge.review': 'Review',
+  'merge.review.summary': 'Merge {away} into {keep}. This is what will move:',
+  'merge.review.moves': 'What will move',
+  'merge.review.unseen':
+    'Anything you cannot see on these records moves with them, and is not counted here.',
+  'merge.review.bin.contact':
+    'The merged-away contact goes to the Recycle Bin. An administrator can restore it there for 30 days; it then comes back as a contact of its own, and what moved stays with the one you kept. Its old link will take people to the contact you kept.',
+  'merge.review.bin.account':
+    'The merged-away company goes to the Recycle Bin. An administrator can restore it there for 30 days; it then comes back as a company of its own, and what moved stays with the one you kept. Its old link will take people to the company you kept.',
+  'merge.confirm': 'Merge records',
+  'merge.done.title': 'The records were merged.',
+  'merge.done.body':
+    'Everything moved to the record you kept. This cannot be repeated for the same pair.',
+  'merge.done.open': 'Open the merged record',
+  'merge.done.close': 'Close',
+  'merge.count.activities.one': '{count} activity',
+  'merge.count.activities.other': '{count} activities',
+  'merge.count.notes.one': '{count} note',
+  'merge.count.notes.other': '{count} notes',
+  'merge.count.files.one': '{count} file',
+  'merge.count.files.other': '{count} files',
+  'merge.count.deals.one': '{count} deal',
+  'merge.count.deals.other': '{count} deals',
+  'merge.count.contacts.one': '{count} contact',
+  'merge.count.contacts.other': '{count} contacts',
+  'merge.count.childAccounts.one': '{count} child company',
+  'merge.count.childAccounts.other': '{count} child companies',
+  'merge.count.leads.one': '{count} converted lead',
+  'merge.count.leads.other': '{count} converted leads',
+  'merge.count.tags.one': '{count} tag added',
+  'merge.count.tags.other': '{count} tags added',
+  'merge.loadError.title': 'The records could not be loaded',
+  'merge.loadError.description':
+    'You may not be allowed to see one of them. Close this and try again.',
+  'merge.error.conflict':
+    'One of the records was changed by somebody else. Close this, reload and try again.',
+  'merge.error.forbidden':
+    'You can see these records but may not merge them. Merging needs permission to change the one you keep and to delete the other.',
+  'merge.error.field': 'You may not change one of the fields you chose.',
+  'merge.error.already': 'These two records have already been merged.',
+  'merge.error.notFound': 'One of the records is no longer available to you.',
+  'merge.error.inProgress': 'This merge is already running. Wait a moment and try again.',
+  'merge.merged.title': 'This record was merged into another',
+  'merge.merged.description':
+    'It no longer exists on its own. Everything that belonged to it is on the record it was merged into.',
+  'merge.merged.open': 'Open the merged record',
 } as const;
 
 export type TranslationKey = keyof typeof en;
