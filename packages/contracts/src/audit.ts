@@ -57,6 +57,8 @@ export type AuditObjectType = z.infer<typeof auditObjectTypeSchema>;
  */
 export const AUDIT_EXTRA_ACTIONS = [
   'restore',
+  // A duplicate folded into another record, and the record that received it (ADR-0064).
+  'merge',
   'purge',
   'login',
   'logout',

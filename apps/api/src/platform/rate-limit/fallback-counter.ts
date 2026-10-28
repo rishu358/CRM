@@ -54,6 +54,17 @@ export class FallbackCounter implements RateLimitCounter {
     this.now = options.now ?? Date.now;
   }
 
+  async releaseMany(keys: readonly string[]): Promise<void> {
+    // A refund is bookkeeping: it is never worth failing a request for. If the shared store cannot
+    // be reached the slot stays spent until its window ends, which is the cautious side to err on.
+    if (this.now() < this.openUntil) return this.local.releaseMany(keys);
+    try {
+      await this.shared.releaseMany(keys);
+    } catch {
+      await this.local.releaseMany(keys);
+    }
+  }
+
   async hitMany(entries: readonly RateLimitEntry[]): Promise<readonly RateLimitHit[]> {
     const now = this.now();
     if (now < this.openUntil) return this.local.hitMany(entries);

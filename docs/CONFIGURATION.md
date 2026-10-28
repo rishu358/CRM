@@ -81,6 +81,8 @@ always wins over the file.
 | [`SESSION_TTL_DAYS`](#session_ttl_days)                                         | api, web                   | no            | no     |
 | [`AUTH_RATE_LIMIT_WINDOW_SECONDS`](#auth_rate_limit_window_seconds)             | api                        | no            | no     |
 | [`AUTH_RATE_LIMIT_MAX_PER_IP`](#auth_rate_limit_max_per_ip)                     | api                        | no            | no     |
+| [`AUTH_FAILURE_MAX_PER_ACCOUNT`](#auth_failure_max_per_account)                 | api                        | no            | no     |
+| [`AUTH_FAILURE_MAX_PER_IP`](#auth_failure_max_per_ip)                           | api                        | no            | no     |
 | [`AUTH_THROTTLE_MAX_DELAY_MS`](#auth_throttle_max_delay_ms)                     | api                        | no            | no     |
 | [`RATE_LIMIT_WINDOW_SECONDS`](#rate_limit_window_seconds)                       | api                        | no            | no     |
 | [`RATE_LIMIT_MAX_PER_USER`](#rate_limit_max_per_user)                           | api                        | no            | no     |
@@ -534,7 +536,7 @@ How long a session lasts, in days (at most 90). The API and the web app must agr
 
 ### `AUTH_RATE_LIMIT_WINDOW_SECONDS`
 
-Window for the per-address ceiling on sign-in, sign-up, password reset and invitation acceptance, which have no user to key a limit on (CLAUDE.md §5.14).
+Window for the sign-in limits: the per-address ceiling on sign-in, sign-up, password reset and invitation acceptance, which have no user to key a limit on (CLAUDE.md §5.14), and the failed-attempt budgets below (ADR-0064).
 
 - **Used by:** api
 - **Required:** no
@@ -543,14 +545,32 @@ Window for the per-address ceiling on sign-in, sign-up, password reset and invit
 
 ### `AUTH_RATE_LIMIT_MAX_PER_IP`
 
-Most such attempts one address may make per window.
+Most requests of any kind (successful or not) one address may make to those routes per window. A flood ceiling, sized for an office behind one address; the budget for wrong passwords is `AUTH_FAILURE_MAX_PER_IP`.
 
 - **Used by:** api
 - **Required:** no
 - **Secret:** no
-- **Default:** `50`
+- **Default:** `600`
 
 The end-to-end suite signs in dozens of times from one address, which this ceiling rightly refuses on a second run inside the window. Raise it locally before running `pnpm test:e2e` repeatedly, or restart the API between runs (the counter is in-process).
+
+### `AUTH_FAILURE_MAX_PER_ACCOUNT`
+
+Most failed sign-ins (wrong password or code) one account may have per window, from any address. Past it every attempt on that account is refused until the window ends, a correct password included, and an unknown address is counted the same way so the refusal does not say whether an account exists (ADR-0064).
+
+- **Used by:** api
+- **Required:** no
+- **Secret:** no
+- **Default:** `10`
+
+### `AUTH_FAILURE_MAX_PER_IP`
+
+Most failed sign-ins one address may have per window, across all accounts. Successful sign-ins do not count, so an office behind one address is not locked out by its own people signing in (ADR-0064).
+
+- **Used by:** api
+- **Required:** no
+- **Secret:** no
+- **Default:** `100`
 
 ### `AUTH_THROTTLE_MAX_DELAY_MS`
 

@@ -58,6 +58,7 @@ const ACTION_FILTERS = [
   'update',
   'delete',
   'restore',
+  'merge',
   'purge',
   'export',
   'import',
