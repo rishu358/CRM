@@ -76,6 +76,36 @@ export const TAGS_MAX_PER_TENANT = 500;
 
 export const TAG_NAME_MAX = 50;
 
+/**
+ * The colours a tag may have, by name. A closed set rather than free text: the colour is stored
+ * and sent to every browser, and a name cannot carry CSS. The web app maps each name to a pair of
+ * light and dark chip colours that meet WCAG AA, so a person choosing "red" cannot pick unreadable text.
+ */
+export const TAG_COLORS = [
+  'gray',
+  'red',
+  'orange',
+  'amber',
+  'green',
+  'teal',
+  'blue',
+  'violet',
+] as const;
+export type TagColor = (typeof TAG_COLORS)[number];
+
+/**
+ * The pseudo-field a list is filtered by tag on. Not a column and not a field definition, so it is
+ * never sortable and never readable as a value; it is a question about the `record_tags` table
+ * ("has any of these tags", "has none of them") answered by one shared statement in `@crm/db`.
+ */
+export const TAGS_FILTER_FIELD = 'tags';
+
+/**
+ * Tag ids one filter may name. Six, because a view condition's value is at most 256 characters and
+ * a uuid is 36 plus a comma; a list rarely needs more than a handful of tags at once.
+ */
+export const TAG_FILTER_MAX_IDS = 6;
+
 /** A tag name as a person typed it: trimmed, one line, no control characters. */
 export function normalizeTagName(raw: string): string {
   return raw.replace(/\s+/g, ' ').trim();

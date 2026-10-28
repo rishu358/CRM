@@ -1,4 +1,4 @@
-import type { BusinessObjectType } from '@crm/core';
+import type { BusinessObjectType, TagColor } from '@crm/core';
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import type { Tx } from '../client.js';
 import { recordTags, tags } from '../schema/crm.js';
@@ -69,13 +69,14 @@ export async function loadBulkRows(
 export interface TagRef {
   readonly id: string;
   readonly name: string;
-  readonly color: string | null;
+  readonly color: TagColor | null;
+  readonly version: number;
 }
 
 /** Every tag in the workspace, by name. The picker's list; bounded by `TAGS_MAX_PER_TENANT`. */
 export async function listTags(tx: Tx, tenantId: string): Promise<TagRef[]> {
   const rows = await tx
-    .select({ id: tags.id, name: tags.name, color: tags.color })
+    .select({ id: tags.id, name: tags.name, color: tags.color, version: tags.version })
     .from(tags)
     .where(eq(tags.tenantId, tenantId))
     .orderBy(sql`lower(${tags.name})`, tags.id);
@@ -99,7 +100,7 @@ export async function findTagsByName(
   if (names.length === 0) return [];
   const lowered = names.map((name) => name.toLowerCase());
   return tx
-    .select({ id: tags.id, name: tags.name, color: tags.color })
+    .select({ id: tags.id, name: tags.name, color: tags.color, version: tags.version })
     .from(tags)
     .where(
       and(
@@ -122,12 +123,12 @@ export async function insertTag(
     .insert(tags)
     .values({ ...row, updatedBy: row.createdBy })
     .onConflictDoNothing()
-    .returning({ id: tags.id, name: tags.name, color: tags.color });
+    .returning({ id: tags.id, name: tags.name, color: tags.color, version: tags.version });
   const made = inserted[0];
   if (made !== undefined) return made;
 
   const existing = await tx
-    .select({ id: tags.id, name: tags.name, color: tags.color })
+    .select({ id: tags.id, name: tags.name, color: tags.color, version: tags.version })
     .from(tags)
     .where(and(eq(tags.tenantId, row.tenantId), eq(tags.name, row.name)))
     .limit(1);

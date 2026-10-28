@@ -1,6 +1,7 @@
 import {
   isUuid,
   QUERY_COLUMNS,
+  TAGS_FILTER_FIELD,
   ValidationError,
   type ColumnKind,
   type ExportableObjectType,
@@ -9,6 +10,8 @@ import {
 } from '@crm/core';
 import { sql, type SQL } from 'drizzle-orm';
 import { constraintToSql } from '../record-scope.js';
+import { accounts, contacts, deals, leads } from '../schema/crm.js';
+import { isTagFilterOperator, tagFilterSql } from '../tags/index.js';
 import { LIKE_ESCAPE, OBJECT_DESCRIPTORS, type ObjectDescriptor } from './descriptors.js';
 
 /**
@@ -51,8 +54,38 @@ export interface QueryFilter {
     | 'starts_with'
     | 'in'
     | 'is_null'
-    | 'is_not_null';
+    | 'is_not_null'
+    | 'has_any'
+    | 'has_none';
   readonly value: string;
+}
+
+const TENANT_COLUMNS: Readonly<Record<ExportableObjectType, SQL>> = {
+  contact: sql`${contacts.tenantId}`,
+  account: sql`${accounts.tenantId}`,
+  lead: sql`${leads.tenantId}`,
+  deal: sql`${deals.tenantId}`,
+};
+
+/** `tags:has_any:<ids>` / `tags:has_none:<ids>`, or a 422 when the operator is not one of those. */
+function tagFilterFor(
+  objectType: ExportableObjectType,
+  descriptor: ObjectDescriptor,
+  filter: QueryFilter,
+): SQL {
+  if (!isTagFilterOperator(filter.operator)) {
+    throw new ValidationError([
+      { path: filter.field, message: `Cannot use "${filter.operator}" on this field` },
+    ]);
+  }
+  return tagFilterSql({
+    field: filter.field,
+    objectType,
+    operator: filter.operator,
+    value: filter.value,
+    idColumn: descriptor.id,
+    tenantColumn: TENANT_COLUMNS[objectType],
+  });
 }
 
 export function escapeLikePattern(value: string): string {
@@ -165,6 +198,12 @@ export function filterToSql(filter: QueryFilter, column: ResolvedColumn): SQL {
       return sql`${expression} is null`;
     case 'is_not_null':
       return sql`${expression} is not null`;
+    case 'has_any':
+    case 'has_none':
+      // Only the `tags` field takes these, and it never reaches a column.
+      throw new ValidationError([
+        { path: filter.field, message: `Cannot use "${filter.operator}" on this field` },
+      ]);
   }
 }
 
@@ -222,6 +261,10 @@ export function planQuery(
   if (scope !== undefined) where.push(scope);
 
   for (const filter of query.filters) {
+    if (filter.field === TAGS_FILTER_FIELD) {
+      where.push(tagFilterFor(objectType, descriptor, filter));
+      continue;
+    }
     where.push(filterToSql(filter, resolveColumn(objectType, descriptor, filter.field, fields)));
   }
 

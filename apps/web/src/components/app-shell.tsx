@@ -28,6 +28,7 @@ import {
   SecurityIcon,
   SetupIcon,
   SignOutIcon,
+  TagIcon,
   TeamIcon,
   cn,
 } from '@crm/ui';
@@ -108,6 +109,14 @@ const NAV: readonly {
       // Same proxy as Customization (`tenant_settings:read`, answered by the API): a person who
       // can reshape the company's settings is the person who can reshape its pipeline. Cosmetic:
       // the screen and every write behind it check the `pipeline` grant on their own.
+      requiresSetupAccess: true,
+    },
+    {
+      href: '/settings/tags',
+      label: 'nav.tags',
+      icon: <TagIcon className="h-4 w-4 shrink-0" />,
+      // Same proxy as Customization (`tenant_settings:read`, answered by the API). Cosmetic: the
+      // screen and every write behind it need `update` on `tenant_settings` on their own.
       requiresSetupAccess: true,
     },
     { href: '/settings/team', label: 'nav.team', icon: <TeamIcon className="h-4 w-4 shrink-0" /> },

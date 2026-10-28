@@ -1,4 +1,5 @@
 import { Inject, Module, type OnModuleInit } from '@nestjs/common';
+import { TagsModule } from '../tags/tags.module.js';
 import { OwnershipRegistry } from '../../platform/ownership.registry.js';
 import { AccountsModule } from '../accounts/accounts.module.js';
 import { ContactsModule } from '../contacts/contacts.module.js';
@@ -17,7 +18,7 @@ import { DealsService } from './deals.service.js';
  * event.
  */
 @Module({
-  imports: [AccountsModule, ContactsModule, PipelinesModule],
+  imports: [TagsModule, AccountsModule, ContactsModule, PipelinesModule],
   controllers: [DealsController],
   providers: [DealsService, DealsRepository, DealsReportsService],
   exports: [DealsService, DealsReportsService],

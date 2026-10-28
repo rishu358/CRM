@@ -45,6 +45,7 @@ import { AuditService, diffChanges } from '../../platform/audit.service.js';
 import { FieldMetadataService } from '../../platform/field-metadata.service.js';
 import { IdempotencyService } from '../../platform/idempotency.service.js';
 import { OutboxService } from '../../platform/outbox.service.js';
+import { TagsService } from '../tags/tags.service.js';
 import { AccountsService } from '../accounts/accounts.service.js';
 import { ContactsService } from '../contacts/contacts.service.js';
 import { DealsService } from '../deals/deals.service.js';
@@ -96,6 +97,7 @@ export class LeadsService {
     @Inject(AuditService) private readonly audit: AuditService,
     @Inject(OutboxService) private readonly outbox: OutboxService,
     @Inject(IdempotencyService) private readonly idempotency: IdempotencyService,
+    @Inject(TagsService) private readonly tags: TagsService,
     @Inject(ContactsService) private readonly contacts: ContactsService,
     @Inject(AccountsService) private readonly accounts: AccountsService,
     @Inject(DealsService) private readonly deals: DealsService,
@@ -146,7 +148,7 @@ export class LeadsService {
       });
 
       return {
-        data: serializeLeads(actor, result.rows, fields),
+        data: await this.tags.attach(tx, actor, 'lead', serializeLeads(actor, result.rows, fields)),
         meta: {
           nextCursor: result.nextCursor,
           hasMore: result.hasMore,
@@ -177,7 +179,7 @@ export class LeadsService {
     });
 
     const fields = await this.fieldMetadata.forObject(tx, actor.tenantId, 'lead');
-    return serializeLead(actor, row, fields);
+    return this.tags.attachOne(tx, actor, 'lead', serializeLead(actor, row, fields));
   }
 
   /**
@@ -258,7 +260,9 @@ export class LeadsService {
           });
 
           return {
-            answer: { lead: serializeLead(actor, row, fields), duplicates },
+            // A lead that was just made carries no tags yet; said as an empty list so the answer has the
+            // shape a read has, which is what a replay of this request returns (ADR-0060).
+            answer: { lead: { ...serializeLead(actor, row, fields), tags: [] }, duplicates },
             reference: { recordId: row.id },
           };
         },
@@ -339,7 +343,7 @@ export class LeadsService {
       payload: { changedFields: Object.keys(changes) },
     });
 
-    return serializeLead(actor, updated, fields);
+    return this.tags.attachOne(tx, actor, 'lead', serializeLead(actor, updated, fields));
   }
 
   async remove(actor: Actor, id: string, version: number): Promise<void> {
@@ -644,7 +648,12 @@ export class LeadsService {
           }
 
           const result: LeadConversionResult = {
-            lead: serializeLead(actor, converted, leadFields) as LeadConversionResult['lead'],
+            lead: (await this.tags.attachOne(
+              tx,
+              actor,
+              'lead',
+              serializeLead(actor, converted, leadFields),
+            )) as LeadConversionResult['lead'],
             contact: { id: contactId, created: contactCreated },
             account: accountId === null ? null : { id: accountId, created: accountCreated },
             deal: dealId === null ? null : { id: dealId },
