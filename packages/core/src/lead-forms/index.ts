@@ -1,5 +1,5 @@
 /**
- * The rules of a website lead form (ADR-0063).
+ * The rules of a website lead form (ADR-0065).
  *
  * Pure: no database, no clock, no randomness, so every rule here is a unit test and the screen, the
  * API and the public page ask the same functions. Everything a stranger on the internet can send
@@ -23,7 +23,7 @@ export const SUCCESS_MESSAGE_MAX_LENGTH = 500;
 export const FORM_URL_MAX_LENGTH = 500;
 export const MAX_ALLOWED_ORIGINS = 10;
 
-/** Request body ceiling on the public routes, in bytes (ADR-0063 4.1). */
+/** Request body ceiling on the public routes, in bytes (ADR-0065 4.1). */
 export const PUBLIC_FORM_BODY_MAX_BYTES = 16 * 1024;
 
 /** The fill token is valid from this long after the page was drawn... */
@@ -270,7 +270,7 @@ const FORBIDDEN_CHARACTERS = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007Fâ€ª-â
  * Text a visitor typed, made safe to store, or `null` if it must be refused.
  *
  * Nothing is stripped and nothing is "sanitised": a visitor who types `<b>` gets `<b>` stored as
- * text, and every place that shows it escapes it (ADR-0063 4.2). What is refused is what has no
+ * text, and every place that shows it escapes it (ADR-0065 4.2). What is refused is what has no
  * business in a name or a message: control characters, bidirectional overrides and text that is
  * not well-formed Unicode (a lone surrogate). Normalised to NFC so one visible string is one
  * stored string, and so duplicate detection compares like with like.

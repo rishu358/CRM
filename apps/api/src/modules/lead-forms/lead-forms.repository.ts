@@ -16,7 +16,7 @@ import {
 } from '@crm/db';
 
 /**
- * Persistence for website lead forms (ADR-0063).
+ * Persistence for website lead forms (ADR-0065).
  *
  * Every statement filters on `tenant_id` explicitly **and** runs under RLS, so a form or key from
  * another workspace reads as absent either way. The one statement that runs without a tenant is

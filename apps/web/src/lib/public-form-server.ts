@@ -3,7 +3,7 @@ import type { PublicFormDefinition } from '@crm/contracts';
 import { upstreamPath } from './proxy-path';
 
 /**
- * The web server's one way to read a website lead form's public definition (ADR-0063 5.1).
+ * The web server's one way to read a website lead form's public definition (ADR-0065 5.1).
  *
  * Used by the hosted page (to draw the form) and by `proxy.ts` (to learn which sites may frame it).
  * It talks only to `API_URL`, a fixed origin from configuration, on a path built by `upstreamPath`

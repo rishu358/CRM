@@ -283,7 +283,7 @@ function renderDigest(
 }
 
 /**
- * A website form made a lead and it was given to somebody (ADR-0063 8).
+ * A website form made a lead and it was given to somebody (ADR-0065 8).
  *
  * Driven by `lead.created.v1`, which every lead announces; only the ones a form made (`source` is
  * `web_form`) and that have an owner are of interest here. The notification carries **ids only**:
@@ -309,7 +309,7 @@ export function notifyWebFormLead(options: NotificationHandlerOptions) {
 }
 
 /**
- * A website form was filled in by somebody who matches a record that already exists (ADR-0063 7).
+ * A website form was filled in by somebody who matches a record that already exists (ADR-0065 7).
  * The owner of what it matched is told; the visitor never is. Ids only, like the one above.
  */
 export function notifyWebFormDuplicate(options: NotificationHandlerOptions) {

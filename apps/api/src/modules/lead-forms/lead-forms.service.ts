@@ -88,7 +88,7 @@ function serialize(row: LeadFormRow, keys: readonly LeadFormKeyRow[], stats: For
 }
 
 /**
- * Website lead forms: the administration side (ADR-0063).
+ * Website lead forms: the administration side (ADR-0065).
  *
  * The same five steps every module follows: authorize with `can()` against the `lead_form` object
  * before anything else, check the rules, write with the audit entry and the outbox event in ONE

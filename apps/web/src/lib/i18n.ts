@@ -1498,7 +1498,7 @@ export const en = {
     'They move to the Recycle Bin and can be restored for 30 days. After that they are removed for good.',
   'bulk.delete.confirm': 'Delete',
 
-  // ---- website lead forms (ADR-0063) ---------------------------------------------------------
+  // ---- website lead forms (ADR-0065) ---------------------------------------------------------
   'nav.webForms': 'Web forms',
   'access.object.lead_form': 'Web forms',
   'notifications.webFormLead': 'A new lead from a web form is assigned to you',

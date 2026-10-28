@@ -44,7 +44,7 @@ import { AppShell } from './app-shell';
 import { LeadFormFields, type FieldValue, type FieldValues } from './lead-form-fields';
 
 /**
- * Web forms: the administration screen (ADR-0063).
+ * Web forms: the administration screen (ADR-0065).
  *
  * A company builds a form from its own lead fields, writes the consent wording, names the websites
  * that may show it, and copies the link or the embed code. The screen mirrors what the API enforces

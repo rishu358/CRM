@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 /**
- * The public door stays narrow (ADR-0063 3.3).
+ * The public door stays narrow (ADR-0065 3.3).
  *
  * The step that does a stranger's work runs as `crm_app` inside one workspace, so the database alone
  * does not make it narrow: the code does, and this keeps it so. It reads the imports of the two files

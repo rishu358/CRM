@@ -109,7 +109,7 @@ export const ErrorCode = {
   SEARCH_TIMEOUT: 'SEARCH_TIMEOUT',
   /**
    * A website lead form was submitted too soon after its page was drawn, or the page is too old to
-   * be trusted (ADR-0063 4.1). Nothing is lost: the visitor reloads the page and sends it again.
+   * be trusted (ADR-0065 4.1). Nothing is lost: the visitor reloads the page and sends it again.
    */
   FORM_EXPIRED: 'FORM_EXPIRED',
   /** Unexpected failure. Details are logged, never returned. */

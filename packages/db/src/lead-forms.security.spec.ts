@@ -11,7 +11,7 @@ import {
 } from './testing/index.js';
 
 /**
- * What the database itself allows around website lead forms (ADR-0063 3.2, migration 0027).
+ * What the database itself allows around website lead forms (ADR-0065 3.2, migration 0027).
  *
  * The public door is only as narrow as these grants. `crm_auth` may turn a key into a workspace and a
  * form, by reading five columns of one table, and nothing else; `crm_app` sees only its own
@@ -253,7 +253,7 @@ describe('the leads a submission points at', () => {
   });
 });
 
-describe('with no user at all (how the public step runs: ADR-0063 section 9)', () => {
+describe('with no user at all (how the public step runs: ADR-0065 section 9)', () => {
   it('writes the lead, the consent record, the audit row, the event and the count, with no author', async () => {
     const leadId = randomUUID();
     const noUser = { tenantId: tenantA, userId: null };

@@ -444,7 +444,7 @@ export class ContactsService {
    * Contacts with this exact email or phone, **whatever the reader may see**, as bare ids.
    *
    * For a caller that has no reader: the website lead form must notice that a stranger matches
-   * somebody already in the CRM (ADR-0063 7), and uses the answer **only inside the system** (a
+   * somebody already in the CRM (ADR-0065 7), and uses the answer **only inside the system** (a
    * timeline entry, a notification to the matched record's owner). It never reaches the stranger, so
    * the actor-scoped rules of `findDuplicates` (which stop one rep probing another's book) do not
    * apply and cannot: there is no actor.

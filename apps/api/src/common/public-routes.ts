@@ -3,7 +3,7 @@ import { PUBLIC_FORM_BODY_MAX_BYTES } from '@crm/core';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
 /**
- * What is different about the one part of the API a stranger may reach (ADR-0063).
+ * What is different about the one part of the API a stranger may reach (ADR-0065).
  *
  * Everything else sits behind the session guard. The routes under this prefix are the deliberate,
  * narrowly defined exception to "unauthenticated requests get 401" (CLAUDE.md §10(d)), so the things

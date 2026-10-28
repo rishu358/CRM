@@ -69,7 +69,7 @@ async function forward(request: NextRequest, segments: string[]): Promise<NextRe
 
   const env = webEnv();
 
-  // The public lead-form routes (ADR-0063) are for strangers: no credential of any kind goes with
+  // The public lead-form routes (ADR-0065) are for strangers: no credential of any kind goes with
   // them, whatever this visitor's browser holds (a signed-in administrator previewing a form is
   // still, to the API, nobody), and a body over the cap is refused before it is read.
   const isPublic = segments[0] === 'public';

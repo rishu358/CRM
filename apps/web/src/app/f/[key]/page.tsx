@@ -13,7 +13,7 @@ export const metadata: Metadata = {
 };
 
 /**
- * The hosted website lead form (ADR-0063 5.1): `/f/<key>`.
+ * The hosted website lead form (ADR-0065 5.1): `/f/<key>`.
  *
  * Reachable with no session (`PUBLIC_PREFIXES`). It reads the form's public definition from the API
  * (which sends no workspace id, no secret and nothing that is not meant for a visitor) and draws it.

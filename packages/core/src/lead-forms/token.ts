@@ -10,7 +10,7 @@ import {
 
 /**
  * The secrets of the public door: the form key, the fill token and the idempotency digest
- * (ADR-0063 3.1, 4.3).
+ * (ADR-0065 3.1, 4.3).
  *
  * Randomness and the clock are arguments wherever a test needs to pin them, so none of this reads
  * either by itself except `generateFormKey`, which is the one place a key is made.

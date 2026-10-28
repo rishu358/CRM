@@ -74,7 +74,7 @@ describe('openapi document', () => {
         'GET /health/ready',
         'GET /invitations/accept',
         'GET /openapi.json',
-        // The website lead form's two routes (ADR-0063): the only ones a stranger can write through.
+        // The website lead form's two routes (ADR-0065): the only ones a stranger can write through.
         'GET /public/forms/{key}',
         'POST /public/forms/{key}/submissions',
         'POST /auth/forgot-password',

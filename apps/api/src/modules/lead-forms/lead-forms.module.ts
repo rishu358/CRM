@@ -9,7 +9,7 @@ import { PublicLeadFormsController } from './public-lead-forms.controller.js';
 import { PublicLeadFormsService } from './public-lead-forms.service.js';
 
 /**
- * Website lead forms (ADR-0001, ADR-0063).
+ * Website lead forms (ADR-0001, ADR-0065).
  *
  * One module, because both halves own the same tables: the administration (`LeadFormsController`,
  * behind the session guard and `can()`) and the public door (`PublicLeadFormsController`, behind

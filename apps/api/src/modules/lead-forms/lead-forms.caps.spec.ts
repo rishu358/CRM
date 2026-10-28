@@ -4,7 +4,7 @@ import { deriveFillTokenSecret, issueFillToken } from '@crm/core/lead-form-token
 import { dataOf, request, startApiHarness, type ApiHarness } from '../../testing/harness.js';
 
 /**
- * The hard daily caps (ADR-0063 4.1), counted in the database so they hold without Redis, with small
+ * The hard daily caps (ADR-0065 4.1), counted in the database so they hold without Redis, with small
  * ceilings so the tests can reach them: 5 leads a day per form, 8 per workspace.
  */
 

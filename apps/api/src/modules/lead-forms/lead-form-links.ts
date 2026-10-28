@@ -1,7 +1,7 @@
 import { escapeHtml } from '@crm/core/html';
 
 /**
- * The link and the embed snippet for a form (ADR-0063 5.1).
+ * The link and the embed snippet for a form (ADR-0065 5.1).
  *
  * Built from configuration (`PUBLIC_FORMS_BASE_URL`, else the web app's own origin), never from a
  * literal, so the hosted pages can move to their own domain without a code change. The key is

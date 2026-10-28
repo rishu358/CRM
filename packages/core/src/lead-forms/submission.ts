@@ -4,7 +4,7 @@ import type { FieldDefinition } from '../fields/types.js';
 import { HONEYPOT_FIELD, cleanText, normalizePhone, type FormFieldSetting } from './index.js';
 
 /**
- * What a stranger's submission is judged by (ADR-0063 4.2).
+ * What a stranger's submission is judged by (ADR-0065 4.2).
  *
  * The schema is **built from the form**, never from the request: only the form's own fields are
  * in it, `.strict()` refuses anything else, and every value has a length cap before it is looked

@@ -10,7 +10,7 @@ import { notifyWebFormDuplicate, notifyWebFormLead, sendDigest } from './notific
 import { projectTimeline } from './timeline.js';
 
 /**
- * What the worker does with a lead a website form made (ADR-0063 7, 8), driven through the real
+ * What the worker does with a lead a website form made (ADR-0065 7, 8), driven through the real
  * relay: the owner is told, only by id; what the visitor typed never reaches the bell, the timeline
  * entry's wording or the e-mail; and a redelivered event tells nobody twice.
  */

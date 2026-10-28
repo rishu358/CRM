@@ -58,7 +58,7 @@ interface Limit {
   readonly max: number;
 }
 
-/** The answer for every key that does not work, whatever the reason (ADR-0063 3.4). */
+/** The answer for every key that does not work, whatever the reason (ADR-0065 3.4). */
 function notAvailable(): NotFoundError {
   return new NotFoundError('Form');
 }
@@ -92,7 +92,7 @@ function effectiveFields(
 }
 
 /**
- * The public door of a website lead form (ADR-0063), the only code in the API that a stranger reaches.
+ * The public door of a website lead form (ADR-0065), the only code in the API that a stranger reaches.
  *
  * Read the ADR's section 3 before changing it. The shape of it is:
  *
@@ -381,7 +381,7 @@ export class PublicLeadFormsService {
   /**
    * Who gets the lead. Run inside a savepoint, and never allowed to fail the submission: a lead that
    * arrives and goes to nobody in particular is a problem for the company to fix, and a lead that is
-   * refused because a rule broke is a customer lost (ADR-0063 10).
+   * refused because a rule broke is a customer lost (ADR-0065 10).
    */
   private async pickOwner(
     tx: Tx,

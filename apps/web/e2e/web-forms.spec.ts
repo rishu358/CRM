@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 
 /**
- * A website lead form, end to end (ADR-0063).
+ * A website lead form, end to end (ADR-0065).
  *
  * Through the browser because the claim crosses every layer: the administrator builds a form and is
  * shown its link once; a stranger with no session opens that link, fills the form in and sends it;

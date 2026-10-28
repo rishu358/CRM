@@ -398,7 +398,7 @@ const TAG_DESCRIPTIONS: ReadonlyArray<{ name: string; description: string }> = [
   { name: 'Lead forms', description: 'Website lead forms: building them and their keys.' },
   {
     name: 'Public forms',
-    description: 'The two routes a website visitor reaches with no session (ADR-0063).',
+    description: 'The two routes a website visitor reaches with no session (ADR-0065).',
   },
   { name: 'Saved Views', description: 'A list’s search, filters, columns and sort, under a name.' },
   {

@@ -9,7 +9,7 @@ import { t, type TranslationKey } from '../lib/i18n';
 import { LeadFormFields, toBodyValue, type FieldValue, type FieldValues } from './lead-form-fields';
 
 /**
- * The hosted website lead form, as a visitor sees it (ADR-0063 5.1).
+ * The hosted website lead form, as a visitor sees it (ADR-0065 5.1).
  *
  * A page on its own, with no app frame and no session: the visitor is a stranger on a company's
  * website. It talks to the one API every client uses, through this app's `/api/proxy`, which sends

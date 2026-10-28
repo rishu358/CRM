@@ -4,7 +4,7 @@ import { Checkbox, Input, Select, Textarea } from '@crm/ui';
 import { t } from '../lib/i18n';
 
 /**
- * The fields of a website lead form, drawn from the form's own definition (ADR-0063 5.1).
+ * The fields of a website lead form, drawn from the form's own definition (ADR-0065 5.1).
  *
  * One component for the visitor's page and for the editor's preview, so what an administrator sees
  * while building is what a visitor gets. It draws text with React, which escapes it: a label, a help

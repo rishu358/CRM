@@ -3,7 +3,7 @@ import type { Tx } from '@crm/db';
 import { AccessRepository } from './access.repository.js';
 
 /**
- * Who may be given a lead (ADR-0063 10).
+ * Who may be given a lead (ADR-0065 10).
  *
  * The second narrow door the access module opens to other modules, beside `MemberDirectory`: it
  * answers one question about people (may this person own and work a lead?) without handing out a

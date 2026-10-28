@@ -30,7 +30,7 @@ export function isFeature(value: string): value is Feature {
 export const FEATURE_DESCRIPTIONS: Readonly<Record<Feature, string>> = {
   imports: 'Importing records from a CSV file (MVP_SPEC M8).',
   exports: 'Exporting records to a CSV file (MVP_SPEC M8). Not the data-rights export of a person.',
-  web_forms: 'Website lead forms that turn a submission into a lead (ADR-0063).',
+  web_forms: 'Website lead forms that turn a submission into a lead (ADR-0065).',
 };
 
 /**

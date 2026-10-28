@@ -278,7 +278,7 @@ export class LeadsService {
   }
 
   /**
-   * A lead made by a website form (ADR-0063), inside the form's own transaction.
+   * A lead made by a website form (ADR-0065), inside the form's own transaction.
    *
    * **There is no actor, and nothing here asks `can()`**: the visitor is a stranger, and what a stranger
    * may do is exactly what the form's definition says, which the public module has already enforced
@@ -287,7 +287,7 @@ export class LeadsService {
    * `new`, the owner is whoever the assignment chose, and no field permission can hide anything because
    * the only fields in play are the ones the form asked for. What it keeps from `create`: the tenant's
    * own custom-field rules, the audit entry and the `lead.created.v1` event, in the same transaction as
-   * the insert. The audit entry has no address and no user agent (the caller removes them, ADR-0063 6).
+   * the insert. The audit entry has no address and no user agent (the caller removes them, ADR-0065 6).
    */
   async createFromWebFormInTx(
     identity: WriterIdentity,
@@ -347,7 +347,7 @@ export class LeadsService {
 
   /**
    * Leads, and contacts, that match a new lead's email or phone exactly, **whatever a reader may see**,
-   * as ids only, for the system's own use (ADR-0063 7). Never returned to a visitor.
+   * as ids only, for the system's own use (ADR-0065 7). Never returned to a visitor.
    */
   async findMatchesForSystem(
     tx: Tx,

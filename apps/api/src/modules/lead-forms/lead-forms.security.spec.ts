@@ -3,7 +3,7 @@ import { API_ROUTES } from '@crm/contracts';
 import { dataOf, request, startApiHarness, type ApiHarness } from '../../testing/harness.js';
 
 /**
- * The mandatory per-module security suites (CLAUDE.md §10) for website lead forms (ADR-0063), and the
+ * The mandatory per-module security suites (CLAUDE.md §10) for website lead forms (ADR-0065), and the
  * test that keeps the one deliberate exception to "unauthenticated requests get 401" the size it was
  * agreed to be. Through the real HTTP stack, with the production guards, pipes and database roles.
  *
@@ -279,7 +279,7 @@ describe('(c) nothing secret is in an answer', () => {
 
 describe('(d) unauthenticated requests get 401, except the two public routes', () => {
   /**
-   * The routes a stranger may reach (ADR-0063 1). Frozen on purpose: adding a `@Public()` handler
+   * The routes a stranger may reach (ADR-0065 1). Frozen on purpose: adding a `@Public()` handler
    * without adding it here, and to the ADR, must fail this test.
    */
   const PUBLIC_ROUTES: readonly string[] = [

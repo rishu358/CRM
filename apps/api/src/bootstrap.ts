@@ -97,7 +97,7 @@ export async function createApp(env: ApiEnv = loadApiEnv()): Promise<NestFastify
     await addressLimit.check(request.ip);
   });
 
-  // The public lead-form routes are the one part of the API a stranger reaches (ADR-0063). Their body
+  // The public lead-form routes are the one part of the API a stranger reaches (ADR-0065). Their body
   // is capped before it is read, and the browser's cross-origin approval is never given there: they
   // take no cookies, and v1 has no cross-origin embed.
   limitPublicBodies(instance);

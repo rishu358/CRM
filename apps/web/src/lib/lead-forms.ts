@@ -13,7 +13,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, type ApiRequestError, type ItemEnvelope } from './api-client';
 
 /**
- * Server state for the web form administration (CLAUDE.md §9, ADR-0063).
+ * Server state for the web form administration (CLAUDE.md §9, ADR-0065).
  *
  * Nothing here decides who may manage forms: a 403 on the list is the answer that hides the screen,
  * and the API refuses every write on its own. A key is only ever in the answer to the call that made

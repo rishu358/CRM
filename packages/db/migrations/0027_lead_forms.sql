@@ -1,7 +1,7 @@
--- Website lead forms (ADR-0063).
+-- Website lead forms (ADR-0065).
 --
 -- The first door anybody on the internet, with no account, can use to write into a tenant. Read
--- ADR-0063 section 3 before changing this file; the grants below ARE the design.
+-- ADR-0065 section 3 before changing this file; the grants below ARE the design.
 --
 --   lead_forms               a form a company puts on its own website
 --   lead_form_keys           the keys that open a form: only the SHA-256 is stored, never the key
@@ -30,7 +30,7 @@ CREATE TABLE lead_forms (
   id                   uuid PRIMARY KEY,
   tenant_id            uuid NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
   name                 text NOT NULL,
-  -- A disabled form answers like a form that does not exist (ADR-0063 3.4).
+  -- A disabled form answers like a form that does not exist (ADR-0065 3.4).
   status               text NOT NULL DEFAULT 'enabled',
   -- [{ key, label, required, helpText? }], in display order. Keys are lead field keys; the
   -- service checks them against this tenant's field metadata and the allowed types.
@@ -170,7 +170,7 @@ CREATE TABLE lead_form_submissions (
 
   CONSTRAINT lead_form_submissions_form_fkey
     FOREIGN KEY (tenant_id, form_id) REFERENCES lead_forms (tenant_id, id) ON DELETE CASCADE,
-  -- Erasing or purging the lead removes the consent record with it (ADR-0063 6).
+  -- Erasing or purging the lead removes the consent record with it (ADR-0065 6).
   CONSTRAINT lead_form_submissions_lead_fkey
     FOREIGN KEY (tenant_id, lead_id) REFERENCES leads (tenant_id, id) ON DELETE CASCADE,
   CONSTRAINT lead_form_submissions_hash_chk

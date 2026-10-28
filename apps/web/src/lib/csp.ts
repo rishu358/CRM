@@ -38,7 +38,7 @@ export interface CspOptions {
    */
   readonly imgOrigins: readonly string[];
   /**
-   * Origins that may frame this page. Only the hosted lead-form page ever passes any (ADR-0063 5.1),
+   * Origins that may frame this page. Only the hosted lead-form page ever passes any (ADR-0065 5.1),
    * from the form's own allowed origins; every other page leaves it out and nothing may frame it.
    * Each entry must be an origin (`originOf`), so one typo cannot put a path or a wildcard in a header.
    */

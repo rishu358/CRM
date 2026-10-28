@@ -569,14 +569,14 @@ export const REGISTRY = {
     { default: false },
   ),
 
-  // ---- website lead forms (ADR-0063) -------------------------------------------------------
+  // ---- website lead forms (ADR-0065) -------------------------------------------------------
   PUBLIC_FORM_RATE_WINDOW_SECONDS: defaultedInt(
     {
       scopes: ['api'],
       group: 'limits',
       description:
         'Window for the per-address, per-form and bad-key limits on the public lead-form routes.',
-      note: "The per-workspace limit has its own fixed one-hour window. These limits use their own Redis keys, so a flood on a form can never spend the budget a workspace's staff use (ADR-0063 4.1).",
+      note: "The per-workspace limit has its own fixed one-hour window. These limits use their own Redis keys, so a flood on a form can never spend the budget a workspace's staff use (ADR-0065 4.1).",
     },
     { default: 600, sign: 'positive', max: 86_400 },
   ),
@@ -663,7 +663,7 @@ export const REGISTRY = {
     description:
       "The public origin of the hosted lead-form pages (`/f/<key>`), used to build the link and the embed snippet. Unset: the web app's own origin (`WEB_URL`).",
     example: 'https://forms.example.com',
-    note: "Set this to a separate domain once hosting exists, so visitors to a form never touch the app's own origin (ADR-0063 5.1). Must be `https` in production.",
+    note: "Set this to a separate domain once hosting exists, so visitors to a form never touch the app's own origin (ADR-0065 5.1). Must be `https` in production.",
   }),
 
   // ---- email -------------------------------------------------------------------------------

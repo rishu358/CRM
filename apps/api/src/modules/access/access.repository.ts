@@ -322,7 +322,7 @@ export class AccessRepository {
   /**
    * Which of these people may own a record of this type: an active member, not deleted, whose role
    * grants both `read` and `update` on it (any scope). A person who could not open and work a lead
-   * must not be given one (ADR-0063 10). An empty candidate list means nobody is asked about.
+   * must not be given one (ADR-0065 10). An empty candidate list means nobody is asked about.
    */
   async membersWhoCanWork(
     tx: Tx,

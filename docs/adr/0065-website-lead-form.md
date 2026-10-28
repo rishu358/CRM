@@ -1,4 +1,4 @@
-# ADR-0063: The website lead form: a public door into a multi-tenant system, and the rules that keep it narrow
+# ADR-0065: The website lead form: a public door into a multi-tenant system, and the rules that keep it narrow
 
 - **Status:** Accepted (2026-10-28). The owner approved the plan and all seven decisions in section 15, each as recommended
   (no CAPTCHA in v1 with an adapter ready; key shown once and stored hashed with a grace window; hosted page, iframe and link
@@ -30,7 +30,7 @@ exception is stated here so it is a decision and not a drift:
 > field whitelist. Every other route still answers `401`, and a test enumerates the whole route table to prove it (§9).
 
 Proposed one-line amendment to CLAUDE.md §10(d) (the owner's file, so not edited by this change): "(d) unauthenticated requests
-get 401, except the routes listed in ADR-0063, which a test keeps to that list."
+get 401, except the routes listed in ADR-0065, which a test keeps to that list."
 
 ## 2. Verified facts this plan stands on
 

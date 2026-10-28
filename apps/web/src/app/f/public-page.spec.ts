@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 
 /**
  * The hosted lead form is the one page of this app a stranger opens on the app's own origin
- * (ADR-0063 5.1), so what it draws must never be markup. Everything on it is a company's own words
+ * (ADR-0065 5.1), so what it draws must never be markup. Everything on it is a company's own words
  * or a visitor's, and React escapes a string child; `dangerouslySetInnerHTML` would undo that.
  */
 function sources(directory: string): string[] {

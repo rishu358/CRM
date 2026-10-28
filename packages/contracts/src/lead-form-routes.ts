@@ -24,17 +24,17 @@ const LEAD_FORM_NOTE =
   'Needs the `lead_form` grant for the action (`read` to look, `create` to add a form, `update` to ' +
   'edit one, switch it on or off, rotate or revoke its key or pause every form, `delete` to remove ' +
   'one); Owner and Admin have all four. A form is a door onto the public internet, so none of the ' +
-  'lead permissions imply it (ADR-0063).';
+  'lead permissions imply it (ADR-0065).';
 
 const PUBLIC_NOTE =
   'One of the only two routes in the API that need no session, and the only ones a stranger can ' +
-  'write through (ADR-0063; the `PUBLIC_ROUTES` list in the test suite keeps the set closed). The ' +
+  'write through (ADR-0065; the `PUBLIC_ROUTES` list in the test suite keeps the set closed). The ' +
   'key in the path selects the workspace and the form; nothing the caller sends can. A wrong key, ' +
   'a revoked key, a disabled form, a paused workspace and a withdrawn feature all answer the same ' +
   '404. No cookie is read or set, there is no CORS approval, and the query string must be empty.';
 
 /**
- * The website lead form routes (ADR-0063), kept beside their schemas and spread into `API_ROUTES`.
+ * The website lead form routes (ADR-0065), kept beside their schemas and spread into `API_ROUTES`.
  */
 export const leadFormRoutes: RouteDefinition[] = [
   {

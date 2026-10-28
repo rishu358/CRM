@@ -27,7 +27,7 @@ import { PublicLeadFormsService } from './public-lead-forms.service.js';
 const JSON_CONTENT_TYPE = /^application\/json\s*(;|$)/i;
 
 /**
- * `/api/v1/public/forms` (ADR-0063): **the only routes in the API a stranger reaches.**
+ * `/api/v1/public/forms` (ADR-0065): **the only routes in the API a stranger reaches.**
  *
  * Each handler is marked `@Public()` one by one (the decorator is method-only on purpose), and a test
  * keeps the set of public routes to a frozen list. What is true of both of them:

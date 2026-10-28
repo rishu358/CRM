@@ -41,7 +41,7 @@ export function currentRequestContext(): RequestContext | undefined {
  * Run `work` with the caller's network identity removed from the context: no address and no user agent
  * reach the audit entry or anything else that reads it.
  *
- * For the public lead-form routes, which store neither on purpose (ADR-0063 6): the address lives only in
+ * For the public lead-form routes, which store neither on purpose (ADR-0065 6): the address lives only in
  * the rate-limit counters, for the length of their window. The idempotency holder is shared, not copied.
  */
 export function withoutNetworkIdentity<T>(work: () => T): T {

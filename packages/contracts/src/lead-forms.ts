@@ -12,7 +12,7 @@ import {
 import { z } from 'zod';
 
 /**
- * Website lead forms (ADR-0063).
+ * Website lead forms (ADR-0065).
  *
  * Two surfaces live here and they must not be confused:
  *
@@ -168,7 +168,7 @@ export type LeadFormPauseInput = z.infer<typeof leadFormPauseSchema>;
 
 /**
  * The answer to creating a form or rotating its key. **The only time the key is ever shown**: only
- * its digest is kept (ADR-0063 3.1).
+ * its digest is kept (ADR-0065 3.1).
  */
 export const leadFormIssuedSchema = z.object({
   form: leadFormSchema,
@@ -191,7 +191,7 @@ export const leadFormRevokeSchema = z.object({ version: z.number().int().positiv
 export type LeadFormRevokeInput = z.infer<typeof leadFormRevokeSchema>;
 
 // ---------------------------------------------------------------------------
-// The public door (the only unauthenticated routes that write; ADR-0063 1)
+// The public door (the only unauthenticated routes that write; ADR-0065 1)
 // ---------------------------------------------------------------------------
 
 /** The key in the path. Its shape is checked before anything else happens. */
@@ -220,7 +220,7 @@ export const publicFormDefinitionSchema = z.object({
   successRedirectUrl: z.string().nullable(),
   /** The origins that may frame the hosted page. The page's security headers are built from this. */
   allowedOrigins: z.array(z.string()),
-  /** A token the page sends back with the submission; see ADR-0063 4.3. */
+  /** A token the page sends back with the submission; see ADR-0065 4.3. */
   fillToken: z.string(),
 });
 export type PublicFormDefinition = z.infer<typeof publicFormDefinitionSchema>;

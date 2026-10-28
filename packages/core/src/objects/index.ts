@@ -40,7 +40,7 @@
  * pipelines on the board stays `deal:read`; `pipeline:read` is the editor's view,
  * which also shows retired stages and how many deals sit in each.
  *
- * `lead_form` is the same kind of thing for the website lead form (ADR-0063): creating and editing a
+ * `lead_form` is the same kind of thing for the website lead form (ADR-0065): creating and editing a
  * form, rotating or revoking its key and switching it off are company-wide configuration, and the
  * form is a door onto the public internet, so it is an explicit grant that no record permission implies.
  *

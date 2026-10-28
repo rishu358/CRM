@@ -114,7 +114,7 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
     ),
     // A configured logo or favicon on another host (ADR-0045); a local path adds nothing.
     imgOrigins: imageOrigins(env),
-    // Only the hosted lead form can be framed, and only by the sites its company named (ADR-0063).
+    // Only the hosted lead form can be framed, and only by the sites its company named (ADR-0065).
     frameAncestors: request.nextUrl.pathname.startsWith('/f/')
       ? await frameAncestorsFor(request, env.API_URL)
       : undefined,

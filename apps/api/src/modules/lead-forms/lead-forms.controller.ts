@@ -32,7 +32,7 @@ import { zodPipe } from '../../common/zod-validation.pipe.js';
 import { LeadFormsService } from './lead-forms.service.js';
 
 /**
- * `/api/v1/lead-forms` (ADR-0007, ADR-0063): building a website form and managing its keys.
+ * `/api/v1/lead-forms` (ADR-0007, ADR-0065): building a website form and managing its keys.
  *
  * Validate, hand off, wrap in the envelope. Who may do what is decided in the service by `can()` on
  * the `lead_form` object; no route takes a workspace or a user. The public side of the feature (what a

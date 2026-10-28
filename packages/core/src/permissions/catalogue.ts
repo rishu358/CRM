@@ -133,7 +133,7 @@ export const GRANT_CATALOGUE: readonly GrantCatalogueEntry[] = [
     actions: ['read', 'create', 'update', 'delete'],
     scopes: ADMIN_SCOPES,
   },
-  // Website lead forms (ADR-0063). `create` adds a form, `update` edits it, switches it on or off and
+  // Website lead forms (ADR-0065). `create` adds a form, `update` edits it, switches it on or off and
   // rotates or revokes its key, `delete` removes it. Owner and Admin by default.
   {
     objectType: 'lead_form',

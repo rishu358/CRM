@@ -244,7 +244,7 @@ The public origin of the hosted lead-form pages (`/f/<key>`), used to build the 
 - **Required:** no
 - **Secret:** no
 
-Set this to a separate domain once hosting exists, so visitors to a form never touch the app's own origin (ADR-0063 5.1). Must be `https` in production.
+Set this to a separate domain once hosting exists, so visitors to a form never touch the app's own origin (ADR-0065 5.1). Must be `https` in production.
 
 ## Branding and identity
 
@@ -626,7 +626,7 @@ Window for the per-address, per-form and bad-key limits on the public lead-form 
 - **Secret:** no
 - **Default:** `600`
 
-The per-workspace limit has its own fixed one-hour window. These limits use their own Redis keys, so a flood on a form can never spend the budget a workspace's staff use (ADR-0063 4.1).
+The per-workspace limit has its own fixed one-hour window. These limits use their own Redis keys, so a flood on a form can never spend the budget a workspace's staff use (ADR-0065 4.1).
 
 ### `PUBLIC_FORM_RATE_PER_ADDRESS_FORM`
 

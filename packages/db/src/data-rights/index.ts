@@ -91,7 +91,7 @@ export async function erasePersonalColumns(
       and id = ${recordId}::uuid
   `);
 
-  // A lead a website form made has a consent record beside it (ADR-0063 6). Erasing the person removes
+  // A lead a website form made has a consent record beside it (ADR-0065 6). Erasing the person removes
   // it: it exists to show what this person accepted, and they have asked to be forgotten. It holds no
   // copy of what they typed, so nothing else of theirs is there to find.
   if (objectType === 'lead') {

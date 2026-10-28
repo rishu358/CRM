@@ -15,7 +15,7 @@ import {
 import { baseColumns, timestamptz } from './columns.js';
 
 /**
- * Website lead forms (migration 0027, ADR-0063).
+ * Website lead forms (migration 0027, ADR-0065).
  *
  * Read the migration's header before changing any of this: the grants on `lead_form_keys` are the
  * design of the public door, not an implementation detail.
