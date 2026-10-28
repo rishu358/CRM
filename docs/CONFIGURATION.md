@@ -40,81 +40,94 @@ always wins over the file.
 
 ## All variables
 
-| Variable                                                              | Used by                    | Required      | Secret |
-| --------------------------------------------------------------------- | -------------------------- | ------------- | ------ |
-| [`NODE_ENV`](#node_env)                                               | api, worker, web, db, perf | no            | no     |
-| [`APP_ENV`](#app_env)                                                 | api, worker, web, db       | no            | no     |
-| [`LOG_LEVEL`](#log_level)                                             | api, worker                | no            | no     |
-| [`DEPLOYMENT_MODE`](#deployment_mode)                                 | api, web                   | no            | no     |
-| [`API_PORT`](#api_port)                                               | api                        | no            | no     |
-| [`API_HOST`](#api_host)                                               | api                        | no            | no     |
-| [`API_URL`](#api_url)                                                 | api, web                   | in production | no     |
-| [`WEB_URL`](#web_url)                                                 | api, worker                | in production | no     |
-| [`CORS_ORIGINS`](#cors_origins)                                       | api                        | in production | no     |
-| [`APP_NAME`](#app_name)                                               | api, worker, web           | no            | no     |
-| [`SUPPORT_EMAIL`](#support_email)                                     | web                        | no            | no     |
-| [`TERMS_URL`](#terms_url)                                             | web                        | no            | no     |
-| [`PRIVACY_URL`](#privacy_url)                                         | web                        | no            | no     |
-| [`BRAND_LOGO_URL`](#brand_logo_url)                                   | web                        | no            | no     |
-| [`BRAND_FAVICON_URL`](#brand_favicon_url)                             | web                        | no            | no     |
-| [`BRAND_COLOR`](#brand_color)                                         | web                        | no            | no     |
-| [`BRAND_COLOR_DARK`](#brand_color_dark)                               | web                        | no            | no     |
-| [`WHATSAPP_LINK_BASE`](#whatsapp_link_base)                           | web                        | no            | no     |
-| [`DEFAULT_CURRENCY`](#default_currency)                               | api                        | no            | no     |
-| [`DEFAULT_TIMEZONE`](#default_timezone)                               | api                        | no            | no     |
-| [`DEFAULT_LOCALE`](#default_locale)                                   | api                        | no            | no     |
-| [`DEFAULT_FISCAL_YEAR_START_MONTH`](#default_fiscal_year_start_month) | api                        | no            | no     |
-| [`DEFAULT_REGION`](#default_region)                                   | api                        | no            | no     |
-| [`DATABASE_URL`](#database_url)                                       | api, worker, db            | yes           | yes    |
-| [`DATABASE_AUTH_URL`](#database_auth_url)                             | api, db                    | in production | yes    |
-| [`DATABASE_WORKER_URL`](#database_worker_url)                         | worker, db                 | in production | yes    |
-| [`DATABASE_ERASURE_URL`](#database_erasure_url)                       | worker                     | no            | yes    |
-| [`DATABASE_MIGRATION_URL`](#database_migration_url)                   | db                         | no            | yes    |
-| [`DATABASE_POOL_MAX`](#database_pool_max)                             | api, worker, db            | no            | no     |
-| [`DATABASE_CA_CERT`](#database_ca_cert)                               | api, worker, db            | no            | no     |
-| [`AUTH_SECRET`](#auth_secret)                                         | api                        | yes           | yes    |
-| [`AUTH_SECRET_PREVIOUS`](#auth_secret_previous)                       | api                        | no            | yes    |
-| [`PASSWORD_HASH_MEMORY_KIB`](#password_hash_memory_kib)               | api                        | no            | no     |
-| [`PASSWORD_HASH_PASSES`](#password_hash_passes)                       | api                        | no            | no     |
-| [`PASSWORD_HASH_PARALLELISM`](#password_hash_parallelism)             | api                        | no            | no     |
-| [`SESSION_COOKIE_NAME`](#session_cookie_name)                         | api, web                   | no            | no     |
-| [`SESSION_TTL_DAYS`](#session_ttl_days)                               | api, web                   | no            | no     |
-| [`AUTH_RATE_LIMIT_WINDOW_SECONDS`](#auth_rate_limit_window_seconds)   | api                        | no            | no     |
-| [`AUTH_RATE_LIMIT_MAX_PER_IP`](#auth_rate_limit_max_per_ip)           | api                        | no            | no     |
-| [`AUTH_THROTTLE_MAX_DELAY_MS`](#auth_throttle_max_delay_ms)           | api                        | no            | no     |
-| [`RATE_LIMIT_WINDOW_SECONDS`](#rate_limit_window_seconds)             | api                        | no            | no     |
-| [`RATE_LIMIT_MAX_PER_USER`](#rate_limit_max_per_user)                 | api                        | no            | no     |
-| [`RATE_LIMIT_MAX_PER_TENANT`](#rate_limit_max_per_tenant)             | api                        | no            | no     |
-| [`RATE_LIMIT_MAX_PER_IP`](#rate_limit_max_per_ip)                     | api                        | no            | no     |
-| [`RATE_LIMIT_ALLOW_PER_PROCESS`](#rate_limit_allow_per_process)       | api                        | no            | no     |
-| [`EMAIL_PROVIDER`](#email_provider)                                   | api, worker                | in production | no     |
-| [`EMAIL_FROM`](#email_from)                                           | api, worker                | in production | no     |
-| [`RESEND_API_KEY`](#resend_api_key)                                   | api, worker                | in production | yes    |
-| [`SES_REGION`](#ses_region)                                           | api, worker                | in production | no     |
-| [`SES_ACCESS_KEY_ID`](#ses_access_key_id)                             | api, worker                | in production | yes    |
-| [`SES_SECRET_ACCESS_KEY`](#ses_secret_access_key)                     | api, worker                | in production | yes    |
-| [`SES_CONFIGURATION_SET`](#ses_configuration_set)                     | api, worker                | no            | no     |
-| [`SMTP_HOST`](#smtp_host)                                             | api, worker                | in production | no     |
-| [`SMTP_PORT`](#smtp_port)                                             | api, worker                | no            | no     |
-| [`SMTP_SECURITY`](#smtp_security)                                     | api, worker                | no            | no     |
-| [`SMTP_USER`](#smtp_user)                                             | api, worker                | no            | no     |
-| [`SMTP_PASSWORD`](#smtp_password)                                     | api, worker                | no            | yes    |
-| [`STORAGE_PROVIDER`](#storage_provider)                               | api, worker                | no            | no     |
-| [`S3_BUCKET`](#s3_bucket)                                             | api, worker                | no            | no     |
-| [`S3_REGION`](#s3_region)                                             | api, worker                | no            | no     |
-| [`S3_ENDPOINT`](#s3_endpoint)                                         | api, worker                | no            | no     |
-| [`S3_PUBLIC_ENDPOINT`](#s3_public_endpoint)                           | api, worker, web           | no            | no     |
-| [`S3_ACCESS_KEY_ID`](#s3_access_key_id)                               | api, worker                | in production | yes    |
-| [`S3_SECRET_ACCESS_KEY`](#s3_secret_access_key)                       | api, worker                | in production | yes    |
-| [`S3_FORCE_PATH_STYLE`](#s3_force_path_style)                         | api, worker                | no            | no     |
-| [`REDIS_URL`](#redis_url)                                             | api                        | no            | yes    |
-| [`GOOGLE_CLIENT_ID`](#google_client_id)                               | api                        | no            | no     |
-| [`GOOGLE_CLIENT_SECRET`](#google_client_secret)                       | api                        | no            | yes    |
-| [`OUTBOX_POLL_INTERVAL_MS`](#outbox_poll_interval_ms)                 | worker                     | no            | no     |
-| [`OUTBOX_BATCH_SIZE`](#outbox_batch_size)                             | worker                     | no            | no     |
-| [`DIGEST_WINDOW_MINUTES`](#digest_window_minutes)                     | worker                     | no            | no     |
-| [`PERF_ADMIN_URL`](#perf_admin_url)                                   | perf                       | no            | yes    |
-| [`PERF_ROWS`](#perf_rows)                                             | perf                       | no            | no     |
+| Variable                                                                        | Used by                    | Required      | Secret |
+| ------------------------------------------------------------------------------- | -------------------------- | ------------- | ------ |
+| [`NODE_ENV`](#node_env)                                                         | api, worker, web, db, perf | no            | no     |
+| [`APP_ENV`](#app_env)                                                           | api, worker, web, db       | no            | no     |
+| [`LOG_LEVEL`](#log_level)                                                       | api, worker                | no            | no     |
+| [`DEPLOYMENT_MODE`](#deployment_mode)                                           | api, web                   | no            | no     |
+| [`API_PORT`](#api_port)                                                         | api                        | no            | no     |
+| [`API_HOST`](#api_host)                                                         | api                        | no            | no     |
+| [`API_URL`](#api_url)                                                           | api, web                   | in production | no     |
+| [`WEB_URL`](#web_url)                                                           | api, worker                | in production | no     |
+| [`CORS_ORIGINS`](#cors_origins)                                                 | api                        | in production | no     |
+| [`APP_NAME`](#app_name)                                                         | api, worker, web           | no            | no     |
+| [`SUPPORT_EMAIL`](#support_email)                                               | web                        | no            | no     |
+| [`TERMS_URL`](#terms_url)                                                       | web                        | no            | no     |
+| [`PRIVACY_URL`](#privacy_url)                                                   | web                        | no            | no     |
+| [`BRAND_LOGO_URL`](#brand_logo_url)                                             | web                        | no            | no     |
+| [`BRAND_FAVICON_URL`](#brand_favicon_url)                                       | web                        | no            | no     |
+| [`BRAND_COLOR`](#brand_color)                                                   | web                        | no            | no     |
+| [`BRAND_COLOR_DARK`](#brand_color_dark)                                         | web                        | no            | no     |
+| [`WHATSAPP_LINK_BASE`](#whatsapp_link_base)                                     | web                        | no            | no     |
+| [`DEFAULT_CURRENCY`](#default_currency)                                         | api                        | no            | no     |
+| [`DEFAULT_TIMEZONE`](#default_timezone)                                         | api                        | no            | no     |
+| [`DEFAULT_LOCALE`](#default_locale)                                             | api                        | no            | no     |
+| [`DEFAULT_FISCAL_YEAR_START_MONTH`](#default_fiscal_year_start_month)           | api                        | no            | no     |
+| [`DEFAULT_REGION`](#default_region)                                             | api                        | no            | no     |
+| [`DATABASE_URL`](#database_url)                                                 | api, worker, db            | yes           | yes    |
+| [`DATABASE_AUTH_URL`](#database_auth_url)                                       | api, db                    | in production | yes    |
+| [`DATABASE_WORKER_URL`](#database_worker_url)                                   | worker, db                 | in production | yes    |
+| [`DATABASE_ERASURE_URL`](#database_erasure_url)                                 | worker                     | no            | yes    |
+| [`DATABASE_MIGRATION_URL`](#database_migration_url)                             | db                         | no            | yes    |
+| [`DATABASE_POOL_MAX`](#database_pool_max)                                       | api, worker, db            | no            | no     |
+| [`DATABASE_CA_CERT`](#database_ca_cert)                                         | api, worker, db            | no            | no     |
+| [`AUTH_SECRET`](#auth_secret)                                                   | api                        | yes           | yes    |
+| [`AUTH_SECRET_PREVIOUS`](#auth_secret_previous)                                 | api                        | no            | yes    |
+| [`PASSWORD_HASH_MEMORY_KIB`](#password_hash_memory_kib)                         | api                        | no            | no     |
+| [`PASSWORD_HASH_PASSES`](#password_hash_passes)                                 | api                        | no            | no     |
+| [`PASSWORD_HASH_PARALLELISM`](#password_hash_parallelism)                       | api                        | no            | no     |
+| [`SESSION_COOKIE_NAME`](#session_cookie_name)                                   | api, web                   | no            | no     |
+| [`SESSION_TTL_DAYS`](#session_ttl_days)                                         | api, web                   | no            | no     |
+| [`AUTH_RATE_LIMIT_WINDOW_SECONDS`](#auth_rate_limit_window_seconds)             | api                        | no            | no     |
+| [`AUTH_RATE_LIMIT_MAX_PER_IP`](#auth_rate_limit_max_per_ip)                     | api                        | no            | no     |
+| [`AUTH_FAILURE_MAX_PER_ACCOUNT`](#auth_failure_max_per_account)                 | api                        | no            | no     |
+| [`AUTH_FAILURE_MAX_PER_IP`](#auth_failure_max_per_ip)                           | api                        | no            | no     |
+| [`AUTH_THROTTLE_MAX_DELAY_MS`](#auth_throttle_max_delay_ms)                     | api                        | no            | no     |
+| [`RATE_LIMIT_WINDOW_SECONDS`](#rate_limit_window_seconds)                       | api                        | no            | no     |
+| [`RATE_LIMIT_MAX_PER_USER`](#rate_limit_max_per_user)                           | api                        | no            | no     |
+| [`RATE_LIMIT_MAX_PER_TENANT`](#rate_limit_max_per_tenant)                       | api                        | no            | no     |
+| [`RATE_LIMIT_MAX_PER_IP`](#rate_limit_max_per_ip)                               | api                        | no            | no     |
+| [`RATE_LIMIT_ALLOW_PER_PROCESS`](#rate_limit_allow_per_process)                 | api                        | no            | no     |
+| [`PUBLIC_FORM_RATE_WINDOW_SECONDS`](#public_form_rate_window_seconds)           | api                        | no            | no     |
+| [`PUBLIC_FORM_RATE_PER_ADDRESS_FORM`](#public_form_rate_per_address_form)       | api                        | no            | no     |
+| [`PUBLIC_FORM_RATE_PER_ADDRESS`](#public_form_rate_per_address)                 | api                        | no            | no     |
+| [`PUBLIC_FORM_RATE_PER_FORM`](#public_form_rate_per_form)                       | api                        | no            | no     |
+| [`PUBLIC_FORM_RATE_VIEWS_PER_FORM`](#public_form_rate_views_per_form)           | api                        | no            | no     |
+| [`PUBLIC_FORM_RATE_PER_TENANT_HOUR`](#public_form_rate_per_tenant_hour)         | api                        | no            | no     |
+| [`PUBLIC_FORM_RATE_BAD_KEY_PER_ADDRESS`](#public_form_rate_bad_key_per_address) | api                        | no            | no     |
+| [`LEAD_FORMS_MAX_PER_TENANT`](#lead_forms_max_per_tenant)                       | api                        | no            | no     |
+| [`LEAD_FORM_MAX_PER_FORM_PER_DAY`](#lead_form_max_per_form_per_day)             | api                        | no            | no     |
+| [`LEAD_FORM_MAX_PER_TENANT_PER_DAY`](#lead_form_max_per_tenant_per_day)         | api                        | no            | no     |
+| [`PUBLIC_FORMS_BASE_URL`](#public_forms_base_url)                               | api                        | no            | no     |
+| [`EMAIL_PROVIDER`](#email_provider)                                             | api, worker                | in production | no     |
+| [`EMAIL_FROM`](#email_from)                                                     | api, worker                | in production | no     |
+| [`RESEND_API_KEY`](#resend_api_key)                                             | api, worker                | in production | yes    |
+| [`SES_REGION`](#ses_region)                                                     | api, worker                | in production | no     |
+| [`SES_ACCESS_KEY_ID`](#ses_access_key_id)                                       | api, worker                | in production | yes    |
+| [`SES_SECRET_ACCESS_KEY`](#ses_secret_access_key)                               | api, worker                | in production | yes    |
+| [`SES_CONFIGURATION_SET`](#ses_configuration_set)                               | api, worker                | no            | no     |
+| [`SMTP_HOST`](#smtp_host)                                                       | api, worker                | in production | no     |
+| [`SMTP_PORT`](#smtp_port)                                                       | api, worker                | no            | no     |
+| [`SMTP_SECURITY`](#smtp_security)                                               | api, worker                | no            | no     |
+| [`SMTP_USER`](#smtp_user)                                                       | api, worker                | no            | no     |
+| [`SMTP_PASSWORD`](#smtp_password)                                               | api, worker                | no            | yes    |
+| [`STORAGE_PROVIDER`](#storage_provider)                                         | api, worker                | no            | no     |
+| [`S3_BUCKET`](#s3_bucket)                                                       | api, worker                | no            | no     |
+| [`S3_REGION`](#s3_region)                                                       | api, worker                | no            | no     |
+| [`S3_ENDPOINT`](#s3_endpoint)                                                   | api, worker                | no            | no     |
+| [`S3_PUBLIC_ENDPOINT`](#s3_public_endpoint)                                     | api, worker, web           | no            | no     |
+| [`S3_ACCESS_KEY_ID`](#s3_access_key_id)                                         | api, worker                | in production | yes    |
+| [`S3_SECRET_ACCESS_KEY`](#s3_secret_access_key)                                 | api, worker                | in production | yes    |
+| [`S3_FORCE_PATH_STYLE`](#s3_force_path_style)                                   | api, worker                | no            | no     |
+| [`REDIS_URL`](#redis_url)                                                       | api                        | no            | yes    |
+| [`GOOGLE_CLIENT_ID`](#google_client_id)                                         | api                        | no            | no     |
+| [`GOOGLE_CLIENT_SECRET`](#google_client_secret)                                 | api                        | no            | yes    |
+| [`OUTBOX_POLL_INTERVAL_MS`](#outbox_poll_interval_ms)                           | worker                     | no            | no     |
+| [`OUTBOX_BATCH_SIZE`](#outbox_batch_size)                                       | worker                     | no            | no     |
+| [`DIGEST_WINDOW_MINUTES`](#digest_window_minutes)                               | worker                     | no            | no     |
+| [`PERF_ADMIN_URL`](#perf_admin_url)                                             | perf                       | no            | yes    |
+| [`PERF_ROWS`](#perf_rows)                                                       | perf                       | no            | no     |
 
 ## Runtime
 
@@ -224,6 +237,16 @@ Comma-separated origins allowed to call the API with credentials. Normally just 
 - **Default:** `http://localhost:3000`
 
 Never `*`; every entry must be https in production.
+
+### `PUBLIC_FORMS_BASE_URL`
+
+The public origin of the hosted lead-form pages (`/f/<key>`), used to build the link and the embed snippet. Unset: the web app's own origin (`WEB_URL`).
+
+- **Used by:** api
+- **Required:** no
+- **Secret:** no
+
+Set this to a separate domain once hosting exists, so visitors to a form never touch the app's own origin (ADR-0065 5.1). Must be `https` in production.
 
 ## Branding and identity
 
@@ -513,7 +536,7 @@ How long a session lasts, in days (at most 90). The API and the web app must agr
 
 ### `AUTH_RATE_LIMIT_WINDOW_SECONDS`
 
-Window for the per-address ceiling on sign-in, sign-up, password reset and invitation acceptance, which have no user to key a limit on (CLAUDE.md §5.14).
+Window for the sign-in limits: the per-address ceiling on sign-in, sign-up, password reset and invitation acceptance, which have no user to key a limit on (CLAUDE.md §5.14), and the failed-attempt budgets below (ADR-0064).
 
 - **Used by:** api
 - **Required:** no
@@ -522,14 +545,32 @@ Window for the per-address ceiling on sign-in, sign-up, password reset and invit
 
 ### `AUTH_RATE_LIMIT_MAX_PER_IP`
 
-Most such attempts one address may make per window.
+Most requests of any kind (successful or not) one address may make to those routes per window. A flood ceiling, sized for an office behind one address; the budget for wrong passwords is `AUTH_FAILURE_MAX_PER_IP`.
 
 - **Used by:** api
 - **Required:** no
 - **Secret:** no
-- **Default:** `50`
+- **Default:** `600`
 
 The end-to-end suite signs in dozens of times from one address, which this ceiling rightly refuses on a second run inside the window. Raise it locally before running `pnpm test:e2e` repeatedly, or restart the API between runs (the counter is in-process).
+
+### `AUTH_FAILURE_MAX_PER_ACCOUNT`
+
+Most failed sign-ins (wrong password or code) one account may have per window, from any address. Past it every attempt on that account is refused until the window ends, a correct password included, and an unknown address is counted the same way so the refusal does not say whether an account exists (ADR-0064).
+
+- **Used by:** api
+- **Required:** no
+- **Secret:** no
+- **Default:** `10`
+
+### `AUTH_FAILURE_MAX_PER_IP`
+
+Most failed sign-ins one address may have per window, across all accounts. Successful sign-ins do not count, so an office behind one address is not locked out by its own people signing in (ADR-0064).
+
+- **Used by:** api
+- **Required:** no
+- **Secret:** no
+- **Default:** `100`
 
 ### `AUTH_THROTTLE_MAX_DELAY_MS`
 
@@ -595,6 +636,98 @@ Permit counting rate limits per process instead of in Redis, for a deployment th
 - **Values:** `true`, `false`
 
 Production refuses to start without REDIS_URL unless this is set (ADR-0053): on more than one instance, per-process counting silently multiplies every limit by the instance count. Set it only when you know there is exactly one.
+
+### `PUBLIC_FORM_RATE_WINDOW_SECONDS`
+
+Window for the per-address, per-form and bad-key limits on the public lead-form routes.
+
+- **Used by:** api
+- **Required:** no
+- **Secret:** no
+- **Default:** `600`
+
+The per-workspace limit has its own fixed one-hour window. These limits use their own Redis keys, so a flood on a form can never spend the budget a workspace's staff use (ADR-0065 4.1).
+
+### `PUBLIC_FORM_RATE_PER_ADDRESS_FORM`
+
+Most submissions one address may send to one form per window.
+
+- **Used by:** api
+- **Required:** no
+- **Secret:** no
+- **Default:** `10`
+
+### `PUBLIC_FORM_RATE_PER_ADDRESS`
+
+Most submissions one address may send to all forms together per window.
+
+- **Used by:** api
+- **Required:** no
+- **Secret:** no
+- **Default:** `30`
+
+### `PUBLIC_FORM_RATE_PER_FORM`
+
+Most requests one form may take per window, from everybody.
+
+- **Used by:** api
+- **Required:** no
+- **Secret:** no
+- **Default:** `200`
+
+### `PUBLIC_FORM_RATE_VIEWS_PER_FORM`
+
+Most times one form's public definition may be fetched (a page being drawn) per window, from everybody. Far looser than submissions: a popular page is read much more than it is filled in.
+
+- **Used by:** api
+- **Required:** no
+- **Secret:** no
+- **Default:** `2000`
+
+### `PUBLIC_FORM_RATE_PER_TENANT_HOUR`
+
+Most requests all of a workspace's forms together may take per hour, so one form cannot use the whole allowance.
+
+- **Used by:** api
+- **Required:** no
+- **Secret:** no
+- **Default:** `1000`
+
+### `PUBLIC_FORM_RATE_BAD_KEY_PER_ADDRESS`
+
+Most requests with a key that does not work one address may send per window. Tighter than real use, so key guessing is throttled harder.
+
+- **Used by:** api
+- **Required:** no
+- **Secret:** no
+- **Default:** `20`
+
+### `LEAD_FORMS_MAX_PER_TENANT`
+
+Most website lead forms one workspace may have.
+
+- **Used by:** api
+- **Required:** no
+- **Secret:** no
+- **Default:** `10`
+
+### `LEAD_FORM_MAX_PER_FORM_PER_DAY`
+
+Most leads one form may create per UTC day. Counted in the database, so it holds when Redis does not.
+
+- **Used by:** api
+- **Required:** no
+- **Secret:** no
+- **Default:** `1000`
+
+### `LEAD_FORM_MAX_PER_TENANT_PER_DAY`
+
+Most leads all of a workspace's forms together may create per UTC day. Counted in the database.
+
+- **Used by:** api
+- **Required:** no
+- **Secret:** no
+- **Default:** `2000`
 
 ## Email
 

@@ -27,6 +27,10 @@
       "types": "./dist/activities/index.d.ts",
       "default": "./dist/activities/index.js"
     },
+    "./lead-form-token": {
+      "types": "./dist/lead-forms/token.d.ts",
+      "default": "./dist/lead-forms/token.js"
+    },
     "./html": {
       "types": "./dist/html/index.d.ts",
       "default": "./dist/html/index.js"

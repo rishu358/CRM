@@ -160,6 +160,18 @@ const IMPORT_HISTORY_GRANT: SystemRoleGrant = {
   scope: 'all',
 };
 
+/**
+ * Website lead forms (ADR-0065): creating a form, changing it, rotating its key, switching it off.
+ *
+ * Owner and Admin, like the other company-wide configuration. Migration 0027 backfills the same
+ * rows for tenants that already exist. A custom role gets nothing.
+ */
+const LEAD_FORM_GRANT: SystemRoleGrant = {
+  objectType: 'lead_form',
+  actions: ['read', 'create', 'update', 'delete'],
+  scope: 'all',
+};
+
 const TENANT_DATA_GRANT: SystemRoleGrant = {
   objectType: 'tenant_data',
   actions: ['export'],
@@ -180,6 +192,7 @@ export const SYSTEM_ROLES: readonly SystemRoleDefinition[] = [
       TENANT_SETTINGS_GRANT,
       PIPELINE_GRANT,
       IMPORT_HISTORY_GRANT,
+      LEAD_FORM_GRANT,
     ],
   },
   {
@@ -194,6 +207,7 @@ export const SYSTEM_ROLES: readonly SystemRoleDefinition[] = [
       TENANT_SETTINGS_GRANT,
       PIPELINE_GRANT,
       IMPORT_HISTORY_GRANT,
+      LEAD_FORM_GRANT,
     ],
   },
   {

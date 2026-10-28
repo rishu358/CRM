@@ -221,6 +221,38 @@ export const recordTags = pgTable(
 );
 
 /**
+ * Which record was merged into which (migration 0026, ADR-0064).
+ *
+ * Ids, counts and times only, no personal data, and no foreign key to the loser: the Recycle Bin purge
+ * deletes the loser and this row is meant to outlive it, so an old link can still be told where it went.
+ */
+export const recordMerges = pgTable(
+  'record_merges',
+  {
+    ...baseColumns,
+    objectType: text('object_type').$type<'contact' | 'account'>().notNull(),
+    loserId: uuid('loser_id').notNull(),
+    masterId: uuid('master_id').notNull(),
+    moved: jsonb('moved')
+      .$type<Record<string, number | null>>()
+      .notNull()
+      .default(sql`'{}'::jsonb`),
+    mergedAt: timestamptz('merged_at')
+      .notNull()
+      .default(sql`now()`),
+    undoneAt: timestamptz('undone_at'),
+  },
+  (table) => [
+    uniqueIndex('record_merges_loser_key')
+      .on(table.tenantId, table.objectType, table.loserId)
+      .where(sql`${table.undoneAt} is null`),
+    index('record_merges_master_idx')
+      .on(table.tenantId, table.objectType, table.masterId)
+      .where(sql`${table.undoneAt} is null`),
+  ],
+);
+
+/**
  * The per-record history feed (ADR-0005, ADR-0006).
  *
  * A denormalised projection built by the worker from outbox events, so the
