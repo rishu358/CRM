@@ -188,12 +188,13 @@ the past); disk on the database volume.
 
 Four limits are counted, all in Redis, so each means the same however many API instances run (ADR-0042):
 
-| Limit          | Setting (default)                                | Applies to                                          |
-| -------------- | ------------------------------------------------ | --------------------------------------------------- |
-| Per user       | `RATE_LIMIT_MAX_PER_USER` (300 per window)       | A signed-in person, from any address                |
-| Per tenant     | `RATE_LIMIT_MAX_PER_TENANT` (3,000 per window)   | Everyone in one workspace together                  |
-| Per address    | `RATE_LIMIT_MAX_PER_IP` (1,000 per window)       | Everything one address sends, signed in or not      |
-| Sign-in routes | `AUTH_RATE_LIMIT_MAX_PER_IP` (50 per 15 minutes) | Sign-in, sign-up, reset and invitation, per address |
+| Limit           | Setting (default)                                                                    | Applies to                                                                           |
+| --------------- | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------ |
+| Per user        | `RATE_LIMIT_MAX_PER_USER` (300 per window)                                           | A signed-in person, from any address                                                 |
+| Per tenant      | `RATE_LIMIT_MAX_PER_TENANT` (3,000 per window)                                       | Everyone in one workspace together                                                   |
+| Per address     | `RATE_LIMIT_MAX_PER_IP` (1,000 per window)                                           | Everything one address sends, signed in or not                                       |
+| Sign-in routes  | `AUTH_RATE_LIMIT_MAX_PER_IP` (600 per 15 minutes)                                    | Sign-in, sign-up, reset and invitation, per address                                  |
+| Failed sign-ins | `AUTH_FAILURE_MAX_PER_ACCOUNT` (10), `AUTH_FAILURE_MAX_PER_IP` (100), per 15 minutes | Wrong passwords and codes only, per account (any address) and per address (ADR-0066) |
 
 The window is `RATE_LIMIT_WINDOW_SECONDS` (60). `/api/v1/health` is not limited. A refused request is a `429` with a
 `Retry-After` header; its message says whose budget it is ("this workspace", "you", "this address") and nothing else.

@@ -17,6 +17,17 @@ export class InMemoryCounter implements RateLimitCounter {
     return Promise.resolve(entries.map((entry) => this.hit(entry.key, entry.windowSeconds)));
   }
 
+  releaseMany(keys: readonly string[]): Promise<void> {
+    const now = this.now();
+    for (const key of keys) {
+      const existing = this.windows.get(key);
+      if (existing !== undefined && existing.resetAt > now && existing.count > 0) {
+        existing.count -= 1;
+      }
+    }
+    return Promise.resolve();
+  }
+
   private hit(key: string, windowSeconds: number): RateLimitHit {
     const now = this.now();
     const existing = this.windows.get(key);
