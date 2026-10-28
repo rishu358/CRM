@@ -52,6 +52,13 @@ person can type.
 ## Consequences
 
 - No migration, no new permission, no new setting: the rule reuses existing grants and field permissions.
+- **Earlier text and tests said the opposite.** ADR-0029 and the header of `targets.ts` said an owner column is
+  never importable, and three tests (core, API, end-to-end) pinned "no one is ever offered an Owner column".
+  Those encoded the rule this ADR replaces, so they changed with it: the end-to-end test now expects the Owner
+  option for the workspace Owner and the API test expects it for a Manager. Where the old intent still holds it
+  is kept and pinned: an `own`-scope importer is not offered the column, is refused on start with a 422, and is
+  refused per row if a hostile mapping reaches the worker. The default Sales Rep and Read-only roles cannot
+  import at all (403, `imports.security.spec.ts`), so they are never offered anything.
 - ADR-0029's "every imported record is owned by the importer" is now "unless a permitted importer maps an
   owner". The tests that said an owner mapping is refused now use an `own`-scope importer.
 - The importer can be a `team`-scope manager handing rows to their team, or an administrator handing rows to
