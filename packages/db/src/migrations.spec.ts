@@ -38,7 +38,7 @@ const KNOWN_COLLISIONS: ReadonlySet<string> = new Set(['0007']);
  * **absent**, so the day 0013 lands this list fails until its line is deleted.
  * A reservation therefore cannot quietly become a permanent hole.
  */
-const RESERVED_NUMBERS: ReadonlySet<number> = new Set([26, 27, 28]);
+const RESERVED_NUMBERS: ReadonlySet<number> = new Set([28]);
 
 function migrationFiles(): string[] {
   return readdirSync(MIGRATIONS_DIR)
