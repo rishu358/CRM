@@ -133,6 +133,7 @@ describe('(d) unauthenticated requests get 401', () => {
     { method: 'GET', url: `/api/v1/imports/${id}` },
     { method: 'POST', url: `/api/v1/imports/${id}/uploaded` },
     { method: 'POST', url: `/api/v1/imports/${id}/start`, body: {} },
+    { method: 'POST', url: `/api/v1/imports/${id}/check`, body: {} },
     { method: 'POST', url: `/api/v1/imports/${id}/error-file` },
   ] as const;
 
@@ -897,5 +898,114 @@ describe('audit', () => {
     expect(entries.rows.every((row) => row.actor_id === managerA.userId)).toBe(true);
     expect(entries.rows[0]?.['changes']).toMatchObject({ fileName: { new: 'audited.csv' } });
     expect(entries.rows[1]?.['changes']).toMatchObject({ mappedFields: { new: ['last_name'] } });
+  });
+});
+
+describe('check: the same file and mapping, nothing imported (ADR-0068)', () => {
+  const body = {
+    mapping: [
+      { column: 1, field: 'last_name' },
+      { column: 2, field: 'email' },
+    ],
+    duplicateMode: 'skip',
+    matchField: 'email',
+  };
+  const check = (token: string, id: string, payload: Record<string, unknown> = body) =>
+    request(harness, { method: 'POST', url: `/api/v1/imports/${id}/check`, token, body: payload });
+
+  it('returns 202 with a job of its own, leaves the import waiting, and keeps the file', async () => {
+    const { created } = await createImport(managerA.token);
+    await awaitMapping(created!.id);
+
+    const response = await check(managerA.token, created!.id);
+    expect(response.status).toBe(202);
+    const checkJob = dataOf<{ id: string; status: string; dryRun: boolean }>(response);
+    expect(checkJob).toMatchObject({ status: 'staging', dryRun: true });
+    expect(checkJob.id).not.toBe(created!.id);
+
+    // The import being checked is untouched, so it can be changed, checked again, or started.
+    expect((await jobRow(created!.id))['status']).toBe('awaiting_mapping');
+    expect((await jobRow(created!.id))['dry_run']).toBe(false);
+    // Same file, same stored object.
+    expect((await jobRow(checkJob.id))['storage_key']).toBe(
+      (await jobRow(created!.id))['storage_key'],
+    );
+
+    const events = await superuser.query(
+      `select count(*)::int as n from outbox_events where record_id = $1 and event_type = 'import.started.v1'`,
+      [checkJob.id],
+    );
+    expect(events.rows[0]?.['n']).toBe(1);
+
+    // It is audited as a check, with the job it checked.
+    const audit = await superuser.query(
+      `select changes from audit_logs where tenant_id = $1 and record_id = $2 and action = 'import'`,
+      [tenantA, checkJob.id],
+    );
+    expect(audit.rows[0]?.['changes']).toMatchObject({
+      dryRun: { new: true },
+      checkedJobId: { new: created!.id },
+    });
+  });
+
+  it('is not listed among the person’s imports', async () => {
+    const { created } = await createImport(managerA.token);
+    await awaitMapping(created!.id);
+    const checkJob = dataOf<{ id: string }>(await check(managerA.token, created!.id));
+
+    const list = await request(harness, {
+      method: 'GET',
+      url: '/api/v1/imports?limit=100',
+      token: managerA.token,
+    });
+    const ids = (list.body['data'] as { id: string }[]).map((job) => job.id);
+    expect(ids).toContain(created!.id);
+    expect(ids).not.toContain(checkJob.id);
+  });
+
+  it('refuses what start refuses: a column onto a field that cannot be imported', async () => {
+    const { created } = await createImport(managerA.token);
+    await awaitMapping(created!.id);
+    const refused = await check(managerA.token, created!.id, {
+      mapping: [
+        { column: 0, field: 'last_name' },
+        { column: 1, field: 'tenant_id' },
+      ],
+      duplicateMode: 'create',
+    });
+    expect(refused.status).toBe(422);
+    const rows = await superuser.query(
+      `select count(*)::int as n from import_jobs where tenant_id = $1 and dry_run`,
+      [tenantA],
+    );
+    // No check job was made for the refused mapping.
+    const before = Number(rows.rows[0]?.['n']);
+    await check(managerA.token, created!.id, {
+      mapping: [{ column: 0, field: 'tenant_id' }],
+      duplicateMode: 'create',
+    });
+    const after = await superuser.query(
+      `select count(*)::int as n from import_jobs where tenant_id = $1 and dry_run`,
+      [tenantA],
+    );
+    expect(Number(after.rows[0]?.['n'])).toBe(before);
+  });
+
+  it('refuses a caller with no import grant, and another person’s job, and a job not yet mapped', async () => {
+    const { created } = await createImport(managerA.token);
+    expect((await check(managerA.token, created!.id)).status).toBe(409);
+
+    await awaitMapping(created!.id);
+    expect((await check(repA.token, created!.id)).status).toBe(403);
+    expect((await check(readOnlyA.token, created!.id)).status).toBe(403);
+    // Someone else in the workspace gets "not found", as for any other route on a job.
+    const colleague = await userWithRole(tenantA, roles.get('Manager')!);
+    expect((await check(colleague.token, created!.id)).status).toBe(404);
+  });
+
+  it('does not reach into another workspace', async () => {
+    const { created } = await createImport(managerA.token);
+    await awaitMapping(created!.id);
+    expect((await check(adminB.token, created!.id)).status).toBe(404);
   });
 });

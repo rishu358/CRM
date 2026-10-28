@@ -571,6 +571,16 @@ export const en = {
   'import.owner.offered':
     'You may give rows to someone else: match a column to Owner and put their e-mail address in it.',
   'import.start': 'Start import',
+  'import.check': 'Check the file first',
+  'import.check.running': 'Checking the file. Nothing is being changed.',
+  'import.check.title': 'Check finished. Nothing was changed.',
+  'import.check.description':
+    'If you import now: {created} would be created, {updated} updated, {skipped} skipped and {failed} could not be imported.',
+  'import.check.stale':
+    'You changed the mapping after this check. Check again to see the result for the new mapping.',
+  'import.check.large':
+    'In a large file, a row that repeats a value from much earlier may be counted as new here and skipped when you import.',
+  'import.check.failed': 'The check could not finish',
   'import.running': 'Importing',
   'import.running.description':
     'You can leave this page. The import keeps running in the background.',
