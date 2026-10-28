@@ -138,7 +138,7 @@ test.describe.serial('an owner builds a web form and a visitor uses it', () => {
       expect(headers['content-security-policy']).toContain(`frame-ancestors ${ALLOWED_SITE}`);
       expect(headers['x-frame-options']).toBeUndefined();
 
-      await visitor.getByLabel('Your name (required)').fill(VISITOR);
+      await visitor.getByLabel('Last name (required)').fill(VISITOR);
       await visitor.getByLabel('Email').fill(VISITOR_EMAIL);
 
       // Without the consent box the form does not go.
