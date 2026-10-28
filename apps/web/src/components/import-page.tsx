@@ -52,8 +52,9 @@ import { AppShell } from './app-shell';
  * Nothing here is enforcement. The mapping screen offers only the fields the
  * server says this person may write (`targets`), but the API re-checks every
  * one on Start, the worker checks again at every chunk, and a column can never
- * be mapped onto an owner, an id or a version because those are not offered and
- * would be refused if somebody sent them anyway.
+ * be mapped onto an id or a version, nor onto an owner by somebody who may not
+ * reassign records, because those are not offered and would be refused if
+ * somebody sent them anyway.
  */
 
 const MAX_MB = Math.round(IMPORT_LIMITS.maxUploadBytes / (1024 * 1024));

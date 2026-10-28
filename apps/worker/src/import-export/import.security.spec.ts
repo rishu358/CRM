@@ -63,6 +63,20 @@ async function contact(id: string): Promise<Record<string, unknown>> {
   return row;
 }
 
+async function emailOf(userId: string): Promise<string> {
+  return h.fixtures.emailFor(userId);
+}
+
+/** Someone who can import contacts and read accounts, but only their own. */
+async function ownScopeRep(): Promise<string> {
+  const roleId = await h.fixtures.createRole(h.tenantId, `own-rep-${unique()}`);
+  for (const action of ['read', 'create', 'update', 'import'] as const) {
+    await h.fixtures.grant(h.tenantId, roleId, 'contact', action, 'own');
+  }
+  await h.fixtures.grant(h.tenantId, roleId, 'account', 'read', 'own');
+  return (await h.fixtures.createUser(h.tenantId, roleId)).userId;
+}
+
 /** A role that can import at one scope, built the way an admin would build a custom role. */
 async function importerRole(name: string, scope: 'own' | 'team' | 'all'): Promise<string> {
   const roleId = await h.fixtures.createRole(h.tenantId, `${name}-${unique()}`);
@@ -307,14 +321,15 @@ describe('what a file can never set', () => {
     expect(created.rows[0]?.['owner_id']).not.toBe(victim);
   });
 
-  it('refuses a mapping onto owner_id at start, and stops if one reaches the worker anyway', async () => {
+  it('refuses a mapping onto owner_id from an `own`-scope importer, and stops if one reaches the worker anyway', async () => {
     const tag = unique();
     const victim = await h.user('Owner');
+    const rep = await ownScopeRep();
     const analyzed = await h.analyze({
-      userId: owner,
+      userId: rep,
       bytes: csv([
         ['Last', 'Email', 'Owner'],
-        ['A', `own2-${tag}@x.io`, victim],
+        ['A', `own2-${tag}@x.io`, await emailOf(victim)],
       ]),
     });
     // Skip the API's validation entirely and hand the worker a hostile mapping.
@@ -336,45 +351,42 @@ describe('what a file can never set', () => {
     expect(created.rows[0]?.['n']).toBe(0);
   });
 
-  it('the row-level guard refuses owner_id even when the mapping check is bypassed (update path)', async () => {
+  it('the row-level guard refuses an owner for an `own`-scope importer even when the mapping check is bypassed (update path)', async () => {
     // Call the writer directly with a mapping containing owner_id, which no
     // earlier check is given the chance to refuse. An update patch built from
     // it would reassign a record; the per-row guard must stop it.
     const tag = unique();
     const victim = await h.user('Owner');
+    const rep = await ownScopeRep();
     const existing = await h.fixtures.createContact(h.tenantId, {
-      ownerId: owner,
+      ownerId: rep,
       lastName: 'Keep',
       email: `guard-${tag}@x.io`,
     });
 
-    const result = await withTenant(
-      h.db.db,
-      { tenantId: h.tenantId, userId: owner },
-      async (tx) => {
-        const actor = (await loadActor(tx, owner, h.tenantId))!;
-        const fields = await loadFieldDefinitions(tx, h.tenantId, 'contact');
-        const context: ChunkContext = {
-          actor,
-          jobId: newId(),
-          objectType: 'contact',
-          fields,
-          mapping: [
-            { column: 0, field: 'email' },
-            { column: 1, field: 'owner_id' },
-          ],
-          duplicateMode: 'update',
-          matchField: 'email',
-        };
-        return processChunk(tx, context, [
-          { rowNumber: 1, sourceRow: 2, cells: [`guard-${tag}@x.io`, victim] },
-        ]);
-      },
-    );
+    const result = await withTenant(h.db.db, { tenantId: h.tenantId, userId: rep }, async (tx) => {
+      const actor = (await loadActor(tx, rep, h.tenantId))!;
+      const fields = await loadFieldDefinitions(tx, h.tenantId, 'contact');
+      const context: ChunkContext = {
+        actor,
+        jobId: newId(),
+        objectType: 'contact',
+        fields,
+        mapping: [
+          { column: 0, field: 'email' },
+          { column: 1, field: 'owner_id' },
+        ],
+        duplicateMode: 'update',
+        matchField: 'email',
+      };
+      return processChunk(tx, context, [
+        { rowNumber: 1, sourceRow: 2, cells: [`guard-${tag}@x.io`, await emailOf(victim)] },
+      ]);
+    });
 
     expect(result).toMatchObject({ failed: 1, updated: 0, created: 0 });
-    expect(result.errors[0]?.message).toMatch(/cannot be set by an import/);
-    expect(await contact(existing)).toMatchObject({ owner_id: owner, version: 1 });
+    expect(result.errors[0]?.message).toMatch(/cannot assign records to another user/);
+    expect(await contact(existing)).toMatchObject({ owner_id: rep, version: 1 });
   });
 
   it('cannot create a converted lead: conversion is a transaction of its own', async () => {
@@ -554,5 +566,329 @@ describe('audit and events', () => {
         (row['changes'] as { status?: { new?: unknown } } | null)?.status?.new === 'completed',
     );
     expect(completed?.['changes']).toMatchObject({ created: { new: 1 }, failed: { new: 0 } });
+  });
+});
+
+describe('owner and account columns (ADR-0067)', () => {
+  const LINKED = [
+    { column: 0, field: 'last_name' },
+    { column: 1, field: 'email' },
+    { column: 2, field: 'owner_id' },
+    { column: 3, field: 'account_id' },
+  ];
+  const HEAD = ['Last', 'Email', 'Owner', 'Account'];
+
+  const ownerOf = async (email: string): Promise<unknown> =>
+    (
+      await h.pool.query(
+        `select owner_id, account_id from contacts where tenant_id = $1 and email::text = $2`,
+        [h.tenantId, email],
+      )
+    ).rows[0];
+
+  const errorsOf = async (jobId: string) =>
+    (
+      await h.pool.query(
+        `select field, message from import_errors where job_id = $1 order by row_number`,
+        [jobId],
+      )
+    ).rows;
+
+  it('gives each row the owner and account its cells name, by e-mail, name, domain or id', async () => {
+    const tag = unique();
+    const member = await h.user('Sales Rep');
+    const named = await h.fixtures.createAccount(h.tenantId, {
+      name: `Named ${tag}`,
+      ownerId: owner,
+    });
+    const byDomain = await h.fixtures.createAccount(h.tenantId, {
+      name: `Dom ${tag}`,
+      domain: `dom-${tag}.example`,
+      ownerId: owner,
+    });
+    const byId = await h.fixtures.createAccount(h.tenantId, {
+      name: `Ident ${tag}`,
+      ownerId: owner,
+    });
+
+    const job = await importAs(
+      owner,
+      [
+        HEAD,
+        ['A', `a-${tag}@x.io`, (await emailOf(member)).toUpperCase(), `Named ${tag}`],
+        ['B', `b-${tag}@x.io`, await emailOf(member), `DOM-${tag}.example`],
+        ['C', `c-${tag}@x.io`, '', byId],
+      ],
+      { mapping: LINKED },
+    );
+
+    expect(job).toMatchObject({ status: 'completed', createdCount: 3, failedCount: 0 });
+    expect(await ownerOf(`a-${tag}@x.io`)).toMatchObject({ owner_id: member, account_id: named });
+    expect(await ownerOf(`b-${tag}@x.io`)).toMatchObject({
+      owner_id: member,
+      account_id: byDomain,
+    });
+    // A blank owner cell means the importer owns the row.
+    expect(await ownerOf(`c-${tag}@x.io`)).toMatchObject({ owner_id: owner, account_id: byId });
+
+    // The audit entry carries both, next to the job that made it.
+    const created = await h.pool.query(
+      `select id from contacts where tenant_id = $1 and email::text = $2`,
+      [h.tenantId, `a-${tag}@x.io`],
+    );
+    const audit = await h.pool.query(
+      `select changes from audit_logs where tenant_id = $1 and action = 'create' and record_id = $2`,
+      [h.tenantId, created.rows[0]?.['id']],
+    );
+    const changes = audit.rows[0]?.['changes'] as Record<string, { new?: unknown }>;
+    expect(changes['ownerId']?.new).toBe(member);
+    expect(changes['accountId']?.new).toBe(named);
+  });
+
+  it('fails only the row whose owner or account is wrong, and says which cell', async () => {
+    const tag = unique();
+    const job = await importAs(
+      owner,
+      [
+        HEAD,
+        ['Good', `good-${tag}@x.io`, '', ''],
+        ['NoOwner', `noowner-${tag}@x.io`, `nobody-${tag}@x.io`, ''],
+        ['NoAccount', `noacct-${tag}@x.io`, '', `No such company ${tag}`],
+      ],
+      { mapping: LINKED },
+    );
+
+    expect(job).toMatchObject({ createdCount: 1, failedCount: 2 });
+    expect(await ownerOf(`noowner-${tag}@x.io`)).toBeUndefined();
+    expect(await ownerOf(`noacct-${tag}@x.io`)).toBeUndefined();
+    expect(await errorsOf(job.id)).toEqual([
+      { field: 'owner_id', message: 'Owner: unknown member' },
+      { field: 'account_id', message: `Account: no account matches "No such company ${tag}"` },
+    ]);
+  });
+
+  it('never guesses: two accounts with one name is an error, not the first one', async () => {
+    const tag = unique();
+    await h.fixtures.createAccount(h.tenantId, { name: `Twin ${tag}`, ownerId: owner });
+    await h.fixtures.createAccount(h.tenantId, { name: `Twin ${tag}`, ownerId: owner });
+    const job = await importAs(owner, [HEAD, ['T', `t-${tag}@x.io`, '', `Twin ${tag}`]], {
+      mapping: LINKED,
+    });
+    expect(job).toMatchObject({ createdCount: 0, failedCount: 1 });
+    expect((await errorsOf(job.id))[0]?.['message']).toMatch(/matches 2 accounts/);
+  });
+
+  it('does not find an account in another workspace, by name, domain or id', async () => {
+    const tag = unique();
+    const theirs = await h.fixtures.createAccount(otherTenantId, {
+      name: `Theirs ${tag}`,
+      domain: `theirs-${tag}.example`,
+    });
+    const job = await importAs(
+      owner,
+      [
+        HEAD,
+        ['N', `n-${tag}@x.io`, '', `Theirs ${tag}`],
+        ['D', `d-${tag}@x.io`, '', `theirs-${tag}.example`],
+        ['I', `i-${tag}@x.io`, '', theirs],
+      ],
+      { mapping: LINKED },
+    );
+    expect(job).toMatchObject({ createdCount: 0, failedCount: 3 });
+  });
+
+  it('an `own`-scope importer finds only their own accounts, and a colleague’s answers as one that does not exist', async () => {
+    const tag = unique();
+    const rep = await ownScopeRep();
+    await h.fixtures.createAccount(h.tenantId, { name: `Colleague Co ${tag}`, ownerId: owner });
+    const mine = await h.fixtures.createAccount(h.tenantId, { name: `Mine ${tag}`, ownerId: rep });
+
+    // The account column is on offer to them; the owner column is not.
+    const job = await importAs(
+      rep,
+      [
+        ['Last', 'Email', 'Account'],
+        ['M', `m-${tag}@x.io`, `Mine ${tag}`],
+        ['C', `c-${tag}@x.io`, `Colleague Co ${tag}`],
+        ['G', `g-${tag}@x.io`, `Ghost Co ${tag}`],
+      ],
+      {
+        mapping: [
+          { column: 0, field: 'last_name' },
+          { column: 1, field: 'email' },
+          { column: 2, field: 'account_id' },
+        ],
+      },
+    );
+    expect(job).toMatchObject({ createdCount: 1, failedCount: 2 });
+    expect(await ownerOf(`m-${tag}@x.io`)).toMatchObject({ owner_id: rep, account_id: mine });
+    expect((await errorsOf(job.id)).map((row) => row['message'])).toEqual([
+      `Account: no account matches "Colleague Co ${tag}"`,
+      `Account: no account matches "Ghost Co ${tag}"`,
+    ]);
+  });
+
+  it('a `team`-scope importer may hand rows to a teammate, and to nobody outside the team', async () => {
+    const tag = unique();
+    const roleId = await importerRole('team-assigner', 'team');
+    await h.fixtures.grant(h.tenantId, roleId, 'account', 'read', 'all');
+    const lead = (await h.fixtures.createUser(h.tenantId, roleId)).userId;
+    const teammate = (await h.fixtures.createUser(h.tenantId, roleId)).userId;
+    const outsider = (await h.fixtures.createUser(h.tenantId, roleId)).userId;
+    await h.fixtures.createTeam(h.tenantId, `assign-${tag}`, [lead, teammate]);
+
+    const job = await importAs(
+      lead,
+      [
+        HEAD,
+        ['T', `tm-${tag}@x.io`, await emailOf(teammate), ''],
+        ['S', `self-${tag}@x.io`, await emailOf(lead), ''],
+        ['O', `out-${tag}@x.io`, await emailOf(outsider), ''],
+        ['U', `unk-${tag}@x.io`, `nobody-${tag}@x.io`, ''],
+      ],
+      { mapping: LINKED },
+    );
+
+    expect(job).toMatchObject({ createdCount: 2, failedCount: 2 });
+    expect(await ownerOf(`tm-${tag}@x.io`)).toMatchObject({ owner_id: teammate });
+    expect(await ownerOf(`self-${tag}@x.io`)).toMatchObject({ owner_id: lead });
+    // Somebody outside the team answers exactly as somebody who is not a member at all.
+    expect((await errorsOf(job.id)).map((row) => row['message'])).toEqual([
+      'Owner: unknown member',
+      'Owner: unknown member',
+    ]);
+  });
+
+  it('will not hand a row to someone who could not see it', async () => {
+    const tag = unique();
+    const blindRole = await h.fixtures.createRole(h.tenantId, `no-contacts-${unique()}`);
+    const blind = (await h.fixtures.createUser(h.tenantId, blindRole)).userId;
+    const job = await importAs(owner, [HEAD, ['B', `b-${tag}@x.io`, await emailOf(blind), '']], {
+      mapping: LINKED,
+    });
+    expect(job).toMatchObject({ createdCount: 0, failedCount: 1 });
+    expect((await errorsOf(job.id))[0]?.['message']).toMatch(/cannot see this kind of record/);
+  });
+
+  it('will not hand a row to a member whose membership is not active', async () => {
+    const tag = unique();
+    const suspended = await h.user('Sales Rep');
+    await h.fixtures.setMembershipStatus(h.tenantId, suspended, 'suspended');
+    const job = await importAs(
+      owner,
+      [HEAD, ['S', `s-${tag}@x.io`, await emailOf(suspended), '']],
+      {
+        mapping: LINKED,
+      },
+    );
+    expect(job).toMatchObject({ createdCount: 0, failedCount: 1 });
+  });
+
+  it('on an update, sets the account and owner, and leaves an existing link alone when the cell is blank', async () => {
+    const tag = unique();
+    const member = await h.user('Sales Rep');
+    const firstAccount = await h.fixtures.createAccount(h.tenantId, { name: `First ${tag}` });
+    const secondAccount = await h.fixtures.createAccount(h.tenantId, { name: `Second ${tag}` });
+    const existing = await h.fixtures.createContact(h.tenantId, {
+      ownerId: owner,
+      accountId: firstAccount,
+      lastName: 'Link',
+      email: `link-${tag}@x.io`,
+    });
+
+    const keep = await importAs(owner, [HEAD, ['Link', `link-${tag}@x.io`, '', '']], {
+      mapping: LINKED,
+      duplicateMode: 'update',
+      matchField: 'email',
+    });
+    expect(keep).toMatchObject({ updatedCount: 0, skippedCount: 1 });
+    expect(await contact(existing)).toMatchObject({ account_id: firstAccount, owner_id: owner });
+
+    const move = await importAs(
+      owner,
+      [HEAD, ['Link', `link-${tag}@x.io`, await emailOf(member), `Second ${tag}`]],
+      { mapping: LINKED, duplicateMode: 'update', matchField: 'email' },
+    );
+    expect(move).toMatchObject({ updatedCount: 1, failedCount: 0 });
+    expect(await contact(existing)).toMatchObject({
+      account_id: secondAccount,
+      owner_id: member,
+      version: 2,
+    });
+  });
+
+  it('refuses an account link when a field rule hides it, even if the mapping check is bypassed', async () => {
+    const tag = unique();
+    const roleId = await importerRole('no-account-field', 'all');
+    await h.fixtures.grant(h.tenantId, roleId, 'account', 'read', 'all');
+    await h.fixtures.setFieldPermission(h.tenantId, roleId, 'contact', 'account_id', 'hidden');
+    const user = (await h.fixtures.createUser(h.tenantId, roleId)).userId;
+    await h.fixtures.createAccount(h.tenantId, { name: `Hidden ${tag}` });
+
+    const result = await withTenant(h.db.db, { tenantId: h.tenantId, userId: user }, async (tx) => {
+      const actor = (await loadActor(tx, user, h.tenantId))!;
+      const fields = await loadFieldDefinitions(tx, h.tenantId, 'contact');
+      return processChunk(
+        tx,
+        {
+          actor,
+          jobId: newId(),
+          objectType: 'contact',
+          fields,
+          mapping: [
+            { column: 0, field: 'last_name' },
+            { column: 1, field: 'account_id' },
+          ],
+          duplicateMode: 'create',
+          matchField: null,
+        },
+        [{ rowNumber: 1, sourceRow: 2, cells: ['H', `Hidden ${tag}`] }],
+      );
+    });
+    expect(result).toMatchObject({ created: 0, failed: 1 });
+    expect(result.errors[0]?.message).toMatch(/permission to write this field/);
+  });
+
+  it('works for leads (owner) and refuses an account column on accounts', async () => {
+    const tag = unique();
+    const member = await h.user('Sales Rep');
+    const leadJob = await h.analyze({
+      userId: owner,
+      objectType: 'lead',
+      bytes: csv([
+        ['Last', 'Owner'],
+        [`L${tag}`, await emailOf(member)],
+      ]),
+    });
+    await h.start(leadJob.id, {
+      mapping: [
+        { column: 0, field: 'last_name' },
+        { column: 1, field: 'owner_id' },
+      ],
+    });
+    await h.drain();
+    expect((await h.job(leadJob.id)).createdCount).toBe(1);
+    const lead = await h.pool.query(
+      `select owner_id from leads where tenant_id = $1 and last_name = $2`,
+      [h.tenantId, `L${tag}`],
+    );
+    expect(lead.rows[0]?.['owner_id']).toBe(member);
+
+    const accountJob = await h.analyze({
+      userId: owner,
+      objectType: 'account',
+      bytes: csv([
+        ['Name', 'Account'],
+        [`Acct ${tag}`, 'x'],
+      ]),
+    });
+    await h.start(accountJob.id, {
+      mapping: [
+        { column: 0, field: 'name' },
+        { column: 1, field: 'account_id' },
+      ],
+    });
+    await h.drain();
+    expect((await h.job(accountJob.id)).status).toBe('failed');
   });
 });

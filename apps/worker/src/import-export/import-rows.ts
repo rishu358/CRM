@@ -6,6 +6,7 @@ import {
   canWriteField,
   coerceCell,
   diffChanges,
+  IMPORT_LINK_KEYS,
   IMPORTABLE_SYSTEM_KEYS,
   newId,
   type Actor,
@@ -22,6 +23,7 @@ import {
   type RecordRow,
   type Tx,
 } from '@crm/db';
+import { linkValueKey, resolveLinks, type LinkCell } from './import-links.js';
 
 /**
  * Turn one chunk of staged rows into records (MVP_SPEC §M8, ADR-0029).
@@ -33,9 +35,13 @@ import {
  *     was checked when the job started and is checked again before every
  *     chunk, but a mapped column is still run through `canWriteField` per
  *     field here, so a mistake in either earlier check cannot become a write.
- *   - **It cannot set `owner_id`, `tenant_id`, `version` or an id.** Those are
- *     not in `IMPORTABLE_SYSTEM_KEYS`, so no mapped column can reach them, and
- *     the values are set below from the actor and the job, never from a cell.
+ *   - **It cannot set `tenant_id`, `version` or an id.** Those are not in
+ *     `IMPORTABLE_SYSTEM_KEYS`, so no mapped column can reach them, and the
+ *     values are set below from the actor and the job, never from a cell.
+ *   - **The owner and a contact's account come from a cell only through
+ *     `import-links.ts`** (ADR-0067): named by e-mail address, name or domain,
+ *     looked up inside the actor's own reach, and refused unless the actor may
+ *     reassign records of that kind. Otherwise the importer owns every row.
  *   - **Every system value goes through the same Zod schema the API's create
  *     endpoint uses** (`contactCreateSchema` and friends), so an import cannot
  *     hold a looser definition of a valid email, phone, domain or GSTIN than a
@@ -90,6 +96,9 @@ const SCHEMAS = {
   lead: { create: leadCreateSchema, partial: leadCreateSchema.partial() },
 } as const;
 
+const LINK_LABELS: Readonly<Record<string, string>> = { owner_id: 'Owner', account_id: 'Account' };
+const linkLabel = (key: string): string => LINK_LABELS[key] ?? key;
+
 const snakeToCamel = (key: string): string =>
   key.replace(/_([a-z])/g, (_, letter: string) => letter.toUpperCase());
 
@@ -100,6 +109,8 @@ interface ParsedRow {
   custom: Record<string, unknown>;
   /** Field keys this row actually supplied (a blank cell supplies nothing). */
   supplied: string[];
+  /** Link columns (owner, account) as typed, resolved to ids after parsing. */
+  links: LinkCell[];
   errors: { field: string | null; message: string }[];
 }
 
@@ -172,9 +183,32 @@ export async function processChunk(
   // 1. Parse and validate every row. Nothing is written yet.
   // -------------------------------------------------------------------------
   const parsedRows: ParsedRow[] = rows.map((row) => {
-    const parsed: ParsedRow = { row, system: {}, custom: {}, supplied: [], errors: [] };
+    const parsed: ParsedRow = {
+      row,
+      system: {},
+      custom: {},
+      supplied: [],
+      links: [],
+      errors: [],
+    };
 
     for (const entry of context.mapping) {
+      // A link column (owner, account) is not a typed value: it is looked up after parsing.
+      if (IMPORT_LINK_KEYS[objectType].includes(entry.field)) {
+        const text = (row.cells[entry.column] ?? '').trim();
+        if (text === '') continue;
+        if (!canWriteField(actor, object, entry.field)) {
+          parsed.errors.push({
+            field: entry.field,
+            message: `${linkLabel(entry.field)}: you do not have permission to write this field`,
+          });
+          continue;
+        }
+        parsed.supplied.push(entry.field);
+        parsed.links.push({ key: entry.field, value: text });
+        continue;
+      }
+
       const definition = definitions.get(entry.field);
       if (definition === undefined) {
         parsed.errors.push({ field: entry.field, message: 'This field is no longer available' });
@@ -235,6 +269,30 @@ export async function processChunk(
     }
     return parsed;
   });
+
+  // Turn the owner and account cells into ids, once for the whole chunk.
+  const linkCells = parsedRows
+    .filter((parsed) => parsed.errors.length === 0)
+    .flatMap((parsed) => parsed.links);
+  if (linkCells.length > 0) {
+    const resolution = await resolveLinks(tx, actor, objectType, linkCells);
+    for (const parsed of parsedRows) {
+      if (parsed.errors.length > 0) continue;
+      for (const link of parsed.links) {
+        const value = linkValueKey(link.key, link.value);
+        const problem = resolution.problems.get(link.key)?.get(value);
+        const id = resolution.ids.get(link.key)?.get(value);
+        if (problem !== undefined || id === undefined) {
+          parsed.errors.push({
+            field: link.key,
+            message: problem ?? `${linkLabel(link.key)}: not found`,
+          });
+        } else {
+          parsed.system[snakeToCamel(link.key)] = id;
+        }
+      }
+    }
+  }
 
   const valid = parsedRows.filter((parsed) => parsed.errors.length === 0);
   for (const parsed of parsedRows) if (parsed.errors.length > 0) fail(parsed);
@@ -388,8 +446,9 @@ export async function processChunk(
       ...parsed.system,
       id,
       tenantId: actor.tenantId,
-      // Always the importer. A file cannot reassign ownership (see the top).
-      ownerId: actor.userId,
+      // The importer, unless the file named an owner the importer may hand records to.
+      ownerId:
+        typeof parsed.system['ownerId'] === 'string' ? parsed.system['ownerId'] : actor.userId,
       customFields: parsed.custom,
       createdBy: actor.userId,
       updatedBy: actor.userId,
@@ -490,7 +549,7 @@ function identityChanges(
   values: Record<string, unknown>,
 ): Record<string, { old?: unknown; new?: unknown }> {
   const pick: Record<ImportableObjectType, readonly string[]> = {
-    contact: ['lastName', 'email', 'ownerId'],
+    contact: ['lastName', 'email', 'accountId', 'ownerId'],
     account: ['name', 'domain', 'ownerId'],
     lead: ['lastName', 'company', 'email', 'status', 'ownerId'],
   };

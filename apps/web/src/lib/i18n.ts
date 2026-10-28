@@ -567,7 +567,8 @@ export const en = {
   'import.duplicates.matchBy': 'Match existing records by',
   'import.duplicates.matchBy.hint': 'A record counts as existing when this field is the same.',
   'import.duplicates.matchBy.unmapped': 'Match a column to this field first.',
-  'import.owner.note': 'Every record you import is assigned to you.',
+  'import.owner.note':
+    'Every record you import is assigned to you, unless you map an Owner column. Only people who may reassign records are offered one.',
   'import.start': 'Start import',
   'import.running': 'Importing',
   'import.running.description':
