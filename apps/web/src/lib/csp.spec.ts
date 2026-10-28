@@ -112,6 +112,49 @@ describe('what varies', () => {
   });
 });
 
+describe('framing (the hosted lead form, ADR-0063)', () => {
+  const others = (policy: string) =>
+    policy.split('; ').filter((part) => !part.startsWith('frame-ancestors'));
+
+  it('forbids framing by default, which is what every page but the lead form gets', () => {
+    expect(directive(buildCsp(production), 'frame-ancestors')).toBe("'none'");
+    expect(directive(buildCsp({ ...production, frameAncestors: [] }), 'frame-ancestors')).toBe(
+      "'none'",
+    );
+    expect(
+      directive(buildCsp({ ...production, frameAncestors: undefined }), 'frame-ancestors'),
+    ).toBe("'none'");
+  });
+
+  it('names the sites a form allows, and changes nothing else in the policy', () => {
+    const framed = buildCsp({ ...production, frameAncestors: ['https://shop.example.com'] });
+    expect(directive(framed, 'frame-ancestors')).toBe('https://shop.example.com');
+    expect(others(framed)).toEqual(others(buildCsp(production)));
+  });
+
+  it('lists a site once, and refuses anything that is not a bare origin', () => {
+    const policy = buildCsp({
+      ...production,
+      frameAncestors: [
+        'https://a.example.com',
+        'https://a.example.com',
+        'https://a.example.com/path',
+        'https://b.example.com; script-src *',
+        '*',
+        'javascript:alert(1)',
+      ],
+    });
+    expect(directive(policy, 'frame-ancestors')).toBe('https://a.example.com');
+    expect(policy).not.toContain('script-src *');
+  });
+
+  it('falls back to none when every entry is refused', () => {
+    expect(
+      directive(buildCsp({ ...production, frameAncestors: ['*', 'nope'] }), 'frame-ancestors'),
+    ).toBe("'none'");
+  });
+});
+
 describe('originOf', () => {
   it('reduces a URL to its origin', () => {
     expect(originOf('https://files.example.com/bucket/key?x=1')).toBe('https://files.example.com');

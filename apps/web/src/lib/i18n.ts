@@ -1497,6 +1497,137 @@ export const en = {
   'bulk.delete.body':
     'They move to the Recycle Bin and can be restored for 30 days. After that they are removed for good.',
   'bulk.delete.confirm': 'Delete',
+
+  // ---- website lead forms (ADR-0063) ---------------------------------------------------------
+  'nav.webForms': 'Web forms',
+  'access.object.lead_form': 'Web forms',
+  'notifications.webFormLead': 'A new lead from a web form is assigned to you',
+  'notifications.webFormDuplicate':
+    'A web form was filled in by someone who matches a record you own',
+
+  'webForms.title': 'Web forms',
+  'webForms.description':
+    'Put a form on your own website. Everyone who fills it in becomes a lead in this CRM.',
+  'webForms.new': 'New web form',
+  'webForms.empty.title': 'No web forms yet',
+  'webForms.empty.description':
+    'Make a form, copy its link or embed code onto your website, and new enquiries arrive here as leads.',
+  'webForms.forbidden.title': 'You cannot manage web forms',
+  'webForms.forbidden.description': 'Ask an administrator for access to web forms.',
+  'webForms.error.title': 'Could not load web forms',
+  'webForms.error.description': 'Something went wrong. Try again in a moment.',
+  'webForms.status.enabled': 'On',
+  'webForms.status.disabled': 'Off',
+  'webForms.stats': '{today} today, {week} in 7 days, {total} in all',
+  'webForms.lastLead': 'Last lead {when}',
+  'webForms.noLeadsYet': 'No leads yet',
+  'webForms.edit': 'Edit',
+  'webForms.keyHint': 'Key ending {hint}',
+  'webForms.noKey': 'No working key. Make a new one to use this form.',
+  'webForms.pause.label': 'Pause all web forms',
+  'webForms.pause.description':
+    'While paused, every form on your website stops accepting leads. Nothing is deleted.',
+  'webForms.pause.banner':
+    'All your web forms are paused. Nobody can send a lead until you resume.',
+  'webForms.limit': '{count} of {max} forms used',
+
+  'webForms.editor.titleNew': 'New web form',
+  'webForms.editor.titleEdit': 'Edit web form',
+  'webForms.editor.name': 'Form name',
+  'webForms.editor.nameHint': 'Only you see this. For example "Homepage enquiry".',
+  'webForms.editor.fields': 'Fields',
+  'webForms.editor.fieldsHint':
+    'Choose what visitors fill in. The name is always asked for, and an email or a phone number is needed so you can reply.',
+  'webForms.editor.label': 'Label',
+  'webForms.editor.helpText': 'Help text (optional)',
+  'webForms.editor.required': 'Required',
+  'webForms.editor.moveUp': 'Move {field} up',
+  'webForms.editor.moveDown': 'Move {field} down',
+  'webForms.editor.remove': 'Remove {field}',
+  'webForms.editor.addField': 'Add a field',
+  'webForms.editor.addFieldNone': 'Every available field is on the form',
+  'webForms.editor.addFieldAction': 'Add',
+  'webForms.editor.consent': 'Consent wording',
+  'webForms.editor.consentHint':
+    'Visitors must tick a box with these words before they can send the form. Changing them starts a new version; the old words are kept.',
+  'webForms.editor.privacyUrl': 'Privacy notice link (optional)',
+  'webForms.editor.privacyUrlHint': 'An https address, shown beside the consent box.',
+  'webForms.editor.successMessage': 'Message after sending',
+  'webForms.editor.successDefault': 'Thank you. We will be in touch soon.',
+  'webForms.editor.successRedirect': 'Send visitors to this page instead (optional)',
+  'webForms.editor.successRedirectHint':
+    'An https page on one of your websites listed below. Used when your form is opened on its own page.',
+  'webForms.editor.origins': 'Your websites that may show this form',
+  'webForms.editor.originsHint':
+    'One address per line, like https://www.example.com. Leave empty to allow the form only as a link, not inside another site.',
+  'webForms.editor.phoneCode': 'Country code for phone numbers',
+  'webForms.editor.phoneCodeHint':
+    'Added when a visitor types a number without one. Digits only, like 91.',
+  'webForms.editor.status': 'This form accepts leads',
+  'webForms.editor.save': 'Save form',
+  'webForms.editor.create': 'Create form',
+  'webForms.editor.cancel': 'Cancel',
+  'webForms.editor.saved': 'Saved.',
+  'webForms.editor.conflictTitle': 'This form changed while you were editing',
+  'webForms.editor.conflictBody': 'Reload to see the latest version, then make your change again.',
+  'webForms.editor.reload': 'Reload',
+  'webForms.editor.preview': 'Preview',
+  'webForms.editor.previewNote':
+    'This is how visitors see the form. Nothing you type here is sent.',
+  'webForms.editor.delete': 'Delete form',
+  'webForms.editor.deleteTitle': 'Delete this form?',
+  'webForms.editor.deleteBody':
+    'The form stops working at once and its link will say it is not available. Leads it already made stay.',
+  'webForms.editor.deleteConfirm': 'Delete',
+
+  'webForms.key.title': 'Form key',
+  'webForms.key.description':
+    'The key is what makes a link work. It is shown once, when it is made, and cannot be shown again.',
+  'webForms.key.rotate': 'Make a new key',
+  'webForms.key.revoke': 'Stop all keys',
+  'webForms.key.grace': 'Keep the old key working for',
+  'webForms.key.grace0': 'Not at all',
+  'webForms.key.grace24': '24 hours',
+  'webForms.key.grace72': '3 days',
+  'webForms.key.grace168': '7 days',
+  'webForms.key.retiring': 'The previous key stops working {when}.',
+  'webForms.key.revokeTitle': 'Stop every key of this form?',
+  'webForms.key.revokeBody':
+    'Every link and embed of this form stops working at once. You can make a new key afterwards.',
+  'webForms.key.revokeConfirm': 'Stop all keys',
+
+  'webForms.issued.title': 'Your form is ready to use',
+  'webForms.issued.warning':
+    'Copy these now. For your safety the key is shown only this once; if you lose it, make a new key.',
+  'webForms.issued.link': 'Link to the form',
+  'webForms.issued.snippet': 'Code to put the form on your website',
+  'webForms.issued.snippetHint':
+    'Paste it where you want the form to appear. The form can only appear on websites you listed.',
+  'webForms.issued.copy': 'Copy',
+  'webForms.issued.copied': 'Copied',
+  'webForms.issued.done': 'I have copied it',
+
+  'publicForm.pageTitle': 'Contact form',
+  'publicForm.unavailable.title': 'This form is not available',
+  'publicForm.unavailable.description':
+    'The link may be wrong, or the form may have been switched off.',
+  'publicForm.submit': 'Send',
+  'publicForm.sending': 'Sending',
+  'publicForm.required': 'This is required',
+  'publicForm.requiredMark': 'required',
+  'publicForm.consentRequired': 'Please tick the box to continue',
+  'publicForm.privacy': 'Privacy notice',
+  'publicForm.problems': 'Please check the form and try again.',
+  'publicForm.fieldError.Required': 'This is required',
+  'publicForm.fieldError.Not valid': 'This does not look right',
+  'publicForm.fieldError.Too long': 'This is too long',
+  'publicForm.expired':
+    'This page has been open a while. Please reload it and send the form again.',
+  'publicForm.reload': 'Reload the page',
+  'publicForm.tooMany': 'Too many tries. Please wait a little and try again.',
+  'publicForm.failed': 'Something went wrong. Please try again in a moment.',
+  'publicForm.done': 'Sent',
+  'publicForm.chooseOne': 'Choose one',
 } as const;
 
 export type TranslationKey = keyof typeof en;

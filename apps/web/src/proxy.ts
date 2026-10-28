@@ -3,6 +3,7 @@ import { buildCsp, originOf } from './lib/csp';
 import { imageOrigins } from './lib/brand';
 import { clientAddressHeaders } from './lib/client-address';
 import { webEnv } from './lib/env';
+import { fetchPublicForm, keyFromFormPath } from './lib/public-form-server';
 import { upstreamPath } from './lib/proxy-path';
 import {
   SIGN_IN_PATH,
@@ -74,6 +75,23 @@ async function signInRedirect(request: NextRequest): Promise<NextResponse | null
  * Not applied to `/api/*` (those are JSON handlers whose responses carry the static headers
  * from `next.config.ts`), to static assets, or to prefetches, which are never rendered.
  */
+/**
+ * Which sites may frame this lead form: its own allowed origins, or none.
+ *
+ * Only for `/f/<key>`; nothing else is ever framable. An unknown key, a form that is off or an API
+ * that does not answer is "none", the strictest answer, never a guess.
+ */
+async function frameAncestorsFor(request: NextRequest, apiUrl: string): Promise<string[]> {
+  const key = keyFromFormPath(request.nextUrl.pathname);
+  if (key === null) return [];
+  const result = await fetchPublicForm({
+    apiUrl,
+    key,
+    clientAddress: clientAddressHeaders(request.headers),
+  });
+  return result.kind === 'form' ? result.form.allowedOrigins : [];
+}
+
 export async function proxy(request: NextRequest): Promise<NextResponse> {
   const redirect = await signInRedirect(request);
   if (redirect !== null) return redirect;
@@ -96,6 +114,10 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
     ),
     // A configured logo or favicon on another host (ADR-0045); a local path adds nothing.
     imgOrigins: imageOrigins(env),
+    // Only the hosted lead form can be framed, and only by the sites its company named (ADR-0063).
+    frameAncestors: request.nextUrl.pathname.startsWith('/f/')
+      ? await frameAncestorsFor(request, env.API_URL)
+      : undefined,
   });
 
   const requestHeaders = new Headers(request.headers);

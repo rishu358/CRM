@@ -37,6 +37,12 @@ export interface CspOptions {
    * (ADR-0045). Nothing else is added to `img-src`, so one typo cannot open it to the internet.
    */
   readonly imgOrigins: readonly string[];
+  /**
+   * Origins that may frame this page. Only the hosted lead-form page ever passes any (ADR-0063 5.1),
+   * from the form's own allowed origins; every other page leaves it out and nothing may frame it.
+   * Each entry must be an origin (`originOf`), so one typo cannot put a path or a wildcard in a header.
+   */
+  readonly frameAncestors?: readonly string[] | undefined;
 }
 
 /** An origin, or null if the text is not an http(s) URL. Anything else never reaches a header. */
@@ -48,6 +54,11 @@ export function originOf(value: string | undefined): string | null {
   } catch {
     return null;
   }
+}
+
+function frameAncestorsDirective(origins: readonly string[] | undefined): string {
+  const allowed = [...new Set(origins ?? [])].filter((origin) => originOf(origin) === origin);
+  return allowed.length === 0 ? "frame-ancestors 'none'" : `frame-ancestors ${allowed.join(' ')}`;
 }
 
 export function buildCsp(options: CspOptions): string {
@@ -72,7 +83,7 @@ export function buildCsp(options: CspOptions): string {
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",
-    "frame-ancestors 'none'",
+    frameAncestorsDirective(options.frameAncestors),
   ];
   if (options.https) directives.push('upgrade-insecure-requests');
 

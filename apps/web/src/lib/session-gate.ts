@@ -26,6 +26,8 @@ const PUBLIC_PREFIXES = [
   '/reset-password',
   '/verify-email',
   '/accept-invite',
+  // The hosted website lead form (ADR-0063): opened by a stranger on a company's site, so no session.
+  '/f',
 ] as const;
 
 export function isPublicPath(pathname: string): boolean {

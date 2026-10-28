@@ -1,6 +1,7 @@
 import { cookies } from 'next/headers';
 import { NextResponse, type NextRequest } from 'next/server';
 import { clientAddressHeaders } from '../../../../lib/client-address';
+import { PUBLIC_FORM_BODY_MAX_BYTES } from '@crm/core';
 import { webEnv } from '../../../../lib/env';
 import { upstreamPath } from '../../../../lib/proxy-path';
 
@@ -17,7 +18,9 @@ import { upstreamPath } from '../../../../lib/proxy-path';
  */
 /** Headers worth passing through. Everything else is dropped deliberately. */
 const FORWARDED_REQUEST_HEADERS = ['content-type', 'x-tenant-id', 'idempotency-key'];
-const FORWARDED_RESPONSE_HEADERS = ['content-type', 'x-request-id'];
+/** The same for a public route: a workspace id from a visitor is not something to pass on. */
+const PUBLIC_FORWARDED_REQUEST_HEADERS = ['content-type', 'idempotency-key'];
+const FORWARDED_RESPONSE_HEADERS = ['content-type', 'x-request-id', 'retry-after'];
 
 /** Methods that change state and therefore need CSRF defence. */
 const UNSAFE_METHODS = new Set(['POST', 'PATCH', 'PUT', 'DELETE']);
@@ -65,7 +68,28 @@ async function forward(request: NextRequest, segments: string[]): Promise<NextRe
   }
 
   const env = webEnv();
-  const token = (await cookies()).get(env.SESSION_COOKIE_NAME)?.value;
+
+  // The public lead-form routes (ADR-0063) are for strangers: no credential of any kind goes with
+  // them, whatever this visitor's browser holds (a signed-in administrator previewing a form is
+  // still, to the API, nobody), and a body over the cap is refused before it is read.
+  const isPublic = segments[0] === 'public';
+  if (isPublic) {
+    const declared = Number(request.headers.get('content-length'));
+    if (Number.isFinite(declared) && declared > PUBLIC_FORM_BODY_MAX_BYTES) {
+      return NextResponse.json(
+        {
+          error: {
+            code: 'VALIDATION_FAILED',
+            message: 'The request body is too large',
+            details: [],
+            requestId: '',
+          },
+        },
+        { status: 413 },
+      );
+    }
+  }
+  const token = isPublic ? undefined : (await cookies()).get(env.SESSION_COOKIE_NAME)?.value;
 
   // Rebuilt from the matched segments, never from a raw string, and refused if any of them
   // could leave /api/v1 (a dot segment, a separator): see `upstreamPath`.
@@ -87,7 +111,7 @@ async function forward(request: NextRequest, segments: string[]): Promise<NextRe
   target.search = request.nextUrl.search;
 
   const headers = new Headers();
-  for (const name of FORWARDED_REQUEST_HEADERS) {
+  for (const name of isPublic ? PUBLIC_FORWARDED_REQUEST_HEADERS : FORWARDED_REQUEST_HEADERS) {
     const value = request.headers.get(name);
     if (value !== null) headers.set(name, value);
   }
@@ -99,6 +123,21 @@ async function forward(request: NextRequest, segments: string[]): Promise<NextRe
 
   const body =
     request.method === 'GET' || request.method === 'DELETE' ? undefined : await request.text();
+
+  // A body that did not declare its length is measured once it is read.
+  if (isPublic && body !== undefined && Buffer.byteLength(body) > PUBLIC_FORM_BODY_MAX_BYTES) {
+    return NextResponse.json(
+      {
+        error: {
+          code: 'VALIDATION_FAILED',
+          message: 'The request body is too large',
+          details: [],
+          requestId: '',
+        },
+      },
+      { status: 413 },
+    );
+  }
 
   const upstream = await fetch(target, {
     method: request.method,

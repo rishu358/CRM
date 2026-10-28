@@ -27,9 +27,15 @@ const config: NextConfig = {
   async headers() {
     return [
       {
+        // Every page but the hosted lead form. That one is framed by the company's own website, and
+        // `X-Frame-Options` cannot say "only these sites": its `frame-ancestors` (built per form in
+        // `proxy.ts`) does, and is `'none'` for any form that lists no site (ADR-0063 5.1).
+        source: '/((?!f/).*)',
+        headers: [{ key: 'X-Frame-Options', value: 'DENY' }],
+      },
+      {
         source: '/:path*',
         headers: [
-          { key: 'X-Frame-Options', value: 'DENY' },
           { key: 'X-Content-Type-Options', value: 'nosniff' },
           { key: 'Referrer-Policy', value: 'no-referrer' },
           { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
