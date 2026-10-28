@@ -16,6 +16,7 @@ import { DealsModule } from './modules/deals/deals.module.js';
 import { ExportsModule } from './modules/exports/exports.module.js';
 import { ImportsModule } from './modules/imports/imports.module.js';
 import { InvitationsModule } from './modules/invitations/invitations.module.js';
+import { LeadFormsModule } from './modules/lead-forms/lead-forms.module.js';
 import { LeadsModule } from './modules/leads/leads.module.js';
 import { CustomizationModule } from './modules/customization/customization.module.js';
 import { DashboardModule } from './modules/dashboard/dashboard.module.js';
@@ -24,6 +25,7 @@ import { PipelineEditorModule } from './modules/pipeline-editor/pipeline-editor.
 import { PipelinesModule } from './modules/pipelines/pipelines.module.js';
 import { OnboardingModule } from './modules/onboarding/onboarding.module.js';
 import { RecycleBinModule } from './modules/recycle-bin/recycle-bin.module.js';
+import { MergeModule } from './modules/merge/merge.module.js';
 import { SavedViewsModule } from './modules/saved-views/saved-views.module.js';
 import { TagsModule } from './modules/tags/tags.module.js';
 import { SearchModule } from './modules/search/search.module.js';
@@ -54,6 +56,7 @@ export class AppModule {
         DealsModule,
         PipelineEditorModule,
         LeadsModule,
+        LeadFormsModule,
         ActivitiesModule,
         AttachmentsModule,
         SearchModule,
@@ -71,6 +74,7 @@ export class AppModule {
         SavedViewsModule,
         TagsModule,
         BulkModule,
+        MergeModule,
       ],
       controllers: [HealthController, OpenApiController],
       providers: [{ provide: APP_GUARD, useExisting: AuthGuard }],

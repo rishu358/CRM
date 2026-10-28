@@ -17,7 +17,12 @@ import { z } from 'zod';
  * because a newer API will send one — and closed on the write side, where
  * only the worker writes at all.
  */
-export const NOTIFICATION_TYPES = ['activity.assigned', 'activity.due'] as const;
+export const NOTIFICATION_TYPES = [
+  'activity.assigned',
+  'activity.due',
+  'lead.web_form_new',
+  'lead.web_form_duplicate',
+] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 
 export const notificationSchema = z.object({

@@ -47,6 +47,23 @@ The choices that make an installation what it is:
 - **Data region**: where the data lives is a deployment decision. [RUNBOOK.md](RUNBOOK.md) §9.10 sets out what is
   and is not in a single country for the worked example.
 
+## Network requirement: the API is reachable only through the trusted proxy
+
+The API takes the caller's address from `X-Forwarded-For` (`trustProxy: true`, [ADR-0042](adr/0042-deployment-digitalocean-blr1-and-vercel-bom1.md)). The address
+limits and the sign-in address budgets (ADR-0053, [ADR-0066](adr/0066-sign-in-limits-count-failures-not-sign-ins.md)) are only as honest as that header. So:
+
+- **The API's port must not be reachable from the internet except through your proxy** (Caddy in the example, the
+  platform's router elsewhere). Put it on a private network, or restrict it to the proxy's and the web app's addresses.
+- **The proxy must overwrite `X-Forwarded-For` with the address it saw**, never append to what the client sent
+  (Caddy's `reverse_proxy` does by default). The web app passes on one well-formed address only.
+- If the port is reachable directly, a caller can send a different `X-Forwarded-For` on every request and get a
+  fresh per-address budget each time. That defeats the per-address limits and the flood ceiling. The per-account
+  failure budget does not depend on the address, so guessing at one account is still capped, but spraying one
+  password across many accounts is not.
+
+Check it from outside: `curl -i https://<api host>:<api port>/api/v1/health` must fail to connect on the raw port.
+Replacing `trustProxy: true` with an explicit list of trusted proxies is the proper fix and is not done yet.
+
 ## Bringing it up
 
 1. **Create the database roles and extensions**, once, as an administrator, with real passwords

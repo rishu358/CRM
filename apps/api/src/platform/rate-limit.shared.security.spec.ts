@@ -16,6 +16,7 @@ const USER_LIMIT = 4;
 const TENANT_LIMIT = 6;
 const IP_LIMIT = 5;
 const AUTH_IP_LIMIT = 3;
+const ACCOUNT_FAILURE_LIMIT = 3;
 
 let redis: TestRedis;
 let a: ApiHarness;
@@ -48,6 +49,7 @@ beforeAll(async () => {
     RATE_LIMIT_MAX_PER_TENANT: String(TENANT_LIMIT),
     RATE_LIMIT_MAX_PER_IP: String(IP_LIMIT),
     AUTH_RATE_LIMIT_MAX_PER_IP: String(AUTH_IP_LIMIT),
+    AUTH_FAILURE_MAX_PER_ACCOUNT: String(ACCOUNT_FAILURE_LIMIT),
   };
   a = await startApiHarness(inject('dbUrls'), shared);
   b = await startApiHarness(inject('dbUrls'), shared);
@@ -121,6 +123,24 @@ describe('two instances share one budget', () => {
     expect(await attempt(a)).toBe(429);
   }, 60_000);
 
+  it('on the failed sign-ins of one account, whichever instance and address they arrive by', async () => {
+    // The same name from a new address each time, alternating instances: the account's budget is
+    // one, not one per instance. A name with no account is counted the same as one with an account.
+    const email = `nobody-${String(nextHost++)}@example.com`;
+    const attempt = (harness: ApiHarness) =>
+      request(harness, {
+        method: 'POST',
+        url: '/api/v1/auth/sign-in',
+        body: { email, password: 'Wrong-password-1!' },
+        remoteAddress: freshAddress(),
+      }).then((response) => response.status);
+
+    const statuses = [await attempt(a), await attempt(b), await attempt(a)];
+    expect(statuses).toEqual([401, 401, 401]);
+    expect(await attempt(b)).toBe(429);
+    expect(await attempt(a)).toBe(429);
+  }, 60_000);
+
   it('keeps nothing in Redis that a person typed: only ids and addresses, under a prefix, with an expiry', async () => {
     const { users } = await workspace('keys');
     await me(a, users[0]!);
@@ -130,7 +150,9 @@ describe('two instances share one budget', () => {
       const keys = await raw.keys('*');
       expect(keys.length).toBeGreaterThan(0);
       for (const key of keys) {
-        expect(key).toMatch(/^crm:rl:v1:(user|tenant|ip|auth-ip):[0-9a-f.:-]+$/);
+        expect(key).toMatch(
+          /^crm:rl:v1:(user|tenant|ip|auth-ip|auth-ip-fail|auth-account-fail):[0-9a-f.:-]+$/,
+        );
         expect(await raw.pttl(key)).toBeGreaterThan(0);
       }
     } finally {

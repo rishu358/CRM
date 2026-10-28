@@ -80,6 +80,10 @@ const EVENT_METADATA_KEYS: ReadonlySet<string> = new Set([
   'retentionDays',
   'auditRowsRedacted',
   'recordsErased',
+  // A merge (ADR-0064): what the record was folded into or received, and how much moved.
+  'mergedInto',
+  'mergedFrom',
+  'moved',
 ]);
 
 /**
