@@ -93,13 +93,16 @@ test.describe('import', () => {
     await expect(page.getByText('3 rows in this file')).toBeVisible();
     await expect(page.getByText('Every record you import is assigned to you.')).toBeVisible();
 
-    // The target list is what this person may write: never an owner.
+    // The target list is what this person may write. The workspace owner may reassign records, so
+    // an Owner column is on offer (ADR-0067); a person who may not (an `own`-scope rep) is not
+    // offered one, which the API's import tests pin.
     const options = await page
       .getByLabel('Do not import: First name')
       .locator('option')
       .allTextContents();
     expect(options).toContain('Last name *');
-    expect(options.join('|')).not.toMatch(/owner/i);
+    expect(options.join('|')).toMatch(/Owner \(e-mail address/);
+    await expect(page.getByText('Every record you import is assigned to you.')).toBeVisible();
 
     await page.getByLabel('Create a new record anyway').check();
     await page.getByRole('button', { name: 'Start import' }).click();

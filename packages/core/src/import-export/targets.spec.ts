@@ -49,10 +49,77 @@ const contactFields: FieldDefinition[] = [
 const actor = (fieldPermissions: FieldPermissionRow[] = []) =>
   makeActor({ rolePermissions: grant('contact'), fieldPermissions });
 
+/** May also read accounts, so the account link is on offer. */
+const linker = () => makeActor({ rolePermissions: [...grant('contact'), ...grant('account')] });
+
 describe('importTargets: metadata-driven, allowlisted, write-permission-filtered', () => {
-  it('offers system allowlist fields and custom fields, and never owner_id', () => {
-    const keys = importTargets(actor(), 'contact', contactFields).map((target) => target.key);
-    expect(keys).toEqual(['first_name', 'last_name', 'email', 'phone', 'region']);
+  it('offers system allowlist fields and custom fields, then the owner and account links to someone who may reassign', () => {
+    const keys = importTargets(linker(), 'contact', contactFields).map((target) => target.key);
+    expect(keys).toEqual([
+      'first_name',
+      'last_name',
+      'email',
+      'phone',
+      'region',
+      'owner_id',
+      'account_id',
+    ]);
+  });
+
+  it('never offers the owner to an `own`-scope importer, whatever the metadata says', () => {
+    const rep = makeActor({
+      rolePermissions: ['read', 'create', 'update', 'import'].map(
+        (action) => ({ roleId, objectType: 'contact', action, scope: 'own' }) as RolePermissionRow,
+      ),
+      fieldPermissions: [],
+    });
+    const keys = importTargets(rep, 'contact', contactFields).map((target) => target.key);
+    expect(keys).not.toContain('owner_id');
+  });
+
+  it('offers the owner to a `team`-scope importer, and the account link only with permission to read accounts', () => {
+    const grants = (objectType: string, scope: 'own' | 'team' | 'all', actions: string[]) =>
+      actions.map((action) => ({ roleId, objectType, action, scope }) as RolePermissionRow);
+    const noAccounts = makeActor({
+      rolePermissions: grants('contact', 'team', ['read', 'create', 'update', 'import']),
+      fieldPermissions: [],
+    });
+    expect(importTargets(noAccounts, 'contact', contactFields).map((t) => t.key)).toEqual(
+      expect.arrayContaining(['owner_id']),
+    );
+    expect(importTargets(noAccounts, 'contact', contactFields).map((t) => t.key)).not.toContain(
+      'account_id',
+    );
+
+    const withAccounts = makeActor({
+      rolePermissions: [
+        ...grants('contact', 'team', ['read', 'create', 'update', 'import']),
+        ...grants('account', 'own', ['read']),
+      ],
+      fieldPermissions: [],
+    });
+    expect(importTargets(withAccounts, 'contact', contactFields).map((t) => t.key)).toContain(
+      'account_id',
+    );
+  });
+
+  it('offers the account link for contacts only', () => {
+    const accountFields: FieldDefinition[] = [field('name', 'text', { isSystem: true })];
+    const keys = importTargets(
+      makeActor({ rolePermissions: [...grant('account'), ...grant('contact')] }),
+      'account',
+      accountFields,
+    ).map((target) => target.key);
+    expect(keys).toContain('owner_id');
+    expect(keys).not.toContain('account_id');
+  });
+
+  it('refuses the owner column when a field rule makes the owner unwritable', () => {
+    const keys = importTargets(
+      actor([fieldRule('owner_id', 'read')]),
+      'contact',
+      contactFields,
+    ).map((target) => target.key);
     expect(keys).not.toContain('owner_id');
   });
 
@@ -101,9 +168,26 @@ describe('validateMapping', () => {
     expect(validateMapping(actor(), 'contact', contactFields, goodMapping, base)).toEqual([]);
   });
 
-  it('refuses to map a column onto owner_id', () => {
+  it('accepts a column onto owner_id and account_id for someone who may reassign', () => {
     const issues = validateMapping(
-      actor(),
+      linker(),
+      'contact',
+      contactFields,
+      [...goodMapping, { column: 2, field: 'owner_id' }, { column: 3, field: 'account_id' }],
+      base,
+    );
+    expect(issues).toEqual([]);
+  });
+
+  it('refuses to map a column onto owner_id for an `own`-scope importer, exactly as an unknown field', () => {
+    const rep = makeActor({
+      rolePermissions: ['read', 'create', 'update', 'import'].map(
+        (action) => ({ roleId, objectType: 'contact', action, scope: 'own' }) as RolePermissionRow,
+      ),
+      fieldPermissions: [],
+    });
+    const issues = validateMapping(
+      rep,
       'contact',
       contactFields,
       [...goodMapping, { column: 2, field: 'owner_id' }],

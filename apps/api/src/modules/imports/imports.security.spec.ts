@@ -506,7 +506,7 @@ describe('(c) field-level permissions and what a column may be mapped to', () =>
   const start = (token: string, id: string, body: Record<string, unknown>) =>
     request(harness, { method: 'POST', url: `/api/v1/imports/${id}/start`, token, body });
 
-  it('offers targets from live metadata: system allowlist, custom fields, never owner_id', async () => {
+  it('offers targets from live metadata: system allowlist, custom fields, and the owner to a manager who may reassign', async () => {
     await superuser.query(
       `insert into field_definitions (id, tenant_id, object_type, key, label, type, position, is_system, is_active)
        values ($1, $2, 'contact', 'region_${tenantA.slice(-4)}', 'Region', 'text', 900, false, true)`,
@@ -524,7 +524,8 @@ describe('(c) field-level permissions and what a column may be mapped to', () =>
     expect(keys).toEqual(
       expect.arrayContaining(['last_name', 'email', `region_${tenantA.slice(-4)}`]),
     );
-    expect(keys).not.toContain('owner_id');
+    // A manager reassigns inside their team (ADR-0058), so the file may name an owner (ADR-0067).
+    expect(keys).toContain('owner_id');
     expect(data.matchFields).toEqual(['email', 'phone']);
   });
 
@@ -587,7 +588,33 @@ describe('(c) field-level permissions and what a column may be mapped to', () =>
     expect(new Set(responses).size).toBe(1);
   });
 
-  it.each(['owner_id', 'tenant_id', 'version', 'id', 'created_by', 'updated_by', 'deleted_at'])(
+  it('does not offer the owner to a caller whose scope is `own`, and refuses it on start', async () => {
+    const roleId = await harness.fixtures.createRole(tenantA, `own-importer-${unique()}`);
+    for (const action of ['read', 'create', 'update', 'import'] as const) {
+      await harness.fixtures.grant(tenantA, roleId, 'contact', action, 'own');
+    }
+    const rep = await userWithRole(tenantA, roleId);
+
+    const id = await jobForMapping(rep.token);
+    const data = dataOf<{ targets: { key: string }[] }>(
+      await request(harness, { method: 'GET', url: `/api/v1/imports/${id}`, token: rep.token }),
+    );
+    const keys = data.targets.map((target) => target.key);
+    expect(keys).not.toContain('owner_id');
+    expect(keys).not.toContain('account_id');
+
+    const response = await start(rep.token, id, {
+      mapping: [
+        { column: 0, field: 'last_name' },
+        { column: 1, field: 'owner_id' },
+      ],
+      duplicateMode: 'create',
+    });
+    expect(response.status).toBe(422);
+    expect((await jobRow(id))['status']).toBe('awaiting_mapping');
+  });
+
+  it.each(['tenant_id', 'version', 'id', 'created_by', 'updated_by', 'deleted_at'])(
     'refuses a column mapped onto %s',
     async (field) => {
       const id = await jobForMapping(managerA.token);

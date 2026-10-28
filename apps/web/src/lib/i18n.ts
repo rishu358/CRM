@@ -568,6 +568,8 @@ export const en = {
   'import.duplicates.matchBy.hint': 'A record counts as existing when this field is the same.',
   'import.duplicates.matchBy.unmapped': 'Match a column to this field first.',
   'import.owner.note': 'Every record you import is assigned to you.',
+  'import.owner.offered':
+    'You may give rows to someone else: match a column to Owner and put their e-mail address in it.',
   'import.start': 'Start import',
   'import.running': 'Importing',
   'import.running.description':

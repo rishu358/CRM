@@ -1,3 +1,4 @@
+import { can } from '../permissions/can.js';
 import { canReadField, canWriteField } from '../permissions/field-access.js';
 import type { Actor } from '../permissions/types.js';
 import type { FieldDefinition, FieldType } from '../fields/types.js';
@@ -15,14 +16,22 @@ import type { FieldDefinition, FieldType } from '../fields/types.js';
  * one that must never be set from a file.
  *
  * Never importable, whatever the metadata says or the actor may write:
- *   `owner_id`   a file must not reassign records; every imported record is
- *                owned by the person importing it, which keeps `own` scope
- *                meaningful (a rep cannot import records into a colleague's
- *                book, or out of their own sight)
  *   `tenant_id`, `id`, `version`, `created_*`, `updated_*`, `deleted_at`
  *                not fields at all; the writer sets them
  *   lead `status = converted`   conversion is a transaction of its own
  *                (ADR-0022); a CSV cannot half-convert a lead
+ *
+ * Two **link** columns are importable on conditions (ADR-0067), because a business moving in
+ * needs them and a spreadsheet has no ids:
+ *   `owner_id`   given as the e-mail address of a member. Only for someone who may reassign
+ *                records of that kind (`update` at `team` or `all` scope and the owner field
+ *                writable, the rule `OwnershipService` applies), and to a person that rule
+ *                would allow (`team` scope: yourself or a teammate). For everybody else the
+ *                column is not offered, is refused if submitted, and every record is owned by
+ *                the person importing it, which keeps `own` scope meaningful.
+ *   `account_id` contacts only; given as an account's name, domain or id. Only an account the
+ *                importer may read is found, and one they may not read answers exactly as one
+ *                that does not exist.
  */
 
 export const IMPORTABLE_OBJECT_TYPES = ['account', 'contact', 'lead'] as const;
@@ -65,6 +74,44 @@ export const MATCH_FIELDS: Readonly<Record<ImportableObjectType, readonly string
   lead: ['email', 'phone'],
 };
 
+/**
+ * The link columns an import may fill, by object. `owner_id` is a real system field; `account_id`
+ * has no field definition (there is no field type for a reference, see `seed/fields.ts`), so
+ * both are offered here rather than from metadata.
+ */
+export const IMPORT_LINK_KEYS: Readonly<Record<ImportableObjectType, readonly string[]>> = {
+  contact: ['owner_id', 'account_id'],
+  account: ['owner_id'],
+  lead: ['owner_id'],
+};
+
+const LINK_LABELS: Readonly<Record<string, string>> = {
+  owner_id: 'Owner (e-mail address of a team member)',
+  account_id: 'Account (name, domain or ID)',
+};
+
+/**
+ * Whether this actor may fill a link column from a file.
+ *
+ * Owner: the rule a reassignment is held to (ownership service `actorRefusal`), because a file
+ * that names owners is a bulk reassignment. Account: write access to the reference and the right
+ * to read accounts, since the account must be one they could pick in a form.
+ */
+export function canImportLink(
+  actor: Actor,
+  objectType: ImportableObjectType,
+  key: string,
+): boolean {
+  if (!IMPORT_LINK_KEYS[objectType].includes(key)) return false;
+  if (!canWriteField(actor, objectType, key)) return false;
+
+  if (key === 'owner_id') {
+    const update = can(actor, 'update', { objectType });
+    return update.allowed && update.scope !== 'own';
+  }
+  return can(actor, 'read', { objectType: 'account' }).allowed;
+}
+
 /** A value `status` may not take from a file. See above. */
 export const LEAD_STATUS_BLOCKED_FROM_IMPORT = 'converted';
 
@@ -95,7 +142,7 @@ export function importTargets(
 ): ImportTarget[] {
   const systemAllowed = new Set(IMPORTABLE_SYSTEM_KEYS[objectType]);
 
-  return fields
+  const targets: ImportTarget[] = fields
     .filter((field) => field.isActive)
     .filter((field) => !field.isSystem || systemAllowed.has(field.key))
     .filter((field) => canWriteField(actor, objectType, field.key))
@@ -113,6 +160,17 @@ export function importTargets(
               .map((option) => option.value),
           }),
     }));
+
+  const links = IMPORT_LINK_KEYS[objectType]
+    .filter((key) => canImportLink(actor, objectType, key))
+    .map((key): ImportTarget => ({
+      key,
+      label: LINK_LABELS[key] ?? key,
+      type: 'text',
+      required: false,
+      isSystem: true,
+    }));
+  return [...targets, ...links];
 }
 
 export interface MappingEntry {
