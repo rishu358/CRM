@@ -21,6 +21,22 @@ function isPoolExhausted(exception: unknown): boolean {
   );
 }
 
+const PARSER_MESSAGES: Readonly<Record<number, string>> = {
+  400: 'The request body is not valid',
+  413: 'The request body is too large',
+  415: 'That content type is not accepted',
+};
+
+/** The status of a Fastify body-parsing failure (`FST_ERR_CTP_*`), or null for any other error. */
+function clientParserStatus(exception: unknown): number | null {
+  if (typeof exception !== 'object' || exception === null) return null;
+  const { code, statusCode } = exception as { code?: unknown; statusCode?: unknown };
+  if (typeof code !== 'string' || !code.startsWith('FST_ERR_CTP_')) return null;
+  return typeof statusCode === 'number' && statusCode >= 400 && statusCode < 500
+    ? statusCode
+    : null;
+}
+
 /** How long a client is asked to wait before trying again, in seconds. */
 const BUSY_RETRY_AFTER_SECONDS = 2;
 
@@ -68,6 +84,22 @@ export class DomainErrorFilter implements ExceptionFilter {
         error: {
           code: status === 404 ? ErrorCode.NOT_FOUND : ErrorCode.VALIDATION_FAILED,
           message: exception.message,
+          details: [],
+          requestId,
+        },
+      });
+      return;
+    }
+
+    // The web server's own refusals of a request body (too big, not JSON, a content type nobody
+    // parses) are the sender's mistake, not ours. Said in fixed words: the framework's message can
+    // quote the body, and on the public routes the body is a stranger's.
+    const parserStatus = clientParserStatus(exception);
+    if (parserStatus !== null) {
+      void reply.status(parserStatus).send({
+        error: {
+          code: ErrorCode.VALIDATION_FAILED,
+          message: PARSER_MESSAGES[parserStatus] ?? 'The request body could not be read',
           details: [],
           requestId,
         },

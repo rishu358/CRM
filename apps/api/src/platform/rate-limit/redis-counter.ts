@@ -14,14 +14,28 @@ import type { RateLimitCounter, RateLimitEntry, RateLimitHit } from './counter.j
 const HIT_SCRIPT = `
 local count = redis.call('INCR', KEYS[1])
 local ttl = redis.call('PTTL', KEYS[1])
-if count == 1 or ttl < 0 then
+if ttl < 0 then
   redis.call('PEXPIRE', KEYS[1], ARGV[1])
   ttl = tonumber(ARGV[1])
 end
 return {count, ttl}
 `;
 
+/**
+ * Give one back, only while a window is open and its count is above zero. The key is left to
+ * expire on its own clock: a count of zero is a window with nothing in it, and the next hit starts
+ * a new one (`INCR` answers 1, which sets the expiry again).
+ */
+const RELEASE_SCRIPT = `
+local count = tonumber(redis.call('GET', KEYS[1]))
+if count ~= nil and count > 0 then
+  return redis.call('DECR', KEYS[1])
+end
+return 0
+`;
+
 const COMMAND = 'crmRateLimitHit';
+const RELEASE_COMMAND = 'crmRateLimitRelease';
 
 /** Namespaced and versioned, so a shared Redis is not confused and a later format can coexist. */
 const KEY_PREFIX = 'crm:rl:v1:';
@@ -30,6 +44,7 @@ type HitResult = readonly [number, number];
 
 interface WithHit {
   crmRateLimitHit(key: string, windowMs: number): Promise<HitResult>;
+  crmRateLimitRelease(key: string): Promise<number>;
 }
 
 type PipelineWithHit = ChainableCommander & {
@@ -80,7 +95,14 @@ export class RedisCounter implements RateLimitCounter {
   constructor(private readonly client: Redis) {
     if (typeof (client as unknown as Partial<WithHit>).crmRateLimitHit !== 'function') {
       client.defineCommand(COMMAND, { numberOfKeys: 1, lua: HIT_SCRIPT });
+      client.defineCommand(RELEASE_COMMAND, { numberOfKeys: 1, lua: RELEASE_SCRIPT });
     }
+  }
+
+  async releaseMany(keys: readonly string[]): Promise<void> {
+    if (keys.length === 0) return;
+    const client = this.client as unknown as WithHit;
+    await Promise.all(keys.map((key) => client.crmRateLimitRelease(`${KEY_PREFIX}${key}`)));
   }
 
   async hitMany(entries: readonly RateLimitEntry[]): Promise<readonly RateLimitHit[]> {

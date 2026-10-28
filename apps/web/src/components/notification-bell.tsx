@@ -144,6 +144,10 @@ export function NotificationBell() {
  * rather than HTML (ADR-0024).
  */
 function describe(notification: NotificationRecord): string {
+  // The two web-form kinds carry ids only, so their line is fixed words: nothing a visitor typed.
+  if (notification.type === 'lead.web_form_new') return t('notifications.webFormLead');
+  if (notification.type === 'lead.web_form_duplicate') return t('notifications.webFormDuplicate');
+
   const subject =
     typeof notification.payload['subject'] === 'string'
       ? notification.payload['subject']

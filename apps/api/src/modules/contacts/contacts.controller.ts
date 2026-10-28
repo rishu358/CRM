@@ -51,6 +51,18 @@ export class ContactsController {
     return this.contacts.list(actor, query);
   }
 
+  /**
+   * The records this one may duplicate, for the "Possible duplicates" card and its Merge button
+   * (ADR-0064). Declared before `:id` only for readability; the paths differ in depth.
+   */
+  @Get(':id/duplicates')
+  async duplicates(
+    @CurrentActor() actor: Actor,
+    @Param(zodPipe(contactParamsSchema)) params: { id: string },
+  ) {
+    return { data: await this.contacts.duplicatesOf(actor, params.id) };
+  }
+
   @Get(':id')
   async getById(
     @CurrentActor() actor: Actor,

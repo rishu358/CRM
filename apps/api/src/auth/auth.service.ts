@@ -30,6 +30,7 @@ import { AuditService } from '../platform/audit.service.js';
 import { EMAIL_PROVIDER, type EmailProvider } from '../platform/email/email.provider.js';
 import { currentRequestContext } from '../common/request-context.js';
 import { AuthRepository, type UserRow } from './auth.repository.js';
+import { AuthAttemptLimiter } from './auth-attempt-limiter.service.js';
 import { AuthThrottleService } from './auth-throttle.service.js';
 import { MfaService } from './mfa.service.js';
 import { SessionService } from './session.service.js';
@@ -70,6 +71,7 @@ export class AuthService {
     @Inject(SessionService) private readonly sessions: SessionService,
     @Inject(MfaService) private readonly mfa: MfaService,
     @Inject(AuthThrottleService) private readonly throttle: AuthThrottleService,
+    @Inject(AuthAttemptLimiter) private readonly attempts: AuthAttemptLimiter,
     @Inject(DatabaseService) private readonly database: DatabaseService,
     @Inject(AuditService) private readonly audit: AuditService,
     @Inject(PASSWORD_HASHER) private readonly passwords: PasswordHasher,
@@ -271,6 +273,7 @@ export class AuthService {
    * Check a password and either sign the user in or challenge for MFA.
    *
    * The order here matters and is deliberate:
+   *   0. take a slot in the failed-attempt budgets (ADR-0064); refused here, nothing else runs
    *   1. wait out any back-off, before touching the password
    *   2. hash-compare — against a dummy hash when there is no user, so the
    *      timing is the same either way
@@ -280,6 +283,9 @@ export class AuthService {
     input: { email: string; password: string },
     context: SignInContext,
   ): Promise<SignInResult> {
+    // Before the account is looked up, and kept on every failure, so a name with no account is
+    // refused after the same number of tries as one with an account.
+    const attempt = await this.attempts.reserve(input.email);
     await this.throttle.applyDelay(input.email);
 
     const user = await this.repository.findUserByEmail(input.email);
@@ -313,6 +319,9 @@ export class AuthService {
       });
       throw new InvalidCredentialsError();
     }
+    // A right password is not a failed attempt: give the slot back, so people signing in correctly
+    // do not spend the budget meant for people guessing (ADR-0064).
+    await attempt.release();
     // The one moment we hold the plaintext of a correct password: if its hash is in an older format or
     // made with weaker settings than are configured now, replace it (ADR-0050).
     await this.upgradePasswordHash(user.id, hash, input.password);
@@ -351,6 +360,7 @@ export class AuthService {
     const user = await this.repository.findUserById(record.user_id);
     if (user === null) throw new InvalidTokenError();
 
+    const attempt = await this.attempts.reserve(user.email);
     await this.throttle.applyDelay(user.email);
 
     if (!(await this.mfa.verify(user.id, input.code))) {
@@ -362,6 +372,7 @@ export class AuthService {
       });
       throw new MfaInvalidError();
     }
+    await attempt.release();
 
     return this.completeSignIn(user, context);
   }
