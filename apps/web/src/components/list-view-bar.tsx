@@ -1,10 +1,11 @@
 'use client';
 
-import { VIEW_MAX_CONDITIONS, type BusinessObjectType } from '@crm/core';
+import { TAG_FILTER_MAX_IDS, VIEW_MAX_CONDITIONS, type BusinessObjectType } from '@crm/core';
 import type { FilterOperator, SavedView, ViewCondition } from '@crm/contracts';
 import {
   Badge,
   Button,
+  Checkbox,
   CloseIcon,
   Dialog,
   DialogFooter,
@@ -16,6 +17,7 @@ import {
 } from '@crm/ui';
 import { useMemo, useState } from 'react';
 import type { ApiRequestError } from '../lib/api-client';
+import { useTags } from '../lib/bulk';
 import { useFieldDefinitions } from '../lib/fields';
 import { t } from '../lib/i18n';
 import {
@@ -84,6 +86,10 @@ function operatorLabel(operator: FilterOperator, field: FilterableField): string
       return dated ? t('filter.op.date.lte') : t('filter.op.num.lte');
     case 'in':
       return t('filter.op.eq');
+    case 'has_any':
+      return t('filter.op.has_any');
+    case 'has_none':
+      return t('filter.op.has_none');
   }
 }
 
@@ -106,6 +112,11 @@ export function ListViewBar({
   const views = useSavedViews(objectType);
   const [dialog, setDialog] = useState<'filters' | 'save' | 'manage' | null>(null);
   const update = useUpdateSavedView();
+  const tagList = useTags();
+  const tagNames = useMemo(
+    () => new Map((tagList.data?.data ?? []).map((tag) => [tag.id, tag.name])),
+    [tagList.data],
+  );
 
   const fields = useMemo(
     () =>
@@ -125,7 +136,9 @@ export function ListViewBar({
     active === null ? null : (all.find((candidate) => candidate.id === active.id) ?? active);
 
   const sortOptions = useMemo(() => {
-    const sortable = fields.filter((field) => field.valueKind !== 'boolean');
+    const sortable = fields.filter(
+      (field) => field.valueKind !== 'boolean' && field.valueKind !== 'tags',
+    );
     const options = sortable.flatMap((field) => [
       { value: field.key, label: t('views.sort.asc', { field: field.label }) },
       { value: `-${field.key}`, label: t('views.sort.desc', { field: field.label }) },
@@ -258,7 +271,7 @@ export function ListViewBar({
             const operator =
               field === undefined ? condition.operator : operatorLabel(condition.operator, field);
             const text = operatorNeedsValue(condition.operator)
-              ? `${label} ${operator} ${valueLabel(field, condition.value)}`
+              ? `${label} ${operator} ${valueLabel(field, condition.value, tagNames)}`
               : `${label} ${operator}`;
             return (
               <li
@@ -331,8 +344,20 @@ function ViewOption({ view }: { view: SavedView }) {
   );
 }
 
-function valueLabel(field: FilterableField | undefined, value: string): string {
+function valueLabel(
+  field: FilterableField | undefined,
+  value: string,
+  tagNames: ReadonlyMap<string, string>,
+): string {
   if (field === undefined) return value;
+  if (field.valueKind === 'tags') {
+    // A tag deleted since the filter was made has no name; it is shown as the id, which matches nothing.
+    return value
+      .split(',')
+      .filter((id) => id.length > 0)
+      .map((id) => tagNames.get(id) ?? id)
+      .join(', ');
+  }
   if (field.valueKind === 'boolean') {
     return value === 'true' ? t('customFields.yes') : t('customFields.no');
   }
@@ -500,6 +525,8 @@ function ConditionValue({
 }) {
   const label = t('views.filters.value');
   switch (field?.valueKind) {
+    case 'tags':
+      return <TagValuePicker label={label} value={value} onChange={onChange} />;
     case 'boolean':
       return (
         <Select label={label} value={value} onChange={(event) => onChange(event.target.value)}>
@@ -550,6 +577,58 @@ function ConditionValue({
         />
       );
   }
+}
+
+/**
+ * The tags a "has any of" or "has none of" condition names, ticked from the workspace's tags.
+ * Up to `TAG_FILTER_MAX_IDS`: a condition's value is a short text, and more than a handful of tags
+ * at once is rarely a question anybody asks.
+ */
+function TagValuePicker({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const tags = useTags();
+  const chosen = value.split(',').filter((id) => id.length > 0);
+
+  const toggle = (id: string) =>
+    onChange(
+      (chosen.includes(id) ? chosen.filter((entry) => entry !== id) : [...chosen, id]).join(','),
+    );
+
+  return (
+    <fieldset className="min-w-0 space-y-1" data-testid="tag-value-picker">
+      <legend className="text-sm font-medium text-foreground">{label}</legend>
+      {tags.isPending ? (
+        <p className="text-sm text-muted-foreground">{t('common.loading')}</p>
+      ) : (tags.data?.data ?? []).length === 0 ? (
+        <p className="text-sm text-muted-foreground">{t('tags.filter.none')}</p>
+      ) : (
+        <>
+          <ul className="max-h-36 space-y-1 overflow-auto rounded-md border border-input bg-card p-2">
+            {(tags.data?.data ?? []).map((tag) => (
+              <li key={tag.id}>
+                <Checkbox
+                  label={tag.name}
+                  checked={chosen.includes(tag.id)}
+                  disabled={!chosen.includes(tag.id) && chosen.length >= TAG_FILTER_MAX_IDS}
+                  onChange={() => toggle(tag.id)}
+                />
+              </li>
+            ))}
+          </ul>
+          <p className="text-xs text-muted-foreground">
+            {t('tags.filter.choose', { max: TAG_FILTER_MAX_IDS })}
+          </p>
+        </>
+      )}
+    </fieldset>
+  );
 }
 
 /* -------------------------------------------------------------------------- */

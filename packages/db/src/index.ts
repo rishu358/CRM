@@ -49,3 +49,4 @@ export * from './access/reassign.js';
 export * from './onboarding/index.js';
 export * from './bulk/index.js';
 export * from './merge/index.js';
+export * from './tags/index.js';

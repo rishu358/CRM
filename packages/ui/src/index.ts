@@ -13,7 +13,7 @@ export { IconSelect, Select, type SelectProps } from './select.js';
 export { Card, CardHeader, CardBody, Badge } from './card.js';
 export { Checkbox, type CheckboxProps } from './checkbox.js';
 export { Radio, type RadioProps } from './radio.js';
-export { Avatar, DescriptionRow, Kbd } from './small.js';
+export { Avatar, DescriptionRow, Kbd, TagChip, type TagChipColor } from './small.js';
 export { Dialog, DialogFooter } from './dialog.js';
 export { PageHeader, Toolbar, ListFooter } from './page.js';
 export { SegmentedControl } from './segmented.js';

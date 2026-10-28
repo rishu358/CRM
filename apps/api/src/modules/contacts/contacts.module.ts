@@ -1,4 +1,5 @@
 import { Inject, Module, type OnModuleInit } from '@nestjs/common';
+import { TagsModule } from '../tags/tags.module.js';
 import { OwnershipRegistry } from '../../platform/ownership.registry.js';
 import { ContactsController } from './contacts.controller.js';
 import { ContactsRepository } from './contacts.repository.js';
@@ -12,6 +13,7 @@ import { ContactsService } from './contacts.service.js';
  * its tables. That boundary is what makes the monolith splittable later.
  */
 @Module({
+  imports: [TagsModule],
   controllers: [ContactsController],
   providers: [ContactsService, ContactsRepository],
   exports: [ContactsService],

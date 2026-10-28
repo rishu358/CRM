@@ -2,6 +2,7 @@ import { ValidationError, type FieldDefinition, type RecordConstraint } from '@c
 import { sortableFieldKeys } from '@crm/core';
 import type { FilterOperator, ParsedFilter } from '@crm/contracts';
 import { activities, and, eq, inArray, isNull, sql, type SQL } from '@crm/db';
+import { refuseTagOperator } from '../../common/tag-filter.js';
 import { constraintToSql as scopeToSql } from '../../common/record-scope.js';
 
 /**
@@ -117,6 +118,9 @@ export function filterToSql(filter: ParsedFilter, fields: readonly FieldDefiniti
       return sql`${column} is null`;
     case 'is_not_null':
       return sql`${column} is not null`;
+    case 'has_any':
+    case 'has_none':
+      return refuseTagOperator(filter);
   }
 }
 

@@ -30,7 +30,6 @@ import {
   countTags,
   findTagsByName,
   insertTag,
-  listTags,
   loadBulkRows,
   planQuery,
   recordRefFor,
@@ -531,15 +530,6 @@ export class BulkService {
       });
     }
     return [...existing, ...created];
-  }
-
-  /** The workspace's tags, for the picker. Any caller who may read a record kind may see the names. */
-  async listTags(actor: Actor): Promise<TagRef[]> {
-    const mayRead = (['contact', 'account', 'lead', 'deal'] as const).some(
-      (objectType) => can(actor, 'read', { objectType }).allowed,
-    );
-    if (!mayRead) throw new ForbiddenError();
-    return this.inTenant(actor, (tx) => listTags(tx, actor.tenantId));
   }
 
   private inTenant<T>(actor: Actor, work: (tx: Tx) => Promise<T>): Promise<T> {

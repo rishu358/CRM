@@ -516,3 +516,67 @@ describe('deals', () => {
     await expectBothReject('deal', query);
   });
 });
+
+describe('tags: an export filters by tag exactly as the list does (ADR-0063)', () => {
+  const TABLES = {
+    contact: 'contacts',
+    account: 'accounts',
+    lead: 'leads',
+    deal: 'deals',
+  } as const;
+
+  it.each(['contact', 'account', 'lead', 'deal'] as const)('%s', async (objectType) => {
+    const table = TABLES[objectType];
+    const rows = await superuser.query(
+      `select id from ${table} where tenant_id = $1 and deleted_at is null order by id`,
+      [tenantId],
+    );
+    const ids = rows.rows.map((row) => String(row['id']));
+    expect(ids.length).toBeGreaterThan(6);
+
+    const red = newId();
+    const blue = newId();
+    for (const [id, name] of [
+      [red, `parity-red-${objectType}`],
+      [blue, `parity-blue-${objectType}`],
+    ] as const) {
+      await superuser.query(`insert into tags (id, tenant_id, name) values ($1, $2, $3)`, [
+        id,
+        tenantId,
+        name,
+      ]);
+    }
+    // red on the first three, blue on the third to the fifth: one record carries both.
+    const attach = async (tagId: string, recordIds: readonly string[]) => {
+      for (const recordId of recordIds) {
+        await superuser.query(
+          `insert into record_tags (id, tenant_id, tag_id, object_type, record_id)
+           values ($1, $2, $3, $4, $5)`,
+          [newId(), tenantId, tagId, objectType, recordId],
+        );
+      }
+    };
+    await attach(red, ids.slice(0, 3));
+    await attach(blue, ids.slice(2, 5));
+
+    expect(await expectParity(objectType, { filter: [`tags:has_any:${red}`] })).toBe(3);
+    expect(await expectParity(objectType, { filter: [`tags:has_any:${red},${blue}`] })).toBe(5);
+    expect(await expectParity(objectType, { filter: [`tags:has_none:${red},${blue}`] })).toBe(
+      ids.length - 5,
+    );
+    // Combined with another filter and a sort, as a saved view would.
+    await expectParity(objectType, {
+      filter: [`tags:has_none:${blue}`, 'created_at:gte:2000-01-01'],
+      sort: '-created_at',
+    });
+  });
+
+  it.each(['contact', 'account', 'lead', 'deal'] as const)(
+    '%s: both refuse a tag operator on a column and a column operator on tags',
+    async (objectType) => {
+      await expectBothReject(objectType, { filter: [`created_at:has_any:${newId()}`] });
+      await expectBothReject(objectType, { filter: [`tags:eq:${newId()}`] });
+      await expectBothReject(objectType, { filter: ['tags:has_any:not-an-id'] });
+    },
+  );
+});

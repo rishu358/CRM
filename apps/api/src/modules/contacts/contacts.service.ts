@@ -35,6 +35,7 @@ import { AuditService, diffChanges } from '../../platform/audit.service.js';
 import { FieldMetadataService } from '../../platform/field-metadata.service.js';
 import { IdempotencyService } from '../../platform/idempotency.service.js';
 import { OutboxService } from '../../platform/outbox.service.js';
+import { TagsService } from '../tags/tags.service.js';
 import { ContactsRepository } from './contacts.repository.js';
 import {
   assertWritableContactFields,
@@ -66,6 +67,7 @@ export class ContactsService {
     @Inject(AuditService) private readonly audit: AuditService,
     @Inject(OutboxService) private readonly outbox: OutboxService,
     @Inject(IdempotencyService) private readonly idempotency: IdempotencyService,
+    @Inject(TagsService) private readonly tags: TagsService,
     @Inject(SEARCH_PROVIDER) private readonly search: ApiSearchProvider,
   ) {}
 
@@ -113,7 +115,12 @@ export class ContactsService {
       });
 
       return {
-        data: serializeContacts(actor, result.rows, fields),
+        data: await this.tags.attach(
+          tx,
+          actor,
+          'contact',
+          serializeContacts(actor, result.rows, fields),
+        ),
         meta: {
           nextCursor: result.nextCursor,
           hasMore: result.hasMore,
@@ -144,7 +151,7 @@ export class ContactsService {
     });
 
     const fields = await this.fieldMetadata.forObject(tx, actor.tenantId, 'contact');
-    return serializeContact(actor, row, fields);
+    return this.tags.attachOne(tx, actor, 'contact', serializeContact(actor, row, fields));
   }
 
   async create(actor: Actor, input: ContactCreateInput): Promise<SerializedContact> {
@@ -259,7 +266,9 @@ export class ContactsService {
       payload: { ownerId: row.ownerId },
     });
 
-    return serializeContact(actor, row, fields);
+    // A record that was just made carries no tags yet. Said as an empty list, so a create answers in the
+    // same shape a read of it does (a replay of this request re-reads it, ADR-0060, and must match).
+    return { ...serializeContact(actor, row, fields), tags: [] };
   }
 
   async update(actor: Actor, id: string, input: ContactUpdateInput): Promise<SerializedContact> {
@@ -321,7 +330,7 @@ export class ContactsService {
       payload: { changedFields: Object.keys(changes) },
     });
 
-    return serializeContact(actor, updated, fields);
+    return this.tags.attachOne(tx, actor, 'contact', serializeContact(actor, updated, fields));
   }
 
   async remove(actor: Actor, id: string, version: number): Promise<void> {

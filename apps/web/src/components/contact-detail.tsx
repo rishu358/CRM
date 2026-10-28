@@ -26,6 +26,7 @@ import { WhoCanSeeButton } from './who-can-see';
 import { ActivityPanel } from './activity-panel';
 import { AttachmentPanel } from './attachment-panel';
 import { DuplicatesCard } from './duplicates-card';
+import { TagsCard } from './tag-editor';
 import { InlineField } from './inline-field';
 import { WhatsAppChat } from './whatsapp-chat';
 import { CustomFieldsCard } from './custom-fields';
@@ -206,6 +207,7 @@ export function ContactDetail({ id }: { id: string }) {
             </CardBody>
           </Card>
           <DuplicatesCard objectType="contact" recordId={id} />
+          <TagsCard objectType="contact" recordId={id} tags={contact.tags} />
           <CustomFieldsCard
             objectType="contact"
             values={contact.customFields}

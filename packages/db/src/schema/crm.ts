@@ -1,3 +1,4 @@
+import type { TagColor } from '@crm/core';
 import { sql } from 'drizzle-orm';
 import {
   bigint,
@@ -188,9 +189,16 @@ export const tags = pgTable(
   {
     ...baseColumns,
     name: text('name').notNull(),
-    color: text('color'),
+    /** One of `TAG_COLORS`; the database checks it (migration 0025). */
+    color: text('color').$type<TagColor>(),
+    /** Optimistic locking for the settings screen's rename and recolour (migration 0025). */
+    version: integer('version').notNull().default(1),
   },
-  (table) => [uniqueIndex('tags_tenant_name_key').on(table.tenantId, table.name)],
+  (table) => [
+    uniqueIndex('tags_tenant_name_key').on(table.tenantId, table.name),
+    // Names are unique ignoring case ("VIP" and "vip" are one tag), as the application treats them.
+    uniqueIndex('tags_tenant_lower_name_key').on(table.tenantId, sql`lower(${table.name})`),
+  ],
 );
 
 export const recordTags = pgTable(

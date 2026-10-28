@@ -43,6 +43,7 @@ import { CurrencyConverter } from '../../platform/exchange-rates/currency-conver
 import { FieldMetadataService } from '../../platform/field-metadata.service.js';
 import { IdempotencyService } from '../../platform/idempotency.service.js';
 import { OutboxService } from '../../platform/outbox.service.js';
+import { TagsService } from '../tags/tags.service.js';
 import { AccountsService } from '../accounts/accounts.service.js';
 import { ContactsService } from '../contacts/contacts.service.js';
 import { PipelinesService, type StageInfo } from '../pipelines/pipelines.service.js';
@@ -107,6 +108,7 @@ export class DealsService {
     @Inject(AuditService) private readonly audit: AuditService,
     @Inject(OutboxService) private readonly outbox: OutboxService,
     @Inject(IdempotencyService) private readonly idempotency: IdempotencyService,
+    @Inject(TagsService) private readonly tags: TagsService,
     @Inject(PipelinesService) private readonly pipelines: PipelinesService,
     @Inject(AccountsService) private readonly accounts: AccountsService,
     @Inject(ContactsService) private readonly contacts: ContactsService,
@@ -164,7 +166,12 @@ export class DealsService {
       );
 
       return {
-        data: serializeDeals(actor, result.rows, fields, people),
+        data: await this.tags.attach(
+          tx,
+          actor,
+          'deal',
+          serializeDeals(actor, result.rows, fields, people),
+        ),
         meta: {
           nextCursor: result.nextCursor,
           hasMore: result.hasMore,
@@ -257,7 +264,12 @@ export class DealsService {
 
     const fields = await this.fieldMetadata.forObject(tx, actor.tenantId, 'deal');
     const people = await this.repository.peopleFor(tx, actor.tenantId, [row.id]);
-    return serializeDeal(actor, row, fields, people.get(row.id) ?? []);
+    return this.tags.attachOne(
+      tx,
+      actor,
+      'deal',
+      serializeDeal(actor, row, fields, people.get(row.id) ?? []),
+    );
   }
 
   async create(
@@ -356,7 +368,9 @@ export class DealsService {
       },
     });
 
-    return serializeDeal(actor, row, fields, people);
+    // A record that was just made carries no tags yet. Said as an empty list, so a create answers in the
+    // same shape a read of it does (a replay of this request re-reads it, ADR-0060, and must match).
+    return { ...serializeDeal(actor, row, fields, people), tags: [] };
   }
 
   async update(actor: Actor, id: string, input: DealUpdateInput): Promise<SerializedDeal> {
@@ -450,7 +464,7 @@ export class DealsService {
       });
     }
 
-    return serializeDeal(actor, updated, fields, people);
+    return this.tags.attachOne(tx, actor, 'deal', serializeDeal(actor, updated, fields, people));
   }
 
   /**

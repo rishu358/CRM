@@ -3,6 +3,7 @@ import {
   isStandardQueryColumn,
   QUERY_COLUMNS,
   sortableFieldKeys,
+  TAGS_FILTER_FIELD,
   ValidationError,
   type Actor,
   type BusinessObjectType,
@@ -27,7 +28,8 @@ export function filterableKeys(
   fields: readonly FieldDefinition[],
 ): Set<string> {
   const custom = fields.filter((field) => field.isActive && !field.isSystem).map((f) => f.key);
-  return new Set([...Object.keys(QUERY_COLUMNS[objectType]), ...custom]);
+  // `tags` is a filter only: a question about the record's tags, never a value to sort or show (ADR-0063).
+  return new Set([...Object.keys(QUERY_COLUMNS[objectType]), TAGS_FILTER_FIELD, ...custom]);
 }
 
 function sortableKeys(

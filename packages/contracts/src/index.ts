@@ -15,6 +15,7 @@ export * from './recycle-bin.js';
 export * from './saved-views.js';
 export * from './bulk.js';
 export * from './merge.js';
+export * from './tags.js';
 export * from './data-rights.js';
 export * from './auth.js';
 export * from './invitations.js';

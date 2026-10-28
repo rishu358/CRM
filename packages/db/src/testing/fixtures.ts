@@ -839,6 +839,15 @@ export class Fixtures {
     await this.pool.query(`DELETE FROM ${table} WHERE id = $1`, [id]);
   }
 
+  /** A record in the Recycle Bin, without going through the service: what a delete leaves behind. */
+  async softDeleteRecord(
+    table: 'contacts' | 'accounts' | 'deals' | 'leads',
+    id: string,
+  ): Promise<void> {
+    // The table name is one of four literals chosen here, never caller text.
+    await this.pool.query(`UPDATE ${table} SET deleted_at = now() WHERE id = $1`, [id]);
+  }
+
   /** A person's notifications, newest first. */
   async notificationsFor(
     tenantId: string,

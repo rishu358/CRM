@@ -39,6 +39,7 @@ import { AuditService, diffChanges } from '../../platform/audit.service.js';
 import { FieldMetadataService } from '../../platform/field-metadata.service.js';
 import { IdempotencyService } from '../../platform/idempotency.service.js';
 import { OutboxService } from '../../platform/outbox.service.js';
+import { TagsService } from '../tags/tags.service.js';
 import { AccountsRepository } from './accounts.repository.js';
 import {
   assertWritableAccountFields,
@@ -81,6 +82,7 @@ export class AccountsService {
     @Inject(AuditService) private readonly audit: AuditService,
     @Inject(OutboxService) private readonly outbox: OutboxService,
     @Inject(IdempotencyService) private readonly idempotency: IdempotencyService,
+    @Inject(TagsService) private readonly tags: TagsService,
     @Inject(SEARCH_PROVIDER) private readonly search: ApiSearchProvider,
   ) {}
 
@@ -128,7 +130,12 @@ export class AccountsService {
       });
 
       return {
-        data: serializeAccounts(actor, result.rows, fields),
+        data: await this.tags.attach(
+          tx,
+          actor,
+          'account',
+          serializeAccounts(actor, result.rows, fields),
+        ),
         meta: {
           nextCursor: result.nextCursor,
           hasMore: result.hasMore,
@@ -159,7 +166,7 @@ export class AccountsService {
     });
 
     const fields = await this.fieldMetadata.forObject(tx, actor.tenantId, 'account');
-    return serializeAccount(actor, row, fields);
+    return this.tags.attachOne(tx, actor, 'account', serializeAccount(actor, row, fields));
   }
 
   async create(actor: Actor, input: AccountCreateInput): Promise<SerializedAccount> {
@@ -288,7 +295,9 @@ export class AccountsService {
       payload: { ownerId: row.ownerId, parentAccountId: row.parentAccountId },
     });
 
-    return serializeAccount(actor, row, fields);
+    // A record that was just made carries no tags yet. Said as an empty list, so a create answers in the
+    // same shape a read of it does (a replay of this request re-reads it, ADR-0060, and must match).
+    return { ...serializeAccount(actor, row, fields), tags: [] };
   }
 
   async update(actor: Actor, id: string, input: AccountUpdateInput): Promise<SerializedAccount> {
@@ -356,7 +365,7 @@ export class AccountsService {
       payload: { changedFields: Object.keys(changes) },
     });
 
-    return serializeAccount(actor, updated, fields);
+    return this.tags.attachOne(tx, actor, 'account', serializeAccount(actor, updated, fields));
   }
 
   /**

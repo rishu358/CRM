@@ -26,6 +26,7 @@ import { WhoCanSeeButton } from './who-can-see';
 import { ActivityPanel } from './activity-panel';
 import { AttachmentPanel } from './attachment-panel';
 import { DuplicatesCard } from './duplicates-card';
+import { TagsCard } from './tag-editor';
 import { InlineField } from './inline-field';
 import { WhatsAppChat } from './whatsapp-chat';
 import { CustomFieldsCard } from './custom-fields';
@@ -321,6 +322,7 @@ export function AccountDetail({ id }: { id: string }) {
           ) : null}
 
           <DuplicatesCard objectType="account" recordId={id} />
+          <TagsCard objectType="account" recordId={id} tags={account.tags} />
           <CustomFieldsCard
             objectType="account"
             values={account.customFields}
