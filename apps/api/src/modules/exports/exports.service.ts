@@ -8,6 +8,7 @@ import {
   NotFoundError,
   PRESIGNED_URL_TTL_SECONDS,
   QUERY_COLUMNS,
+  TAGS_FILTER_FIELD,
   sortableFieldKeys,
   ValidationError,
   type Actor,
@@ -217,7 +218,11 @@ export class ExportsService {
     const customKeys = fields
       .filter((field) => field.isActive && !field.isSystem)
       .map((field) => field.key);
-    const knownKeys = new Set([...Object.keys(QUERY_COLUMNS[objectType]), ...customKeys]);
+    const knownKeys = new Set([
+      ...Object.keys(QUERY_COLUMNS[objectType]),
+      TAGS_FILTER_FIELD,
+      ...customKeys,
+    ]);
 
     if (input.sort !== undefined) {
       const sort = parseSort(input.sort);
