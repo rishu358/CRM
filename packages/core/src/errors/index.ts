@@ -244,11 +244,7 @@ export class SearchTimeoutError extends DomainError {
 
 export class FormExpiredError extends DomainError {
   constructor() {
-    super(
-      ErrorCode.FORM_EXPIRED,
-      'Please reload the page and send the form again.',
-      422,
-    );
+    super(ErrorCode.FORM_EXPIRED, 'Please reload the page and send the form again.', 422);
   }
 }
 
