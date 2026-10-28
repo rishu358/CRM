@@ -40,6 +40,10 @@
  * pipelines on the board stays `deal:read`; `pipeline:read` is the editor's view,
  * which also shows retired stages and how many deals sit in each.
  *
+ * `lead_form` is the same kind of thing for the website lead form (ADR-0063): creating and editing a
+ * form, rotating or revoking its key and switching it off are company-wide configuration, and the
+ * form is a door onto the public internet, so it is an explicit grant that no record permission implies.
+ *
  * They are kept apart rather than folded into one `data_rights` type because
  * the three differ in blast radius: a whole-workspace archive, one person's
  * file, and an irreversible erasure are not the same decision, and a single
@@ -61,6 +65,7 @@ export const OBJECT_TYPES = [
   'data_subject',
   'tenant_settings',
   'pipeline',
+  'lead_form',
 ] as const;
 
 export type ObjectType = (typeof OBJECT_TYPES)[number];
@@ -187,6 +192,7 @@ export const ADMINISTRATIVE_OBJECT_TYPES = [
   'data_subject',
   'tenant_settings',
   'pipeline',
+  'lead_form',
 ] as const;
 export type AdministrativeObjectType = (typeof ADMINISTRATIVE_OBJECT_TYPES)[number];
 

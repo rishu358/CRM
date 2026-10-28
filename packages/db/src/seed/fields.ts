@@ -132,6 +132,7 @@ export const LEAD_SYSTEM_FIELDS: readonly SystemField[] = [
       { value: 'walk_in', label: 'Walk-in' },
       { value: 'exhibition', label: 'Exhibition' },
       { value: 'social', label: 'Social media' },
+      { value: 'web_form', label: 'Web form' },
       { value: 'other', label: 'Other' },
     ],
   }),
