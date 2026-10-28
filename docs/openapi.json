@@ -19454,7 +19454,8 @@
             "enum": [
               "account",
               "contact",
-              "lead"
+              "lead",
+              "deal"
             ]
           },
           "fileName": {
@@ -27528,7 +27529,8 @@
                   "enum": [
                     "account",
                     "contact",
-                    "lead"
+                    "lead",
+                    "deal"
                   ]
                 },
                 "status": {
@@ -27864,7 +27866,8 @@
                     "enum": [
                       "account",
                       "contact",
-                      "lead"
+                      "lead",
+                      "deal"
                     ]
                   },
                   "status": {
@@ -28227,7 +28230,8 @@
                 "enum": [
                   "account",
                   "contact",
-                  "lead"
+                  "lead",
+                  "deal"
                 ]
               },
               "status": {
@@ -28543,7 +28547,8 @@
                 "enum": [
                   "account",
                   "contact",
-                  "lead"
+                  "lead",
+                  "deal"
                 ]
               },
               "status": {
@@ -28893,7 +28898,8 @@
                 "enum": [
                   "account",
                   "contact",
-                  "lead"
+                  "lead",
+                  "deal"
                 ]
               },
               "status": {
@@ -29209,7 +29215,8 @@
                 "enum": [
                   "account",
                   "contact",
-                  "lead"
+                  "lead",
+                  "deal"
                 ]
               },
               "status": {

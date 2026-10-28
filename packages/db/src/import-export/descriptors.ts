@@ -279,6 +279,9 @@ const DEAL = defineDescriptor('deal', deals, {
     created_at: sql`${deals.createdAt}`,
     updated_at: sql`${deals.updatedAt}`,
   },
+  // `external_id` is the person's own id (ADR-0070); `name` is matched together with the account
+  // by the import, which reads the account of each candidate it is given back.
+  match: { external_id: sql`${deals.externalId}`, name: sql`${deals.name}` },
   exportValue: (row, key) =>
     key === 'amount' ? money(row['amountMinor'], row['currency']) : undefined,
   extraExportColumns: [

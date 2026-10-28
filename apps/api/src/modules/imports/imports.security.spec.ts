@@ -181,9 +181,9 @@ describe('authorization: `import` is its own action, default deny', () => {
     expect((await createImport(user.token, { objectType: 'account' })).status).toBe(403);
   });
 
-  it('does not import deals: that is a business rule the spec does not give', async () => {
-    const response = await createImport(adminA.token, { objectType: 'deal' });
-    expect(response.status).toBe(422);
+  it('imports deals since ADR-0070, and still refuses an object nobody can import', async () => {
+    expect((await createImport(adminA.token, { objectType: 'deal' })).status).toBe(201);
+    expect((await createImport(adminA.token, { objectType: 'activity' })).status).toBe(422);
   });
 });
 
@@ -1080,5 +1080,44 @@ describe('original dates: its own grant (ADR-0069)', () => {
     await harness.fixtures.grant(tenantA, roleId, 'import_history', 'create', 'all');
     const granted = await userWithRole(tenantA, roleId);
     expect(await targetsFor(granted.token)).toContain('created_at');
+  });
+});
+
+describe('deals can be imported (ADR-0070)', () => {
+  it('offers a Manager the pipeline, the stage, the links and the ID, and matches on ID or name', async () => {
+    const { created } = await createImport(managerA.token, { objectType: 'deal' });
+    expect(created).not.toBeNull();
+    await awaitMapping(created!.id);
+    const data = dataOf<{ targets: { key: string }[]; matchFields: string[]; objectType: string }>(
+      await request(harness, {
+        method: 'GET',
+        url: `/api/v1/imports/${created!.id}`,
+        token: managerA.token,
+      }),
+    );
+    expect(data.objectType).toBe('deal');
+    expect(data.targets.map((target) => target.key)).toEqual(
+      expect.arrayContaining([
+        'name',
+        'amount',
+        'pipeline_id',
+        'stage_id',
+        'account_id',
+        'primary_contact_id',
+        'owner_id',
+        'external_id',
+      ]),
+    );
+    expect(data.matchFields).toEqual(['external_id', 'name']);
+  });
+
+  it('is refused to a role with no import grant on deals, and is judged per object type', async () => {
+    const roleId = await harness.fixtures.createRole(tenantA, `contacts-import-only-${unique()}`);
+    for (const action of ['read', 'create', 'import'] as const) {
+      await harness.fixtures.grant(tenantA, roleId, 'contact', action, 'all');
+    }
+    const contactsOnly = await userWithRole(tenantA, roleId);
+    expect((await createImport(contactsOnly.token, { objectType: 'deal' })).status).toBe(403);
+    expect((await createImport(repA.token, { objectType: 'deal' })).status).toBe(403);
   });
 });

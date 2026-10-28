@@ -42,7 +42,7 @@ export const importJobs = pgTable(
   'import_jobs',
   {
     ...baseColumns,
-    objectType: text('object_type').$type<'account' | 'contact' | 'lead'>().notNull(),
+    objectType: text('object_type').$type<'account' | 'contact' | 'lead' | 'deal'>().notNull(),
     status: text('status').$type<ImportStatus>().notNull().default('awaiting_upload'),
     fileName: text('file_name').notNull(),
     claimedFormat: text('claimed_format').$type<'csv' | 'xlsx'>().notNull(),

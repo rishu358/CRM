@@ -60,15 +60,16 @@ import { AppShell } from './app-shell';
 
 const MAX_MB = Math.round(IMPORT_LIMITS.maxUploadBytes / (1024 * 1024));
 
-type ObjectType = 'contact' | 'account' | 'lead';
+type ObjectType = 'contact' | 'account' | 'lead' | 'deal';
 const OBJECTS: readonly { value: ObjectType; label: TranslationKey }[] = [
   { value: 'contact', label: 'import.object.contact' },
   { value: 'account', label: 'import.object.account' },
   { value: 'lead', label: 'import.object.lead' },
+  { value: 'deal', label: 'import.object.deal' },
 ];
 
 function isObjectType(value: string | null): value is ObjectType {
-  return value === 'contact' || value === 'account' || value === 'lead';
+  return value === 'contact' || value === 'account' || value === 'lead' || value === 'deal';
 }
 
 /**

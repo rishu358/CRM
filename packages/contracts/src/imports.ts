@@ -19,7 +19,7 @@ import { z } from 'zod';
  *     to create is a presigned URL, and the bytes go to the object store.
  */
 
-export const importObjectTypeSchema = z.enum(['account', 'contact', 'lead']);
+export const importObjectTypeSchema = z.enum(['account', 'contact', 'lead', 'deal']);
 export type ImportObjectType = z.infer<typeof importObjectTypeSchema>;
 
 export const importStatusSchema = z.enum([

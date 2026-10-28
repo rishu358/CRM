@@ -40,6 +40,7 @@ import {
 
 export const OWNER_KEY = 'owner_id';
 export const ACCOUNT_KEY = 'account_id';
+export const CONTACT_KEY = 'primary_contact_id';
 
 export interface LinkCell {
   readonly key: string;
@@ -56,7 +57,7 @@ export interface LinkResolution {
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export function linkValueKey(key: string, raw: string): string {
-  return key === OWNER_KEY ? raw.trim().toLowerCase() : raw.trim();
+  return key === OWNER_KEY || key === CONTACT_KEY ? raw.trim().toLowerCase() : raw.trim();
 }
 
 export async function resolveLinks(
@@ -88,6 +89,13 @@ export async function resolveLinks(
   if (owners.length > 0) {
     await resolveOwners(tx, actor, objectType, owners, (value, id, problem) =>
       id === null ? note(problems, OWNER_KEY, value, problem) : note(ids, OWNER_KEY, value, id),
+    );
+  }
+
+  const contactEmails = distinct(CONTACT_KEY);
+  if (contactEmails.length > 0) {
+    await resolveContacts(tx, actor, contactEmails, (value, id, problem) =>
+      id === null ? note(problems, CONTACT_KEY, value, problem) : note(ids, CONTACT_KEY, value, id),
     );
   }
 
@@ -160,6 +168,53 @@ async function resolveOwners(
       continue;
     }
     report(email, userId, '');
+  }
+}
+
+/**
+ * A deal's primary contact, by e-mail address: only among contacts the importer may read, and a
+ * contact they may not read answers exactly as one that does not exist. Two contacts with one
+ * address is an error, never "the first".
+ */
+async function resolveContacts(
+  tx: Tx,
+  actor: Actor,
+  emails: readonly string[],
+  report: Report,
+): Promise<void> {
+  const none = (value: string) => `Primary contact: no contact has the e-mail address "${value}"`;
+
+  const read = can(actor, 'read', { objectType: 'contact' });
+  if (!read.allowed) {
+    for (const email of emails) report(email, null, none(email));
+    return;
+  }
+
+  const descriptor = OBJECT_DESCRIPTORS.contact;
+  const scope = constraintToSql(read.constraint, descriptor.ownerId);
+  const found = await descriptor.selectByMatch(tx, {
+    tenantId: actor.tenantId,
+    matchExpression: descriptor.matchExpression('email'),
+    values: [...emails],
+    ...(scope === undefined ? {} : { scope }),
+  });
+
+  const byEmail = new Map<string, string[]>();
+  for (const record of found) {
+    const raw = record['email'];
+    const email = typeof raw === 'string' ? raw.toLowerCase() : '';
+    byEmail.set(email, [...(byEmail.get(email) ?? []), String(record['id'])]);
+  }
+  for (const email of emails) {
+    const matches = byEmail.get(email) ?? [];
+    if (matches.length === 0) report(email, null, none(email));
+    else if (matches.length > 1) {
+      report(
+        email,
+        null,
+        `Primary contact: ${String(matches.length)} contacts have the e-mail address "${email}"`,
+      );
+    } else report(email, matches[0] ?? null, '');
   }
 }
 
