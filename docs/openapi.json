@@ -69,6 +69,10 @@
       "description": "A list’s search, filters, columns and sort, under a name."
     },
     {
+      "name": "Merge",
+      "description": "Fold a duplicate contact or account into the one that stays."
+    },
+    {
       "name": "Bulk Actions",
       "description": "Edit, assign, delete and tag many records."
     },
@@ -869,7 +873,7 @@
         "tags": [
           "Accounts"
         ],
-        "description": "Returns 404, never 403, for a record in another tenant or outside the caller's visibility scope (CLAUDE.md §5.5).",
+        "description": "Returns 404, never 403, for a record in another tenant or outside the caller's visibility scope (CLAUDE.md §5.5). For a record that was merged into another it returns 410 `RECORD_MERGED` with the surviving record's id in `details[0].message`, but only when the caller may read the survivor and the merged record; otherwise 404 (ADR-0064).",
         "parameters": [
           {
             "name": "id",
@@ -915,6 +919,16 @@
           },
           "404": {
             "description": "No such record, or it is outside the caller’s tenant or visibility scope. `error.code` is one of: `NOT_FOUND`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "The record was merged into another; the surviving record’s id is in `details`. `error.code` is one of: `RECORD_MERGED`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1037,6 +1051,110 @@
           },
           "409": {
             "description": "The write conflicts with the record’s current state. `error.code` is one of: `VERSION_CONFLICT`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Input failed validation at the API boundary. `error.code` is one of: `VALIDATION_FAILED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded. Limits are per user, per tenant and per address, shared across API instances. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `RATE_LIMITED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote `requestId` when reporting it. `error.code` is one of: `INTERNAL`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/accounts/{id}/duplicates": {
+      "get": {
+        "operationId": "listAccountDuplicates",
+        "summary": "Records that look like this account",
+        "tags": [
+          "Accounts"
+        ],
+        "description": "The duplicates of one account, for the \"Possible duplicates\" card and its Merge button (ADR-0064). Matches on the account’s own domain and a close name. Only accounts the caller may read, matched on fields the caller may read, and never the account itself. Needs permission to update accounts, since its only use is to merge them. Nothing is changed.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Matching accounts the caller may see.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DuplicateMatchListResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No session, or the credentials offered were not accepted. `error.code` is one of: `UNAUTHENTICATED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, but not permitted. `error.code` is one of: `FORBIDDEN`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such record, or it is outside the caller’s tenant or visibility scope. `error.code` is one of: `NOT_FOUND`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2827,6 +2945,7 @@
                 "export",
                 "import",
                 "restore",
+                "merge",
                 "purge",
                 "login",
                 "logout",
@@ -4959,7 +5078,7 @@
         "tags": [
           "Contacts"
         ],
-        "description": "Returns 404, never 403, for a record in another tenant or outside the caller's visibility scope (CLAUDE.md §5.5).",
+        "description": "Returns 404, never 403, for a record in another tenant or outside the caller's visibility scope (CLAUDE.md §5.5). For a record that was merged into another it returns 410 `RECORD_MERGED` with the surviving record's id in `details[0].message`, but only when the caller may read the survivor and the merged record; otherwise 404 (ADR-0064).",
         "parameters": [
           {
             "name": "id",
@@ -5005,6 +5124,16 @@
           },
           "404": {
             "description": "No such record, or it is outside the caller’s tenant or visibility scope. `error.code` is one of: `NOT_FOUND`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "The record was merged into another; the surviving record’s id is in `details`. `error.code` is one of: `RECORD_MERGED`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -5127,6 +5256,110 @@
           },
           "409": {
             "description": "The write conflicts with the record’s current state. `error.code` is one of: `VERSION_CONFLICT`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Input failed validation at the API boundary. `error.code` is one of: `VALIDATION_FAILED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded. Limits are per user, per tenant and per address, shared across API instances. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `RATE_LIMITED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote `requestId` when reporting it. `error.code` is one of: `INTERNAL`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/contacts/{id}/duplicates": {
+      "get": {
+        "operationId": "listContactDuplicates",
+        "summary": "Records that look like this contact",
+        "tags": [
+          "Contacts"
+        ],
+        "description": "The duplicates of one contact, for the \"Possible duplicates\" card and its Merge button (ADR-0064). Matches on the contact’s own e-mail and phone. Only contacts the caller may read, matched on fields the caller may read, and never the contact itself. Needs permission to update contacts, since its only use is to merge them. Nothing is changed.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Matching contacts the caller may see.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DuplicateMatchListResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No session, or the credentials offered were not accepted. `error.code` is one of: `UNAUTHENTICATED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, but not permitted. `error.code` is one of: `FORBIDDEN`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such record, or it is outside the caller’s tenant or visibility scope. `error.code` is one of: `NOT_FOUND`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -11287,6 +11520,118 @@
           },
           "422": {
             "description": "Input failed validation at the API boundary. `error.code` is one of: `VALIDATION_FAILED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded. Limits are per user, per tenant and per address, shared across API instances. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `RATE_LIMITED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote `requestId` when reporting it. `error.code` is one of: `INTERNAL`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/merges": {
+      "post": {
+        "operationId": "mergeRecords",
+        "summary": "Merge a duplicate contact or account into the one that stays",
+        "tags": [
+          "Merge"
+        ],
+        "description": "Folds `loserId` into `masterId`, in one transaction: the master keeps its id and takes the field values named in `fields` (the loser’s where `loser`, its own otherwise), receives everything that pointed at the loser (activities, notes, files, tags, deals, the contacts of an account, child accounts, converted leads), and the loser goes to the Recycle Bin with a pointer to the master. Both records are found by id under row-level security (404 outside the caller’s scope), both versions are checked (409), the caller needs `update` on the master and `delete` on the loser at their own scope, and a field the caller may not read or write can never be chosen. The merged result is validated like an edit (422), and a pair where one sits above the other in the account hierarchy, or where an erasure request is open, is `MERGE_BLOCKED`. More than 5,000 linked rows is `MERGE_TOO_LARGE`, and nothing is written. Only contacts and accounts can be merged. A merge of the same pair again is 409 `RECORD_ALREADY_MERGED`. `dryRun` runs the same code and rolls back: the preview. Accepts an `Idempotency-Key`; a retry returns the first answer with `replayed: true` (ADR-0060, ADR-0064).",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MergeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The merged record and what moved.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MergeResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No session, or the credentials offered were not accepted. `error.code` is one of: `UNAUTHENTICATED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, but not permitted. `error.code` is one of: `FIELD_NOT_WRITABLE`, `FORBIDDEN`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such record, or it is outside the caller’s tenant or visibility scope. `error.code` is one of: `NOT_FOUND`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The write conflicts with the record’s current state. `error.code` is one of: `IDEMPOTENCY_IN_PROGRESS`, `IDEMPOTENCY_KEY_REUSED`, `IDEMPOTENT_RECORD_UNAVAILABLE`, `RECORD_ALREADY_MERGED`, `VERSION_CONFLICT`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Input failed validation at the API boundary. `error.code` is one of: `MERGE_BLOCKED`, `MERGE_TOO_LARGE`, `VALIDATION_FAILED`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -18288,6 +18633,7 @@
                   "export",
                   "import",
                   "restore",
+                  "merge",
                   "purge",
                   "login",
                   "logout",
@@ -19807,6 +20153,65 @@
         },
         "required": [
           "roleId"
+        ],
+        "additionalProperties": false
+      },
+      "MergeRequest": {
+        "type": "object",
+        "properties": {
+          "objectType": {
+            "type": "string",
+            "enum": [
+              "contact",
+              "account"
+            ]
+          },
+          "masterId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "masterVersion": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          },
+          "loserId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "loserVersion": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          },
+          "fields": {
+            "default": {},
+            "type": "object",
+            "propertyNames": {
+              "type": "string",
+              "pattern": "^[a-zA-Z][a-zA-Z0-9_]{0,62}$"
+            },
+            "additionalProperties": {
+              "type": "string",
+              "enum": [
+                "master",
+                "loser"
+              ]
+            }
+          },
+          "dryRun": {
+            "default": false,
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "objectType",
+          "masterId",
+          "masterVersion",
+          "loserId",
+          "loserVersion"
         ],
         "additionalProperties": false
       },
@@ -31593,6 +31998,172 @@
               "summary",
               "removesLastAdministrator",
               "beyondYourAccess"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "additionalProperties": false
+      },
+      "MergeResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "object",
+            "properties": {
+              "objectType": {
+                "type": "string",
+                "enum": [
+                  "contact",
+                  "account"
+                ]
+              },
+              "masterId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "loserId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "dryRun": {
+                "type": "boolean"
+              },
+              "counts": {
+                "type": "object",
+                "properties": {
+                  "activities": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "notes": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "files": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "deals": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "contacts": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "childAccounts": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "leads": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "tags": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "activities",
+                  "notes",
+                  "files",
+                  "deals",
+                  "contacts",
+                  "childAccounts",
+                  "leads",
+                  "tags"
+                ],
+                "additionalProperties": false
+              },
+              "fromLoser": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "record": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {}
+              },
+              "replayed": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "objectType",
+              "masterId",
+              "loserId",
+              "dryRun",
+              "counts",
+              "fromLoser",
+              "record",
+              "replayed"
             ],
             "additionalProperties": false
           },

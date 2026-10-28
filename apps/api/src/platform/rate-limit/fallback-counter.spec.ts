@@ -17,6 +17,11 @@ class Flaky implements RateLimitCounter {
     }
     return this.inner.hitMany(entries);
   }
+
+  releaseMany(keys: readonly string[]): Promise<void> {
+    if (this.down) return Promise.reject(new Error('connect ECONNREFUSED'));
+    return this.inner.releaseMany(keys);
+  }
 }
 
 function setup(options: { retryAfterMs?: number; reportEveryMs?: number } = {}) {

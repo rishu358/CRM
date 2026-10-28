@@ -73,6 +73,11 @@ Creating the roles needs the ability to create roles (on a managed service, its 
 | Migrations      | `migrate`       | Postgres as `crm_migrator`. A one-shot job, not a service                   |
 | TLS and routing | Caddy (example) | Ports 80 and 443                                                            |
 
+**The API must be reachable only through the trusted proxy**, and the proxy must overwrite `X-Forwarded-For`
+(the API trusts it for per-address limits). A directly reachable API port lets a caller rotate that header and
+dodge the address limits and the sign-in address budgets (ADR-0066). See [DEPLOYMENT.md](DEPLOYMENT.md), "Network
+requirement".
+
 Postgres 16, Redis and the object store are **managed services**, not containers in the compose file
 (CLAUDE.md §2). `deploy/docker-compose.prod.example.yml` shows one host's layout and is an example to
 copy, not something to run unchanged.
@@ -188,12 +193,13 @@ the past); disk on the database volume.
 
 Four limits are counted, all in Redis, so each means the same however many API instances run (ADR-0042):
 
-| Limit          | Setting (default)                                | Applies to                                          |
-| -------------- | ------------------------------------------------ | --------------------------------------------------- |
-| Per user       | `RATE_LIMIT_MAX_PER_USER` (300 per window)       | A signed-in person, from any address                |
-| Per tenant     | `RATE_LIMIT_MAX_PER_TENANT` (3,000 per window)   | Everyone in one workspace together                  |
-| Per address    | `RATE_LIMIT_MAX_PER_IP` (1,000 per window)       | Everything one address sends, signed in or not      |
-| Sign-in routes | `AUTH_RATE_LIMIT_MAX_PER_IP` (50 per 15 minutes) | Sign-in, sign-up, reset and invitation, per address |
+| Limit           | Setting (default)                                                                    | Applies to                                                                           |
+| --------------- | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------ |
+| Per user        | `RATE_LIMIT_MAX_PER_USER` (300 per window)                                           | A signed-in person, from any address                                                 |
+| Per tenant      | `RATE_LIMIT_MAX_PER_TENANT` (3,000 per window)                                       | Everyone in one workspace together                                                   |
+| Per address     | `RATE_LIMIT_MAX_PER_IP` (1,000 per window)                                           | Everything one address sends, signed in or not                                       |
+| Sign-in routes  | `AUTH_RATE_LIMIT_MAX_PER_IP` (600 per 15 minutes)                                    | Sign-in, sign-up, reset and invitation, per address                                  |
+| Failed sign-ins | `AUTH_FAILURE_MAX_PER_ACCOUNT` (10), `AUTH_FAILURE_MAX_PER_IP` (100), per 15 minutes | Wrong passwords and codes only, per account (any address) and per address (ADR-0066) |
 
 The window is `RATE_LIMIT_WINDOW_SECONDS` (60). `/api/v1/health` is not limited. A refused request is a `429` with a
 `Retry-After` header; its message says whose budget it is ("this workspace", "you", "this address") and nothing else.
@@ -374,9 +380,9 @@ env file; `.dockerignore` and `.gitignore` both exclude them.
   DigitalOcean's Postgres and what could not be.
 - **TLS to DigitalOcean's Postgres is by `DATABASE_CA_CERT`** (§9.6, ADR-0042), tested against a local
   private-CA server, **not yet against the real cluster's certificate**.
-- **The web proxy does not forward the end user's IP to the API**, so the per-IP limits and the audit log's
-  address are the proxy's, not the user's, and the API's `trustProxy: true` trusts a client-supplied
-  `X-Forwarded-For` (ADR-0042).
+- **The API's `trustProxy: true` trusts `X-Forwarded-For`.** The web app now forwards the end user's address
+  (ADR-0053), but a directly reachable API port lets a caller choose their own address and so dodge the address
+  limits (ADR-0042, ADR-0066). Keep the API reachable only through the trusted proxy.
 
 ## 9. Deploying to DigitalOcean (BLR1) with the web app on Vercel (bom1)
 

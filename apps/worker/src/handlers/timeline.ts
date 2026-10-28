@@ -47,6 +47,10 @@ const SUMMARIES: Readonly<Record<string, string>> = {
   'lead.restored.v1': 'Lead restored',
   'deal.restored.v1': 'Deal restored',
   'activity.restored.v1': 'Activity restored',
+  // A duplicate folded into this record (ADR-0064). The loser's own history moved here with it, so
+  // this line is what tells a reader why the timeline suddenly has older entries.
+  'contact.merged.v1': 'Contact merged: a duplicate was folded into this record',
+  'account.merged.v1': 'Account merged: a duplicate was folded into this record',
 };
 
 export async function projectTimeline(tx: Tx, event: OutboxRow): Promise<void> {

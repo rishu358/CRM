@@ -194,6 +194,7 @@ import {
   savedViewUpdateSchema,
 } from './saved-views.js';
 import { bulkActionSchema, bulkResultSchema, tagSchema } from './bulk.js';
+import { mergeRequestSchema, mergeResultSchema } from './merge.js';
 import { tagDeleteQuerySchema, tagParamsSchema, tagUpdateSchema, tagUsageSchema } from './tags.js';
 
 /**
@@ -332,6 +333,8 @@ function standardObjectRoutes(object: {
   readonly createErrors?: readonly ErrorCode[];
   /** The `meta` a create returns, when it returns one — a lead returns its duplicates. */
   readonly createMeta?: z.ZodType;
+  /** True for the kinds that can be merged away: a read of a merged record's id answers 410. */
+  readonly mergeable?: boolean;
 }): RouteDefinition[] {
   const { plural, singular, name } = object;
   return [
@@ -367,7 +370,12 @@ function standardObjectRoutes(object: {
       summary: `Fetch one ${singular}`,
       description:
         'Returns 404, never 403, for a record in another tenant or outside the ' +
-        "caller's visibility scope (CLAUDE.md §5.5).",
+        "caller's visibility scope (CLAUDE.md §5.5)." +
+        (object.mergeable === true
+          ? ' For a record that was merged into another it returns 410 `RECORD_MERGED` with the ' +
+            "surviving record's id in `details[0].message`, but only when the caller may read the " +
+            'survivor and the merged record; otherwise 404 (ADR-0064).'
+          : ''),
       auth: 'session',
       params: object.params,
       response: {
@@ -377,7 +385,7 @@ function standardObjectRoutes(object: {
         description: `The ${singular}.`,
         data: object.record,
       },
-      errors: RECORD,
+      errors: object.mergeable === true ? [...RECORD, ErrorCode.RECORD_MERGED] : RECORD,
     },
     {
       method: 'POST',
@@ -988,6 +996,28 @@ const contactRoutes: RouteDefinition[] = [
     },
     errors: [],
   },
+  {
+    method: 'GET',
+    path: '/contacts/{id}/duplicates',
+    operationId: 'listContactDuplicates',
+    tag: 'Contacts',
+    summary: 'Records that look like this contact',
+    description:
+      'The duplicates of one contact, for the "Possible duplicates" card and its Merge button ' +
+      '(ADR-0064). Matches on the contact’s own e-mail and phone. Only contacts the caller may read, matched on fields the caller ' +
+      'may read, and never the contact itself. Needs permission to update contacts, since its only ' +
+      'use is to merge them. Nothing is changed.',
+    auth: 'session',
+    params: z.object({ id: z.uuid() }).strict(),
+    response: {
+      kind: 'object',
+      status: 200,
+      name: 'DuplicateMatchListResponse',
+      description: 'Matching contacts the caller may see.',
+      data: duplicateMatchSchema.array(),
+    },
+    errors: RECORD,
+  },
 ];
 
 const accountRoutes: RouteDefinition[] = [
@@ -1011,6 +1041,28 @@ const accountRoutes: RouteDefinition[] = [
       data: duplicateMatchSchema.array(),
     },
     errors: [],
+  },
+  {
+    method: 'GET',
+    path: '/accounts/{id}/duplicates',
+    operationId: 'listAccountDuplicates',
+    tag: 'Accounts',
+    summary: 'Records that look like this account',
+    description:
+      'The duplicates of one account, for the "Possible duplicates" card and its Merge button ' +
+      '(ADR-0064). Matches on the account’s own domain and a close name. Only accounts the caller may read, matched on fields the caller ' +
+      'may read, and never the account itself. Needs permission to update accounts, since its only ' +
+      'use is to merge them. Nothing is changed.',
+    auth: 'session',
+    params: z.object({ id: z.uuid() }).strict(),
+    response: {
+      kind: 'object',
+      status: 200,
+      name: 'DuplicateMatchListResponse',
+      description: 'Matching accounts the caller may see.',
+      data: duplicateMatchSchema.array(),
+    },
+    errors: RECORD,
   },
 ];
 
@@ -1851,6 +1903,49 @@ const tagRoutes: RouteDefinition[] = [
     query: tagDeleteQuerySchema,
     response: { kind: 'empty', status: 204, description: 'Deleted.' },
     errors: VERSIONED,
+  },
+];
+
+const mergeRoutes: RouteDefinition[] = [
+  {
+    method: 'POST',
+    path: '/merges',
+    operationId: 'mergeRecords',
+    tag: 'Merge',
+    summary: 'Merge a duplicate contact or account into the one that stays',
+    description:
+      'Folds `loserId` into `masterId`, in one transaction: the master keeps its id and takes the ' +
+      'field values named in `fields` (the loser’s where `loser`, its own otherwise), receives ' +
+      'everything that pointed at the loser (activities, notes, files, tags, deals, the contacts ' +
+      'of an account, child accounts, converted leads), and the loser goes to the Recycle Bin with ' +
+      'a pointer to the master. Both records are found by id under row-level security (404 ' +
+      'outside the caller’s scope), both versions are checked (409), the caller needs `update` ' +
+      'on the master and `delete` on the loser at their own scope, and a field the caller may not ' +
+      'read or write can never be chosen. The merged result is validated like an edit (422), and a ' +
+      'pair where one sits above the other in the account hierarchy, or where an erasure request ' +
+      'is open, is `MERGE_BLOCKED`. More than 5,000 linked rows is `MERGE_TOO_LARGE`, and nothing ' +
+      'is written. Only contacts and accounts can be merged. A merge of the same pair again is ' +
+      '409 `RECORD_ALREADY_MERGED`. `dryRun` runs the same code and rolls back: the preview. ' +
+      'Accepts an `Idempotency-Key`; a retry returns the first answer with `replayed: true` ' +
+      '(ADR-0060, ADR-0064).',
+    auth: 'session',
+    body: { name: 'MergeRequest', schema: mergeRequestSchema },
+    response: {
+      kind: 'object',
+      status: 200,
+      name: 'MergeResponse',
+      description: 'The merged record and what moved.',
+      data: mergeResultSchema,
+    },
+    errors: [
+      ...VERSIONED,
+      ...IDEMPOTENT,
+      ...WRITABLE,
+      ErrorCode.FORBIDDEN,
+      ErrorCode.RECORD_ALREADY_MERGED,
+      ErrorCode.MERGE_TOO_LARGE,
+      ErrorCode.MERGE_BLOCKED,
+    ],
   },
 ];
 
@@ -2744,6 +2839,7 @@ export const API_ROUTES: readonly RouteDefinition[] = [
     update: accountUpdateSchema,
     deleteQuery: accountDeleteQuerySchema,
     createErrors: [ErrorCode.CONFLICT],
+    mergeable: true,
     createMeta: z.object({
       /** Accounts the new one resembles (same domain, or a close name). Never a reason to refuse. */
       duplicates: duplicateMatchSchema.array(),
@@ -2761,6 +2857,7 @@ export const API_ROUTES: readonly RouteDefinition[] = [
     create: contactCreateSchema,
     update: contactUpdateSchema,
     deleteQuery: contactDeleteQuerySchema,
+    mergeable: true,
     createMeta: z.object({
       /** Contacts the new one resembles (same e-mail or phone). Never a reason to refuse. */
       duplicates: duplicateMatchSchema.array(),
@@ -2826,6 +2923,7 @@ export const API_ROUTES: readonly RouteDefinition[] = [
   ...recycleBinRoutes,
   ...savedViewRoutes,
   ...bulkRoutes,
+  ...mergeRoutes,
   ...tagRoutes,
   ...dataRightsRoutes,
   ...onboardingRoutes,

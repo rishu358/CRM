@@ -112,6 +112,23 @@ export const ErrorCode = {
    * be trusted (ADR-0065 4.1). Nothing is lost: the visitor reloads the page and sends it again.
    */
   FORM_EXPIRED: 'FORM_EXPIRED',
+  /**
+   * The id names a record that was merged into another (ADR-0064). The answer for an old link or API
+   * id: 410, with the id of the surviving record in `details`, when the caller may read it.
+   */
+  RECORD_MERGED: 'RECORD_MERGED',
+  /**
+   * The record to merge away was already merged, into the record the caller named. A second, concurrent
+   * or repeated merge of the same pair lands here: nothing is wrong, the merge has been done (ADR-0064).
+   */
+  RECORD_ALREADY_MERGED: 'RECORD_ALREADY_MERGED',
+  /** The records carry more linked rows than one merge may move (ADR-0064). */
+  MERGE_TOO_LARGE: 'MERGE_TOO_LARGE',
+  /**
+   * The pair cannot be merged as it stands: one sits above the other in an account hierarchy, or a
+   * request to erase one of them is open (ADR-0064). The message says which.
+   */
+  MERGE_BLOCKED: 'MERGE_BLOCKED',
   /** Unexpected failure. Details are logged, never returned. */
   INTERNAL: 'INTERNAL',
 } as const;
@@ -218,6 +235,48 @@ export class IdempotentRecordUnavailableError extends DomainError {
       'This request was already carried out and created a record, which has since been deleted or is no longer visible to you. Use a new Idempotency-Key to create another.',
       409,
     );
+  }
+}
+
+export class RecordMergedError extends DomainError {
+  /**
+   * `mergedIntoId` is sent only when the caller may read the surviving record; otherwise the answer is
+   * a plain `NotFoundError`, so an old id cannot be used to find out what exists (CLAUDE.md §5.5).
+   */
+  constructor(objectType: string, mergedIntoId: string) {
+    super(
+      ErrorCode.RECORD_MERGED,
+      `This ${objectType} was merged into another record. Use the surviving record instead.`,
+      410,
+      [{ path: 'mergedIntoId', message: mergedIntoId }],
+    );
+  }
+}
+
+export class RecordAlreadyMergedError extends DomainError {
+  constructor() {
+    super(
+      ErrorCode.RECORD_ALREADY_MERGED,
+      'This record has already been merged into the one you chose.',
+      409,
+    );
+  }
+}
+
+export class MergeTooLargeError extends DomainError {
+  constructor(moved: number, limit: number) {
+    super(
+      ErrorCode.MERGE_TOO_LARGE,
+      `These records carry ${moved} linked items and one merge moves at most ${limit}. Remove or move some of them first.`,
+      422,
+      [{ path: 'loserId', message: 'Too many linked items', meta: { moved, limit } }],
+    );
+  }
+}
+
+export class MergeBlockedError extends DomainError {
+  constructor(message: string) {
+    super(ErrorCode.MERGE_BLOCKED, message, 422, [{ path: 'loserId', message }]);
   }
 }
 

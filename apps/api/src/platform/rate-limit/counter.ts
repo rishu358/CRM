@@ -30,6 +30,15 @@ export interface RateLimitCounter {
    * shared store should be asked once, not twice.
    */
   hitMany(entries: readonly RateLimitEntry[]): Promise<readonly RateLimitHit[]>;
+
+  /**
+   * Give back one hit on each key: the reverse of a `hitMany` that turned out not to count.
+   *
+   * For a limit that spends before it knows the outcome and refunds a good one, so an attempt that
+   * succeeds does not use up the budget meant for failures (ADR-0064). Never takes a count below
+   * zero, and never moves the window's end; a key with nothing to give back is left alone.
+   */
+  releaseMany(keys: readonly string[]): Promise<void>;
 }
 
 /** What `RateLimitCounter` is provided as. */
@@ -45,6 +54,8 @@ export type RateLimitKind =
   | 'tenant'
   | 'ip'
   | 'auth-ip'
+  | 'auth-ip-fail'
+  | 'auth-account-fail'
   | 'public-form-address'
   | 'public-address'
   | 'public-form'
