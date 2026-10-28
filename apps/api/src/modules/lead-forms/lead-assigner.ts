@@ -1,43 +1,32 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { Tx } from '@crm/db';
 import { LeadOwnerDirectory } from '../access/lead-owner-directory.service.js';
+import type {
+  LeadAssigner,
+  LeadAssignmentDecision,
+  LeadAssignmentRequest,
+} from '../../platform/lead-assigner.js';
 
 /**
- * Who gets a lead a website form has made (ADR-0065 10).
- *
- * The public module asks this and nothing else: it never knows how the answer is reached. In this
- * change the answer is the simplest honest one (the form's creator, if they can still work leads,
- * else the longest-standing person who manages forms, else nobody). The assignment rules replace the
- * provider behind `LEAD_ASSIGNER` without the public module changing.
- *
- * It must not throw and must not block a submission: the caller runs it inside a savepoint and
- * treats any failure as "assign to the fallback", so a broken rule can never cost a lead.
+ * The simplest honest answer to "who gets this lead" (ADR-0065 10), and the fallback when the rules
+ * cannot answer: the form's creator if they can still read and update leads, else the
+ * longest-standing active member whose role can update web forms and work leads, else nobody.
+ * A person is recognised by what their role may do, never by what it is called.
  */
-export interface LeadAssignmentRequest {
-  readonly tenantId: string;
-  readonly formId: string;
-  readonly formCreatedBy: string | null;
-  /** The new lead's values by field key, for rules that look at them. */
-  readonly facts: Readonly<Record<string, unknown>>;
-}
-
-export interface LeadAssigner {
-  pickOwner(tx: Tx, request: LeadAssignmentRequest): Promise<string | null>;
-}
-
-export const LEAD_ASSIGNER = 'LEAD_ASSIGNER';
-
 @Injectable()
 export class DefaultOwnerAssigner implements LeadAssigner {
   constructor(@Inject(LeadOwnerDirectory) private readonly owners: LeadOwnerDirectory) {}
 
-  async pickOwner(tx: Tx, request: LeadAssignmentRequest): Promise<string | null> {
+  async pickOwner(tx: Tx, request: LeadAssignmentRequest): Promise<LeadAssignmentDecision> {
     if (
       request.formCreatedBy !== null &&
       (await this.owners.isEligible(tx, request.tenantId, request.formCreatedBy))
     ) {
-      return request.formCreatedBy;
+      return { ownerId: request.formCreatedBy, reason: 'fallback', ruleId: null, ruleName: null };
     }
-    return this.owners.longestStandingFormManager(tx, request.tenantId);
+    const manager = await this.owners.longestStandingFormManager(tx, request.tenantId);
+    return manager === null
+      ? { ownerId: null, reason: 'nobody_eligible', ruleId: null, ruleName: null }
+      : { ownerId: manager, reason: 'fallback', ruleId: null, ruleName: null };
   }
 }

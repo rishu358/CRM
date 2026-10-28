@@ -39,8 +39,13 @@ import {
   type RateLimitCounter,
   type RateLimitKind,
 } from '../../platform/rate-limit/counter.js';
+import {
+  LEAD_ASSIGNER,
+  LEAD_FALLBACK_ASSIGNER,
+  type LeadAssigner,
+  type LeadAssignmentDecision,
+} from '../../platform/lead-assigner.js';
 import { LeadsService } from '../leads/leads.service.js';
-import { LEAD_ASSIGNER, type LeadAssigner } from './lead-assigner.js';
 import { LeadFormsRepository } from './lead-forms.repository.js';
 
 /** Every accepted outcome answers exactly this, so the answer never says what happened inside. */
@@ -121,6 +126,7 @@ export class PublicLeadFormsService {
     @Inject(EntitlementsService) private readonly entitlements: EntitlementsService,
     @Inject(LeadsService) private readonly leads: LeadsService,
     @Inject(LEAD_ASSIGNER) private readonly assigner: LeadAssigner,
+    @Inject(LEAD_FALLBACK_ASSIGNER) private readonly fallbackAssigner: LeadAssigner,
     @Inject(AuditService) private readonly audit: AuditService,
     @Inject(OutboxService) private readonly outbox: OutboxService,
     @Inject(RATE_LIMIT_COUNTER) private readonly counter: RateLimitCounter,
@@ -309,7 +315,8 @@ export class PublicLeadFormsService {
     const split = splitSubmission(values, effective.settings);
     const identity = { tenantId, userId: null };
 
-    const ownerId = await this.pickOwner(tx, tenantId, form, values);
+    const assignment = await this.pickOwner(tx, tenantId, form, values);
+    const ownerId = assignment.ownerId;
 
     let created;
     try {
@@ -332,6 +339,21 @@ export class PublicLeadFormsService {
       }
       throw error;
     }
+
+    // Who got the lead, and why, so "why did this go to him" is answerable from the record's own history.
+    await this.audit.record(tx, identity, {
+      action: 'update',
+      objectType: 'lead',
+      recordId: created.id,
+      changes: {
+        assignment: {
+          new:
+            assignment.ruleName === null
+              ? assignment.reason
+              : `${assignment.reason}: ${assignment.ruleName}`,
+        },
+      },
+    });
 
     const matches =
       created.email === null && created.phone === null
@@ -379,38 +401,58 @@ export class PublicLeadFormsService {
   }
 
   /**
-   * Who gets the lead. Run inside a savepoint, and never allowed to fail the submission: a lead that
-   * arrives and goes to nobody in particular is a problem for the company to fix, and a lead that is
-   * refused because a rule broke is a customer lost (ADR-0065 10).
+   * Who gets the lead, and why. Run inside a savepoint, and never allowed to fail the submission: a
+   * lead that arrives and goes to nobody in particular is a problem for the company to fix, and a lead
+   * that is refused because a rule broke is a customer lost (ADR-0065 10).
+   *
+   * If the rules fail in any way (a lock that timed out, a team deleted mid-way), the failure is
+   * audited and the simpler fallback answers, in a savepoint of its own; and if that fails too, nobody
+   * gets the lead and that is audited as well.
    */
   private async pickOwner(
     tx: Tx,
     tenantId: string,
     form: LeadFormRow,
     values: Record<string, unknown>,
-  ): Promise<string | null> {
+  ): Promise<LeadAssignmentDecision> {
+    const request = {
+      tenantId,
+      trigger: 'web_form' as const,
+      formId: form.id,
+      formCreatedBy: form.createdBy,
+      facts: { ...values, source: 'web_form', form_id: form.id },
+    };
+    try {
+      return await tx.transaction((savepoint) => this.assigner.pickOwner(savepoint, request));
+    } catch {
+      await this.auditAssignmentFailure(tx, tenantId, form.id, 'rules failed');
+    }
     try {
       return await tx.transaction((savepoint) =>
-        this.assigner.pickOwner(savepoint, {
-          tenantId,
-          formId: form.id,
-          formCreatedBy: form.createdBy,
-          facts: { ...values, source: 'web_form', form_id: form.id },
-        }),
+        this.fallbackAssigner.pickOwner(savepoint, request),
       );
     } catch {
-      await this.audit.record(
-        tx,
-        { tenantId, userId: null },
-        {
-          action: 'update',
-          objectType: 'lead_form',
-          recordId: form.id,
-          changes: { assignment: { new: 'failed' } },
-        },
-      );
-      return null;
+      await this.auditAssignmentFailure(tx, tenantId, form.id, 'fallback failed');
+      return { ownerId: null, reason: 'nobody_eligible', ruleId: null, ruleName: null };
     }
+  }
+
+  private async auditAssignmentFailure(
+    tx: Tx,
+    tenantId: string,
+    formId: string,
+    what: string,
+  ): Promise<void> {
+    await this.audit.record(
+      tx,
+      { tenantId, userId: null },
+      {
+        action: 'update',
+        objectType: 'lead_form',
+        recordId: formId,
+        changes: { assignment: { new: what } },
+      },
+    );
   }
 
   /**

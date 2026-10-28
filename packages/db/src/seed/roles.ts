@@ -160,6 +160,15 @@ const LEAD_FORM_GRANT: SystemRoleGrant = {
   scope: 'all',
 };
 
+/**
+ * The assignment rules (ADR-0065 10). Owner and Admin; migration 0028 backfills the same rows.
+ */
+const LEAD_ASSIGNMENT_GRANT: SystemRoleGrant = {
+  objectType: 'lead_assignment',
+  actions: ['read', 'create', 'update', 'delete'],
+  scope: 'all',
+};
+
 const TENANT_DATA_GRANT: SystemRoleGrant = {
   objectType: 'tenant_data',
   actions: ['export'],
@@ -180,6 +189,7 @@ export const SYSTEM_ROLES: readonly SystemRoleDefinition[] = [
       TENANT_SETTINGS_GRANT,
       PIPELINE_GRANT,
       LEAD_FORM_GRANT,
+      LEAD_ASSIGNMENT_GRANT,
     ],
   },
   {
@@ -194,6 +204,7 @@ export const SYSTEM_ROLES: readonly SystemRoleDefinition[] = [
       TENANT_SETTINGS_GRANT,
       PIPELINE_GRANT,
       LEAD_FORM_GRANT,
+      LEAD_ASSIGNMENT_GRANT,
     ],
   },
   {

@@ -395,6 +395,7 @@ const TAG_DESCRIPTIONS: ReadonlyArray<{ name: string; description: string }> = [
   { name: 'Activities', description: 'Tasks, calls, meetings, notes and My Day.' },
   { name: 'Search', description: 'One query across every object the caller may read.' },
   { name: 'Notifications', description: 'The bell.' },
+  { name: 'Lead assignment', description: 'Rules that choose who gets a new lead.' },
   { name: 'Lead forms', description: 'Website lead forms: building them and their keys.' },
   {
     name: 'Public forms',

@@ -167,6 +167,7 @@ import {
   fieldUpdateSchema,
 } from './fields.js';
 import { auditEntrySchema, auditListQuerySchema } from './audit.js';
+import { leadAssignmentRoutes } from './lead-assignment-routes.js';
 import { leadFormRoutes } from './lead-form-routes.js';
 import { pipelineEditorRoutes } from './pipeline-editor-routes.js';
 import {
@@ -2721,6 +2722,7 @@ export const API_ROUTES: readonly RouteDefinition[] = [
   ...pipelineRoutes,
   ...pipelineEditorRoutes,
   ...leadFormRoutes,
+  ...leadAssignmentRoutes,
   ...leadRoutes,
   ...standardObjectRoutes({
     tag: 'Leads',

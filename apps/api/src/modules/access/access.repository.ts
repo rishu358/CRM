@@ -388,6 +388,62 @@ export class AccessRepository {
     return row === undefined ? null : String(row.user_id);
   }
 
+  /**
+   * Everyone who may be given a lead, with a name for a picker: active, not deleted, and whose role
+   * reads and updates leads (the same test as `membersWhoCanWork`, applied to the whole company).
+   */
+  async leadWorkers(tx: Tx, tenantId: string): Promise<{ id: string; name: string }[]> {
+    const result = await tx.execute(sql`
+      select m.user_id, u.name
+      from memberships m
+      join users u on u.id = m.user_id
+      where m.tenant_id = ${tenantId}::uuid
+        and m.status = 'active'
+        and u.deleted_at is null
+        and (
+          select count(distinct rp.action)
+          from role_permissions rp
+          where rp.tenant_id = m.tenant_id
+            and rp.role_id = m.role_id
+            and rp.object_type = 'lead'
+            and rp.action in ('read', 'update')
+        ) = 2
+      order by u.name, m.user_id
+    `);
+    return rows(result).map((row) => ({ id: String(row.user_id), name: String(row.name) }));
+  }
+
+  /** The members of each of these teams (ids only), and which of the teams exist at all. */
+  async teamMemberIds(
+    tx: Tx,
+    tenantId: string,
+    teamIds: readonly string[],
+  ): Promise<Map<string, string[]>> {
+    const found = new Map<string, string[]>();
+    if (teamIds.length === 0) return found;
+    const list = sql.join(
+      teamIds.map((id) => sql`${id}::uuid`),
+      sql`, `,
+    );
+    const teams = await tx.execute(sql`
+      select id from teams where tenant_id = ${tenantId}::uuid and id in (${list})
+    `);
+    for (const row of rows(teams)) found.set(String(row.id), []);
+    const members = await tx.execute(sql`
+      select team_id, user_id from team_members
+      where tenant_id = ${tenantId}::uuid and team_id in (${list})
+    `);
+    for (const row of rows(members)) found.get(String(row.team_id))?.push(String(row.user_id));
+    return found;
+  }
+
+  async teamNames(tx: Tx, tenantId: string): Promise<{ id: string; name: string }[]> {
+    const result = await tx.execute(sql`
+      select id, name from teams where tenant_id = ${tenantId}::uuid order by name, id
+    `);
+    return rows(result).map((row) => ({ id: String(row.id), name: String(row.name) }));
+  }
+
   async findMember(tx: Tx, tenantId: string, userId: string): Promise<MemberRow | null> {
     const result = await tx.execute(sql`
       select m.user_id, u.name, u.email, m.role_id, r.name as role_name, m.status, m.joined_at
