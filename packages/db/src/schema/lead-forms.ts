@@ -30,7 +30,7 @@ export interface LeadFormField {
   readonly key: string;
   readonly label: string;
   readonly required: boolean;
-  readonly helpText?: string;
+  readonly helpText?: string | undefined;
 }
 
 export const leadForms = pgTable(

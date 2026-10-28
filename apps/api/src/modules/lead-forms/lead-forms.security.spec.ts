@@ -319,7 +319,7 @@ describe('(d) unauthenticated requests get 401, except the two public routes', (
     const refused: string[] = [];
     for (const route of guarded) {
       const url = route.path.replace(/\{[^}]+\}/g, MISSING);
-      const method = route.method as 'GET' | 'POST' | 'PATCH' | 'DELETE';
+      const method = route.method;
       const response = await as(
         null,
         method,

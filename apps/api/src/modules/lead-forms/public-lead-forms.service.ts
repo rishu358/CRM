@@ -391,7 +391,7 @@ export class PublicLeadFormsService {
   ): Promise<string | null> {
     try {
       return await tx.transaction((savepoint) =>
-        this.assigner.pickOwner(savepoint as unknown as Tx, {
+        this.assigner.pickOwner(savepoint, {
           tenantId,
           formId: form.id,
           formCreatedBy: form.createdBy,

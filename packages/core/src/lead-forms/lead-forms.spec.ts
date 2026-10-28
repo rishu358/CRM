@@ -550,9 +550,10 @@ describe('fuzzing the schema', () => {
       expect(Object.keys(data).every((key) => allowedOut.includes(key))).toBe(true);
       expect(String(data['last_name']).length).toBeLessThanOrEqual(120);
       if (data['email'] !== undefined)
-        expect(String(data['email']).length).toBeLessThanOrEqual(254);
-      if (data['phone'] !== undefined) expect(String(data['phone'])).toMatch(/^\+[1-9]\d{1,14}$/);
-      if (data['city'] !== undefined) expect(String(data['city']).length).toBeLessThanOrEqual(500);
+        expect((data['email'] as string).length).toBeLessThanOrEqual(254);
+      if (data['phone'] !== undefined) expect(data['phone'] as string).toMatch(/^\+[1-9]\d{1,14}$/);
+      if (data['city'] !== undefined)
+        expect((data['city'] as string).length).toBeLessThanOrEqual(500);
     }
   });
 

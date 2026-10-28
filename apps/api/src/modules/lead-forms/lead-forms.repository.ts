@@ -261,7 +261,12 @@ export class LeadFormsRepository {
         today: Number(row['today']),
         last7Days: Number(row['last7']),
         total: Number(row['total']),
-        lastSubmittedAt: last === null || last === undefined ? null : new Date(String(last)),
+        lastSubmittedAt:
+          last === null || last === undefined
+            ? null
+            : last instanceof Date
+              ? last
+              : new Date(last as string),
       });
     }
     return out;

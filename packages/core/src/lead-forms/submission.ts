@@ -151,7 +151,10 @@ function valueSchema(definition: FieldDefinition, phoneCountryCode: string | nul
         .refine((selected) => new Set(selected).size === selected.length, INVALID);
     }
 
-    default:
+    case 'currency':
+    case 'datetime':
+    case 'percent':
+    case 'user_lookup':
       // A type a form cannot offer. `checkFormFields` keeps it from being saved; this keeps it from
       // being accepted if a stored form ever holds one.
       return z.never({ error: INVALID });

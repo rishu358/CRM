@@ -141,9 +141,9 @@ async function publicRequest(
           : { payload: JSON.stringify(options.body) }),
     });
 
-  let parsed: Record<string, unknown> = {};
+  let parsed: Record<string, unknown>;
   try {
-    parsed = response.json() as Record<string, unknown>;
+    parsed = response.json<Record<string, unknown>>();
   } catch {
     parsed = { text: response.body };
   }
@@ -263,7 +263,9 @@ describe('building a form', () => {
       [issued.form.id],
     );
     expect(texts.rows.map((row: { version: number }) => row.version)).toEqual([1, 2]);
-    expect(texts.rows[0].text).toBe('I agree that this company may contact me about my enquiry.');
+    expect((texts.rows[0] as { text: string }).text).toBe(
+      'I agree that this company may contact me about my enquiry.',
+    );
 
     // The same wording again is not a new version.
     const same = dataOf<Form>(
@@ -697,8 +699,9 @@ describe('a submission', () => {
       [lead.id],
     );
     expect(events.rows).toHaveLength(1);
-    expect(events.rows[0].event_type).toBe('lead.created.v1');
-    expect(events.rows[0].payload).toMatchObject({
+    const event = events.rows[0] as { event_type: string; payload: Record<string, unknown> };
+    expect(event.event_type).toBe('lead.created.v1');
+    expect(event.payload).toMatchObject({
       source: 'web_form',
       formId: issued.form.id,
       ownerId: adminA.userId,
@@ -841,7 +844,9 @@ describe('what a stranger cannot do', () => {
       { version: 99 },
       { id: '0198f0f0-0000-7000-8000-000000000000' },
     ]) {
-      const body = JSON.parse(JSON.stringify({ ...submission(issued.form.id), ...injected }));
+      const body: unknown = JSON.parse(
+        JSON.stringify({ ...submission(issued.form.id), ...injected }),
+      );
       const response = await publicRequest('POST', `/${issued.key}/submissions`, { body });
       expect(response.status, JSON.stringify(injected)).toBe(422);
     }

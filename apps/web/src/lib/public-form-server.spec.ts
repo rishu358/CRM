@@ -14,9 +14,7 @@ const DEFINITION = {
 };
 
 function answering(status: number, body: unknown): typeof fetch {
-  return vi.fn(
-    async () => new Response(JSON.stringify(body), { status }),
-  ) as unknown as typeof fetch;
+  return vi.fn(() => Promise.resolve(new Response(JSON.stringify(body), { status })));
 }
 
 describe('fetchPublicForm', () => {
@@ -54,9 +52,7 @@ describe('fetchPublicForm', () => {
   });
 
   it('says unavailable when the API cannot be reached or answers nonsense', async () => {
-    const failing = vi.fn(async () => {
-      throw new Error('connect ECONNREFUSED');
-    }) as unknown as typeof fetch;
+    const failing = vi.fn(() => Promise.reject(new Error('connect ECONNREFUSED')));
     expect(
       await fetchPublicForm({ apiUrl: 'http://api.example', key: KEY, fetchFn: failing }),
     ).toEqual({ kind: 'unavailable' });

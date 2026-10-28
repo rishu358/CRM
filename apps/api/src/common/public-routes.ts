@@ -52,7 +52,7 @@ export function limitPublicBodies(
         },
       });
       // The source's own failure (a client that hangs up) must reach whoever reads the counter.
-      payload.on('error', (error) => counter.destroy(error));
+      payload.on('error', (error: Error) => counter.destroy(error));
       return payload.pipe(counter);
     },
   );
