@@ -111,6 +111,7 @@ describe('per-user rate limiting (CLAUDE.md §5.14)', () => {
         asked.push(entries);
         return new InMemoryCounter().hitMany(entries);
       },
+      releaseMany: () => Promise.resolve(),
     };
     await new ActorRateLimitService(counting, env({})).check(alice);
     expect(asked).toHaveLength(1);

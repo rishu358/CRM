@@ -22,6 +22,10 @@ export class ManagedRateLimitCounter implements RateLimitCounter, OnApplicationS
     return this.inner.hitMany(entries);
   }
 
+  releaseMany(keys: readonly string[]): Promise<void> {
+    return this.inner.releaseMany(keys);
+  }
+
   async onApplicationShutdown(): Promise<void> {
     if (this.client === null) return;
     try {

@@ -89,6 +89,38 @@ export function describeRateLimitCounterContract(
       expect(second!.retryAfterSeconds).toBeLessThanOrEqual(2);
     });
 
+    it('gives a hit back, and the next hit counts from where it was', async () => {
+      const counter = await make();
+      const key = fresh('release');
+      await counter.hitMany([{ key, windowSeconds: 60 }]);
+      await counter.hitMany([{ key, windowSeconds: 60 }]);
+      await counter.releaseMany([key]);
+      const [hit] = await counter.hitMany([{ key, windowSeconds: 60 }]);
+      expect(hit!.count).toBe(2);
+    });
+
+    it('never takes a count below zero, and leaves a key with nothing to give back alone', async () => {
+      const counter = await make();
+      const key = fresh('release-floor');
+      await counter.releaseMany([key]);
+      await counter.hitMany([{ key, windowSeconds: 60 }]);
+      await counter.releaseMany([key, key, key]);
+      const [hit] = await counter.hitMany([{ key, windowSeconds: 60 }]);
+      expect(hit!.count).toBe(1);
+    });
+
+    it('does not move the end of the window when it gives a hit back', async () => {
+      const counter = await make();
+      const key = fresh('release-window');
+      const [first] = await counter.hitMany([{ key, windowSeconds: 3 }]);
+      expect(first!.retryAfterSeconds).toBe(3);
+      await sleep(1100);
+      await counter.releaseMany([key]);
+      await counter.hitMany([{ key, windowSeconds: 3 }]);
+      const [again] = await counter.hitMany([{ key, windowSeconds: 3 }]);
+      expect(again!.retryAfterSeconds).toBeLessThanOrEqual(2);
+    });
+
     it('counts exactly under concurrency: no hit lost, none counted twice', async () => {
       const counter = await make();
       const key = fresh('concurrent');

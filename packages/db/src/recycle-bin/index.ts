@@ -1,10 +1,12 @@
 import {
+  isMergeableObjectType,
   SOFT_DELETABLE_OBJECT_TYPES,
   type RecordConstraint,
   type SoftDeletableObjectType,
 } from '@crm/core';
 import { and, sql, type SQL } from 'drizzle-orm';
 import type { Tx } from '../client.js';
+import { markMergeUndone } from '../merge/index.js';
 import { constraintToSql } from '../record-scope.js';
 
 /**
@@ -233,7 +235,15 @@ export async function restoreDeleted(
     returning id, version
   `);
 
-  return (result.rows[0] as unknown as { id: string; version: number } | undefined) ?? null;
+  const restored =
+    (result.rows[0] as unknown as { id: string; version: number } | undefined) ?? null;
+
+  // A contact or account that was merged away and is restored is a record again: its old id stops
+  // answering "merged into ..." (ADR-0064). Whatever moved to the surviving record stays there.
+  if (restored !== null && isMergeableObjectType(descriptor.objectType)) {
+    await markMergeUndone(tx, tenantId, descriptor.objectType, id, userId);
+  }
+  return restored;
 }
 
 /**

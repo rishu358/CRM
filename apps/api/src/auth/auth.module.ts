@@ -12,6 +12,7 @@ import { AuthGuard } from './auth.guard.js';
 import { AuthRateLimitGuard } from './auth-rate-limit.guard.js';
 import { AuthRepository } from './auth.repository.js';
 import { AuthService } from './auth.service.js';
+import { AuthAttemptLimiter } from './auth-attempt-limiter.service.js';
 import { AuthThrottleService } from './auth-throttle.service.js';
 import { GoogleAuthService } from './google.service.js';
 import { MfaService } from './mfa.service.js';
@@ -47,6 +48,7 @@ import type { ApiEnv } from '../config/env.js';
     AuthRepository,
     AuthService,
     AuthThrottleService,
+    AuthAttemptLimiter,
     AuthRateLimitGuard,
     MfaService,
     GoogleAuthService,
