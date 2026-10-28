@@ -290,7 +290,7 @@ with it. (A non-browser client ignores CORS completely; CORS is not an anti-spam
   path answers the uniform 404).
 - **Caps** as in §4.1 (forms per tenant, submissions per form and tenant per day).
 - **Kill switches:** per-form enable/disable (immediate, no cache), a workspace-wide **"Pause all web forms"** switch
-  (`tenants.settings.lead_forms_paused`, read by the public path in its own transaction), and the operator's
+  (the `lead_form_settings` table; the application role may not write `tenants.settings`, so the switch has a table of its own, read by the public path in its own transaction), and the operator's
   `tenant:entitlements revoke web_forms`.
 - **Audit and outbox.** `lead_form.created / updated / key_rotated / key_revoked / enabled / disabled / deleted` (audit entries and
   `lead_form.*.v1` outbox events, never containing a key or a key hash), and `lead.created.v1` with payload
@@ -375,7 +375,7 @@ last_user_id)`; eligible members are ordered by user id; the next owner is the f
   pointer row is **locked `FOR UPDATE` inside the lead-creation transaction** (with a 2-second `lock_timeout`), so two
   simultaneous submissions get different people and the pointer moves exactly once per assignment. A test runs 100 concurrent
   submissions over 4 people and asserts a spread of 25 each.
-- **Default owner:** `tenants.settings.leadDefaultOwnerId` if still eligible, else the longest-standing active Owner. If nobody
+- **Default owner:** the `default_owner_id` of `lead_assignment_settings` (a table of PR B, for the same reason) if still eligible, else the longest-standing active Owner. If nobody
   is eligible at all the lead is created **unassigned** and the failure is audited.
 - **Never throws, never blocks a submission.** The evaluation runs inside a **savepoint**: a database error (a lock timeout, a
   deleted team) rolls back to the savepoint, not the whole transaction, so the lead is still inserted, goes to the default owner,
