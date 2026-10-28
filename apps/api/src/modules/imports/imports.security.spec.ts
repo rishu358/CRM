@@ -991,13 +991,15 @@ describe('check: the same file and mapping, nothing imported (ADR-0068)', () => 
     expect(Number(after.rows[0]?.['n'])).toBe(before);
   });
 
-  it('refuses a caller with no import grant, and another person’s job, and a job not yet mapped', async () => {
+  it('refuses a caller with no import grant, another person’s job, and a job not yet mapped', async () => {
     const { created } = await createImport(managerA.token);
     expect((await check(managerA.token, created!.id)).status).toBe(409);
 
     await awaitMapping(created!.id);
-    expect((await check(repA.token, created!.id)).status).toBe(403);
-    expect((await check(readOnlyA.token, created!.id)).status).toBe(403);
+    // Someone with no import grant never owns a job, so the job is simply not theirs: 404, the same
+    // answer `start` gives, and nothing says whether the job exists.
+    expect((await check(repA.token, created!.id)).status).toBe(404);
+    expect((await check(readOnlyA.token, created!.id)).status).toBe(404);
     // Someone else in the workspace gets "not found", as for any other route on a job.
     const colleague = await userWithRole(tenantA, roles.get('Manager')!);
     expect((await check(colleague.token, created!.id)).status).toBe(404);
