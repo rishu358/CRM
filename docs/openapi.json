@@ -57,6 +57,10 @@
       "description": "The bell."
     },
     {
+      "name": "Lead assignment",
+      "description": "Rules that choose who gets a new lead."
+    },
+    {
       "name": "Lead forms",
       "description": "Website lead forms: building them and their keys."
     },
@@ -2797,6 +2801,7 @@
                 "tenant_settings",
                 "pipeline",
                 "lead_form",
+                "lead_assignment",
                 "user",
                 "session",
                 "tenant",
@@ -9045,6 +9050,735 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/InvitationRoleListResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No session, or the credentials offered were not accepted. `error.code` is one of: `UNAUTHENTICATED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, but not permitted. `error.code` is one of: `FORBIDDEN`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Input failed validation at the API boundary. `error.code` is one of: `VALIDATION_FAILED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded. Limits are per user, per tenant and per address, shared across API instances. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `RATE_LIMITED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote `requestId` when reporting it. `error.code` is one of: `INTERNAL`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/lead-assignment": {
+      "get": {
+        "operationId": "getLeadAssignment",
+        "summary": "The assignment rules, the default owner and what the editor can offer",
+        "tags": [
+          "Lead assignment"
+        ],
+        "description": "The rules in order, the default owner, the lead fields a condition may look at, the people who can be given a lead and the teams, so the screen is drawn from one answer. Needs the `lead_assignment` grant for the action (`read` to look and to test a sample lead, `create` to add a rule, `update` to edit, reorder or change the default owner, `delete` to remove one); Owner and Admin have all four. Rules are tried in order and the first that matches and can be carried out wins; one whose person has left, or whose team has nobody who can work leads, is skipped rather than stopping at it (ADR-0065 10).",
+        "responses": {
+          "200": {
+            "description": "The overview.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeadAssignmentResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No session, or the credentials offered were not accepted. `error.code` is one of: `UNAUTHENTICATED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, but not permitted. `error.code` is one of: `FORBIDDEN`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Input failed validation at the API boundary. `error.code` is one of: `VALIDATION_FAILED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded. Limits are per user, per tenant and per address, shared across API instances. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `RATE_LIMITED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote `requestId` when reporting it. `error.code` is one of: `INTERNAL`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/lead-assignment/rules": {
+      "post": {
+        "operationId": "createAssignmentRule",
+        "summary": "Add an assignment rule",
+        "tags": [
+          "Lead assignment"
+        ],
+        "description": "The new rule goes last. A rule with no conditions matches every lead of its kinds. The person or team it names must exist and be able to work leads. At most `maxRules` rules. Needs the `lead_assignment` grant for the action (`read` to look and to test a sample lead, `create` to add a rule, `update` to edit, reorder or change the default owner, `delete` to remove one); Owner and Admin have all four. Rules are tried in order and the first that matches and can be carried out wins; one whose person has left, or whose team has nobody who can work leads, is skipped rather than stopping at it (ADR-0065 10).",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssignmentRuleCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The overview after the change.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssignmentRuleCreateResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No session, or the credentials offered were not accepted. `error.code` is one of: `UNAUTHENTICATED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, but not permitted. `error.code` is one of: `FORBIDDEN`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The write conflicts with the record’s current state. `error.code` is one of: `CONFLICT`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Input failed validation at the API boundary. `error.code` is one of: `VALIDATION_FAILED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded. Limits are per user, per tenant and per address, shared across API instances. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `RATE_LIMITED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote `requestId` when reporting it. `error.code` is one of: `INTERNAL`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/lead-assignment/rules/{id}": {
+      "delete": {
+        "operationId": "deleteAssignmentRule",
+        "summary": "Remove a rule",
+        "tags": [
+          "Lead assignment"
+        ],
+        "description": "Needs the `lead_assignment` grant for the action (`read` to look and to test a sample lead, `create` to add a rule, `update` to edit, reorder or change the default owner, `delete` to remove one); Owner and Admin have all four. Rules are tried in order and the first that matches and can be carried out wins; one whose person has left, or whose team has nobody who can work leads, is skipped rather than stopping at it (ADR-0065 10).",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            }
+          },
+          {
+            "name": "version",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "The rule is removed."
+          },
+          "401": {
+            "description": "No session, or the credentials offered were not accepted. `error.code` is one of: `UNAUTHENTICATED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, but not permitted. `error.code` is one of: `FORBIDDEN`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such record, or it is outside the caller’s tenant or visibility scope. `error.code` is one of: `NOT_FOUND`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The write conflicts with the record’s current state. `error.code` is one of: `VERSION_CONFLICT`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Input failed validation at the API boundary. `error.code` is one of: `VALIDATION_FAILED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded. Limits are per user, per tenant and per address, shared across API instances. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `RATE_LIMITED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote `requestId` when reporting it. `error.code` is one of: `INTERNAL`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateAssignmentRule",
+        "summary": "Edit, switch on or off, or retarget a rule",
+        "tags": [
+          "Lead assignment"
+        ],
+        "description": "Carries `version`; a stale one is a 409. Needs the `lead_assignment` grant for the action (`read` to look and to test a sample lead, `create` to add a rule, `update` to edit, reorder or change the default owner, `delete` to remove one); Owner and Admin have all four. Rules are tried in order and the first that matches and can be carried out wins; one whose person has left, or whose team has nobody who can work leads, is skipped rather than stopping at it (ADR-0065 10).",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssignmentRuleUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The rule after the change.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssignmentRuleUpdateResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No session, or the credentials offered were not accepted. `error.code` is one of: `UNAUTHENTICATED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, but not permitted. `error.code` is one of: `FORBIDDEN`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such record, or it is outside the caller’s tenant or visibility scope. `error.code` is one of: `NOT_FOUND`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The write conflicts with the record’s current state. `error.code` is one of: `CONFLICT`, `VERSION_CONFLICT`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Input failed validation at the API boundary. `error.code` is one of: `VALIDATION_FAILED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded. Limits are per user, per tenant and per address, shared across API instances. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `RATE_LIMITED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote `requestId` when reporting it. `error.code` is one of: `INTERNAL`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/lead-assignment/rules/order": {
+      "post": {
+        "operationId": "orderAssignmentRules",
+        "summary": "Put the rules in a new order",
+        "tags": [
+          "Lead assignment"
+        ],
+        "description": "Every rule once, in the order wanted; a list that leaves one out or names one that does not exist is refused. Needs the `lead_assignment` grant for the action (`read` to look and to test a sample lead, `create` to add a rule, `update` to edit, reorder or change the default owner, `delete` to remove one); Owner and Admin have all four. Rules are tried in order and the first that matches and can be carried out wins; one whose person has left, or whose team has nobody who can work leads, is skipped rather than stopping at it (ADR-0065 10).",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssignmentRuleOrder"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The overview after the change.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssignmentRuleOrderResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No session, or the credentials offered were not accepted. `error.code` is one of: `UNAUTHENTICATED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, but not permitted. `error.code` is one of: `FORBIDDEN`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The write conflicts with the record’s current state. `error.code` is one of: `CONFLICT`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Input failed validation at the API boundary. `error.code` is one of: `VALIDATION_FAILED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded. Limits are per user, per tenant and per address, shared across API instances. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `RATE_LIMITED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote `requestId` when reporting it. `error.code` is one of: `INTERNAL`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/lead-assignment/settings": {
+      "patch": {
+        "operationId": "updateLeadAssignmentSettings",
+        "summary": "Choose the default owner",
+        "tags": [
+          "Lead assignment"
+        ],
+        "description": "The person who gets a lead when no rule decides. Must be able to work leads, or null to leave it to the form’s own maker. Needs the `lead_assignment` grant for the action (`read` to look and to test a sample lead, `create` to add a rule, `update` to edit, reorder or change the default owner, `delete` to remove one); Owner and Admin have all four. Rules are tried in order and the first that matches and can be carried out wins; one whose person has left, or whose team has nobody who can work leads, is skipped rather than stopping at it (ADR-0065 10).",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssignmentSettingsUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The overview after the change.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssignmentSettingsUpdateResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No session, or the credentials offered were not accepted. `error.code` is one of: `UNAUTHENTICATED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, but not permitted. `error.code` is one of: `FORBIDDEN`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such record, or it is outside the caller’s tenant or visibility scope. `error.code` is one of: `NOT_FOUND`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The write conflicts with the record’s current state. `error.code` is one of: `VERSION_CONFLICT`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Input failed validation at the API boundary. `error.code` is one of: `VALIDATION_FAILED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded. Limits are per user, per tenant and per address, shared across API instances. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `RATE_LIMITED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote `requestId` when reporting it. `error.code` is one of: `INTERNAL`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/lead-assignment/test": {
+      "post": {
+        "operationId": "testLeadAssignment",
+        "summary": "Try a sample lead against the rules",
+        "tags": [
+          "Lead assignment"
+        ],
+        "description": "Says who would get a lead with these fields, and by which rule. Reads only: nothing is saved and no round-robin turn is taken, so testing never changes who gets the next real lead. Needs the `lead_assignment` grant for the action (`read` to look and to test a sample lead, `create` to add a rule, `update` to edit, reorder or change the default owner, `delete` to remove one); Owner and Admin have all four. Rules are tried in order and the first that matches and can be carried out wins; one whose person has left, or whose team has nobody who can work leads, is skipped rather than stopping at it (ADR-0065 10).",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssignmentTest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Who would get it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssignmentTestResponse"
                 }
               }
             }
@@ -17932,6 +18666,7 @@
                   "tenant_settings",
                   "pipeline",
                   "lead_form",
+                  "lead_assignment",
                   "user",
                   "session",
                   "tenant",
@@ -18764,6 +19499,370 @@
         "required": [
           "token"
         ],
+        "additionalProperties": false
+      },
+      "AssignmentRuleCreate": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "enabled": {
+            "default": true,
+            "type": "boolean"
+          },
+          "appliesTo": {
+            "default": [
+              "web_form"
+            ],
+            "minItems": 1,
+            "maxItems": 3,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "web_form",
+                "manual",
+                "import"
+              ]
+            }
+          },
+          "conditions": {
+            "default": [],
+            "maxItems": 10,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "field": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9_]{0,62}$"
+                },
+                "operator": {
+                  "type": "string",
+                  "enum": [
+                    "equals",
+                    "not_equals",
+                    "in",
+                    "contains",
+                    "starts_with",
+                    "is_empty",
+                    "is_not_empty"
+                  ]
+                },
+                "value": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 200
+                    },
+                    {
+                      "maxItems": 20,
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "maxLength": 200
+                      }
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "field",
+                "operator"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "action": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "user"
+                  },
+                  "userId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  }
+                },
+                "required": [
+                  "type",
+                  "userId"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "team_round_robin"
+                  },
+                  "teamId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  }
+                },
+                "required": [
+                  "type",
+                  "teamId"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "default_owner"
+                  }
+                },
+                "required": [
+                  "type"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          }
+        },
+        "required": [
+          "name",
+          "action"
+        ],
+        "additionalProperties": false
+      },
+      "AssignmentRuleUpdate": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "appliesTo": {
+            "minItems": 1,
+            "maxItems": 3,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "web_form",
+                "manual",
+                "import"
+              ]
+            }
+          },
+          "conditions": {
+            "maxItems": 10,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "field": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9_]{0,62}$"
+                },
+                "operator": {
+                  "type": "string",
+                  "enum": [
+                    "equals",
+                    "not_equals",
+                    "in",
+                    "contains",
+                    "starts_with",
+                    "is_empty",
+                    "is_not_empty"
+                  ]
+                },
+                "value": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 200
+                    },
+                    {
+                      "maxItems": 20,
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "maxLength": 200
+                      }
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "field",
+                "operator"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "action": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "user"
+                  },
+                  "userId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  }
+                },
+                "required": [
+                  "type",
+                  "userId"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "team_round_robin"
+                  },
+                  "teamId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  }
+                },
+                "required": [
+                  "type",
+                  "teamId"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "default_owner"
+                  }
+                },
+                "required": [
+                  "type"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          },
+          "version": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "version"
+        ],
+        "additionalProperties": false
+      },
+      "AssignmentRuleOrder": {
+        "type": "object",
+        "properties": {
+          "ruleIds": {
+            "minItems": 1,
+            "maxItems": 50,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            }
+          }
+        },
+        "required": [
+          "ruleIds"
+        ],
+        "additionalProperties": false
+      },
+      "AssignmentSettingsUpdate": {
+        "type": "object",
+        "properties": {
+          "defaultOwnerId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "version": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "defaultOwnerId",
+          "version"
+        ],
+        "additionalProperties": false
+      },
+      "AssignmentTest": {
+        "type": "object",
+        "properties": {
+          "trigger": {
+            "default": "web_form",
+            "type": "string",
+            "enum": [
+              "web_form",
+              "manual",
+              "import"
+            ]
+          },
+          "fields": {
+            "default": {},
+            "type": "object",
+            "propertyNames": {
+              "type": "string",
+              "maxLength": 63
+            },
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 500
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "boolean"
+                },
+                {
+                  "maxItems": 30,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "maxLength": 200
+                  }
+                }
+              ]
+            }
+          }
+        },
         "additionalProperties": false
       },
       "LeadFormCreate": {
@@ -19785,7 +20884,8 @@
                     "data_subject",
                     "tenant_settings",
                     "pipeline",
-                    "lead_form"
+                    "lead_form",
+                    "lead_assignment"
                   ]
                 },
                 "action": {
@@ -19847,7 +20947,8 @@
                     "data_subject",
                     "tenant_settings",
                     "pipeline",
-                    "lead_form"
+                    "lead_form",
+                    "lead_assignment"
                   ]
                 },
                 "fieldKey": {
@@ -19918,7 +21019,8 @@
                     "data_subject",
                     "tenant_settings",
                     "pipeline",
-                    "lead_form"
+                    "lead_form",
+                    "lead_assignment"
                   ]
                 },
                 "action": {
@@ -19980,7 +21082,8 @@
                     "data_subject",
                     "tenant_settings",
                     "pipeline",
-                    "lead_form"
+                    "lead_form",
+                    "lead_assignment"
                   ]
                 },
                 "fieldKey": {
@@ -20445,7 +21548,8 @@
                         "data_subject",
                         "tenant_settings",
                         "pipeline",
-                        "lead_form"
+                        "lead_form",
+                        "lead_assignment"
                       ]
                     },
                     "kind": {
@@ -20590,7 +21694,8 @@
                         "data_subject",
                         "tenant_settings",
                         "pipeline",
-                        "lead_form"
+                        "lead_form",
+                        "lead_assignment"
                       ]
                     },
                     "kind": {
@@ -20981,7 +22086,8 @@
                         "data_subject",
                         "tenant_settings",
                         "pipeline",
-                        "lead_form"
+                        "lead_form",
+                        "lead_assignment"
                       ]
                     },
                     "kind": {
@@ -28266,6 +29372,1472 @@
         ],
         "additionalProperties": false
       },
+      "LeadAssignmentResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "object",
+            "properties": {
+              "rules": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "position": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "enabled": {
+                      "type": "boolean"
+                    },
+                    "appliesTo": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "web_form",
+                          "manual",
+                          "import"
+                        ]
+                      }
+                    },
+                    "conditions": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "field": {
+                            "type": "string",
+                            "pattern": "^[a-z][a-z0-9_]{0,62}$"
+                          },
+                          "operator": {
+                            "type": "string",
+                            "enum": [
+                              "equals",
+                              "not_equals",
+                              "in",
+                              "contains",
+                              "starts_with",
+                              "is_empty",
+                              "is_not_empty"
+                            ]
+                          },
+                          "value": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 200
+                              },
+                              {
+                                "maxItems": 20,
+                                "type": "array",
+                                "items": {
+                                  "type": "string",
+                                  "maxLength": 200
+                                }
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "field",
+                          "operator"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "action": {
+                      "oneOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "type": {
+                              "type": "string",
+                              "const": "user"
+                            },
+                            "userId": {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                            }
+                          },
+                          "required": [
+                            "type",
+                            "userId"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "type": {
+                              "type": "string",
+                              "const": "team_round_robin"
+                            },
+                            "teamId": {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                            }
+                          },
+                          "required": [
+                            "type",
+                            "teamId"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "type": {
+                              "type": "string",
+                              "const": "default_owner"
+                            }
+                          },
+                          "required": [
+                            "type"
+                          ],
+                          "additionalProperties": false
+                        }
+                      ]
+                    },
+                    "version": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name",
+                    "position",
+                    "enabled",
+                    "appliesTo",
+                    "conditions",
+                    "action",
+                    "version"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "settings": {
+                "type": "object",
+                "properties": {
+                  "defaultOwnerId": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "defaultOwnerEligible": {
+                    "type": "boolean"
+                  },
+                  "version": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "defaultOwnerId",
+                  "defaultOwnerEligible",
+                  "version"
+                ],
+                "additionalProperties": false
+              },
+              "fields": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "key": {
+                      "type": "string"
+                    },
+                    "label": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string"
+                    },
+                    "options": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "value": {
+                            "type": "string"
+                          },
+                          "label": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "value",
+                          "label"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "key",
+                    "label",
+                    "type"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "people": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "teams": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "eligibleMembers": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name",
+                    "eligibleMembers"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "maxRules": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "rules",
+              "settings",
+              "fields",
+              "people",
+              "teams",
+              "maxRules"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "additionalProperties": false
+      },
+      "AssignmentRuleCreateResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "object",
+            "properties": {
+              "rules": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "position": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "enabled": {
+                      "type": "boolean"
+                    },
+                    "appliesTo": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "web_form",
+                          "manual",
+                          "import"
+                        ]
+                      }
+                    },
+                    "conditions": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "field": {
+                            "type": "string",
+                            "pattern": "^[a-z][a-z0-9_]{0,62}$"
+                          },
+                          "operator": {
+                            "type": "string",
+                            "enum": [
+                              "equals",
+                              "not_equals",
+                              "in",
+                              "contains",
+                              "starts_with",
+                              "is_empty",
+                              "is_not_empty"
+                            ]
+                          },
+                          "value": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 200
+                              },
+                              {
+                                "maxItems": 20,
+                                "type": "array",
+                                "items": {
+                                  "type": "string",
+                                  "maxLength": 200
+                                }
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "field",
+                          "operator"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "action": {
+                      "oneOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "type": {
+                              "type": "string",
+                              "const": "user"
+                            },
+                            "userId": {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                            }
+                          },
+                          "required": [
+                            "type",
+                            "userId"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "type": {
+                              "type": "string",
+                              "const": "team_round_robin"
+                            },
+                            "teamId": {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                            }
+                          },
+                          "required": [
+                            "type",
+                            "teamId"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "type": {
+                              "type": "string",
+                              "const": "default_owner"
+                            }
+                          },
+                          "required": [
+                            "type"
+                          ],
+                          "additionalProperties": false
+                        }
+                      ]
+                    },
+                    "version": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name",
+                    "position",
+                    "enabled",
+                    "appliesTo",
+                    "conditions",
+                    "action",
+                    "version"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "settings": {
+                "type": "object",
+                "properties": {
+                  "defaultOwnerId": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "defaultOwnerEligible": {
+                    "type": "boolean"
+                  },
+                  "version": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "defaultOwnerId",
+                  "defaultOwnerEligible",
+                  "version"
+                ],
+                "additionalProperties": false
+              },
+              "fields": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "key": {
+                      "type": "string"
+                    },
+                    "label": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string"
+                    },
+                    "options": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "value": {
+                            "type": "string"
+                          },
+                          "label": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "value",
+                          "label"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "key",
+                    "label",
+                    "type"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "people": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "teams": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "eligibleMembers": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name",
+                    "eligibleMembers"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "maxRules": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "rules",
+              "settings",
+              "fields",
+              "people",
+              "teams",
+              "maxRules"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "additionalProperties": false
+      },
+      "AssignmentRuleUpdateResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "name": {
+                "type": "string"
+              },
+              "position": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "enabled": {
+                "type": "boolean"
+              },
+              "appliesTo": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "web_form",
+                    "manual",
+                    "import"
+                  ]
+                }
+              },
+              "conditions": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "field": {
+                      "type": "string",
+                      "pattern": "^[a-z][a-z0-9_]{0,62}$"
+                    },
+                    "operator": {
+                      "type": "string",
+                      "enum": [
+                        "equals",
+                        "not_equals",
+                        "in",
+                        "contains",
+                        "starts_with",
+                        "is_empty",
+                        "is_not_empty"
+                      ]
+                    },
+                    "value": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 200
+                        },
+                        {
+                          "maxItems": 20,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "maxLength": 200
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "field",
+                    "operator"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "action": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "const": "user"
+                      },
+                      "userId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "userId"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "const": "team_round_robin"
+                      },
+                      "teamId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "teamId"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "const": "default_owner"
+                      }
+                    },
+                    "required": [
+                      "type"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              },
+              "version": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "position",
+              "enabled",
+              "appliesTo",
+              "conditions",
+              "action",
+              "version"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "additionalProperties": false
+      },
+      "AssignmentRuleOrderResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "object",
+            "properties": {
+              "rules": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "position": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "enabled": {
+                      "type": "boolean"
+                    },
+                    "appliesTo": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "web_form",
+                          "manual",
+                          "import"
+                        ]
+                      }
+                    },
+                    "conditions": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "field": {
+                            "type": "string",
+                            "pattern": "^[a-z][a-z0-9_]{0,62}$"
+                          },
+                          "operator": {
+                            "type": "string",
+                            "enum": [
+                              "equals",
+                              "not_equals",
+                              "in",
+                              "contains",
+                              "starts_with",
+                              "is_empty",
+                              "is_not_empty"
+                            ]
+                          },
+                          "value": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 200
+                              },
+                              {
+                                "maxItems": 20,
+                                "type": "array",
+                                "items": {
+                                  "type": "string",
+                                  "maxLength": 200
+                                }
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "field",
+                          "operator"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "action": {
+                      "oneOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "type": {
+                              "type": "string",
+                              "const": "user"
+                            },
+                            "userId": {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                            }
+                          },
+                          "required": [
+                            "type",
+                            "userId"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "type": {
+                              "type": "string",
+                              "const": "team_round_robin"
+                            },
+                            "teamId": {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                            }
+                          },
+                          "required": [
+                            "type",
+                            "teamId"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "type": {
+                              "type": "string",
+                              "const": "default_owner"
+                            }
+                          },
+                          "required": [
+                            "type"
+                          ],
+                          "additionalProperties": false
+                        }
+                      ]
+                    },
+                    "version": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name",
+                    "position",
+                    "enabled",
+                    "appliesTo",
+                    "conditions",
+                    "action",
+                    "version"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "settings": {
+                "type": "object",
+                "properties": {
+                  "defaultOwnerId": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "defaultOwnerEligible": {
+                    "type": "boolean"
+                  },
+                  "version": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "defaultOwnerId",
+                  "defaultOwnerEligible",
+                  "version"
+                ],
+                "additionalProperties": false
+              },
+              "fields": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "key": {
+                      "type": "string"
+                    },
+                    "label": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string"
+                    },
+                    "options": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "value": {
+                            "type": "string"
+                          },
+                          "label": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "value",
+                          "label"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "key",
+                    "label",
+                    "type"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "people": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "teams": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "eligibleMembers": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name",
+                    "eligibleMembers"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "maxRules": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "rules",
+              "settings",
+              "fields",
+              "people",
+              "teams",
+              "maxRules"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "additionalProperties": false
+      },
+      "AssignmentSettingsUpdateResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "object",
+            "properties": {
+              "rules": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "position": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "enabled": {
+                      "type": "boolean"
+                    },
+                    "appliesTo": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "web_form",
+                          "manual",
+                          "import"
+                        ]
+                      }
+                    },
+                    "conditions": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "field": {
+                            "type": "string",
+                            "pattern": "^[a-z][a-z0-9_]{0,62}$"
+                          },
+                          "operator": {
+                            "type": "string",
+                            "enum": [
+                              "equals",
+                              "not_equals",
+                              "in",
+                              "contains",
+                              "starts_with",
+                              "is_empty",
+                              "is_not_empty"
+                            ]
+                          },
+                          "value": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 200
+                              },
+                              {
+                                "maxItems": 20,
+                                "type": "array",
+                                "items": {
+                                  "type": "string",
+                                  "maxLength": 200
+                                }
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "field",
+                          "operator"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "action": {
+                      "oneOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "type": {
+                              "type": "string",
+                              "const": "user"
+                            },
+                            "userId": {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                            }
+                          },
+                          "required": [
+                            "type",
+                            "userId"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "type": {
+                              "type": "string",
+                              "const": "team_round_robin"
+                            },
+                            "teamId": {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                            }
+                          },
+                          "required": [
+                            "type",
+                            "teamId"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "type": {
+                              "type": "string",
+                              "const": "default_owner"
+                            }
+                          },
+                          "required": [
+                            "type"
+                          ],
+                          "additionalProperties": false
+                        }
+                      ]
+                    },
+                    "version": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name",
+                    "position",
+                    "enabled",
+                    "appliesTo",
+                    "conditions",
+                    "action",
+                    "version"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "settings": {
+                "type": "object",
+                "properties": {
+                  "defaultOwnerId": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "defaultOwnerEligible": {
+                    "type": "boolean"
+                  },
+                  "version": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "defaultOwnerId",
+                  "defaultOwnerEligible",
+                  "version"
+                ],
+                "additionalProperties": false
+              },
+              "fields": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "key": {
+                      "type": "string"
+                    },
+                    "label": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string"
+                    },
+                    "options": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "value": {
+                            "type": "string"
+                          },
+                          "label": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "value",
+                          "label"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "key",
+                    "label",
+                    "type"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "people": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "teams": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "eligibleMembers": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name",
+                    "eligibleMembers"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "maxRules": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "rules",
+              "settings",
+              "fields",
+              "people",
+              "teams",
+              "maxRules"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "additionalProperties": false
+      },
+      "AssignmentTestResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "object",
+            "properties": {
+              "ownerId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "ownerName": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "reason": {
+                "type": "string",
+                "enum": [
+                  "rule",
+                  "default_owner",
+                  "fallback",
+                  "nobody_eligible"
+                ]
+              },
+              "ruleId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "ruleName": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "ownerId",
+              "ownerName",
+              "reason",
+              "ruleId",
+              "ruleName"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "additionalProperties": false
+      },
       "LeadFormListResponse": {
         "type": "object",
         "properties": {
@@ -30472,7 +33044,8 @@
                               "data_subject",
                               "tenant_settings",
                               "pipeline",
-                              "lead_form"
+                              "lead_form",
+                              "lead_assignment"
                             ]
                           },
                           "action": {
@@ -30610,7 +33183,8 @@
                               "data_subject",
                               "tenant_settings",
                               "pipeline",
-                              "lead_form"
+                              "lead_form",
+                              "lead_assignment"
                             ]
                           },
                           "fieldKey": {
@@ -30684,7 +33258,8 @@
                         "data_subject",
                         "tenant_settings",
                         "pipeline",
-                        "lead_form"
+                        "lead_form",
+                        "lead_assignment"
                       ]
                     },
                     "action": {
@@ -30799,7 +33374,8 @@
                         "data_subject",
                         "tenant_settings",
                         "pipeline",
-                        "lead_form"
+                        "lead_form",
+                        "lead_assignment"
                       ]
                     },
                     "action": {
@@ -33220,7 +35796,8 @@
                         "data_subject",
                         "tenant_settings",
                         "pipeline",
-                        "lead_form"
+                        "lead_form",
+                        "lead_assignment"
                       ]
                     },
                     "action": {
@@ -33273,7 +35850,8 @@
                         "data_subject",
                         "tenant_settings",
                         "pipeline",
-                        "lead_form"
+                        "lead_form",
+                        "lead_assignment"
                       ]
                     },
                     "fieldKey": {
@@ -33381,7 +35959,8 @@
                         "data_subject",
                         "tenant_settings",
                         "pipeline",
-                        "lead_form"
+                        "lead_form",
+                        "lead_assignment"
                       ]
                     },
                     "action": {
@@ -33434,7 +36013,8 @@
                         "data_subject",
                         "tenant_settings",
                         "pipeline",
-                        "lead_form"
+                        "lead_form",
+                        "lead_assignment"
                       ]
                     },
                     "fieldKey": {
@@ -33542,7 +36122,8 @@
                         "data_subject",
                         "tenant_settings",
                         "pipeline",
-                        "lead_form"
+                        "lead_form",
+                        "lead_assignment"
                       ]
                     },
                     "action": {
@@ -33595,7 +36176,8 @@
                         "data_subject",
                         "tenant_settings",
                         "pipeline",
-                        "lead_form"
+                        "lead_form",
+                        "lead_assignment"
                       ]
                     },
                     "fieldKey": {
@@ -33703,7 +36285,8 @@
                         "data_subject",
                         "tenant_settings",
                         "pipeline",
-                        "lead_form"
+                        "lead_form",
+                        "lead_assignment"
                       ]
                     },
                     "action": {
@@ -33756,7 +36339,8 @@
                         "data_subject",
                         "tenant_settings",
                         "pipeline",
-                        "lead_form"
+                        "lead_form",
+                        "lead_assignment"
                       ]
                     },
                     "fieldKey": {
@@ -33882,7 +36466,8 @@
                               "data_subject",
                               "tenant_settings",
                               "pipeline",
-                              "lead_form"
+                              "lead_form",
+                              "lead_assignment"
                             ]
                           },
                           "action": {
@@ -34020,7 +36605,8 @@
                               "data_subject",
                               "tenant_settings",
                               "pipeline",
-                              "lead_form"
+                              "lead_form",
+                              "lead_assignment"
                             ]
                           },
                           "fieldKey": {
@@ -34094,7 +36680,8 @@
                         "data_subject",
                         "tenant_settings",
                         "pipeline",
-                        "lead_form"
+                        "lead_form",
+                        "lead_assignment"
                       ]
                     },
                     "action": {
@@ -34209,7 +36796,8 @@
                         "data_subject",
                         "tenant_settings",
                         "pipeline",
-                        "lead_form"
+                        "lead_form",
+                        "lead_assignment"
                       ]
                     },
                     "action": {
