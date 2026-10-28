@@ -243,8 +243,9 @@ describe('merging two contacts', () => {
       firstName: 'Asha',
       phone: '+919876500001',
       title: 'Manager',
-      customFields: expect.objectContaining({ region: 'North' }),
     });
+    // The custom field the person chose came across with its value.
+    expect((result.record['customFields'] as Record<string, unknown>)['region']).toBe('North');
     const masterRow = await harness.fixtures.rowOf('contacts', master);
     expect(new Date(masterRow?.['created_at'] as Date).getTime()).toBe(loserCreated.getTime());
   });

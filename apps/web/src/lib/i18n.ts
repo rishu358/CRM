@@ -1500,6 +1500,7 @@ export const en = {
 
   // Merging duplicates (ADR-0064)
   'merge.duplicates.title': 'Possible duplicates',
+  'merge.duplicates.open': 'Open {name}, a possible duplicate',
   'merge.duplicates.none': 'Nothing here looks like a duplicate.',
   'merge.duplicates.error': 'Possible duplicates could not be loaded.',
   'merge.with': 'Merge with another record',

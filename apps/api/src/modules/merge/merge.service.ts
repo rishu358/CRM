@@ -392,7 +392,7 @@ export class MergeService {
         })),
       );
     }
-    return parsed.data as Record<string, unknown>;
+    return parsed.data;
   }
 
   /** The caller's read scope per kind of linked record, for the counts they are shown. */

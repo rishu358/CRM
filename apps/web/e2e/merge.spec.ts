@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Browser, type Page } from '@playwright/test';
 
 /**
  * Merging a duplicate contact (MVP_SPEC M4, ADR-0064).
@@ -29,6 +29,32 @@ async function createContact(page: Page, data: Record<string, unknown>): Promise
   });
   expect(response.ok(), `creating ${String(data['lastName'])}`).toBe(true);
   return ((await response.json()) as { data: { id: string } }).data.id;
+}
+
+/**
+ * Put records back in the Recycle Bin, as the owner, once a test is done with them.
+ *
+ * A rep cannot delete, and the records a rep creates belong to that rep alone: left in the shared
+ * database they would be counted by the specs that run after this one (the bulk spec counts what the
+ * rep may change). So a test that makes records as the rep removes them as the owner.
+ */
+async function removeAsOwner(browser: Browser, baseURL: string, ids: readonly string[]) {
+  const context = await browser.newContext({ baseURL });
+  try {
+    const page = await context.newPage();
+    await signIn(page, credentials.owner);
+    const origin = new URL(page.url()).origin;
+    for (const id of ids) {
+      const record = await page.request.get(`/api/proxy/contacts/${id}`);
+      const version = ((await record.json()) as { data: { version: number } }).data.version;
+      const response = await page.request.delete(`/api/proxy/contacts/${id}?version=${version}`, {
+        headers: { origin },
+      });
+      expect(response.ok(), `removing ${id}`).toBe(true);
+    }
+  } finally {
+    await context.close();
+  }
 }
 
 test.describe('merge', () => {
@@ -98,16 +124,18 @@ test.describe('merge', () => {
     await signIn(page, credentials.owner);
     const stamp = Date.now().toString().slice(-6);
     const one = await createContact(page, { lastName: `Chooser${stamp}A` });
-    await createContact(page, { lastName: `Chooser${stamp}B` });
 
     await page.goto(`/contacts/${one}`);
     await page.getByTestId('merge-with').click();
     const dialog = page.getByTestId('merge-dialog');
-    await dialog.getByTestId('merge-search').fill(`Chooser${stamp}B`);
-    // The search index is filled by the worker a moment after a save; the list's own search finds it
-    // once it has, so wait for the result rather than for a fixed time.
-    await expect(dialog.getByRole('button', { name: 'Choose' })).toBeVisible({ timeout: 20_000 });
-    await dialog.getByRole('button', { name: 'Choose' }).click();
+    // A seeded contact, which the search index already holds: the index of a record made a moment ago
+    // is filled by the worker a little later, the same as for the search box, and a test should not
+    // depend on how fast that is.
+    await dialog.getByTestId('merge-search').fill('Reddy');
+    await expect(dialog.getByRole('button', { name: 'Choose' }).first()).toBeVisible({
+      timeout: 20_000,
+    });
+    await dialog.getByRole('button', { name: 'Choose' }).first().click();
     await expect(dialog.getByTestId('merge-fields')).toBeVisible();
     await dialog.getByRole('button', { name: 'Back' }).click();
     await expect(dialog.getByTestId('merge-search')).toBeVisible();
@@ -119,12 +147,16 @@ test.describe('merge', () => {
     await expect(page.getByRole('heading', { name: new RegExp(`Chooser${stamp}A`) })).toBeVisible();
   });
 
-  test('a rep who may not delete is told so in words and nothing is merged', async ({ page }) => {
+  test('a rep who may not delete is told so in words and nothing is merged', async ({
+    page,
+    browser,
+    baseURL,
+  }) => {
     await signIn(page, credentials.rep);
     const stamp = Date.now().toString().slice(-6);
     const email = `rep-dup-${stamp}@merge-e2e.example`;
     const keep = await createContact(page, { lastName: `RepDup${stamp}`, email });
-    await createContact(page, { lastName: `RepDup${stamp}`, email });
+    const other = await createContact(page, { lastName: `RepDup${stamp}`, email });
 
     await page.goto(`/contacts/${keep}`);
     const card = page.getByTestId('duplicates-card');
@@ -132,5 +164,7 @@ test.describe('merge', () => {
     const dialog = page.getByTestId('merge-dialog');
     await dialog.getByTestId('merge-review').click();
     await expect(dialog.getByRole('alert')).toContainText('may not merge them');
+
+    await removeAsOwner(browser, baseURL ?? 'http://localhost:3000', [keep, other]);
   });
 });

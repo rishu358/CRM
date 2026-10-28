@@ -65,6 +65,10 @@ export function DuplicatesCard({
                     <Link
                       href={`/${PLURALS[objectType]}/${match.id}`}
                       className="font-medium text-primary underline-offset-4 hover:underline"
+                      // A different accessible name from the record's own page link: a record and its
+                      // duplicate often share a name, and a page with two links of the same name is
+                      // ambiguous to a screen-reader user and to a test alike.
+                      aria-label={t('merge.duplicates.open', { name: match.label })}
                     >
                       {match.label}
                     </Link>
