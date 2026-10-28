@@ -341,7 +341,7 @@ describe('saving a permission change', () => {
         // One valid cell and one that cannot be granted: all or nothing.
         grants: [
           { objectType: 'contact', action: 'read', scope: 'own' },
-          { objectType: 'deal', action: 'import', scope: 'all' },
+          { objectType: 'activity', action: 'import', scope: 'all' },
         ],
         expectedDigest: digest,
       },
@@ -1148,7 +1148,11 @@ describe('the catalogue', () => {
       }
     ).objects;
     const deal = objects.find((object) => object.objectType === 'deal')!;
-    expect(deal.actions).not.toContain('import');
+    // Deals became importable in ADR-0070; activities still are not.
+    expect(deal.actions).toContain('import');
+    expect(objects.find((object) => object.objectType === 'activity')!.actions).not.toContain(
+      'import',
+    );
     expect(deal.scopes).toEqual(['own', 'team', 'all']);
     expect(deal.fields.length).toBeGreaterThan(3);
 
