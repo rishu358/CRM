@@ -248,35 +248,104 @@ export class ImportsService {
     });
   }
 
+  /**
+   * Everything that must be true before a file is run with this mapping, a real run or a check.
+   * One function, so a check cannot accept a mapping the import itself would refuse.
+   */
+  private async assertRunnable(
+    tx: Tx,
+    actor: Actor,
+    job: ImportJob,
+    input: ImportStartInput,
+  ): Promise<void> {
+    // Collection-level checks first. An import creates records in every mode,
+    // and updates them in one, so it needs those actions in its own right:
+    // `import` is the door, `create` and `update` are what is behind it.
+    assertCan(actor, 'import', { objectType: job.objectType });
+    assertCan(actor, 'create', { objectType: job.objectType });
+    if (input.duplicateMode === 'update') {
+      assertCan(actor, 'update', { objectType: job.objectType });
+    }
+
+    if (job.status !== 'awaiting_mapping') {
+      throw new ConflictError('This import is not waiting for a mapping');
+    }
+    const columns = job.columns ?? [];
+
+    const fields = await this.fieldMetadata.forObject(tx, actor.tenantId, job.objectType);
+    const issues = validateMapping(actor, job.objectType, fields, input.mapping, {
+      columnCount: columns.length,
+      duplicateMode: input.duplicateMode,
+      matchField: input.matchField ?? null,
+    });
+    if (issues.length > 0) {
+      throw new ValidationError(
+        issues.map((issue) => ({ path: issue.path, message: issue.message })),
+      );
+    }
+  }
+
+  /**
+   * Check a file against a mapping without importing it (ADR-0068).
+   *
+   * Makes a job of its own beside the one waiting for its mapping: same file, same mapping, same
+   * duplicate rule, and `dry_run`. The worker runs every row through the real row logic and rolls
+   * each chunk back, so what comes back is what an import would do and nothing was written. The
+   * job being checked stays where it is, so the mapping can be changed and checked again, or
+   * started for real.
+   */
+  async check(actor: Actor, id: string, input: ImportStartInput): Promise<ImportJobContract> {
+    return this.inTenant(actor, async (tx) => {
+      const job = await this.loadOwn(tx, actor, id);
+      await this.assertRunnable(tx, actor, job, input);
+
+      const checkId = newId();
+      const created = await this.repository.insert(tx, {
+        id: checkId,
+        tenantId: actor.tenantId,
+        objectType: job.objectType,
+        status: 'staging',
+        fileName: job.fileName,
+        claimedFormat: job.claimedFormat,
+        detectedFormat: job.detectedFormat,
+        // The same stored file. The check never deletes it: only the import that is run for real does.
+        storageKey: job.storageKey,
+        sizeBytes: job.sizeBytes,
+        columns: job.columns,
+        mapping: input.mapping.map((entry) => ({ column: entry.column, field: entry.field })),
+        duplicateMode: input.duplicateMode,
+        matchField: input.duplicateMode === 'create' ? null : (input.matchField ?? null),
+        dryRun: true,
+        startedAt: new Date(),
+        createdBy: actor.userId,
+        updatedBy: actor.userId,
+      });
+      if (created === null) throw new ConflictError('This check could not be started');
+
+      await this.audit.record(tx, actor, {
+        action: 'import',
+        objectType: 'import_job',
+        recordId: created.id,
+        changes: {
+          dryRun: { new: true },
+          checkedJobId: { new: job.id },
+          duplicateMode: { new: created.duplicateMode },
+          mappedFields: { new: input.mapping.map((entry) => entry.field) },
+        },
+      });
+      await this.outbox.publish(tx, actor, {
+        eventType: 'import.started.v1',
+        objectType: 'import_job',
+        recordId: created.id,
+      });
+      return serializeImportJob(created);
+    });
+  }
+
   async start(actor: Actor, id: string, input: ImportStartInput): Promise<ImportJobContract> {
     return this.inTenant(actor, async (tx) => {
       const job = await this.loadOwn(tx, actor, id);
-
-      // Collection-level checks first. An import creates records in every mode,
-      // and updates them in one, so it needs those actions in its own right:
-      // `import` is the door, `create` and `update` are what is behind it.
-      assertCan(actor, 'import', { objectType: job.objectType });
-      assertCan(actor, 'create', { objectType: job.objectType });
-      if (input.duplicateMode === 'update') {
-        assertCan(actor, 'update', { objectType: job.objectType });
-      }
-
-      if (job.status !== 'awaiting_mapping') {
-        throw new ConflictError('This import is not waiting for a mapping');
-      }
-      const columns = job.columns ?? [];
-
-      const fields = await this.fieldMetadata.forObject(tx, actor.tenantId, job.objectType);
-      const issues = validateMapping(actor, job.objectType, fields, input.mapping, {
-        columnCount: columns.length,
-        duplicateMode: input.duplicateMode,
-        matchField: input.matchField ?? null,
-      });
-      if (issues.length > 0) {
-        throw new ValidationError(
-          issues.map((issue) => ({ path: issue.path, message: issue.message })),
-        );
-      }
+      await this.assertRunnable(tx, actor, job, input);
 
       const moved = await this.repository.transition(
         tx,

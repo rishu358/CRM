@@ -543,6 +543,39 @@ export async function processChunk(
   return { created, updated, skipped, failed, errors };
 }
 
+class ChunkRolledBack extends Error {
+  constructor(readonly result: ChunkResult) {
+    super('This chunk was run as a check and rolled back');
+  }
+}
+
+/**
+ * Run a chunk exactly as `processChunk` does, then undo every write (ADR-0068).
+ *
+ * This is how a check can say what an import would do without a second implementation of "what an
+ * import does": it is the same code against the same database, inside a savepoint that is rolled
+ * back. Records, audit rows and outbox events written by the chunk all vanish with it, and the
+ * database's own constraints (uniqueness, links, the stage rules) are exercised as in a real run.
+ *
+ * What it cannot see is an earlier chunk of the same check: those were rolled back, so a row that
+ * repeats a value from 500 rows earlier is counted as new here and as a duplicate in the real run.
+ */
+export async function processChunkWithoutWriting(
+  tx: Tx,
+  context: ChunkContext,
+  rows: readonly ChunkRow[],
+): Promise<ChunkResult> {
+  try {
+    await tx.transaction(async (savepoint) => {
+      throw new ChunkRolledBack(await processChunk(savepoint, context, rows));
+    });
+  } catch (error) {
+    if (error instanceof ChunkRolledBack) return error.result;
+    throw error;
+  }
+  throw new Error('A check chunk finished without a result');
+}
+
 /** The fields an audit `create` entry carries, matching what each service records. */
 function identityChanges(
   objectType: ImportableObjectType,

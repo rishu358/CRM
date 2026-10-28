@@ -114,6 +114,8 @@ export const importJobSchema = z.object({
   skippedCount: z.number().int(),
   failedCount: z.number().int(),
   hasErrorFile: z.boolean(),
+  /** A check: nothing was written, the counts are what would happen. */
+  dryRun: z.boolean(),
   /** A sentence for the user. Never a stack trace or a driver message. */
   failureReason: z.string().nullable(),
   startedAt: z.iso.datetime({ offset: true }).nullable(),
