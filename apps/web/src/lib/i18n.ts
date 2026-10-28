@@ -570,6 +570,8 @@ export const en = {
   'import.owner.note': 'Every record you import is assigned to you.',
   'import.owner.offered':
     'You may give rows to someone else: match a column to Owner and put their e-mail address in it.',
+  'import.dates.offered':
+    'You may bring original dates: match a column to Created date and write each as YYYY-MM-DD, or YYYY-MM-DD HH:MM. Dates in the future or before 1990 are refused, and the audit log still records when you imported.',
   'import.start': 'Start import',
   'import.check': 'Check the file first',
   'import.check.running': 'Checking the file. Nothing is being changed.',
@@ -772,6 +774,7 @@ export const en = {
   'access.object.dataSubject': 'Data rights',
   'access.object.tenantSettings': 'Company setup',
   'access.object.pipeline': 'Pipeline stages',
+  'access.object.importHistory': 'Original dates on import',
   'access.objectOne.account': 'account',
   'access.objectOne.contact': 'contact',
   'access.objectOne.lead': 'lead',

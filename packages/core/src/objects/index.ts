@@ -61,6 +61,7 @@ export const OBJECT_TYPES = [
   'data_subject',
   'tenant_settings',
   'pipeline',
+  'import_history',
 ] as const;
 
 export type ObjectType = (typeof OBJECT_TYPES)[number];
@@ -187,6 +188,7 @@ export const ADMINISTRATIVE_OBJECT_TYPES = [
   'data_subject',
   'tenant_settings',
   'pipeline',
+  'import_history',
 ] as const;
 export type AdministrativeObjectType = (typeof ADMINISTRATIVE_OBJECT_TYPES)[number];
 

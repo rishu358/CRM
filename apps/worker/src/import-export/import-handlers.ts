@@ -389,7 +389,11 @@ export function processImportChunk(deps: ImportDeps): EventHandler {
       cells: row.cells,
     }));
 
+    const zoneRow = (await tx.execute(sql`select timezone from tenants where id = ${job.tenantId}`))
+      .rows[0];
+    const timeZone = typeof zoneRow?.['timezone'] === 'string' ? zoneRow['timezone'] : 'UTC';
     const chunkContext = {
+      timeZone,
       actor,
       jobId: job.id,
       objectType,

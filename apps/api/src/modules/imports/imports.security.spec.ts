@@ -1009,3 +1009,74 @@ describe('check: the same file and mapping, nothing imported (ADR-0068)', () => 
     expect((await check(adminB.token, created!.id)).status).toBe(404);
   });
 });
+
+describe('original dates: its own grant (ADR-0069)', () => {
+  const mapped = {
+    mapping: [
+      { column: 1, field: 'last_name' },
+      { column: 2, field: 'created_at' },
+    ],
+    duplicateMode: 'create',
+  };
+  const targetsFor = async (token: string): Promise<string[]> => {
+    const { created } = await createImport(token);
+    await awaitMapping(created!.id);
+    const data = dataOf<{ targets: { key: string }[] }>(
+      await request(harness, { method: 'GET', url: `/api/v1/imports/${created!.id}`, token }),
+    );
+    return data.targets.map((target) => target.key);
+  };
+
+  it('offers the date to an Admin, and not to a Manager who may otherwise import', async () => {
+    expect(await targetsFor(adminA.token)).toContain('created_at');
+    expect(await targetsFor(managerA.token)).not.toContain('created_at');
+  });
+
+  it('refuses a mapping onto created_at for a Manager with a 422, and queues nothing', async () => {
+    const { created } = await createImport(managerA.token);
+    await awaitMapping(created!.id);
+    for (const path of ['start', 'check']) {
+      const response = await request(harness, {
+        method: 'POST',
+        url: `/api/v1/imports/${created!.id}/${path}`,
+        token: managerA.token,
+        body: mapped,
+      });
+      expect(response.status).toBe(422);
+    }
+    expect((await jobRow(created!.id))['status']).toBe('awaiting_mapping');
+  });
+
+  it('lets an Admin start with it and says so in the audit entry', async () => {
+    const { created } = await createImport(adminA.token);
+    await awaitMapping(created!.id);
+    const response = await request(harness, {
+      method: 'POST',
+      url: `/api/v1/imports/${created!.id}/start`,
+      token: adminA.token,
+      body: mapped,
+    });
+    expect(response.status).toBe(202);
+    const audit = await superuser.query(
+      `select changes from audit_logs
+       where tenant_id = $1 and record_id = $2 and action = 'import' order by id`,
+      [tenantA, created!.id],
+    );
+    expect(
+      audit.rows.some((row) => (row['changes'] as Record<string, unknown>)['originalDates']),
+    ).toBe(true);
+  });
+
+  it('is a grant a custom role can be given, and not one it has by default', async () => {
+    const roleId = await harness.fixtures.createRole(tenantA, `historian-${unique()}`);
+    for (const action of ['read', 'create', 'update', 'import'] as const) {
+      await harness.fixtures.grant(tenantA, roleId, 'contact', action, 'all');
+    }
+    const plain = await userWithRole(tenantA, roleId);
+    expect(await targetsFor(plain.token)).not.toContain('created_at');
+
+    await harness.fixtures.grant(tenantA, roleId, 'import_history', 'create', 'all');
+    const granted = await userWithRole(tenantA, roleId);
+    expect(await targetsFor(granted.token)).toContain('created_at');
+  });
+});

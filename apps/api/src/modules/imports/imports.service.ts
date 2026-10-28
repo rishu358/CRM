@@ -329,6 +329,9 @@ export class ImportsService {
         changes: {
           dryRun: { new: true },
           checkedJobId: { new: job.id },
+          ...(input.mapping.some((entry) => entry.field === 'created_at')
+            ? { originalDates: { new: true } }
+            : {}),
           duplicateMode: { new: created.duplicateMode },
           mappedFields: { new: input.mapping.map((entry) => entry.field) },
         },
@@ -371,6 +374,10 @@ export class ImportsService {
           status: { old: job.status, new: moved.status },
           duplicateMode: { new: moved.duplicateMode },
           mappedFields: { new: input.mapping.map((entry) => entry.field) },
+          // Said on its own so "who brought history in" is one filter, not a read of every mapping.
+          ...(input.mapping.some((entry) => entry.field === 'created_at')
+            ? { originalDates: { new: true } }
+            : {}),
         },
       });
       await this.outbox.publish(tx, actor, {

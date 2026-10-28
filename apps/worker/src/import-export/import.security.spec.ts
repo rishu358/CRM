@@ -885,3 +885,233 @@ describe('owner and account columns (ADR-0067)', () => {
     expect((await h.job(accountJob.id)).status).toBe('failed');
   });
 });
+
+describe('original dates (ADR-0069)', () => {
+  const DATED = [
+    { column: 0, field: 'last_name' },
+    { column: 1, field: 'email' },
+    { column: 2, field: 'created_at' },
+  ];
+  const HEAD = ['Last', 'Email', 'Created'];
+
+  const rowFor = async (email: string): Promise<Record<string, unknown>> => {
+    const row = (
+      await h.pool.query(
+        `select id, created_at, updated_at from contacts where tenant_id = $1 and email::text = $2`,
+        [h.tenantId, email],
+      )
+    ).rows[0];
+    if (row === undefined) throw new Error(`No contact ${email}`);
+    return row;
+  };
+
+  it('sets when a record was created, for someone who holds the grant, and keeps the real time in the audit log', async () => {
+    const tag = unique();
+    const job = await importAs(
+      owner,
+      [
+        HEAD,
+        ['A', `a-${tag}@x.io`, '2024-03-31T14:30:00Z'],
+        ['B', `b-${tag}@x.io`, '2019-01-05T08:00:00+05:30'],
+        ['C', `c-${tag}@x.io`, ''],
+      ],
+      { mapping: DATED },
+    );
+    expect(job).toMatchObject({ status: 'completed', createdCount: 3, failedCount: 0 });
+
+    const a = await rowFor(`a-${tag}@x.io`);
+    expect((a['created_at'] as Date).toISOString()).toBe('2024-03-31T14:30:00.000Z');
+    // Nothing has happened to it since, so "last updated" is the same moment.
+    expect((a['updated_at'] as Date).toISOString()).toBe('2024-03-31T14:30:00.000Z');
+    expect(((await rowFor(`b-${tag}@x.io`))['created_at'] as Date).toISOString()).toBe(
+      '2019-01-05T02:30:00.000Z',
+    );
+    // A blank cell is "not given": the record is created now, like any other.
+    const c = await rowFor(`c-${tag}@x.io`);
+    expect(Date.now() - (c['created_at'] as Date).getTime()).toBeLessThan(10 * 60_000);
+
+    // The audit trail does not take the file's word for when the import happened.
+    const audit = await h.pool.query(
+      `select occurred_at, changes from audit_logs
+       where tenant_id = $1 and action = 'create' and record_id = $2`,
+      [h.tenantId, a['id']],
+    );
+    expect(Date.now() - (audit.rows[0]?.['occurred_at'] as Date).getTime()).toBeLessThan(
+      10 * 60_000,
+    );
+    const backdated = (
+      audit.rows[0]?.['changes'] as Record<string, { new: Record<string, string> }>
+    )['backdated'];
+    expect(backdated?.new['createdAt']).toBe('2024-03-31T14:30:00.000Z');
+    expect(Date.now() - new Date(backdated?.new['importedAt'] ?? 0).getTime()).toBeLessThan(
+      10 * 60_000,
+    );
+  });
+
+  it('reads a date with no time in the workspace time zone', async () => {
+    const tag = unique();
+    await h.fixtures.setTenantTimeZone(h.tenantId, 'Asia/Kolkata');
+    try {
+      await importAs(owner, [HEAD, ['A', `tz-${tag}@x.io`, '2024-03-31']], { mapping: DATED });
+    } finally {
+      await h.fixtures.setTenantTimeZone(h.tenantId, 'UTC');
+    }
+    expect(((await rowFor(`tz-${tag}@x.io`))['created_at'] as Date).toISOString()).toBe(
+      '2024-03-30T18:30:00.000Z',
+    );
+  });
+
+  it('refuses a mapping onto created_at for a manager, who may import but not bring history, and writes nothing', async () => {
+    const tag = unique();
+    const manager = await h.user('Manager');
+    const analyzed = await h.analyze({
+      userId: manager,
+      bytes: csv([HEAD, ['A', `mgr-${tag}@x.io`, '2020-01-01']]),
+    });
+    // Skip the API's validation entirely and hand the worker the mapping.
+    await h.start(analyzed.id, { mapping: DATED });
+    await h.drain();
+    expect((await h.job(analyzed.id)).status).toBe('failed');
+    const made = await h.pool.query(
+      `select count(*)::int as n from contacts where tenant_id = $1 and email::text = $2`,
+      [h.tenantId, `mgr-${tag}@x.io`],
+    );
+    expect(made.rows[0]?.['n']).toBe(0);
+  });
+
+  it('the row-level guard refuses the date column when the mapping check is bypassed', async () => {
+    const tag = unique();
+    const manager = await h.user('Manager');
+    const result = await withTenant(
+      h.db.db,
+      { tenantId: h.tenantId, userId: manager },
+      async (tx) => {
+        const actor = (await loadActor(tx, manager, h.tenantId))!;
+        const fields = await loadFieldDefinitions(tx, h.tenantId, 'contact');
+        return processChunk(
+          tx,
+          {
+            actor,
+            jobId: newId(),
+            objectType: 'contact',
+            fields,
+            mapping: DATED,
+            duplicateMode: 'create',
+            matchField: null,
+          },
+          [{ rowNumber: 1, sourceRow: 2, cells: ['A', `guard-${tag}@x.io`, '2020-01-01'] }],
+        );
+      },
+    );
+    expect(result).toMatchObject({ created: 0, failed: 1 });
+    expect(result.errors[0]?.message).toMatch(/cannot import original dates/);
+  });
+
+  it('refuses a date it cannot read with certainty, a future date and one before 1990, row by row', async () => {
+    const tag = unique();
+    const job = await importAs(
+      owner,
+      [
+        HEAD,
+        ['Good', `good-${tag}@x.io`, '2023-06-30'],
+        ['Ambiguous', `amb-${tag}@x.io`, '03/04/2024'],
+        ['Future', `fut-${tag}@x.io`, '2999-01-01'],
+        ['Ancient', `old-${tag}@x.io`, '1899-12-31'],
+        ['Impossible', `imp-${tag}@x.io`, '2024-02-30'],
+      ],
+      { mapping: DATED },
+    );
+    expect(job).toMatchObject({ createdCount: 1, failedCount: 4 });
+    const errors = h.readText(job.errorFileKey as string);
+    expect(errors).toContain('Use YYYY-MM-DD');
+    expect(errors).toContain('cannot be in the future');
+    expect(errors).toContain('cannot be before 1990');
+    expect(errors).toContain('does not exist');
+  });
+
+  it('never rewrites when an existing record was created, even in update mode', async () => {
+    const tag = unique();
+    const existing = await h.fixtures.createContact(h.tenantId, {
+      ownerId: owner,
+      lastName: 'Existing',
+      email: `keep-${tag}@x.io`,
+    });
+    const before = (await h.pool.query('select created_at from contacts where id = $1', [existing]))
+      .rows[0]?.['created_at'] as Date;
+
+    const job = await importAs(
+      owner,
+      [
+        ['Last', 'Email', 'Title', 'Created'],
+        ['Existing', `keep-${tag}@x.io`, 'CEO', '2001-01-01'],
+      ],
+      {
+        mapping: [
+          ...DATED.slice(0, 2),
+          { column: 2, field: 'title' },
+          { column: 3, field: 'created_at' },
+        ],
+        duplicateMode: 'update',
+        matchField: 'email',
+      },
+    );
+    expect(job).toMatchObject({ updatedCount: 1, failedCount: 0 });
+    const after = (
+      await h.pool.query('select created_at, title from contacts where id = $1', [existing])
+    ).rows[0] as { created_at: Date; title: string };
+    expect(after.title).toBe('CEO');
+    expect(after.created_at.getTime()).toBe(before.getTime());
+  });
+
+  it('is checked by a check as well, and a check still writes nothing', async () => {
+    const tag = unique();
+    const analyzed = await h.analyze({
+      userId: owner,
+      bytes: csv([
+        HEAD,
+        ['Good', `chk-${tag}@x.io`, '2022-02-02'],
+        ['Bad', `chk2-${tag}@x.io`, 'soon'],
+      ]),
+    });
+    const checkId = await h.check(analyzed.id, { mapping: DATED });
+    await h.drain();
+    expect(await h.job(checkId)).toMatchObject({
+      status: 'completed',
+      createdCount: 1,
+      failedCount: 1,
+    });
+    const made = await h.pool.query(
+      `select count(*)::int as n from contacts where tenant_id = $1 and email::text like $2`,
+      [h.tenantId, `%chk%${tag}%`],
+    );
+    expect(made.rows[0]?.['n']).toBe(0);
+  });
+
+  it('is withdrawn by a field rule that hides the date, even for someone who holds the grant', async () => {
+    const tag = unique();
+    const roleId = await importerRole('no-date-field', 'all');
+    await h.fixtures.grant(h.tenantId, roleId, 'import_history', 'create', 'all');
+    await h.fixtures.setFieldPermission(h.tenantId, roleId, 'contact', 'created_at', 'hidden');
+    const user = (await h.fixtures.createUser(h.tenantId, roleId)).userId;
+
+    const result = await withTenant(h.db.db, { tenantId: h.tenantId, userId: user }, async (tx) => {
+      const actor = (await loadActor(tx, user, h.tenantId))!;
+      const fields = await loadFieldDefinitions(tx, h.tenantId, 'contact');
+      return processChunk(
+        tx,
+        {
+          actor,
+          jobId: newId(),
+          objectType: 'contact',
+          fields,
+          mapping: DATED,
+          duplicateMode: 'create',
+          matchField: null,
+        },
+        [{ rowNumber: 1, sourceRow: 2, cells: ['A', `hid-${tag}@x.io`, '2020-01-01'] }],
+      );
+    });
+    expect(result).toMatchObject({ created: 0, failed: 1 });
+    expect(result.errors[0]?.message).toMatch(/permission to write this field/);
+  });
+});

@@ -609,6 +609,9 @@ function MapColumns({ job }: { job: ImportRecord }) {
       </fieldset>
 
       <p className="text-sm text-muted-foreground">{t('import.owner.note')}</p>
+      {targets.some((target) => target.key === 'created_at') ? (
+        <p className="text-sm text-muted-foreground">{t('import.dates.offered')}</p>
+      ) : null}
       {targets.some((target) => target.key === 'owner_id') ? (
         <p className="text-sm text-muted-foreground">{t('import.owner.offered')}</p>
       ) : null}
