@@ -573,6 +573,15 @@ export const en = {
     'You may give rows to someone else: match a column to Owner and put their e-mail address in it.',
   'import.dates.offered':
     'You may bring original dates: match a column to Created date and write each as YYYY-MM-DD, or YYYY-MM-DD HH:MM. Dates in the future or before 1990 are refused, and the audit log still records when you imported.',
+  'import.template.label': 'Where did this file come from?',
+  'import.template.hint':
+    'This only suggests which column is which. You can change any choice in the table.',
+  'import.template.auto': 'Detect automatically',
+  'import.template.zoho': 'A Zoho CRM export',
+  'import.template.generic': 'A spreadsheet or another system',
+  'import.template.existing':
+    'Accounts and contacts named in a file must already exist here, so import accounts first.',
+  'import.template.download': 'Download a blank template file',
   'import.start': 'Start import',
   'import.check': 'Check the file first',
   'import.check.running': 'Checking the file. Nothing is being changed.',

@@ -116,6 +116,40 @@ test.describe('import', () => {
     await expect(page.getByRole('link', { name: `Hopper-${id}` })).toBeVisible(SLOW);
   });
 
+  test('suggests a mapping from a Zoho CRM export, and every suggestion can be changed', async ({
+    page,
+  }) => {
+    await signIn(page, credentials.owner);
+
+    await chooseFile(
+      page,
+      'zoho-contacts.csv',
+      [
+        'Contact Owner,First Name,Last Name,Account Name,Lead Source,Email',
+        `owner@e2e.example,Ada,Lovelace,Analytical Engines,Web,ada-${tag()}@e2e.example`,
+      ].join('\n'),
+    );
+    await expect(page.getByRole('heading', { name: 'Match columns to fields' })).toBeVisible(SLOW);
+
+    // Recognised as a Zoho file, and mapped by Zoho's own labels. Nothing has been imported.
+    await expect(page.getByLabel('Where did this file come from?')).toHaveValue('auto');
+    await expect(page.getByLabel('Do not import: Contact Owner')).toHaveValue('owner_id');
+    await expect(page.getByLabel('Do not import: Account Name')).toHaveValue('account_id');
+    await expect(page.getByLabel('Do not import: Lead Source')).toHaveValue('lead_source');
+    await expect(page.getByLabel('Do not import: Last Name')).toHaveValue('last_name');
+
+    // The source decides the suggestion: a plain spreadsheet has no `Contact Owner` convention.
+    await page.getByLabel('Where did this file come from?').selectOption('generic');
+    await expect(page.getByLabel('Do not import: Contact Owner')).toHaveValue('');
+    await expect(page.getByLabel('Do not import: Last Name')).toHaveValue('last_name');
+    await page.getByLabel('Where did this file come from?').selectOption('zoho');
+    await expect(page.getByLabel('Do not import: Contact Owner')).toHaveValue('owner_id');
+
+    // And it is only a suggestion: any column can be set back to "do not import".
+    await page.getByLabel('Do not import: Contact Owner').selectOption('');
+    await expect(page.getByLabel('Do not import: Contact Owner')).toHaveValue('');
+  });
+
   test('a row that cannot be imported is reported by its row number, and the rest import', async ({
     page,
   }) => {
