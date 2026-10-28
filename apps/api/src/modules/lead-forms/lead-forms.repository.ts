@@ -20,7 +20,7 @@ import {
  *
  * Every statement filters on `tenant_id` explicitly **and** runs under RLS, so a form or key from
  * another workspace reads as absent either way. The one statement that runs without a tenant is
- * `routeKey`, which runs as `crm_auth` and can read five columns of one table (migration 0025).
+ * `routeKey`, which runs as `crm_auth` and can read five columns of one table (migration 0027).
  *
  * Not exported from the module (CLAUDE.md §3).
  */

@@ -151,7 +151,7 @@ const PIPELINE_GRANT: SystemRoleGrant = {
 /**
  * Website lead forms (ADR-0063): creating a form, changing it, rotating its key, switching it off.
  *
- * Owner and Admin, like the other company-wide configuration. Migration 0025 backfills the same
+ * Owner and Admin, like the other company-wide configuration. Migration 0027 backfills the same
  * rows for tenants that already exist. A custom role gets nothing.
  */
 const LEAD_FORM_GRANT: SystemRoleGrant = {

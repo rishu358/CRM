@@ -11,7 +11,7 @@ import {
 } from './testing/index.js';
 
 /**
- * What the database itself allows around website lead forms (ADR-0063 3.2, migration 0025).
+ * What the database itself allows around website lead forms (ADR-0063 3.2, migration 0027).
  *
  * The public door is only as narrow as these grants. `crm_auth` may turn a key into a workspace and a
  * form, by reading five columns of one table, and nothing else; `crm_app` sees only its own
@@ -250,5 +250,50 @@ describe('the leads a submission points at', () => {
       lead,
     ]);
     expect(left.rows).toHaveLength(0);
+  });
+});
+
+describe('with no user at all (how the public step runs: ADR-0063 section 9)', () => {
+  it('writes the lead, the consent record, the audit row, the event and the count, with no author', async () => {
+    const leadId = randomUUID();
+    const noUser = { tenantId: tenantA, userId: null };
+
+    await withTenant(db.app.db, noUser, async (tx) => {
+      await tx.execute(sql`
+        insert into leads (id, tenant_id, last_name, source, status, created_by, updated_by)
+        values (${leadId}, ${tenantA}, 'No user', 'web_form', 'new', null, null)`);
+      await tx.execute(sql`
+        insert into lead_form_submissions (id, tenant_id, form_id, lead_id, consent_version, consent_at)
+        values (gen_random_uuid(), ${tenantA}, ${formA}, ${leadId}, 1, now())`);
+      await tx.execute(sql`
+        insert into audit_logs (id, tenant_id, actor_id, action, object_type, record_id)
+        values (gen_random_uuid(), ${tenantA}, null, 'create', 'lead', ${leadId})`);
+      await tx.execute(sql`
+        insert into outbox_events (id, tenant_id, event_type, object_type, record_id, payload)
+        values (gen_random_uuid(), ${tenantA}, 'lead.created.v1', 'lead', ${leadId},
+                '{"source":"web_form"}'::jsonb)`);
+      await tx.execute(sql`
+        insert into lead_form_daily_counts (tenant_id, counter_key, day, count)
+        values (${tenantA}, 'form:no-user', (now() at time zone 'utc')::date, 1)
+        on conflict (tenant_id, counter_key, day) do update set count = lead_form_daily_counts.count + 1`);
+    });
+
+    const stored = await superuser.query(`select created_by, owner_id from leads where id = $1`, [
+      leadId,
+    ]);
+    expect(stored.rows).toEqual([{ created_by: null, owner_id: null }]);
+    const audit = await superuser.query(`select actor_id from audit_logs where record_id = $1`, [
+      leadId,
+    ]);
+    expect(audit.rows).toEqual([{ actor_id: null }]);
+  });
+
+  it('reads back what it wrote, and nothing of another workspace, with no user set', async () => {
+    const rows = await withTenant(db.app.db, { tenantId: tenantA, userId: null }, (tx) =>
+      tx.execute(
+        sql`select id from lead_forms union all select id from leads where tenant_id = ${tenantB}`,
+      ),
+    );
+    expect(rows.rows.map((row) => (row as { id: string }).id)).toEqual([formA]);
   });
 });

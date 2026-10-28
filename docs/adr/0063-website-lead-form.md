@@ -1,13 +1,18 @@
 # ADR-0063: The website lead form: a public door into a multi-tenant system, and the rules that keep it narrow
 
-- **Status:** Accepted for build (plan approved 2026-10-28). Part A (forms, the public door, the hosted page, the admin
-  screens) is built in draft PR A; part B (assignment rules) follows. "Implementation notes" at the end lists where the
-  build differs from the plan above.
+- **Status:** Accepted (2026-10-28). The owner approved the plan and all seven decisions in section 15, each as recommended
+  (no CAPTCHA in v1 with an adapter ready; key shown once and stored hashed with a grace window; hosted page, iframe and link
+  in v1 with direct post and per-form CORS later; no address stored; a matching submission still creates a lead, flagged and
+  notified; `web_form` added to every workspace's lead `source` picklist; the exception to CLAUDE.md §10(d) allowed, worded as
+  in section 1, with the test that every other endpoint still answers 401). Part A (forms, the public door, the hosted page,
+  the admin screens) is built in draft PR A; part B (assignment rules) follows. "Implementation notes" at the end lists where
+  the build differs from the plan above.
 - **Date:** 2026-10-28
 - **Related:** ADR-0002 (roles and RLS), ADR-0019 (invitation tokens), ADR-0023 (duplicates), ADR-0040 (outbound and
   browser hardening), ADR-0047 (entitlements), ADR-0053 (shared rate limits), ADR-0060 (idempotency key), CLAUDE.md §5, §10, §13
-- **Migrations:** `0025_lead_forms.sql` (PR A), `0026_lead_assignment_rules.sql` (PR B). **Re-check both numbers, and this ADR's, after
-  `git fetch` right before pushing and at merge:** the tags-and-merge session may take 0025 and 0063 first.
+- **Migrations:** `0027_lead_forms.sql` (PR A), `0028_lead_assignment_rules.sql` (PR B). **Re-check both numbers, and this ADR's, after
+  `git fetch` right before pushing and at merge:** the tags-and-merge session holds 0025 (tags) and 0026 (merge) and may take
+  ADR 0064 and 0065; this ADR is renumbered to the next free one if theirs land first.
 
 ## 1. What this is, and why it needs a plan of its own
 
@@ -308,7 +313,16 @@ see forms; (c) hidden fields: the key hash and the consent history are absent fr
 
 **Database tests (real Postgres, RLS on):** `crm_auth` can read **only** the five granted columns of `lead_form_keys` (a `SELECT *`
 and a read of `lead_forms`, `leads`, `contacts` all fail); `crm_app` cannot read another tenant's keys; `crm_auth`/`crm_app`
-cannot `UPDATE`/`DELETE` where not granted; the daily-cap statement holds under 50 concurrent submissions.
+cannot `UPDATE`/`DELETE` where not granted; the daily-cap statement holds under 25 concurrent takers.
+
+**With no user (`runInTenant({ userId: null })`, which is how the public step runs).** Checked by reading every policy that
+uses `current_app_user_id()` (`users`, the `saved_views` and `bulk_operations` restrictive policies, the erasure window): none
+is on a table the public step writes, and the lead's "own" and "team" visibility is applied by the service's SQL from an
+`Actor`, not by a policy, so a lead made with no user is simply visible by its owner and by anyone whose scope reaches it.
+Tested in the database spec (as `crm_app` with a null user: the lead, the submission, the audit row, the outbox event and the
+daily count are all written, `created_by` and `actor_id` are null, and a later reader with `own` scope sees the lead only if
+they own it) and in the API spec (the lead made by a stranger is visible to its owner, to an admin, and not to another rep; the
+owner gets the notification, which the worker spec checks).
 
 **Public-endpoint tests:** a key from another tenant resolves only to its own tenant and a body naming the other tenant is a
 `422`; a rotated key (old key in grace, old key after retirement); a revoked key; a disabled form; a paused workspace; a
@@ -386,12 +400,12 @@ no-permission states:
 
 ## 12. Migrations
 
-- **`0025_lead_forms.sql` (PR A):** `lead_forms`, `lead_form_keys`, `lead_form_consent_texts`, `lead_form_submissions`,
+- **`0027_lead_forms.sql` (PR A):** `lead_forms`, `lead_form_keys`, `lead_form_consent_texts`, `lead_form_submissions`,
   `lead_form_daily_counts`; RLS enabled and forced with the standard tenant policy on each; grants written out per table (§3.2,
   §6); the `crm_auth` column grant and policy on `lead_form_keys`; `lead_form` role grants for system roles; the `web_form`
   option added to each workspace's lead `source` picklist. Built empty, so no long lock. The runner wraps the file in
   `BEGIN/COMMIT`: nothing in it needs to run outside a transaction.
-- **`0026_lead_assignment_rules.sql` (PR B):** `lead_assignment_rules`, `lead_assignment_pointers`, `lead_assignment` role grants.
+- **`0028_lead_assignment_rules.sql` (PR B):** `lead_assignment_rules`, `lead_assignment_pointers`, `lead_assignment` role grants.
 - Every table has `id, tenant_id, created_at, updated_at, created_by, updated_by`; mutable ones `version` and soft delete;
   composite indexes begin with `tenant_id`; the key table is unique on `key_hash`.
 

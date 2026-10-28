@@ -768,6 +768,21 @@ describe('a submission', () => {
     ).toBe(true);
   });
 
+  it('is visible to its owner and an admin, and not to a rep who does not own it', async () => {
+    const issued = await createForm(adminA);
+    const email = uniqueEmail();
+    await publicRequest('POST', `/${issued.key}/submissions`, {
+      body: submission(issued.form.id, { email }),
+    });
+    const lead = (await leadsOf(adminA)).find((candidate) => candidate.email === email)!;
+    expect(lead.ownerId).toBe(adminA.userId);
+
+    // The lead was made with no user, so nothing about it depends on one: scope is applied to whoever reads.
+    expect((await as(secondAdminA, 'GET', `/leads/${lead.id}`)).status).toBe(200);
+    expect((await as(repA, 'GET', `/leads/${lead.id}`)).status).toBe(404);
+    expect((await leadsOf(repA)).some((candidate) => candidate.id === lead.id)).toBe(false);
+  });
+
   it('answers a repeat with the same Idempotency-Key and makes no second lead', async () => {
     const issued = await createForm(adminA);
     const email = uniqueEmail();
