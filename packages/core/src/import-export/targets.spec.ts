@@ -3,7 +3,13 @@ import type { FieldDefinition } from '../fields/types.js';
 import { newId } from '../ids/index.js';
 import { makeActor } from '../permissions/testing.js';
 import type { FieldPermissionRow, RolePermissionRow } from '../permissions/types.js';
-import { importTargets, validateMapping, exportableFields } from './targets.js';
+import {
+  IMPORTABLE_OBJECT_TYPES,
+  MATCH_FIELDS,
+  importTargets,
+  validateMapping,
+  exportableFields,
+} from './targets.js';
 
 const roleId = newId();
 
@@ -154,6 +160,93 @@ describe('importTargets: metadata-driven, allowlisted, write-permission-filtered
       contactFields,
     ).map((target) => target.key);
     expect(keys).not.toContain('region');
+  });
+});
+
+describe('deals (ADR-0070)', () => {
+  const dealFields: FieldDefinition[] = [
+    field('name', 'text', { isSystem: true, required: true }),
+    field('amount', 'currency', { isSystem: true }),
+    field('probability', 'percent', { isSystem: true }),
+    field('expected_close_date', 'date', { isSystem: true }),
+    field('lost_reason', 'text', { isSystem: true }),
+    field('owner_id', 'user_lookup', { isSystem: true }),
+    field('source_note', 'text'),
+  ];
+  const grantFor = (objectType: string, actions: string[]): RolePermissionRow[] =>
+    actions.map((action) => ({ roleId, objectType, action, scope: 'all' }) as RolePermissionRow);
+  const everything = ['read', 'create', 'update', 'import'];
+  const dealer = (extra: RolePermissionRow[] = []) =>
+    makeActor({
+      rolePermissions: [
+        ...grantFor('deal', everything),
+        ...grantFor('account', ['read']),
+        ...grantFor('contact', ['read']),
+        ...extra,
+      ],
+    });
+
+  it('can be imported', () => {
+    expect(IMPORTABLE_OBJECT_TYPES).toContain('deal');
+    expect(MATCH_FIELDS.deal).toEqual(['external_id', 'name']);
+  });
+
+  it('offers the fields, the links, the pipeline and stage, and a deal\u2019s own ID', () => {
+    const keys = importTargets(dealer(), 'deal', dealFields).map((target) => target.key);
+    expect(keys).toEqual(
+      expect.arrayContaining([
+        'name',
+        'amount',
+        'probability',
+        'expected_close_date',
+        'lost_reason',
+        'source_note',
+        'owner_id',
+        'account_id',
+        'primary_contact_id',
+        'pipeline_id',
+        'stage_id',
+        'external_id',
+      ]),
+    );
+  });
+
+  it('offers the account and contact links only to someone who may read them', () => {
+    const blind = makeActor({ rolePermissions: grantFor('deal', everything) });
+    const keys = importTargets(blind, 'deal', dealFields).map((target) => target.key);
+    expect(keys).not.toContain('account_id');
+    expect(keys).not.toContain('primary_contact_id');
+    expect(keys).toContain('stage_id');
+  });
+
+  it('offers the dates only with the right to import original dates', () => {
+    const historian = dealer(grantFor('import_history', ['create']));
+    expect(importTargets(historian, 'deal', dealFields).map((t) => t.key)).toEqual(
+      expect.arrayContaining(['created_at', 'closed_at']),
+    );
+    expect(importTargets(dealer(), 'deal', dealFields).map((t) => t.key)).not.toContain(
+      'closed_at',
+    );
+  });
+
+  it('accepts the ID as the field to match on, and refuses a match on an unmapped field', () => {
+    const base = { columnCount: 5, duplicateMode: 'skip' as const };
+    const mapping = [
+      { column: 0, field: 'name' },
+      { column: 1, field: 'external_id' },
+    ];
+    expect(
+      validateMapping(dealer(), 'deal', dealFields, mapping, {
+        ...base,
+        matchField: 'external_id',
+      }),
+    ).toEqual([]);
+    expect(
+      validateMapping(dealer(), 'deal', dealFields, [mapping[0]!], {
+        ...base,
+        matchField: 'external_id',
+      }).map((issue) => issue.path),
+    ).toContain('matchField');
   });
 });
 

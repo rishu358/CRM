@@ -54,10 +54,10 @@ export const GRANT_CATALOGUE: readonly GrantCatalogueEntry[] = [
     scopes: RECORD_SCOPES,
   },
   {
-    // Deals are exportable but not importable: a row would have to name a stage.
+    // Deals are importable since ADR-0070: a row names its pipeline and stage by name.
     objectType: 'deal',
     kind: 'record',
-    actions: ['read', 'create', 'update', 'delete', 'export'],
+    actions: ['read', 'create', 'update', 'delete', 'export', 'import'],
     scopes: RECORD_SCOPES,
   },
   {

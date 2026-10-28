@@ -541,6 +541,7 @@ export const en = {
   'import.object.contact': 'Contacts',
   'import.object.account': 'Accounts',
   'import.object.lead': 'Leads',
+  'import.object.deal': 'Deals',
   'import.file': 'File',
   'import.file.hint': 'CSV or XLSX, up to {size} MB. The first row must be column headings.',
   'import.file.invalid': 'Choose a .csv or .xlsx file.',
@@ -596,7 +597,7 @@ export const en = {
     '{created} created, {updated} updated, {skipped} skipped, {failed} failed.',
   'import.errors.download': 'Download the error file',
   'import.errors.description':
-    'The error file lists each row that could not be imported, with the reason.',
+    'The file lists each row that could not be imported, and each deal skipped as a duplicate, with the reason.',
   'import.failed.title': 'The import could not finish',
   'import.rejected.title': 'We could not use that file',
   'import.again': 'Import another file',

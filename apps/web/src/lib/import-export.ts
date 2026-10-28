@@ -88,7 +88,7 @@ export function useUploadImport() {
   return useMutation<
     ImportRecord,
     Error,
-    { objectType: 'account' | 'contact' | 'lead'; file: File }
+    { objectType: 'account' | 'contact' | 'lead' | 'deal'; file: File }
   >({
     mutationFn: async ({ objectType, file }) => {
       const created = await api.post<ItemEnvelope<CreatedImport>>(

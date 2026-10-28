@@ -2792,6 +2792,7 @@
                 "data_subject",
                 "tenant_settings",
                 "pipeline",
+                "import_history",
                 "user",
                 "session",
                 "tenant",
@@ -17248,6 +17249,7 @@
                   "data_subject",
                   "tenant_settings",
                   "pipeline",
+                  "import_history",
                   "user",
                   "session",
                   "tenant",
@@ -17963,7 +17965,8 @@
             "enum": [
               "account",
               "contact",
-              "lead"
+              "lead",
+              "deal"
             ]
           },
           "fileName": {
@@ -18831,7 +18834,8 @@
                     "tenant_data",
                     "data_subject",
                     "tenant_settings",
-                    "pipeline"
+                    "pipeline",
+                    "import_history"
                   ]
                 },
                 "action": {
@@ -18892,7 +18896,8 @@
                     "tenant_data",
                     "data_subject",
                     "tenant_settings",
-                    "pipeline"
+                    "pipeline",
+                    "import_history"
                   ]
                 },
                 "fieldKey": {
@@ -18962,7 +18967,8 @@
                     "tenant_data",
                     "data_subject",
                     "tenant_settings",
-                    "pipeline"
+                    "pipeline",
+                    "import_history"
                   ]
                 },
                 "action": {
@@ -19023,7 +19029,8 @@
                     "tenant_data",
                     "data_subject",
                     "tenant_settings",
-                    "pipeline"
+                    "pipeline",
+                    "import_history"
                   ]
                 },
                 "fieldKey": {
@@ -19528,7 +19535,8 @@
                         "tenant_data",
                         "data_subject",
                         "tenant_settings",
-                        "pipeline"
+                        "pipeline",
+                        "import_history"
                       ]
                     },
                     "kind": {
@@ -19672,7 +19680,8 @@
                         "tenant_data",
                         "data_subject",
                         "tenant_settings",
-                        "pipeline"
+                        "pipeline",
+                        "import_history"
                       ]
                     },
                     "kind": {
@@ -20062,7 +20071,8 @@
                         "tenant_data",
                         "data_subject",
                         "tenant_settings",
-                        "pipeline"
+                        "pipeline",
+                        "import_history"
                       ]
                     },
                     "kind": {
@@ -25695,7 +25705,8 @@
                   "enum": [
                     "account",
                     "contact",
-                    "lead"
+                    "lead",
+                    "deal"
                   ]
                 },
                 "status": {
@@ -26031,7 +26042,8 @@
                     "enum": [
                       "account",
                       "contact",
-                      "lead"
+                      "lead",
+                      "deal"
                     ]
                   },
                   "status": {
@@ -26394,7 +26406,8 @@
                 "enum": [
                   "account",
                   "contact",
-                  "lead"
+                  "lead",
+                  "deal"
                 ]
               },
               "status": {
@@ -26710,7 +26723,8 @@
                 "enum": [
                   "account",
                   "contact",
-                  "lead"
+                  "lead",
+                  "deal"
                 ]
               },
               "status": {
@@ -27060,7 +27074,8 @@
                 "enum": [
                   "account",
                   "contact",
-                  "lead"
+                  "lead",
+                  "deal"
                 ]
               },
               "status": {
@@ -27376,7 +27391,8 @@
                 "enum": [
                   "account",
                   "contact",
-                  "lead"
+                  "lead",
+                  "deal"
                 ]
               },
               "status": {
@@ -28887,7 +28903,8 @@
                               "tenant_data",
                               "data_subject",
                               "tenant_settings",
-                              "pipeline"
+                              "pipeline",
+                              "import_history"
                             ]
                           },
                           "action": {
@@ -29024,7 +29041,8 @@
                               "tenant_data",
                               "data_subject",
                               "tenant_settings",
-                              "pipeline"
+                              "pipeline",
+                              "import_history"
                             ]
                           },
                           "fieldKey": {
@@ -29097,7 +29115,8 @@
                         "tenant_data",
                         "data_subject",
                         "tenant_settings",
-                        "pipeline"
+                        "pipeline",
+                        "import_history"
                       ]
                     },
                     "action": {
@@ -29211,7 +29230,8 @@
                         "tenant_data",
                         "data_subject",
                         "tenant_settings",
-                        "pipeline"
+                        "pipeline",
+                        "import_history"
                       ]
                     },
                     "action": {
@@ -31487,7 +31507,8 @@
                         "tenant_data",
                         "data_subject",
                         "tenant_settings",
-                        "pipeline"
+                        "pipeline",
+                        "import_history"
                       ]
                     },
                     "action": {
@@ -31539,7 +31560,8 @@
                         "tenant_data",
                         "data_subject",
                         "tenant_settings",
-                        "pipeline"
+                        "pipeline",
+                        "import_history"
                       ]
                     },
                     "fieldKey": {
@@ -31646,7 +31668,8 @@
                         "tenant_data",
                         "data_subject",
                         "tenant_settings",
-                        "pipeline"
+                        "pipeline",
+                        "import_history"
                       ]
                     },
                     "action": {
@@ -31698,7 +31721,8 @@
                         "tenant_data",
                         "data_subject",
                         "tenant_settings",
-                        "pipeline"
+                        "pipeline",
+                        "import_history"
                       ]
                     },
                     "fieldKey": {
@@ -31805,7 +31829,8 @@
                         "tenant_data",
                         "data_subject",
                         "tenant_settings",
-                        "pipeline"
+                        "pipeline",
+                        "import_history"
                       ]
                     },
                     "action": {
@@ -31857,7 +31882,8 @@
                         "tenant_data",
                         "data_subject",
                         "tenant_settings",
-                        "pipeline"
+                        "pipeline",
+                        "import_history"
                       ]
                     },
                     "fieldKey": {
@@ -31964,7 +31990,8 @@
                         "tenant_data",
                         "data_subject",
                         "tenant_settings",
-                        "pipeline"
+                        "pipeline",
+                        "import_history"
                       ]
                     },
                     "action": {
@@ -32016,7 +32043,8 @@
                         "tenant_data",
                         "data_subject",
                         "tenant_settings",
-                        "pipeline"
+                        "pipeline",
+                        "import_history"
                       ]
                     },
                     "fieldKey": {
@@ -32141,7 +32169,8 @@
                               "tenant_data",
                               "data_subject",
                               "tenant_settings",
-                              "pipeline"
+                              "pipeline",
+                              "import_history"
                             ]
                           },
                           "action": {
@@ -32278,7 +32307,8 @@
                               "tenant_data",
                               "data_subject",
                               "tenant_settings",
-                              "pipeline"
+                              "pipeline",
+                              "import_history"
                             ]
                           },
                           "fieldKey": {
@@ -32351,7 +32381,8 @@
                         "tenant_data",
                         "data_subject",
                         "tenant_settings",
-                        "pipeline"
+                        "pipeline",
+                        "import_history"
                       ]
                     },
                     "action": {
@@ -32465,7 +32496,8 @@
                         "tenant_data",
                         "data_subject",
                         "tenant_settings",
-                        "pipeline"
+                        "pipeline",
+                        "import_history"
                       ]
                     },
                     "action": {

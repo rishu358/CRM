@@ -34,7 +34,7 @@ import type { FieldDefinition, FieldType } from '../fields/types.js';
  *                that does not exist.
  */
 
-export const IMPORTABLE_OBJECT_TYPES = ['account', 'contact', 'lead'] as const;
+export const IMPORTABLE_OBJECT_TYPES = ['account', 'contact', 'lead', 'deal'] as const;
 export type ImportableObjectType = (typeof IMPORTABLE_OBJECT_TYPES)[number];
 
 export const EXPORTABLE_OBJECT_TYPES = ['account', 'contact', 'lead', 'deal'] as const;
@@ -49,11 +49,10 @@ export function isExportableObjectType(value: unknown): value is ExportableObjec
 }
 
 /**
- * Deal import is deliberately absent. A deal row must name a pipeline and a
- * stage, and MVP_SPEC does not say how a spreadsheet identifies one (by name?
- * by id? what when two pipelines share a stage name?). CLAUDE.md §11.8: ask,
- * do not invent a business rule. Everything below is written so adding `deal`
- * is a descriptor and a rule, not a redesign.
+ * A deal row names its pipeline and stage **by name** (ADR-0070, the owner's decision of 2026-10-28):
+ * matched exactly but ignoring case, a stage inside the pipeline the row names, the default
+ * pipeline when the row names none, the first open stage when it names no stage. Two stages of
+ * different pipelines may share a name; the pipeline settles which is meant. Nothing is guessed.
  */
 
 /** The system field keys a file may write. Everything else is rejected. */
@@ -61,6 +60,7 @@ export const IMPORTABLE_SYSTEM_KEYS: Readonly<Record<ImportableObjectType, reado
   contact: ['first_name', 'last_name', 'email', 'phone', 'whatsapp', 'title', 'lead_source'],
   account: ['name', 'domain', 'industry', 'phone', 'email', 'website', 'gstin', 'employee_count'],
   lead: ['first_name', 'last_name', 'company', 'email', 'phone', 'source', 'status'],
+  deal: ['name', 'amount', 'probability', 'expected_close_date', 'lost_reason'],
 };
 
 /**
@@ -72,6 +72,9 @@ export const MATCH_FIELDS: Readonly<Record<ImportableObjectType, readonly string
   contact: ['email', 'phone'],
   account: ['domain', 'name'],
   lead: ['email', 'phone'],
+  // A deal has no natural key. `external_id` is the person's own id for it and makes a re-run exact;
+  // `name` means the same name **on the same account** (ADR-0070).
+  deal: ['external_id', 'name'],
 };
 
 /**
@@ -83,11 +86,30 @@ export const IMPORT_LINK_KEYS: Readonly<Record<ImportableObjectType, readonly st
   contact: ['owner_id', 'account_id'],
   account: ['owner_id'],
   lead: ['owner_id'],
+  deal: ['owner_id', 'account_id', 'primary_contact_id', 'pipeline_id', 'stage_id'],
+};
+
+/**
+ * Plain text columns that are not fields: a deal's own id for itself, kept so that importing the
+ * same file again updates the deals instead of doubling them (ADR-0070).
+ */
+export const IMPORT_PLAIN_KEYS: Readonly<Record<ImportableObjectType, readonly string[]>> = {
+  contact: [],
+  account: [],
+  lead: [],
+  deal: ['external_id'],
 };
 
 const LINK_LABELS: Readonly<Record<string, string>> = {
   owner_id: 'Owner (e-mail address of a team member)',
   account_id: 'Account (name, domain or ID)',
+  primary_contact_id: 'Primary contact (e-mail address)',
+  pipeline_id: 'Pipeline (name; blank means the default pipeline)',
+  stage_id: 'Stage (name; blank means the first open stage)',
+};
+
+const PLAIN_LABELS: Readonly<Record<string, string>> = {
+  external_id: 'Your own ID for the deal (lets you import the same file again safely)',
 };
 
 /**
@@ -105,11 +127,28 @@ export function canImportLink(
   if (!IMPORT_LINK_KEYS[objectType].includes(key)) return false;
   if (!canWriteField(actor, objectType, key)) return false;
 
-  if (key === 'owner_id') {
-    const update = can(actor, 'update', { objectType });
-    return update.allowed && update.scope !== 'own';
+  switch (key) {
+    case 'owner_id': {
+      const update = can(actor, 'update', { objectType });
+      return update.allowed && update.scope !== 'own';
+    }
+    case 'account_id':
+      return can(actor, 'read', { objectType: 'account' }).allowed;
+    case 'primary_contact_id':
+      return can(actor, 'read', { objectType: 'contact' }).allowed;
+    default:
+      // Pipeline and stage: where a new deal goes is part of creating it.
+      return true;
   }
-  return can(actor, 'read', { objectType: 'account' }).allowed;
+}
+
+/** Whether this actor may fill a plain text column (a deal's own id). */
+export function canImportPlain(
+  actor: Actor,
+  objectType: ImportableObjectType,
+  key: string,
+): boolean {
+  return IMPORT_PLAIN_KEYS[objectType].includes(key) && canWriteField(actor, objectType, key);
 }
 
 /**
@@ -120,10 +159,13 @@ export const IMPORT_DATE_KEYS: Readonly<Record<ImportableObjectType, readonly st
   contact: ['created_at'],
   account: ['created_at'],
   lead: ['created_at'],
+  // `closed_at` is the date a won or lost deal closed; only a closed stage may have one.
+  deal: ['created_at', 'closed_at'],
 };
 
 const DATE_LABELS: Readonly<Record<string, string>> = {
   created_at: 'Created date (original date, YYYY-MM-DD)',
+  closed_at: 'Closed date (original date, YYYY-MM-DD; won or lost deals only)',
 };
 
 /**
@@ -210,7 +252,16 @@ export function importTargets(
       required: false,
       isSystem: true,
     }));
-  return [...targets, ...links, ...dates];
+  const plain = IMPORT_PLAIN_KEYS[objectType]
+    .filter((key) => canImportPlain(actor, objectType, key))
+    .map((key): ImportTarget => ({
+      key,
+      label: PLAIN_LABELS[key] ?? key,
+      type: 'text',
+      required: false,
+      isSystem: true,
+    }));
+  return [...targets, ...links, ...plain, ...dates];
 }
 
 export interface MappingEntry {

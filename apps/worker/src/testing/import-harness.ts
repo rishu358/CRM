@@ -56,7 +56,7 @@ export interface WorkerHarness {
   /** Put a file in storage and create the job as `POST /imports` would. */
   upload(options: {
     userId: string;
-    objectType?: 'account' | 'contact' | 'lead';
+    objectType?: 'account' | 'contact' | 'lead' | 'deal';
     fileName?: string;
     bytes: Uint8Array;
     claimedFormat?: 'csv' | 'xlsx';

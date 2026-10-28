@@ -332,6 +332,8 @@ export const deals = pgTable(
     expectedCloseDate: date('expected_close_date', { mode: 'string' }),
     closedAt: timestamptz('closed_at'),
     lostReason: text('lost_reason'),
+    /** The person's own id for the deal, from an import. Lets the same file be imported again safely (ADR-0070). */
+    externalId: text('external_id'),
   },
   (table) => [
     index('deals_tenant_created_idx')
@@ -355,6 +357,9 @@ export const deals = pgTable(
       .on(table.tenantId, table.expectedCloseDate, table.id)
       .where(sql`${table.deletedAt} is null`),
     index('deals_custom_fields_idx').using('gin', table.customFields),
+    uniqueIndex('deals_tenant_external_id_key')
+      .on(table.tenantId, table.externalId)
+      .where(sql`${table.externalId} is not null and ${table.deletedAt} is null`),
   ],
 );
 
