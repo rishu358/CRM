@@ -8,6 +8,11 @@ function rows(result: { rows: unknown[] }): Record<string, unknown>[] {
   return result.rows as Record<string, unknown>[];
 }
 
+/** A driver value as text, or null: ids and settings come back from Postgres as strings. */
+function text(value: unknown): string | null {
+  return typeof value === 'string' ? value : null;
+}
+
 /**
  * Persistence for assignment rules (migration 0028, ADR-0065 10).
  *
@@ -144,12 +149,7 @@ export class LeadAssignmentRepository {
       select rule_id, last_user_id from lead_assignment_pointers
       where tenant_id = ${tenantId}::uuid
     `);
-    return new Map(
-      rows(result).map((row) => [
-        String(row['rule_id']),
-        row['last_user_id'] === null ? null : String(row['last_user_id']),
-      ]),
-    );
+    return new Map(rows(result).map((row) => [String(row['rule_id']), text(row['last_user_id'])]));
   }
 
   /**
@@ -163,7 +163,7 @@ export class LeadAssignmentRepository {
    */
   async lockPointer(tx: Tx, tenantId: string, ruleId: string): Promise<string | null> {
     const before = await tx.execute(sql`select current_setting('lock_timeout') as value`);
-    const previous = String(rows(before)[0]?.['value'] ?? '0');
+    const previous = text(rows(before)[0]?.['value']) ?? '0';
     await tx.execute(sql`select set_config('lock_timeout', '2s', true)`);
     try {
       await tx.execute(sql`
@@ -176,8 +176,7 @@ export class LeadAssignmentRepository {
         where tenant_id = ${tenantId}::uuid and rule_id = ${ruleId}::uuid
         for update
       `);
-      const last = rows(result)[0]?.['last_user_id'];
-      return last === null || last === undefined ? null : String(last);
+      return text(rows(result)[0]?.['last_user_id']);
     } finally {
       await tx.execute(sql`select set_config('lock_timeout', ${previous}, true)`);
     }

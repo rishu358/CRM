@@ -9,7 +9,6 @@ import {
   checkRuleShape,
   newId,
   type Actor,
-  type AssignmentTrigger,
   type ErrorDetail,
   type RuleAction,
   type RuleCondition,
@@ -48,11 +47,9 @@ function serializeRule(row: RuleRow): AssignmentRule {
     conditions: rule.conditions.map((condition) => ({
       field: condition.field,
       operator: condition.operator,
-      ...(condition.value === undefined
-        ? {}
-        : { value: Array.isArray(condition.value) ? [...condition.value] : condition.value }),
+      ...(condition.value === undefined ? {} : { value: condition.value }),
     })) as AssignmentRule['conditions'],
-    action: rule.action as AssignmentRule['action'],
+    action: rule.action,
     version: row.version,
   };
 }
@@ -171,10 +168,9 @@ export class LeadAssignmentService {
           actor,
           {
             name: input.name ?? existing.name,
-            appliesTo: (input.appliesTo ?? existing.appliesTo) as AssignmentTrigger[],
-            conditions: (input.conditions ??
-              (existing.conditions as unknown as RuleCondition[])) as RuleCondition[],
-            action: (input.action ?? (existing.action as unknown as RuleAction)) as RuleAction,
+            appliesTo: input.appliesTo ?? existing.appliesTo,
+            conditions: input.conditions ?? (existing.conditions as unknown as RuleCondition[]),
+            action: input.action ?? (existing.action as unknown as RuleAction),
           },
           { checkAction: input.action !== undefined },
         );
