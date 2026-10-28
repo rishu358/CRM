@@ -212,6 +212,24 @@ CALL apply_tenant_rls('lead_form_daily_counts');
 GRANT SELECT, INSERT, UPDATE ON lead_form_daily_counts TO crm_app;
 
 -- ---------------------------------------------------------------------------
+-- lead_form_settings: the workspace-wide pause (the kill switch)
+-- ---------------------------------------------------------------------------
+-- Its own table and not `tenants.settings`: the application role may not write that column (0017
+-- narrowed what it can update, and `settings` also holds the workspace's security requirements), and
+-- a switch that closes a door to the internet is no reason to widen that.
+CREATE TABLE lead_form_settings (
+  tenant_id  uuid PRIMARY KEY REFERENCES tenants (id) ON DELETE CASCADE,
+  paused     boolean NOT NULL DEFAULT false,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  updated_by uuid
+);
+
+CALL apply_tenant_rls('lead_form_settings');
+GRANT SELECT, INSERT, UPDATE ON lead_form_settings TO crm_app;
+GRANT SELECT ON lead_form_settings TO crm_worker;
+
+-- ---------------------------------------------------------------------------
 -- Backfills for workspaces that already exist
 -- ---------------------------------------------------------------------------
 -- The migration role owns these tables and FORCE ROW LEVEL SECURITY applies to owners, so each

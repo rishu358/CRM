@@ -84,9 +84,14 @@ describe('what the public door may import', () => {
 
   it('marks exactly two handlers public, one by one, and never the controller as a whole', () => {
     const text = readFileSync(join(HERE, 'public-lead-forms.controller.ts'), 'utf8');
-    expect(text.match(/@Public\(\)/g)).toHaveLength(2);
+    // Counted as decorators on their own line, not as the word in a comment.
+    expect(text.match(/^\s+@Public\(\)\s*$/gm)).toHaveLength(2);
     expect(text).not.toMatch(/^@Public/m);
     // No cookie and no credential is read.
-    expect(text).not.toMatch(/cookies|authorization|x-tenant-id/i);
+    const code = text
+      .split('\n')
+      .filter((line) => !/^\s*(\*|\/\/|\/\*)/.test(line))
+      .join('\n');
+    expect(code).not.toMatch(/cookies|authorization|x-tenant-id/i);
   });
 });

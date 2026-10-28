@@ -161,7 +161,7 @@ export class LeadFormsService {
     return this.inTenant(actor, async (tx) => {
       const was = await this.repository.isPaused(tx, actor.tenantId);
       if (was !== paused) {
-        await this.repository.setPaused(tx, actor.tenantId, paused);
+        await this.repository.setPaused(tx, actor.tenantId, paused, actor.userId);
         await this.audit.record(tx, actor, {
           action: 'update',
           objectType: 'lead_form',

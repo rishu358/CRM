@@ -186,7 +186,9 @@ async function one<T = Record<string, unknown>>(text: string, params: unknown[] 
 
 beforeAll(async () => {
   const urls = inject('dbUrls');
-  harness = await startApiHarness(urls);
+  // A generous form limit: this file makes many forms in one workspace, and the limit itself is tested
+  // on a workspace of its own below.
+  harness = await startApiHarness(urls, { LEAD_FORMS_MAX_PER_TENANT: '80' });
   superuser = new pg.Pool({ connectionString: urls.superuser, max: 2 });
   secret = deriveFillTokenSecret(harness.env.AUTH_SECRET);
 
@@ -868,7 +870,12 @@ describe('what a stranger cannot do', () => {
     const sneaky = await publicRequest('POST', `/${issued.key}/submissions`, {
       rawBody: `{"consent":true,"fillToken":"${tokenFor(issued.form.id)}","last_name":"Rao","email":"${uniqueEmail()}","__proto__":{"tenantId":"${tenantB}"}}`,
     });
-    expect(sneaky.status).toBe(422);
+    // The server refuses a body with a `__proto__` key before the schema sees it (400), which is
+    // stronger than the schema's own refusal (422). Either way, nothing is made.
+    expect([400, 422]).toContain(sneaky.status);
+    expect(
+      (await leadsOf(adminB)).some((lead) => lead.lastName === 'Rao' && lead.source === 'web_form'),
+    ).toBe(false);
   });
 
   it('is not moved by a tenant header, a bearer token, a cookie or a query string', async () => {

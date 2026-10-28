@@ -128,7 +128,9 @@ describe('(a) tenant A cannot reach tenant B', () => {
       method === 'PATCH'
         ? { name: 'Hijacked', version: formB.form.version }
         : method === 'POST'
-          ? { version: formB.form.version, graceHours: 0 }
+          ? suffix === '/key/rotate'
+            ? { version: formB.form.version, graceHours: 0 }
+            : { version: formB.form.version }
           : undefined;
     const response = await as(adminA, method, `/lead-forms/${formB.form.id}${suffix}`, body);
     expect(response.status).toBe(404);

@@ -325,22 +325,18 @@ export class LeadFormsRepository {
   // -------------------------------------------------------------------------
 
   async isPaused(tx: Tx, tenantId: string): Promise<boolean> {
-    const found = await tx
-      .select({
-        paused: sql<boolean>`coalesce((${tenants.settings} ->> 'lead_forms_paused')::boolean, false)`,
-      })
-      .from(tenants)
-      .where(eq(tenants.id, tenantId))
-      .limit(1);
-    return found[0]?.paused ?? false;
+    const result = await tx.execute(sql`
+      select paused from lead_form_settings where tenant_id = ${tenantId}::uuid
+    `);
+    return rows(result)[0]?.['paused'] === true;
   }
 
-  async setPaused(tx: Tx, tenantId: string, paused: boolean): Promise<void> {
+  async setPaused(tx: Tx, tenantId: string, paused: boolean, by: string | null): Promise<void> {
     await tx.execute(sql`
-      update tenants
-         set settings = jsonb_set(settings, '{lead_forms_paused}', to_jsonb(${paused}::boolean), true),
-             updated_at = now()
-       where id = ${tenantId}::uuid
+      insert into lead_form_settings (tenant_id, paused, updated_by)
+      values (${tenantId}::uuid, ${paused}, ${by}::uuid)
+      on conflict (tenant_id)
+      do update set paused = excluded.paused, updated_at = now(), updated_by = excluded.updated_by
     `);
   }
 

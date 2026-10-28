@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 import {
+  boolean,
   customType,
   date,
   index,
@@ -141,3 +142,16 @@ export const leadFormDailyCounts = pgTable(
   },
   (table) => [primaryKey({ columns: [table.tenantId, table.counterKey, table.day] })],
 );
+
+/** The workspace-wide pause: one row per workspace that has ever used it (migration 0027). */
+export const leadFormSettings = pgTable('lead_form_settings', {
+  tenantId: uuid('tenant_id').primaryKey(),
+  paused: boolean('paused').notNull().default(false),
+  createdAt: timestamptz('created_at')
+    .notNull()
+    .default(sql`now()`),
+  updatedAt: timestamptz('updated_at')
+    .notNull()
+    .default(sql`now()`),
+  updatedBy: uuid('updated_by'),
+});
