@@ -194,6 +194,7 @@ import {
   savedViewUpdateSchema,
 } from './saved-views.js';
 import { bulkActionSchema, bulkResultSchema, tagSchema } from './bulk.js';
+import { tagDeleteQuerySchema, tagParamsSchema, tagUpdateSchema, tagUsageSchema } from './tags.js';
 
 /**
  * The route registry: one entry per endpoint the API actually serves.
@@ -1771,15 +1772,19 @@ const bulkRoutes: RouteDefinition[] = [
     },
     errors: [ErrorCode.CONFLICT, ...IDEMPOTENT, ...WRITABLE],
   },
+];
+
+const tagRoutes: RouteDefinition[] = [
   {
     method: 'GET',
     path: '/tags',
     operationId: 'listTags',
-    tag: 'Bulk Actions',
+    tag: 'Tags',
     summary: 'The workspace’s tags',
     description:
-      'By name, for the picker. Tags are created the first time a bulk action uses one, ' +
-      'and a name matches whatever its case.',
+      'By name, for the picker and the filter. Tags are created the first time a bulk action ' +
+      'uses one, and a name matches whatever its case. Anyone who may read a record kind may ' +
+      'list them.',
     auth: 'session',
     response: {
       kind: 'object',
@@ -1789,6 +1794,63 @@ const bulkRoutes: RouteDefinition[] = [
       data: tagSchema.array(),
     },
     errors: [],
+  },
+  {
+    method: 'GET',
+    path: '/tags/usage',
+    operationId: 'listTagUsage',
+    tag: 'Tags',
+    summary: 'Every tag with how many records carry it',
+    description:
+      'For the settings screen and the delete warning. Counts every live record in the ' +
+      'workspace, not only those the caller may read, so it needs `update` on `tenant_settings`.',
+    auth: 'session',
+    response: {
+      kind: 'object',
+      status: 200,
+      name: 'TagUsageResponse',
+      description: 'The tags with their record counts.',
+      data: tagUsageSchema.array(),
+    },
+    errors: [],
+  },
+  {
+    method: 'PATCH',
+    path: '/tags/{id}',
+    operationId: 'updateTag',
+    tag: 'Tags',
+    summary: 'Rename or recolour a tag',
+    description:
+      'Needs `update` on `tenant_settings`. `version` is required; a stale one is a 409. A name ' +
+      'that another tag already has, ignoring case, is a 409. The colour is one of a fixed list ' +
+      'of names, or `null` for none. Audited.',
+    auth: 'session',
+    params: tagParamsSchema,
+    body: { name: 'TagUpdate', schema: tagUpdateSchema },
+    response: {
+      kind: 'object',
+      status: 200,
+      name: 'TagUpdateResponse',
+      description: 'The tag as it is now.',
+      data: tagSchema,
+    },
+    errors: [...VERSIONED, ErrorCode.CONFLICT],
+  },
+  {
+    method: 'DELETE',
+    path: '/tags/{id}',
+    operationId: 'deleteTag',
+    tag: 'Tags',
+    summary: 'Delete a tag',
+    description:
+      'Needs `update` on `tenant_settings`. Removes the tag from every record it is on, in one ' +
+      'transaction, and writes one audit entry and one event for the tag with how many records ' +
+      'it was on (not one per record). A hard delete: a tag is configuration, not a record.',
+    auth: 'session',
+    params: tagParamsSchema,
+    query: tagDeleteQuerySchema,
+    response: { kind: 'empty', status: 204, description: 'Deleted.' },
+    errors: VERSIONED,
   },
 ];
 
@@ -2764,6 +2826,7 @@ export const API_ROUTES: readonly RouteDefinition[] = [
   ...recycleBinRoutes,
   ...savedViewRoutes,
   ...bulkRoutes,
+  ...tagRoutes,
   ...dataRightsRoutes,
   ...onboardingRoutes,
   ...dashboardRoutes,

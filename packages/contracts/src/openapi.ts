@@ -403,7 +403,11 @@ const TAG_DESCRIPTIONS: ReadonlyArray<{ name: string; description: string }> = [
   { name: 'Saved Views', description: 'A list’s search, filters, columns and sort, under a name.' },
   {
     name: 'Bulk Actions',
-    description: 'Edit, assign, delete and tag many records; the workspace’s tags.',
+    description: 'Edit, assign, delete and tag many records.',
+  },
+  {
+    name: 'Tags',
+    description: 'The workspace’s tags: the list, the settings screen, and the filter on a list.',
   },
 ];
 

@@ -10,6 +10,7 @@ import {
 import { api, type ApiRequestError, type ItemEnvelope, type ListEnvelope } from './api-client';
 import type { DuplicateMatch } from './leads';
 import { listKey, listSearchParams, type ListParams } from './list-view';
+import type { RecordTag } from './tags';
 
 /**
  * Server state for accounts (CLAUDE.md §9).
@@ -59,6 +60,8 @@ export interface AccountRecord {
   readonly parentAccountId?: string | null;
   readonly ownerId?: string | null;
   readonly customFields?: Record<string, unknown>;
+  /** The tags on the record, by name (ADR-0063). */
+  readonly tags?: readonly RecordTag[];
 }
 
 export const accountKeys = {

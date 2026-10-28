@@ -61,6 +61,12 @@ export const FILTER_OPERATORS = [
   'in',
   'is_null',
   'is_not_null',
+  /**
+   * The two tag operators (ADR-0063). Valid on the `tags` pseudo-field only, with a comma-separated
+   * list of tag ids: "has any of these tags" and "has none of them".
+   */
+  'has_any',
+  'has_none',
 ] as const;
 
 export type FilterOperator = (typeof FILTER_OPERATORS)[number];

@@ -1,7 +1,8 @@
 import { ValidationError, type FieldDefinition, type RecordConstraint } from '@crm/core';
-import { sortableFieldKeys } from '@crm/core';
+import { sortableFieldKeys, TAGS_FILTER_FIELD } from '@crm/core';
 import type { FilterOperator, ParsedFilter } from '@crm/contracts';
 import { contacts, and, eq, inArray, isNull, sql, type SQL } from '@crm/db';
+import { refuseTagOperator, tagsFilterToSql } from '../../common/tag-filter.js';
 import { constraintToSql as scopeToSql } from '../../common/record-scope.js';
 
 /**
@@ -100,6 +101,12 @@ export function emailIs(value: string): SQL {
 
 /** Build one filter predicate. The operator is whitelisted by the contracts layer. */
 export function filterToSql(filter: ParsedFilter, fields: readonly FieldDefinition[]): SQL {
+  if (filter.field === TAGS_FILTER_FIELD) {
+    return tagsFilterToSql('contact', filter, {
+      id: sql`${contacts.id}`,
+      tenantId: sql`${contacts.tenantId}`,
+    });
+  }
   const column = expressionForField(filter.field, fields);
   const operator: FilterOperator = filter.operator;
 
@@ -161,6 +168,9 @@ export function filterToSql(filter: ParsedFilter, fields: readonly FieldDefiniti
       return sql`${column} is null`;
     case 'is_not_null':
       return sql`${column} is not null`;
+    case 'has_any':
+    case 'has_none':
+      return refuseTagOperator(filter);
   }
 }
 

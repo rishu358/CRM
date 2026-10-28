@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { listQuerySchema } from './pagination.js';
+import { recordTagSchema } from './tags.js';
 
 /**
  * Contact API contracts (ADR-0007).
@@ -102,6 +103,8 @@ export const contactSchema = z.object({
   leadSource: z.string().nullable().optional(),
   ownerId: z.uuid().nullable().optional(),
   customFields: customFieldsSchema.optional(),
+  /** The tags on the record (ADR-0063). Anyone who can read the record sees them. */
+  tags: recordTagSchema.array().optional(),
   version: z.number().int().optional(),
   createdAt: z.iso.datetime({ offset: true }).optional(),
   updatedAt: z.iso.datetime({ offset: true }).optional(),

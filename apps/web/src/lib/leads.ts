@@ -9,6 +9,7 @@ import {
 } from '@tanstack/react-query';
 import { api, type ApiRequestError, type ItemEnvelope, type ListEnvelope } from './api-client';
 import { listKey, listSearchParams, type ListParams } from './list-view';
+import type { RecordTag } from './tags';
 
 /**
  * Server state for leads (CLAUDE.md §9).
@@ -45,6 +46,8 @@ export interface LeadRecord {
   readonly convertedAccountId?: string | null;
   readonly convertedDealId?: string | null;
   readonly customFields?: Record<string, unknown>;
+  /** The tags on the record, by name (ADR-0063). */
+  readonly tags?: readonly RecordTag[];
 }
 
 export interface DuplicateMatch {

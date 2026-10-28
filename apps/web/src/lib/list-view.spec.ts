@@ -9,6 +9,7 @@ import {
   listKey,
   listSearchParams,
   operatorNeedsValue,
+  sortableKeys,
   sortFromView,
   sortToView,
 } from './list-view';
@@ -127,13 +128,30 @@ describe('which fields the filter builder offers, and how', () => {
     }
   });
 
-  it('lists every offered field once, with the built-in dates', () => {
+  it('lists every offered field once, with tags and the built-in dates', () => {
     const fields = filterableFields(
       'contact',
       [system('last_name'), custom('region', 'text'), { ...system('last_name'), isActive: true }],
       [{ key: 'created_at', label: 'Created' }],
     );
-    expect(fields.map((field) => field.key)).toEqual(['last_name', 'region', 'created_at']);
+    expect(fields.map((field) => field.key)).toEqual(['last_name', 'region', 'tags', 'created_at']);
+  });
+
+  it('offers a filter by tag on every list, with only the two tag operators, and never as a sort', () => {
+    for (const objectType of ['contact', 'account', 'lead', 'deal'] as const) {
+      const tags = filterableFields(objectType, [], []).find((field) => field.key === 'tags');
+      expect(tags?.valueKind, objectType).toBe('tags');
+      expect(tags?.operators, objectType).toEqual(['has_any', 'has_none']);
+    }
+    const fields = filterableFields('contact', [system('last_name')], []);
+    expect(sortableKeys(fields)).toEqual(['last_name']);
+  });
+
+  it('needs tags chosen before a tag condition can be sent', () => {
+    expect(isCompleteCondition({ field: 'tags', operator: 'has_any', value: '' })).toBe(false);
+    expect(
+      isCompleteCondition({ field: 'tags', operator: 'has_none', value: crypto.randomUUID() }),
+    ).toBe(true);
   });
 });
 
