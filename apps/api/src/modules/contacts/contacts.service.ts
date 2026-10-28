@@ -8,6 +8,7 @@ import {
   MAX_DUPLICATE_MATCHES,
   newId,
   NotFoundError,
+  RecordMergedError,
   ValidationError,
   VersionConflictError,
   type Action,
@@ -25,7 +26,7 @@ import {
   type ContactUpdateInput,
   type DuplicateMatch,
 } from '@crm/contracts';
-import { recordRefFor, type Contact as ContactRow, type Tx } from '@crm/db';
+import { findMergePointer, recordRefFor, type Contact as ContactRow, type Tx } from '@crm/db';
 import { assertFiltersReadable, assertSortable } from '../../common/field-queries.js';
 import { searchForList } from '../../common/record-search.js';
 import { SEARCH_PROVIDER, type ApiSearchProvider } from '../../platform/search/search.tokens.js';
@@ -141,7 +142,7 @@ export class ContactsService {
   async getByIdInTx(actor: Actor, tx: Tx, id: string): Promise<SerializedContact> {
     assertCan(actor, 'read', { objectType: 'contact' });
 
-    const row = await this.loadOrNotFound(tx, actor, id);
+    const row = await this.loadOrMerged(tx, actor, id);
     // Record-level check. Out of scope raises 404, not 403, so the endpoint
     // cannot be used to discover that an id exists (CLAUDE.md §5.5).
     assertCan(actor, 'read', {
@@ -450,6 +451,40 @@ export class ContactsService {
   }
 
   /**
+   * Contacts with this exact email or phone, **whatever the reader may see**, as bare ids.
+   *
+   * For a caller that has no reader: the website lead form must notice that a stranger matches
+   * somebody already in the CRM (ADR-0065 7), and uses the answer **only inside the system** (a
+   * timeline entry, a notification to the matched record's owner). It never reaches the stranger, so
+   * the actor-scoped rules of `findDuplicates` (which stop one rep probing another's book) do not
+   * apply and cannot: there is no actor.
+   */
+  async findMatchesForSystem(
+    tx: Tx,
+    tenantId: string,
+    criteria: {
+      readonly email?: string | null | undefined;
+      readonly phone?: string | null | undefined;
+    },
+  ): Promise<{ id: string; ownerId: string | null; matchedOn: ('email' | 'phone')[] }[]> {
+    const email = criteria.email ?? undefined;
+    const phone = criteria.phone ?? undefined;
+    const found = await this.repository.findDuplicates(
+      tx,
+      tenantId,
+      { email, phone },
+      { kind: 'all' },
+      MAX_DUPLICATE_MATCHES,
+    );
+    return found.map((row) => {
+      const matchedOn: ('email' | 'phone')[] = [];
+      if (email !== undefined && row.email === email) matchedOn.push('email');
+      if (phone !== undefined && row.phone === phone) matchedOn.push('phone');
+      return { id: row.id, ownerId: row.ownerId, matchedOn };
+    });
+  }
+
+  /**
    * A contact the caller may attach something to, or a 422.
    *
    * Narrower than `existingIdsForLinking`, on purpose. A deal may point at any
@@ -543,6 +578,63 @@ export class ContactsService {
 
   private inTenant<T>(actor: Actor, work: (tx: Tx) => Promise<T>): Promise<T> {
     return this.database.runInTenant({ tenantId: actor.tenantId, userId: actor.userId }, work);
+  }
+
+  /**
+   * Load a contact for a read, or say why it is not there.
+   *
+   * A contact that was merged into another is answered with 410 and the surviving record's id (ADR-0064), so
+   * an old link or API id leads somewhere. Only when the caller could have read **both** the merged-away
+   * record and the survivor: otherwise it is the plain 404 of any record they cannot see, so an old id
+   * cannot be used to find out what exists (CLAUDE.md §5.5). After the Recycle Bin purge the merged-away
+   * record's owner is unknown and the survivor's visibility alone decides.
+   */
+  private async loadOrMerged(tx: Tx, actor: Actor, id: string): Promise<ContactRow> {
+    const row = await this.repository.findById(tx, actor.tenantId, id);
+    if (row !== null) return row;
+
+    const decision = can(actor, 'read', { objectType: 'contact' });
+    if (decision.allowed) {
+      const pointer = await findMergePointer(tx, actor.tenantId, 'contact', id);
+      if (pointer !== null) {
+        const oldVisible =
+          pointer.loserOwnerId === null ||
+          can(actor, 'read', {
+            objectType: 'contact',
+            record: await recordRefFor(tx, actor, pointer.loserOwnerId),
+          }).allowed;
+        const survivor = oldVisible
+          ? await this.repository.findReadable(
+              tx,
+              actor.tenantId,
+              pointer.masterId,
+              decision.constraint,
+            )
+          : null;
+        if (survivor !== null) throw new RecordMergedError('contact', pointer.masterId);
+      }
+    }
+    throw new NotFoundError('Contact');
+  }
+
+  /**
+   * The duplicates of one contact, for the "Possible duplicates" card and its Merge button (ADR-0064).
+   *
+   * The record's own identifying values go through `findDuplicates`, so it keeps every rule that
+   * method has (fields the caller may read, records in their scope, labels they may read). The record
+   * itself is never in the answer. Needs `update`: the only use of the list is to merge, and a
+   * role that cannot change a record has no use for it.
+   */
+  async duplicatesOf(actor: Actor, id: string): Promise<DuplicateMatch[]> {
+    assertCan(actor, 'update', { objectType: 'contact' });
+    return this.inTenant(actor, async (tx) => {
+      const record = await this.getByIdInTx(actor, tx, id);
+      const found = await this.findDuplicates(tx, actor, {
+        email: record['email'] as string | null | undefined,
+        phone: record['phone'] as string | null | undefined,
+      });
+      return found.filter((match) => match.id !== id);
+    });
   }
 
   /**

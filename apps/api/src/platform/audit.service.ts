@@ -19,6 +19,8 @@ export type AuditAction =
   | 'update'
   | 'delete'
   | 'restore'
+  /** A duplicate folded into another record, or the record that received it (ADR-0064). */
+  | 'merge'
   /** A Recycle Bin record removed for good by the retention job (MVP_SPEC M4). */
   | 'purge'
   /** A DPDP/GDPR erasure, and the audit redaction it performs (MVP_SPEC M11). */
@@ -70,6 +72,34 @@ export class AuditService {
       userAgent: context?.userAgent ?? null,
       requestId: context?.requestId ?? null,
     });
+  }
+
+  /**
+   * Many entries in one statement per chunk, for a change that touches many records (a merge re-points
+   * up to its cap of rows). Same columns and the same transaction as `record`, one row per entry.
+   */
+  async recordMany(
+    tx: Tx,
+    actor: Actor | WriterIdentity,
+    entries: readonly AuditEntry[],
+  ): Promise<void> {
+    const context = currentRequestContext();
+    for (let start = 0; start < entries.length; start += 500) {
+      await tx.insert(auditLogs).values(
+        entries.slice(start, start + 500).map((entry) => ({
+          id: newId(),
+          tenantId: actor.tenantId,
+          actorId: actor.userId ?? null,
+          action: entry.action,
+          objectType: entry.objectType,
+          recordId: entry.recordId,
+          changes: entry.changes ?? null,
+          ipAddress: context?.ipAddress ?? null,
+          userAgent: context?.userAgent ?? null,
+          requestId: context?.requestId ?? null,
+        })),
+      );
+    }
   }
 }
 

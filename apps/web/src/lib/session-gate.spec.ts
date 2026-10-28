@@ -23,6 +23,13 @@ describe('isPublicPath', () => {
     expect(isPublicPath('/accept-invite/anything')).toBe(true);
   });
 
+  it('lets the hosted lead form through, with its key, and not a path that merely starts with f', () => {
+    expect(isPublicPath('/f/lfk_abc')).toBe(true);
+    expect(isPublicPath('/f')).toBe(true);
+    expect(isPublicPath('/forms')).toBe(false);
+    expect(isPublicPath('/fa/b')).toBe(false);
+  });
+
   it.each([
     '/',
     '/dashboard',

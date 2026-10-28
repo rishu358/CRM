@@ -7,6 +7,7 @@ import {
   useQueryClient,
   type InfiniteData,
   type QueryClient,
+  type UseMutationOptions,
 } from '@tanstack/react-query';
 import type { MoneyValue } from './accounts';
 import { api, type ApiRequestError, type ItemEnvelope, type ListEnvelope } from './api-client';
@@ -254,8 +255,17 @@ interface MoveContext {
  */
 export function useMoveDeal() {
   const queryClient = useQueryClient();
+  return useMutation(moveDealOptions(queryClient));
+}
 
-  return useMutation<ItemEnvelope<DealRecord>, ApiRequestError, MoveDealInput, MoveContext>({
+/**
+ * The move's behaviour, apart from the hook, so the cache handling can be
+ * driven in a test without a DOM.
+ */
+export function moveDealOptions(
+  queryClient: QueryClient,
+): UseMutationOptions<ItemEnvelope<DealRecord>, ApiRequestError, MoveDealInput, MoveContext> {
+  return {
     // One queue for every move: they reach the API in the order the user made
     // them, each carrying the version the previous one produced.
     scope: { id: 'deal-moves' },
@@ -349,8 +359,17 @@ export function useMoveDeal() {
     onSettled: (_result, _error, { pipelineId }) => {
       void queryClient.invalidateQueries({ queryKey: dealKeys.board(pipelineId) });
       void queryClient.invalidateQueries({ queryKey: ['deals', 'list'] });
+      // `onMutate` cancels every deals query, and a column that was still on its first load has
+      // nothing to roll back to: cancelled, it stays empty and nothing asks for it again, so the
+      // card never appears there (and a refused move leaves the column blank). Ask again, after
+      // the move has settled so the answer includes it. Columns that hold cards keep them: their
+      // optimistic state is already right, and refetching them would reshuffle the board.
+      void queryClient.invalidateQueries({
+        queryKey: dealKeys.columns(pipelineId),
+        predicate: (query) => query.state.data === undefined,
+      });
     },
-  });
+  };
 }
 
 export interface UpdateDealInput {
