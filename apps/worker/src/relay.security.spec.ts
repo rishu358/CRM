@@ -270,3 +270,105 @@ describe('lead events reach the record timeline (MVP_SPEC M4)', () => {
     });
   });
 });
+
+describe('imported history is quiet by default (ADR-0071)', () => {
+  async function enqueueWith(payload: object, eventType = 'contact.created.v1') {
+    const eventId = newId();
+    await withoutTenant(worker.db, (tx) =>
+      tx.execute(sql`
+        insert into outbox_events (id, tenant_id, event_type, object_type, record_id, payload)
+        values (${eventId}, ${tenantA}, ${eventType}, 'contact', ${newId()},
+                ${JSON.stringify(payload)}::jsonb)
+      `),
+    );
+    return eventId;
+  }
+
+  const statusOf = async (eventId: string): Promise<string> =>
+    String(
+      (
+        await withoutTenant(worker.db, (tx) =>
+          tx.execute(sql`select status from outbox_events where id = ${eventId}`),
+        )
+      ).rows[0]?.['status'],
+    );
+
+  /** A relay that records which of two kinds of subscriber was called for which event. */
+  function spies() {
+    const quiet: string[] = [];
+    const history: string[] = [];
+    const relay = new OutboxRelay(worker.db, { logger, batchSize: 100 })
+      .on('contact.created.v1', (_tx, event) => {
+        quiet.push(event.id);
+        return Promise.resolve();
+      })
+      .onHistory('contact.created.v1', (_tx, event) => {
+        history.push(event.id);
+        return Promise.resolve();
+      });
+    return { relay, quiet, history };
+  }
+
+  it('withholds an imported event from an ordinary subscriber and gives it to a history one', async () => {
+    const { relay, quiet, history } = spies();
+    const imported = await enqueueWith({ source: 'import', importJobId: newId() });
+    await relay.tick();
+    expect(quiet).not.toContain(imported);
+    expect(history).toContain(imported);
+    expect(await statusOf(imported)).toBe('relayed');
+  });
+
+  it('gives an ordinary event to both kinds, as before', async () => {
+    const { relay, quiet, history } = spies();
+    const ordinary = await enqueueWith({ ownerId: null });
+    await relay.tick();
+    expect(quiet).toContain(ordinary);
+    expect(history).toContain(ordinary);
+  });
+
+  it('does not take any other source for an import', async () => {
+    const { relay, quiet } = spies();
+    const other = await enqueueWith({ source: 'api' });
+    await relay.tick();
+    expect(quiet).toContain(other);
+  });
+
+  it('marks an imported event with no history subscriber as relayed, not as waiting forever', async () => {
+    const eventId = await enqueueWith({ source: 'import' }, 'contact.updated.v1');
+    let called = 0;
+    await new OutboxRelay(worker.db, { logger, batchSize: 100 })
+      .on('contact.updated.v1', () => {
+        called += 1;
+        return Promise.resolve();
+      })
+      .tick();
+    expect(called).toBe(0);
+    expect(await statusOf(eventId)).toBe('relayed');
+  });
+
+  it('still projects an imported record into its timeline, worded as an import', async () => {
+    const created = await enqueueWith({ source: 'import', importJobId: newId() });
+    const updated = await enqueueWith(
+      { source: 'import', importJobId: newId(), changedFields: ['title'] },
+      'contact.updated.v1',
+    );
+    await new OutboxRelay(worker.db, { logger, batchSize: 100 })
+      .onHistory('contact.created.v1', projectTimeline)
+      .onHistory('contact.updated.v1', projectTimeline)
+      .tick();
+
+    const rows = await withTenant(appClient.db, { tenantId: tenantA, userId: null }, (tx) =>
+      tx.execute(
+        sql`select source_event_id, summary from timeline_events where source_event_id in (${created}, ${updated})`,
+      ),
+    );
+    const summaries = Object.fromEntries(
+      rows.rows.map((row) => [
+        (row as { source_event_id: string }).source_event_id,
+        (row as { summary: string }).summary,
+      ]),
+    );
+    expect(summaries[created]).toBe('Contact imported');
+    expect(summaries[updated]).toBe('Contact updated: title (by an import)');
+  });
+});

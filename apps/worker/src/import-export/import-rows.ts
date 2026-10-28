@@ -46,6 +46,7 @@ import {
   type Placement,
 } from './import-deals.js';
 import { linkValueKey, resolveLinks, type LinkCell } from './import-links.js';
+import { HISTORY_SOURCE } from '../relay.js';
 
 /**
  * Turn one chunk of staged rows into records (MVP_SPEC §M8, ADR-0029).
@@ -675,10 +676,15 @@ export async function processChunk(
       eventType: `${objectType}.${action === 'create' ? 'created' : 'updated'}.v1`,
       objectType,
       recordId,
-      payload:
-        action === 'create'
+      // `source` is what keeps imported history quiet: the relay withholds the event from every
+      // consumer that has not asked to see it (ADR-0071).
+      payload: {
+        ...(action === 'create'
           ? { ownerId: ownerId ?? null, ...payload }
-          : { changedFields: Object.keys(changes) },
+          : { changedFields: Object.keys(changes) }),
+        source: HISTORY_SOURCE,
+        importJobId: context.jobId,
+      },
       actorId: actor.userId,
     });
   };
