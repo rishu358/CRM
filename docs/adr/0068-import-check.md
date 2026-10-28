@@ -29,7 +29,10 @@ A **check** runs the file through the real import and writes nothing.
   appears in an error file with its reason, written under a name of its own (`...check.errors.csv`), because the
   import that follows writes the usual one next to the same stored file.
 - **The file is shared and is not deleted by a check.** `removeUpload` does nothing for a check, however it
-  ends. Only the end of the real import deletes the upload.
+  ends. Only the end of the real import deletes the upload. 0012 made `storage_key` unique across all jobs so
+  that one job's end could not delete another's file; it becomes unique among real imports (a partial index
+  `WHERE NOT dry_run`), which are the only jobs that delete, and a check may share the key. CI found this: the
+  first version inserted the check job and the database refused it.
 - **A check cannot become an import.** `dry_run` is part of the job's identity, which the transition trigger
   already guards, so an `UPDATE` that flips it in either direction is refused by the database.
 - **Audited.** Starting a check writes an `import` audit entry carrying `dryRun` and the id of the job it

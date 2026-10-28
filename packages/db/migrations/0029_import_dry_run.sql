@@ -6,6 +6,13 @@
 -- live table it is a catalogue change and not a rewrite.
 ALTER TABLE import_jobs ADD COLUMN dry_run boolean NOT NULL DEFAULT false;
 
+-- A check reads the same stored file as the import it checks, so two jobs now share a storage key.
+-- 0012 made the key unique across all jobs so that one job's end could never delete another's file.
+-- That still holds for real imports, which is the only kind that deletes: the rule becomes "one real
+-- import per file", and a check, which never deletes the file, may share it.
+ALTER TABLE import_jobs DROP CONSTRAINT import_jobs_storage_key_key;
+CREATE UNIQUE INDEX import_jobs_storage_key_real_key ON import_jobs (storage_key) WHERE NOT dry_run;
+
 -- The transition rule (0012) with one more fact that never changes after creation: whether the job
 -- is a check. A check that became a real import, or the reverse, would be a way to write what a
 -- person only asked to preview.
