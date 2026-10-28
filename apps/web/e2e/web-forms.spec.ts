@@ -45,6 +45,24 @@ async function api<T>(page: Page, method: string, path: string, body?: unknown):
   ) as Promise<T>;
 }
 
+interface LeadRow {
+  id: string;
+  version: number;
+  lastName: string;
+  email: string;
+  source: string;
+  ownerId: string | null;
+}
+
+/**
+ * The leads with this address, by the list's own filter. Not by search: the search index is filled
+ * by the worker a moment after a lead is made, and this has to see the lead as soon as it exists.
+ */
+async function leadsWithEmail(page: Page, email: string): Promise<LeadRow[]> {
+  const filter = encodeURIComponent(`email:eq:${email}`);
+  return (await api<{ data: LeadRow[] }>(page, 'GET', `/leads?limit=5&filter=${filter}`)).data;
+}
+
 interface FormRow {
   id: string;
   name: string;
@@ -69,13 +87,7 @@ test.describe.serial('an owner builds a web form and a visitor uses it', () => {
     for (const form of forms.filter((entry) => entry.name === FORM_NAME)) {
       await api(owner, 'DELETE', `/lead-forms/${form.id}?version=${form.version}`);
     }
-    const leads = (
-      await api<{ data: { id: string; version: number; lastName: string }[] }>(
-        owner,
-        'GET',
-        `/leads?limit=100&q=${encodeURIComponent(VISITOR)}`,
-      )
-    ).data;
+    const leads = await leadsWithEmail(owner, VISITOR_EMAIL);
     for (const lead of leads.filter((entry) => entry.lastName === VISITOR)) {
       await api(owner, 'DELETE', `/leads/${lead.id}?version=${lead.version}`);
     }
@@ -160,17 +172,10 @@ test.describe.serial('an owner builds a web form and a visitor uses it', () => {
   });
 
   test('the lead is in the CRM, from the web form, with an owner', async () => {
-    const found = (
-      await api<{
-        data: {
-          id: string;
-          lastName: string;
-          email: string;
-          source: string;
-          ownerId: string | null;
-        }[];
-      }>(owner, 'GET', `/leads?limit=100&q=${encodeURIComponent(VISITOR)}`)
-    ).data.find((lead) => lead.lastName === VISITOR);
+    // The lead exists as soon as the API has answered the visitor; the poll only covers the browser's own
+    // round trip being the last thing that finished.
+    await expect.poll(async () => (await leadsWithEmail(owner, VISITOR_EMAIL)).length).toBe(1);
+    const found = (await leadsWithEmail(owner, VISITOR_EMAIL))[0];
 
     expect(found).toBeDefined();
     expect(found!.email).toBe(VISITOR_EMAIL);
