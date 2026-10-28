@@ -562,6 +562,8 @@ export class Fixtures {
 
   /** The deal row as stored, for assertions the API's serializer would filter. */
   async dealRow(id: string): Promise<{
+    primary_contact_id: string | null;
+    account_id: string | null;
     stage_id: string;
     probability: number;
     closed_at: Date | null;
@@ -570,6 +572,8 @@ export class Fixtures {
     deleted_at: Date | null;
   } | null> {
     const result = await this.pool.query<{
+      primary_contact_id: string | null;
+      account_id: string | null;
       stage_id: string;
       probability: number;
       closed_at: Date | null;
@@ -577,7 +581,8 @@ export class Fixtures {
       version: number;
       deleted_at: Date | null;
     }>(
-      `SELECT stage_id, probability, closed_at, lost_reason, version, deleted_at
+      `SELECT primary_contact_id, account_id, stage_id, probability, closed_at, lost_reason, version,
+              deleted_at
        FROM deals WHERE id = $1`,
       [id],
     );
@@ -1065,5 +1070,222 @@ export class Fixtures {
        WHERE tenant_id = $1`,
       [tenantId, hours],
     );
+  }
+
+  /** A file row attached to a record, without any bytes behind it: enough to be counted and moved. */
+  async createAttachmentRow(
+    tenantId: string,
+    objectType: 'account' | 'contact' | 'lead' | 'deal',
+    recordId: string,
+    options: { deleted?: boolean } = {},
+  ): Promise<string> {
+    const id = newId();
+    await this.pool.query(
+      `INSERT INTO attachments (id, tenant_id, object_type, record_id, file_key, file_name, mime,
+                                size_bytes, status, deleted_at)
+       VALUES ($1, $2, $3, $4, $5, 'quote.pdf', 'application/pdf', 1024, 'ready', $6)`,
+      [id, tenantId, objectType, recordId, `k-${id}`, options.deleted === true ? new Date() : null],
+    );
+    return id;
+  }
+
+  /** Tag a record by name, creating the tag if the workspace has none of that name. */
+  async tagRecord(
+    tenantId: string,
+    objectType: 'account' | 'contact' | 'lead' | 'deal',
+    recordId: string,
+    name: string,
+  ): Promise<void> {
+    const existing = await this.pool.query<{ id: string }>(
+      `SELECT id FROM tags WHERE tenant_id = $1 AND lower(name) = lower($2)`,
+      [tenantId, name],
+    );
+    const tagId = existing.rows[0]?.id ?? newId();
+    if (existing.rows.length === 0) {
+      await this.pool.query(`INSERT INTO tags (id, tenant_id, name) VALUES ($1, $2, $3)`, [
+        tagId,
+        tenantId,
+        name,
+      ]);
+    }
+    await this.pool.query(
+      `INSERT INTO record_tags (id, tenant_id, tag_id, object_type, record_id)
+       VALUES ($1, $2, $3, $4, $5) ON CONFLICT DO NOTHING`,
+      [newId(), tenantId, tagId, objectType, recordId],
+    );
+  }
+
+  /** What a table row looks like, whatever the API would show: for a merge's before and after. */
+  async rowOf(
+    table: 'contacts' | 'accounts' | 'deals' | 'leads' | 'attachments' | 'timeline_events',
+    id: string,
+  ): Promise<Record<string, unknown> | null> {
+    // The table name is one of six literals chosen here, never caller text.
+    const result = await this.pool.query<Record<string, unknown>>(
+      `SELECT * FROM ${table} WHERE id = $1`,
+      [id],
+    );
+    return result.rows[0] ?? null;
+  }
+
+  /** Where a merged-away record went, as stored. */
+  async mergePointers(tenantId: string): Promise<
+    {
+      objectType: string;
+      loserId: string;
+      masterId: string;
+      undone: boolean;
+      moved: Record<string, number>;
+    }[]
+  > {
+    const result = await this.pool.query<{
+      object_type: string;
+      loser_id: string;
+      master_id: string;
+      undone_at: Date | null;
+      moved: Record<string, number>;
+    }>(
+      `SELECT object_type, loser_id, master_id, undone_at, moved FROM record_merges
+       WHERE tenant_id = $1 ORDER BY merged_at, id`,
+      [tenantId],
+    );
+    return result.rows.map((row) => ({
+      objectType: row.object_type,
+      loserId: row.loser_id,
+      masterId: row.master_id,
+      undone: row.undone_at !== null,
+      moved: row.moved,
+    }));
+  }
+
+  /** Rows that point at a record by `(object_type, record_id)`, per table, for "nothing was left behind". */
+  async polymorphicRowCounts(
+    tenantId: string,
+    objectType: 'account' | 'contact',
+    recordId: string,
+  ): Promise<Record<string, number>> {
+    const counts: Record<string, number> = {};
+    for (const table of [
+      'activity_links',
+      'attachments',
+      'record_tags',
+      'timeline_events',
+      'record_views',
+    ]) {
+      // The table name is one of five literals chosen here, never caller text.
+      const result = await this.pool.query<{ count: string }>(
+        `SELECT count(*)::text AS count FROM ${table}
+         WHERE tenant_id = $1 AND object_type = $2 AND record_id = $3`,
+        [tenantId, objectType, recordId],
+      );
+      counts[table] = Number(result.rows[0]?.count ?? '0');
+    }
+    return counts;
+  }
+
+  /** Search index rows for one record. */
+  async searchDocumentCount(
+    tenantId: string,
+    objectType: 'account' | 'contact' | 'lead' | 'deal',
+    recordId: string,
+  ): Promise<number> {
+    const result = await this.pool.query<{ count: string }>(
+      `SELECT count(*)::text AS count FROM search_documents
+       WHERE tenant_id = $1 AND object_type = $2 AND record_id = $3`,
+      [tenantId, objectType, recordId],
+    );
+    return Number(result.rows[0]?.count ?? '0');
+  }
+
+  /** Many timeline rows on one record at once, to cross a cap without a thousand round trips. */
+  async insertSyntheticTimeline(
+    tenantId: string,
+    objectType: 'account' | 'contact',
+    recordId: string,
+    count: number,
+  ): Promise<void> {
+    await this.pool.query(
+      `INSERT INTO timeline_events (id, tenant_id, object_type, record_id, event_type, summary)
+       SELECT gen_random_uuid(), $1, $2, $3, 'contact.updated.v1', 'Synthetic'
+       FROM generate_series(1, $4)`,
+      [tenantId, objectType, recordId, count],
+    );
+  }
+
+  /** A person's erasure request that has not finished. */
+  async openErasureRequest(tenantId: string, contactId: string): Promise<void> {
+    await this.pool.query(
+      `INSERT INTO erasure_requests (id, tenant_id, subject_object_type, subject_record_id, status)
+       VALUES ($1, $2, 'contact', $3, 'pending')`,
+      [newId(), tenantId, contactId],
+    );
+  }
+
+  /** Mark a record as demo data, the way loading sample data does (ADR-0037). */
+  async registerSample(
+    tenantId: string,
+    objectType: 'account' | 'contact',
+    recordId: string,
+  ): Promise<void> {
+    await this.pool.query(
+      `INSERT INTO sample_records (id, tenant_id, object_type, record_id) VALUES ($1, $2, $3, $4)`,
+      [newId(), tenantId, objectType, recordId],
+    );
+  }
+
+  async isSample(
+    tenantId: string,
+    objectType: 'account' | 'contact',
+    recordId: string,
+  ): Promise<boolean> {
+    const result = await this.pool.query<{ count: string }>(
+      `SELECT count(*)::text AS count FROM sample_records
+       WHERE tenant_id = $1 AND object_type = $2 AND record_id = $3`,
+      [tenantId, objectType, recordId],
+    );
+    return Number(result.rows[0]?.count ?? '0') > 0;
+  }
+
+  /** Put a bad value straight into a column, as a legacy import or an old release could have. */
+  async setContactEmailRaw(id: string, email: string): Promise<void> {
+    await this.pool.query(`UPDATE contacts SET email = $2 WHERE id = $1`, [id, email]);
+  }
+
+  /** The people on a deal, with their roles, by contact id. */
+  async dealContactRows(dealId: string): Promise<{ contactId: string; role: string | null }[]> {
+    const result = await this.pool.query<{ contact_id: string; role: string | null }>(
+      `SELECT contact_id, role FROM deal_contacts WHERE deal_id = $1 ORDER BY contact_id`,
+      [dealId],
+    );
+    return result.rows.map((row) => ({ contactId: row.contact_id, role: row.role }));
+  }
+
+  async setContactConsent(id: string, consent: Record<string, unknown>): Promise<void> {
+    await this.pool.query(`UPDATE contacts SET consent = $2::jsonb WHERE id = $1`, [
+      id,
+      JSON.stringify(consent),
+    ]);
+  }
+
+  async contactConsent(id: string): Promise<Record<string, unknown>> {
+    const result = await this.pool.query<{ consent: Record<string, unknown> }>(
+      `SELECT consent FROM contacts WHERE id = $1`,
+      [id],
+    );
+    return result.rows[0]?.consent ?? {};
+  }
+
+  /** What an idempotency key remembers, as stored, to prove it holds ids and counts and no field values. */
+  async bulkOperationRows(
+    tenantId: string,
+    userId: string,
+    key: string,
+  ): Promise<{ object_type: string; action: string; result: unknown }[]> {
+    const result = await this.pool.query<{ object_type: string; action: string; result: unknown }>(
+      `SELECT object_type, action, result FROM bulk_operations
+       WHERE tenant_id = $1 AND created_by = $2 AND idempotency_key = $3`,
+      [tenantId, userId, key],
+    );
+    return result.rows;
   }
 }
