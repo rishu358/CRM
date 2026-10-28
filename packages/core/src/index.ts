@@ -22,5 +22,6 @@ export * from './config/production.js';
 export * from './deployment/index.js';
 export * from './entitlements/index.js';
 export * from './bulk/index.js';
+export * from './merge/index.js';
 export * from './pipelines/index.js';
 export * from './whatsapp/index.js';

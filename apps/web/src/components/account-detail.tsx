@@ -25,6 +25,7 @@ import { useBrand } from './brand-provider';
 import { WhoCanSeeButton } from './who-can-see';
 import { ActivityPanel } from './activity-panel';
 import { AttachmentPanel } from './attachment-panel';
+import { DuplicatesCard } from './duplicates-card';
 import { TagsCard } from './tag-editor';
 import { InlineField } from './inline-field';
 import { WhatsAppChat } from './whatsapp-chat';
@@ -141,7 +142,17 @@ export function AccountDetail({ id }: { id: string }) {
     const status = query.error.status;
     return (
       <AppShell>
-        {status === 403 ? (
+        {status === 410 ? (
+          <ErrorState
+            title={t('merge.merged.title')}
+            description={t('merge.merged.description')}
+            action={
+              <Link href={`/accounts/${query.error.error.details[0]?.message ?? ''}`}>
+                <Button>{t('merge.merged.open')}</Button>
+              </Link>
+            }
+          />
+        ) : status === 403 ? (
           <NoPermissionState
             title={t('accounts.forbidden.title')}
             description={t('accounts.forbidden.description')}
@@ -310,6 +321,7 @@ export function AccountDetail({ id }: { id: string }) {
             </Card>
           ) : null}
 
+          <DuplicatesCard objectType="account" recordId={id} />
           <TagsCard objectType="account" recordId={id} tags={account.tags} />
           <CustomFieldsCard
             objectType="account"
