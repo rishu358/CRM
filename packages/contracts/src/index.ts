@@ -22,5 +22,6 @@ export * from './onboarding.js';
 export * from './dashboard.js';
 export * from './fields.js';
 export * from './pipeline-editor.js';
+export * from './lead-forms.js';
 export * from './routes.js';
 export * from './openapi.js';

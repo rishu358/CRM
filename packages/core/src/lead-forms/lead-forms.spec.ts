@@ -142,6 +142,16 @@ describe('which fields a form may offer', () => {
     ]);
   });
 
+  it('makes the form ask for a field the workspace requires on every lead', () => {
+    const required = [...DEFINITIONS, field('region', 'text', { required: true, position: 160 })];
+    expect(checkFormFields(FIELDS, required).map((i) => i.message)).toEqual([
+      'This workspace requires "region" on every lead, so the form must ask for it and require it',
+    ]);
+    expect(
+      checkFormFields([...FIELDS, { key: 'region', label: 'Region', required: true }], required),
+    ).toEqual([]);
+  });
+
   it('caps a form at 25 fields', () => {
     const many = Array.from({ length: 26 }, () => FIELDS[0]!);
     expect(checkFormFields(many, DEFINITIONS).some((i) => i.message.includes('at most 25'))).toBe(

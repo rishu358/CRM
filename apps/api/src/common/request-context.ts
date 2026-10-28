@@ -37,6 +37,19 @@ export function currentRequestContext(): RequestContext | undefined {
   return storage.getStore();
 }
 
+/**
+ * Run `work` with the caller's network identity removed from the context: no address and no user agent
+ * reach the audit entry or anything else that reads it.
+ *
+ * For the public lead-form routes, which store neither on purpose (ADR-0063 6): the address lives only in
+ * the rate-limit counters, for the length of their window. The idempotency holder is shared, not copied.
+ */
+export function withoutNetworkIdentity<T>(work: () => T): T {
+  const current = storage.getStore();
+  if (current === undefined) return work();
+  return storage.run({ ...current, ipAddress: null, userAgent: null }, work);
+}
+
 /** Note that this request is a replay of an earlier one with the same Idempotency-Key. */
 export function markIdempotentReplay(): void {
   const context = storage.getStore();

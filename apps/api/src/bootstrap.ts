@@ -13,6 +13,7 @@ import {
   type RequestContext,
 } from './common/request-context.js';
 import { corsOrigins, loadApiEnv, previousAuthSecrets, type ApiEnv } from './config/env.js';
+import { isPublicApiPath, limitPublicBodies } from './common/public-routes.js';
 import { AddressRateLimitService } from './platform/rate-limit.service.js';
 
 /**
@@ -96,7 +97,12 @@ export async function createApp(env: ApiEnv = loadApiEnv()): Promise<NestFastify
     await addressLimit.check(request.ip);
   });
 
-  app.enableCors({
+  // The public lead-form routes are the one part of the API a stranger reaches (ADR-0063). Their body
+  // is capped before it is read, and the browser's cross-origin approval is never given there: they
+  // take no cookies, and v1 has no cross-origin embed.
+  limitPublicBodies(instance);
+
+  const credentialedCors = {
     origin: corsOrigins(env),
     credentials: true,
     // CSRF protection for cookie-authenticated state changes (CLAUDE.md §5.9).
@@ -109,6 +115,13 @@ export async function createApp(env: ApiEnv = loadApiEnv()): Promise<NestFastify
       'idempotency-key',
     ],
     exposedHeaders: ['x-request-id', 'idempotent-replayed'],
+  };
+  // One answer per request: the credentialed allow-list everywhere, and no approval at all for the
+  // public routes. (`delegator` is @fastify/cors's per-request option.)
+  app.enableCors({
+    delegator: (request, callback) => {
+      callback(null, isPublicApiPath(request.url) ? { origin: false } : credentialedCors);
+    },
   });
 
   app.setGlobalPrefix('api/v1');

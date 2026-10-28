@@ -107,6 +107,11 @@ export const ErrorCode = {
    * Distinct from `SERVICE_BUSY`, whose remedy is to wait.
    */
   SEARCH_TIMEOUT: 'SEARCH_TIMEOUT',
+  /**
+   * A website lead form was submitted too soon after its page was drawn, or the page is too old to
+   * be trusted (ADR-0063 4.1). Nothing is lost: the visitor reloads the page and sends it again.
+   */
+  FORM_EXPIRED: 'FORM_EXPIRED',
   /** Unexpected failure. Details are logged, never returned. */
   INTERNAL: 'INTERNAL',
 } as const;
@@ -233,6 +238,16 @@ export class SearchTimeoutError extends DomainError {
       ErrorCode.SEARCH_TIMEOUT,
       'That search is too broad to answer quickly. Try a more specific search.',
       503,
+    );
+  }
+}
+
+export class FormExpiredError extends DomainError {
+  constructor() {
+    super(
+      ErrorCode.FORM_EXPIRED,
+      'Please reload the page and send the form again.',
+      422,
     );
   }
 }

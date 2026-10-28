@@ -319,6 +319,75 @@ export class AccessRepository {
     return new Map(rows(result).map((row) => [String(row.user_id), String(row.name)] as const));
   }
 
+  /**
+   * Which of these people may own a record of this type: an active member, not deleted, whose role
+   * grants both `read` and `update` on it (any scope). A person who could not open and work a lead
+   * must not be given one (ADR-0063 10). An empty candidate list means nobody is asked about.
+   */
+  async membersWhoCanWork(
+    tx: Tx,
+    tenantId: string,
+    objectType: string,
+    userIds: readonly string[],
+  ): Promise<string[]> {
+    if (userIds.length === 0) return [];
+    const result = await tx.execute(sql`
+      select m.user_id
+      from memberships m
+      join users u on u.id = m.user_id
+      where m.tenant_id = ${tenantId}::uuid
+        and m.status = 'active'
+        and u.deleted_at is null
+        and m.user_id in (${sql.join(
+          userIds.map((id) => sql`${id}::uuid`),
+          sql`, `,
+        )})
+        and (
+          select count(distinct rp.action)
+          from role_permissions rp
+          where rp.tenant_id = m.tenant_id
+            and rp.role_id = m.role_id
+            and rp.object_type = ${objectType}
+            and rp.action in ('read', 'update')
+        ) = 2
+    `);
+    return rows(result).map((row) => String(row.user_id));
+  }
+
+  /**
+   * The longest-standing active member whose role holds this capability, and who can also work
+   * leads. A capability and not a role name: no role is ever recognised by what it is called
+   * (CLAUDE.md §5.3).
+   */
+  async earliestMemberWith(
+    tx: Tx,
+    tenantId: string,
+    capability: { readonly objectType: string; readonly action: string },
+  ): Promise<string | null> {
+    const result = await tx.execute(sql`
+      select m.user_id
+      from memberships m
+      join users u on u.id = m.user_id
+      where m.tenant_id = ${tenantId}::uuid
+        and m.status = 'active'
+        and u.deleted_at is null
+        and exists (
+          select 1 from role_permissions rp
+          where rp.tenant_id = m.tenant_id and rp.role_id = m.role_id
+            and rp.object_type = ${capability.objectType} and rp.action = ${capability.action}
+        )
+        and (
+          select count(distinct rp.action) from role_permissions rp
+          where rp.tenant_id = m.tenant_id and rp.role_id = m.role_id
+            and rp.object_type = 'lead' and rp.action in ('read', 'update')
+        ) = 2
+      order by coalesce(m.joined_at, m.created_at), m.user_id
+      limit 1
+    `);
+    const row = rows(result)[0];
+    return row === undefined ? null : String(row.user_id);
+  }
+
   async findMember(tx: Tx, tenantId: string, userId: string): Promise<MemberRow | null> {
     const result = await tx.execute(sql`
       select m.user_id, u.name, u.email, m.role_id, r.name as role_name, m.status, m.joined_at

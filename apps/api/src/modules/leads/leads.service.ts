@@ -17,6 +17,7 @@ import {
   VersionConflictError,
   type Action,
   type Actor,
+  WEB_FORM_SOURCE,
   type FieldDefinition,
   type RecordConstraint,
   type ObjectType,
@@ -41,7 +42,7 @@ import { assertFiltersReadable, assertSortable } from '../../common/field-querie
 import { searchForList } from '../../common/record-search.js';
 import { SEARCH_PROVIDER, type ApiSearchProvider } from '../../platform/search/search.tokens.js';
 import { DatabaseService } from '../../database/database.service.js';
-import { AuditService, diffChanges } from '../../platform/audit.service.js';
+import { AuditService, diffChanges, type WriterIdentity } from '../../platform/audit.service.js';
 import { FieldMetadataService } from '../../platform/field-metadata.service.js';
 import { IdempotencyService } from '../../platform/idempotency.service.js';
 import { OutboxService } from '../../platform/outbox.service.js';
@@ -274,6 +275,123 @@ export class LeadsService {
         },
       ),
     );
+  }
+
+  /**
+   * A lead made by a website form (ADR-0063), inside the form's own transaction.
+   *
+   * **There is no actor, and nothing here asks `can()`**: the visitor is a stranger, and what a stranger
+   * may do is exactly what the form's definition says, which the public module has already enforced
+   * (the form's key, its whitelist of fields, its caps). So this takes a bare identity (the workspace and
+   * no user) and fixes everything a visitor must never choose: the source is `web_form`, the status is
+   * `new`, the owner is whoever the assignment chose, and no field permission can hide anything because
+   * the only fields in play are the ones the form asked for. What it keeps from `create`: the tenant's
+   * own custom-field rules, the audit entry and the `lead.created.v1` event, in the same transaction as
+   * the insert. The audit entry has no address and no user agent (the caller removes them, ADR-0063 6).
+   */
+  async createFromWebFormInTx(
+    identity: WriterIdentity,
+    tx: Tx,
+    input: {
+      readonly standard: Readonly<Record<string, string>>;
+      readonly customFields: Record<string, unknown>;
+      readonly ownerId: string | null;
+      readonly formId: string;
+    },
+  ): Promise<{ id: string; email: string | null; phone: string | null; ownerId: string | null }> {
+    const fields = await this.fieldMetadata.forObject(tx, identity.tenantId, 'lead');
+    const customFields = this.validateCustomFields(input.customFields, fields, false);
+    const standard = input.standard;
+
+    const row = await this.repository.insert(tx, {
+      id: newId(),
+      tenantId: identity.tenantId,
+      ownerId: input.ownerId,
+      firstName: standard['firstName'] ?? null,
+      lastName: standard['lastName'] ?? '',
+      company: standard['company'] ?? null,
+      email: standard['email'] ?? null,
+      phone: standard['phone'] ?? null,
+      source: WEB_FORM_SOURCE,
+      status: 'new',
+      customFields,
+      createdBy: null,
+      updatedBy: null,
+    });
+
+    await this.audit.record(tx, identity, {
+      action: 'create',
+      objectType: 'lead',
+      recordId: row.id,
+      changes: diffChanges(
+        {},
+        {
+          lastName: row.lastName,
+          company: row.company,
+          email: row.email,
+          status: row.status,
+          ownerId: row.ownerId,
+          source: row.source,
+        },
+      ),
+    });
+    await this.outbox.publish(tx, identity, {
+      eventType: 'lead.created.v1',
+      objectType: 'lead',
+      recordId: row.id,
+      payload: { ownerId: row.ownerId, source: WEB_FORM_SOURCE, formId: input.formId },
+    });
+
+    return { id: row.id, email: row.email ?? null, phone: row.phone, ownerId: row.ownerId };
+  }
+
+  /**
+   * Leads, and contacts, that match a new lead's email or phone exactly, **whatever a reader may see**,
+   * as ids only, for the system's own use (ADR-0063 7). Never returned to a visitor.
+   */
+  async findMatchesForSystem(
+    tx: Tx,
+    tenantId: string,
+    criteria: {
+      readonly email: string | null;
+      readonly phone: string | null;
+      readonly excludeLeadId: string;
+    },
+  ): Promise<
+    {
+      type: 'lead' | 'contact';
+      id: string;
+      ownerId: string | null;
+      matchedOn: ('email' | 'phone')[];
+    }[]
+  > {
+    const email = criteria.email ?? undefined;
+    const phone = criteria.phone ?? undefined;
+    const [leads, contacts] = [
+      await this.repository.findDuplicates(
+        tx,
+        tenantId,
+        { email, phone, excludeId: criteria.excludeLeadId },
+        { kind: 'all' },
+        MAX_DUPLICATE_MATCHES,
+      ),
+      await this.contacts.findMatchesForSystem(tx, tenantId, { email, phone }),
+    ];
+    const matchedOn = (row: { email: string | null; phone: string | null }) => {
+      const on: ('email' | 'phone')[] = [];
+      if (email !== undefined && row.email === email) on.push('email');
+      if (phone !== undefined && row.phone === phone) on.push('phone');
+      return on;
+    };
+    return [
+      ...leads.map((row) => ({
+        type: 'lead' as const,
+        id: row.id,
+        ownerId: row.ownerId,
+        matchedOn: matchedOn({ email: row.email ?? null, phone: row.phone }),
+      })),
+      ...contacts.map((row) => ({ type: 'contact' as const, ...row })),
+    ];
   }
 
   async update(actor: Actor, id: string, input: LeadUpdateInput): Promise<SerializedLead> {

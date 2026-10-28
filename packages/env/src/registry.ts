@@ -569,6 +569,103 @@ export const REGISTRY = {
     { default: false },
   ),
 
+  // ---- website lead forms (ADR-0063) -------------------------------------------------------
+  PUBLIC_FORM_RATE_WINDOW_SECONDS: defaultedInt(
+    {
+      scopes: ['api'],
+      group: 'limits',
+      description:
+        'Window for the per-address, per-form and bad-key limits on the public lead-form routes.',
+      note: "The per-workspace limit has its own fixed one-hour window. These limits use their own Redis keys, so a flood on a form can never spend the budget a workspace's staff use (ADR-0063 4.1).",
+    },
+    { default: 600, sign: 'positive', max: 86_400 },
+  ),
+  PUBLIC_FORM_RATE_PER_ADDRESS_FORM: defaultedInt(
+    {
+      scopes: ['api'],
+      group: 'limits',
+      description: 'Most submissions one address may send to one form per window.',
+    },
+    { default: 10, sign: 'positive', max: 1000 },
+  ),
+  PUBLIC_FORM_RATE_PER_ADDRESS: defaultedInt(
+    {
+      scopes: ['api'],
+      group: 'limits',
+      description: 'Most submissions one address may send to all forms together per window.',
+    },
+    { default: 30, sign: 'positive', max: 1000 },
+  ),
+  PUBLIC_FORM_RATE_PER_FORM: defaultedInt(
+    {
+      scopes: ['api'],
+      group: 'limits',
+      description: 'Most requests one form may take per window, from everybody.',
+    },
+    { default: 200, sign: 'positive', max: 100_000 },
+  ),
+  PUBLIC_FORM_RATE_VIEWS_PER_FORM: defaultedInt(
+    {
+      scopes: ['api'],
+      group: 'limits',
+      description:
+        "Most times one form's public definition may be fetched (a page being drawn) per window, from everybody. Far looser than submissions: a popular page is read much more than it is filled in.",
+    },
+    { default: 2000, sign: 'positive', max: 1_000_000 },
+  ),
+  PUBLIC_FORM_RATE_PER_TENANT_HOUR: defaultedInt(
+    {
+      scopes: ['api'],
+      group: 'limits',
+      description:
+        "Most requests all of a workspace's forms together may take per hour, so one form cannot use the whole allowance.",
+    },
+    { default: 1000, sign: 'positive', max: 1_000_000 },
+  ),
+  PUBLIC_FORM_RATE_BAD_KEY_PER_ADDRESS: defaultedInt(
+    {
+      scopes: ['api'],
+      group: 'limits',
+      description:
+        'Most requests with a key that does not work one address may send per window. Tighter than real use, so key guessing is throttled harder.',
+    },
+    { default: 20, sign: 'positive', max: 1000 },
+  ),
+  LEAD_FORMS_MAX_PER_TENANT: defaultedInt(
+    {
+      scopes: ['api'],
+      group: 'limits',
+      description: 'Most website lead forms one workspace may have.',
+    },
+    { default: 10, sign: 'positive', max: 1000 },
+  ),
+  LEAD_FORM_MAX_PER_FORM_PER_DAY: defaultedInt(
+    {
+      scopes: ['api'],
+      group: 'limits',
+      description:
+        'Most leads one form may create per UTC day. Counted in the database, so it holds when Redis does not.',
+    },
+    { default: 1000, sign: 'positive', max: 10_000_000 },
+  ),
+  LEAD_FORM_MAX_PER_TENANT_PER_DAY: defaultedInt(
+    {
+      scopes: ['api'],
+      group: 'limits',
+      description:
+        "Most leads all of a workspace's forms together may create per UTC day. Counted in the database.",
+    },
+    { default: 2000, sign: 'positive', max: 10_000_000 },
+  ),
+  PUBLIC_FORMS_BASE_URL: optionalUrl({
+    scopes: ['api'],
+    group: 'addresses',
+    description:
+      "The public origin of the hosted lead-form pages (`/f/<key>`), used to build the link and the embed snippet. Unset: the web app's own origin (`WEB_URL`).",
+    example: 'https://forms.example.com',
+    note: "Set this to a separate domain once hosting exists, so visitors to a form never touch the app's own origin (ADR-0063 5.1). Must be `https` in production.",
+  }),
+
   // ---- email -------------------------------------------------------------------------------
   EMAIL_PROVIDER: defaultedChoice(
     {

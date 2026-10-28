@@ -441,6 +441,40 @@ export class ContactsService {
   }
 
   /**
+   * Contacts with this exact email or phone, **whatever the reader may see**, as bare ids.
+   *
+   * For a caller that has no reader: the website lead form must notice that a stranger matches
+   * somebody already in the CRM (ADR-0063 7), and uses the answer **only inside the system** (a
+   * timeline entry, a notification to the matched record's owner). It never reaches the stranger, so
+   * the actor-scoped rules of `findDuplicates` (which stop one rep probing another's book) do not
+   * apply and cannot: there is no actor.
+   */
+  async findMatchesForSystem(
+    tx: Tx,
+    tenantId: string,
+    criteria: {
+      readonly email?: string | null | undefined;
+      readonly phone?: string | null | undefined;
+    },
+  ): Promise<{ id: string; ownerId: string | null; matchedOn: ('email' | 'phone')[] }[]> {
+    const email = criteria.email ?? undefined;
+    const phone = criteria.phone ?? undefined;
+    const found = await this.repository.findDuplicates(
+      tx,
+      tenantId,
+      { email, phone },
+      { kind: 'all' },
+      MAX_DUPLICATE_MATCHES,
+    );
+    return found.map((row) => {
+      const matchedOn: ('email' | 'phone')[] = [];
+      if (email !== undefined && row.email === email) matchedOn.push('email');
+      if (phone !== undefined && row.phone === phone) matchedOn.push('phone');
+      return { id: row.id, ownerId: row.ownerId, matchedOn };
+    });
+  }
+
+  /**
    * A contact the caller may attach something to, or a 422.
    *
    * Narrower than `existingIdsForLinking`, on purpose. A deal may point at any

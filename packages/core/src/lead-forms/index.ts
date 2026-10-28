@@ -141,6 +141,19 @@ export function checkFormFields(
     issues.push({ path: 'fields', message: 'A form must ask for the last name, and require it' });
   }
 
+  // A field this workspace requires on every lead has to be asked for, or no submission could ever
+  // be saved and the visitor would be refused for something the page never showed them.
+  for (const definition of definitions) {
+    if (!definition.isActive || !definition.required || definition.isSystem) continue;
+    const asked = fields.find((field) => field.key === definition.key);
+    if (asked === undefined || !asked.required) {
+      issues.push({
+        path: 'fields',
+        message: `This workspace requires "${definition.label}" on every lead, so the form must ask for it and require it`,
+      });
+    }
+  }
+
   const reachable = fields.some((field) => field.key === 'email' || field.key === 'phone');
   if (!reachable) {
     issues.push({ path: 'fields', message: 'A form must ask for an email or a phone number' });
