@@ -57,8 +57,13 @@ loserVersion, fields, dryRun }`. The master keeps its id, takes the loser's valu
    (a hidden field is absent, not null). The chosen values are validated by the object's own update schema, so a
    legacy e-mail that no longer passes an edit's rules is a clear 422, not a 500. `created_at` and `created_by`
    follow the older of the two records, because "customer since" is a fact about the relationship. A contact's
-   consent is the master's, and a channel recorded only on the loser is carried over, so a merge never drops a
-   recorded consent; consent is not part of the update contract, so it is not a field of the choice.
+   consent is the master's per channel, and a channel recorded only on the loser is carried over, so a channel
+   with no record never loses the loser's. **A channel both records have keeps the master's entry**, and the
+   loser's stays only on its Recycle Bin copy: nothing in the product writes consent yet (it is not part of the
+   update contract, and the column holds no agreed list of statuses), so there is no way today to say which of
+   two entries is the more restrictive. When consent tracking is built (MVP_SPEC M11) this rule must be revisited
+   so that a withdrawn consent can never be overridden by a granted one in a merge; it is recorded here so it is
+   not forgotten. Consent is not a field of the choice.
 
 6. **What moves, and what stays.** Re-pointed, in the same transaction:
    - a contact: `deals.primary_contact_id`, `deal_contacts.contact_id`, `leads.converted_contact_id`;

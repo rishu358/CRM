@@ -41,7 +41,7 @@ export type MergeChoice = (typeof MERGE_CHOICES)[number];
  *   - the owner: handing a record to somebody else is a reassignment, held to stricter rules (ADR-0033),
  *     so the master keeps its owner
  *   - consent and the raw address of a contact: not part of the update contract, so not fields of an edit;
- *     the master's stay, and a channel recorded only on the loser is carried over (ADR-0064)
+ *     the master’s stay per channel, and a channel recorded only on the loser is carried over (ADR-0064)
  *
  * Two lists exist, here and in each module's serializer (`STANDARD_FIELD_KEYS`). A spec in the API
  * asserts that they agree, so a field added to one and not the other fails a test rather than becoming

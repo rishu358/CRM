@@ -603,8 +603,10 @@ export async function moveMergeChildren(
  *
  * - `created_at` and `created_by` follow whichever record is older, because "customer since" is a fact
  *   about the relationship and the earlier record is the better witness to it (ADR-0064).
- * - A contact's consent is kept as the master's; a channel recorded only on the loser is carried over, so
- *   a merge never drops a recorded consent. A missing address is taken from the loser.
+ * - A contact's consent is kept as the master's per channel; a channel recorded only on the loser is carried
+ *   over. A channel both have keeps the master's entry: no status list exists yet to say which is more
+ *   restrictive, and ADR-0064 records that this must be revisited when consent tracking is built. A
+ *   missing address is taken from the loser.
  * - If the master was sample data (ADR-0037) and the loser was not, it is deregistered: "remove the
  *   sample data" would otherwise delete a record that now holds a real customer's history.
  */
