@@ -1,9 +1,10 @@
 'use client';
 
-import { QUERY_COLUMNS, type BusinessObjectType } from '@crm/core';
+import { QUERY_COLUMNS, TAGS_FILTER_FIELD, type BusinessObjectType } from '@crm/core';
 import type { FilterOperator, SavedView, ViewCondition } from '@crm/contracts';
 import { useCallback, useMemo, useState } from 'react';
 import type { FieldDefinitionView } from './fields';
+import { t } from './i18n';
 
 /**
  * The state of a list that a saved view stores: the search, the conditions and the sort, and the
@@ -63,7 +64,15 @@ export function sortFromView(view: SavedView['sort']): string | null {
 /* Which fields a condition may use, and how                                    */
 /* -------------------------------------------------------------------------- */
 
-export type ValueKind = 'text' | 'number' | 'date' | 'timestamp' | 'boolean' | 'picklist';
+export type ValueKind =
+  | 'text'
+  | 'number'
+  | 'date'
+  | 'timestamp'
+  | 'boolean'
+  | 'picklist'
+  /** The `tags` pseudo-field: a comma-separated list of tag ids, chosen from the workspace's tags. */
+  | 'tags';
 
 export interface FilterableField {
   readonly key: string;
@@ -194,6 +203,14 @@ export function filterableFields(
       result.push(candidate);
     }
   }
+  // Every list can be filtered by tag; it is not a field definition, so it is added here (ADR-0063).
+  result.push({
+    key: TAGS_FILTER_FIELD,
+    label: t('tags.field'),
+    valueKind: 'tags',
+    operators: ['has_any', 'has_none'],
+    options: [],
+  });
   for (const extra of builtIn) {
     if (seen.has(extra.key)) continue;
     const candidate = filterableField(objectType, {
@@ -209,7 +226,9 @@ export function filterableFields(
 
 /** Sort options are the same fields, ascending and descending. */
 export function sortableKeys(fields: readonly FilterableField[]): string[] {
-  return fields.filter((field) => field.valueKind !== 'boolean').map((field) => field.key);
+  return fields
+    .filter((field) => field.valueKind !== 'boolean' && field.valueKind !== 'tags')
+    .map((field) => field.key);
 }
 
 /* -------------------------------------------------------------------------- */

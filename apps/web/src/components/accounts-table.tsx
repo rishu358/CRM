@@ -8,6 +8,7 @@ import { DEFAULT_PREFERENCES, formatDate, formatMoney } from '../lib/format';
 import { EmptyCell, RecordLink, SelectAllTh, SelectRowTd } from './table-parts';
 import type { Selection } from '../lib/selection';
 import { t, type TranslationKey } from '../lib/i18n';
+import { TagList } from './tag-editor';
 import { CUSTOM_COLUMN_PREFIX, customCellText } from './custom-fields';
 import type { FieldDefinitionView } from '../lib/fields';
 
@@ -190,6 +191,7 @@ export function AccountsTable({
                   </SortableTh>
                 );
               })}
+              <Th>{t('tags.label')}</Th>
               <Th>{t('account.created')}</Th>
             </Tr>
           ))}
@@ -209,6 +211,9 @@ export function AccountsTable({
                   {flexRender(cell.column.columnDef.cell, cell.getContext())}
                 </Td>
               ))}
+              <Td>
+                <TagList tags={row.original.tags} />
+              </Td>
               <Td className="figures whitespace-nowrap text-muted-foreground">
                 {formatDate(row.original.createdAt, DEFAULT_PREFERENCES)}
               </Td>

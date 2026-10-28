@@ -11,6 +11,7 @@ import {
 import type { MoneyValue } from './accounts';
 import { api, type ApiRequestError, type ItemEnvelope, type ListEnvelope } from './api-client';
 import { listKey, listSearchParams, type ListParams } from './list-view';
+import type { RecordTag } from './tags';
 
 /**
  * Server state for deals and pipelines (CLAUDE.md §9).
@@ -66,6 +67,8 @@ export interface DealRecord {
   readonly ownerId?: string | null;
   readonly contacts?: readonly DealPerson[];
   readonly customFields?: Record<string, unknown>;
+  /** The tags on the record, by name (ADR-0063). */
+  readonly tags?: readonly RecordTag[];
 }
 
 export interface BoardColumn {

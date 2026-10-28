@@ -26,6 +26,7 @@ import { useBrand } from './brand-provider';
 import { WhoCanSeeButton } from './who-can-see';
 import { ActivityPanel } from './activity-panel';
 import { AttachmentPanel } from './attachment-panel';
+import { TagsCard } from './tag-editor';
 import { ConvertLeadDialog } from './convert-lead-dialog';
 import { InlineField } from './inline-field';
 import { WhatsAppChat } from './whatsapp-chat';
@@ -290,6 +291,7 @@ export function LeadDetail({ id }: { id: string }) {
             </CardBody>
           </Card>
 
+          <TagsCard objectType="lead" recordId={id} tags={lead.tags} />
           <CustomFieldsCard
             objectType="lead"
             values={lead.customFields}
