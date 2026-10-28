@@ -586,13 +586,11 @@ describe('owner and account columns (ADR-0067)', () => {
       )
     ).rows[0];
 
-  const errorsOf = async (jobId: string) =>
-    (
-      await h.pool.query(
-        `select field, message from import_errors where job_id = $1 order by row_number`,
-        [jobId],
-      )
-    ).rows;
+  /** What the user is told: the downloadable error file (`import_errors` is cleared when the job finishes). */
+  const errorFile = (job: { errorFileKey: string | null }): string => {
+    expect(job.errorFileKey).toBeTruthy();
+    return h.readText(job.errorFileKey as string);
+  };
 
   it('gives each row the owner and account its cells name, by e-mail, name, domain or id', async () => {
     const tag = unique();
@@ -661,10 +659,9 @@ describe('owner and account columns (ADR-0067)', () => {
     expect(job).toMatchObject({ createdCount: 1, failedCount: 2 });
     expect(await ownerOf(`noowner-${tag}@x.io`)).toBeUndefined();
     expect(await ownerOf(`noacct-${tag}@x.io`)).toBeUndefined();
-    expect(await errorsOf(job.id)).toEqual([
-      { field: 'owner_id', message: 'Owner: unknown member' },
-      { field: 'account_id', message: `Account: no account matches "No such company ${tag}"` },
-    ]);
+    const errors = errorFile(job);
+    expect(errors).toContain('owner_id,Owner: unknown member');
+    expect(errors).toMatch(new RegExp(`Account: no account matches "+"No such company ${tag}`));
   });
 
   it('never guesses: two accounts with one name is an error, not the first one', async () => {
@@ -675,7 +672,7 @@ describe('owner and account columns (ADR-0067)', () => {
       mapping: LINKED,
     });
     expect(job).toMatchObject({ createdCount: 0, failedCount: 1 });
-    expect((await errorsOf(job.id))[0]?.['message']).toMatch(/matches 2 accounts/);
+    expect(errorFile(job)).toMatch(/matches 2 accounts/);
   });
 
   it('does not find an account in another workspace, by name, domain or id', async () => {
@@ -722,10 +719,9 @@ describe('owner and account columns (ADR-0067)', () => {
     );
     expect(job).toMatchObject({ createdCount: 1, failedCount: 2 });
     expect(await ownerOf(`m-${tag}@x.io`)).toMatchObject({ owner_id: rep, account_id: mine });
-    expect((await errorsOf(job.id)).map((row) => row['message'])).toEqual([
-      `Account: no account matches "Colleague Co ${tag}"`,
-      `Account: no account matches "Ghost Co ${tag}"`,
-    ]);
+    const errors = errorFile(job);
+    expect(errors).toMatch(new RegExp(`no account matches "+"Colleague Co ${tag}`));
+    expect(errors).toMatch(new RegExp(`no account matches "+"Ghost Co ${tag}`));
   });
 
   it('a `team`-scope importer may hand rows to a teammate, and to nobody outside the team', async () => {
@@ -753,10 +749,7 @@ describe('owner and account columns (ADR-0067)', () => {
     expect(await ownerOf(`tm-${tag}@x.io`)).toMatchObject({ owner_id: teammate });
     expect(await ownerOf(`self-${tag}@x.io`)).toMatchObject({ owner_id: lead });
     // Somebody outside the team answers exactly as somebody who is not a member at all.
-    expect((await errorsOf(job.id)).map((row) => row['message'])).toEqual([
-      'Owner: unknown member',
-      'Owner: unknown member',
-    ]);
+    expect(errorFile(job).match(/Owner: unknown member/g)).toHaveLength(2);
   });
 
   it('will not hand a row to someone who could not see it', async () => {
@@ -767,7 +760,7 @@ describe('owner and account columns (ADR-0067)', () => {
       mapping: LINKED,
     });
     expect(job).toMatchObject({ createdCount: 0, failedCount: 1 });
-    expect((await errorsOf(job.id))[0]?.['message']).toMatch(/cannot see this kind of record/);
+    expect(errorFile(job)).toMatch(/cannot see this kind of record/);
   });
 
   it('will not hand a row to a member whose membership is not active', async () => {

@@ -602,6 +602,9 @@ function MapColumns({ job }: { job: ImportRecord }) {
       </fieldset>
 
       <p className="text-sm text-muted-foreground">{t('import.owner.note')}</p>
+      {targets.some((target) => target.key === 'owner_id') ? (
+        <p className="text-sm text-muted-foreground">{t('import.owner.offered')}</p>
+      ) : null}
 
       {problem !== null ? (
         <div role="alert" className="space-y-1 text-sm text-destructive">
