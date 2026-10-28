@@ -499,7 +499,7 @@ export const REGISTRY = {
       scopes: ['api'],
       group: 'auth',
       description:
-        'Window for the per-address ceiling on sign-in, sign-up, password reset and invitation acceptance, which have no user to key a limit on (CLAUDE.md §5.14).',
+        'Window for the sign-in limits: the per-address ceiling on sign-in, sign-up, password reset and invitation acceptance, which have no user to key a limit on (CLAUDE.md §5.14), and the failed-attempt budgets below (ADR-0064).',
     },
     { default: 900, sign: 'positive' },
   ),
@@ -507,10 +507,29 @@ export const REGISTRY = {
     {
       scopes: ['api'],
       group: 'auth',
-      description: 'Most such attempts one address may make per window.',
+      description:
+        'Most requests of any kind (successful or not) one address may make to those routes per window. A flood ceiling, sized for an office behind one address; the budget for wrong passwords is `AUTH_FAILURE_MAX_PER_IP`.',
       note: 'The end-to-end suite signs in dozens of times from one address, which this ceiling rightly refuses on a second run inside the window. Raise it locally before running `pnpm test:e2e` repeatedly, or restart the API between runs (the counter is in-process).',
     },
-    { default: 50, sign: 'positive' },
+    { default: 600, sign: 'positive' },
+  ),
+  AUTH_FAILURE_MAX_PER_ACCOUNT: defaultedInt(
+    {
+      scopes: ['api'],
+      group: 'auth',
+      description:
+        'Most failed sign-ins (wrong password or code) one account may have per window, from any address. Past it every attempt on that account is refused until the window ends, a correct password included, and an unknown address is counted the same way so the refusal does not say whether an account exists (ADR-0064).',
+    },
+    { default: 10, sign: 'positive' },
+  ),
+  AUTH_FAILURE_MAX_PER_IP: defaultedInt(
+    {
+      scopes: ['api'],
+      group: 'auth',
+      description:
+        'Most failed sign-ins one address may have per window, across all accounts. Successful sign-ins do not count, so an office behind one address is not locked out by its own people signing in (ADR-0064).',
+    },
+    { default: 100, sign: 'positive' },
   ),
   AUTH_THROTTLE_MAX_DELAY_MS: defaultedInt(
     {
