@@ -69,6 +69,8 @@ relay.on('activity.completed.v1', projectTimeline);
 for (const objectType of ['account', 'contact', 'lead', 'deal', 'activity'] as const) {
   relay.on(`${objectType}.restored.v1`, projectTimeline);
 }
+relay.on('contact.merged.v1', projectTimeline);
+relay.on('account.merged.v1', projectTimeline);
 
 /**
  * Notifications and the digest (MVP_SPEC M6, ADR-0025).

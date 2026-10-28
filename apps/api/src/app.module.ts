@@ -24,6 +24,7 @@ import { PipelineEditorModule } from './modules/pipeline-editor/pipeline-editor.
 import { PipelinesModule } from './modules/pipelines/pipelines.module.js';
 import { OnboardingModule } from './modules/onboarding/onboarding.module.js';
 import { RecycleBinModule } from './modules/recycle-bin/recycle-bin.module.js';
+import { MergeModule } from './modules/merge/merge.module.js';
 import { SavedViewsModule } from './modules/saved-views/saved-views.module.js';
 import { SearchModule } from './modules/search/search.module.js';
 import { OpenApiController } from './openapi/openapi.controller.js';
@@ -69,6 +70,7 @@ export class AppModule {
         CustomizationModule,
         SavedViewsModule,
         BulkModule,
+        MergeModule,
       ],
       controllers: [HealthController, OpenApiController],
       providers: [{ provide: APP_GUARD, useExisting: AuthGuard }],

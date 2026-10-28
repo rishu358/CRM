@@ -57,4 +57,27 @@ export class OutboxService {
       ...(options.availableAt === undefined ? {} : { availableAt: options.availableAt }),
     });
   }
+
+  /** Many events in one statement per chunk, in the caller's transaction; see `AuditService.recordMany`. */
+  async publishMany(
+    tx: Tx,
+    actor: Actor | WriterIdentity,
+    events: readonly DomainEvent[],
+  ): Promise<void> {
+    const context = currentRequestContext();
+    for (let start = 0; start < events.length; start += 500) {
+      await tx.insert(outboxEvents).values(
+        events.slice(start, start + 500).map((event) => ({
+          id: newId(),
+          tenantId: actor.tenantId,
+          eventType: event.eventType,
+          objectType: event.objectType,
+          recordId: event.recordId,
+          payload: event.payload ?? {},
+          actorId: actor.userId,
+          requestId: context?.requestId ?? null,
+        })),
+      );
+    }
+  }
 }

@@ -10,6 +10,7 @@ import {
   money,
   newId,
   NotFoundError,
+  RecordMergedError,
   ValidationError,
   VersionConflictError,
   type Action,
@@ -28,7 +29,7 @@ import {
   type DuplicateMatch,
   type MoneyInput,
 } from '@crm/contracts';
-import { recordRefFor, type Account as AccountRow, type Tx } from '@crm/db';
+import { findMergePointer, recordRefFor, type Account as AccountRow, type Tx } from '@crm/db';
 import { isConstraintViolation } from '../../common/db-errors.js';
 import { assertFiltersReadable, assertSortable } from '../../common/field-queries.js';
 import { searchForList } from '../../common/record-search.js';
@@ -149,7 +150,7 @@ export class AccountsService {
   async getByIdInTx(actor: Actor, tx: Tx, id: string): Promise<SerializedAccount> {
     assertCan(actor, 'read', { objectType: 'account' });
 
-    const row = await this.loadOrNotFound(tx, actor, id);
+    const row = await this.loadOrMerged(tx, actor, id);
     // Record-level check. Out of scope raises 404, not 403, so the endpoint
     // cannot be used to discover that an id exists (CLAUDE.md §5.5).
     assertCan(actor, 'read', {
@@ -545,6 +546,63 @@ export class AccountsService {
 
   private inTenant<T>(actor: Actor, work: (tx: Tx) => Promise<T>): Promise<T> {
     return this.database.runInTenant({ tenantId: actor.tenantId, userId: actor.userId }, work);
+  }
+
+  /**
+   * Load a account for a read, or say why it is not there.
+   *
+   * A account that was merged into another is answered with 410 and the surviving record's id (ADR-0064), so
+   * an old link or API id leads somewhere. Only when the caller could have read **both** the merged-away
+   * record and the survivor: otherwise it is the plain 404 of any record they cannot see, so an old id
+   * cannot be used to find out what exists (CLAUDE.md §5.5). After the Recycle Bin purge the merged-away
+   * record's owner is unknown and the survivor's visibility alone decides.
+   */
+  private async loadOrMerged(tx: Tx, actor: Actor, id: string): Promise<AccountRow> {
+    const row = await this.repository.findById(tx, actor.tenantId, id);
+    if (row !== null) return row;
+
+    const decision = can(actor, 'read', { objectType: 'account' });
+    if (decision.allowed) {
+      const pointer = await findMergePointer(tx, actor.tenantId, 'account', id);
+      if (pointer !== null) {
+        const oldVisible =
+          pointer.loserOwnerId === null ||
+          can(actor, 'read', {
+            objectType: 'account',
+            record: await recordRefFor(tx, actor, pointer.loserOwnerId),
+          }).allowed;
+        const survivor = oldVisible
+          ? await this.repository.findReadable(
+              tx,
+              actor.tenantId,
+              pointer.masterId,
+              decision.constraint,
+            )
+          : null;
+        if (survivor !== null) throw new RecordMergedError('account', pointer.masterId);
+      }
+    }
+    throw new NotFoundError('Account');
+  }
+
+  /**
+   * The duplicates of one account, for the "Possible duplicates" card and its Merge button (ADR-0064).
+   *
+   * The record's own identifying values go through `findDuplicates`, so it keeps every rule that
+   * method has (fields the caller may read, records in their scope, labels they may read). The record
+   * itself is never in the answer. Needs `update`: the only use of the list is to merge, and a
+   * role that cannot change a record has no use for it.
+   */
+  async duplicatesOf(actor: Actor, id: string): Promise<DuplicateMatch[]> {
+    assertCan(actor, 'update', { objectType: 'account' });
+    return this.inTenant(actor, async (tx) => {
+      const record = await this.getByIdInTx(actor, tx, id);
+      const found = await this.findDuplicates(tx, actor, {
+        domain: record['domain'] as string | null | undefined,
+        name: record['name'] as string | null | undefined,
+      });
+      return found.filter((match) => match.id !== id);
+    });
   }
 
   /**
