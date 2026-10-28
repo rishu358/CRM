@@ -82,7 +82,8 @@ refused request does not hold a connection for the delay.
   than only through the web server and the proxy (RUNBOOK §1 keeps it on the private network), a caller can
   rotate that header and dodge the **address** budgets and the flood ceiling. The **account** budget does not
   depend on it. Replacing `trustProxy: true` with an explicit list of proxies is the proper fix and is a
-  deployment and security decision, not made here.
+  deployment and security decision, not made here. The requirement is written down as an operator rule in
+  DEPLOYMENT.md ("Network requirement") and RUNBOOK §1.
 - Per-process counting during a Redis outage (ADR-0053 §3) applies to these budgets too: each instance allows
   its own.
 
