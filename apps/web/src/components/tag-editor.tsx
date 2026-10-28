@@ -1,7 +1,7 @@
 'use client';
 
 import { normalizeTagName, TAG_NAME_MAX, type BusinessObjectType } from '@crm/core';
-import { Card, CardBody, CardHeader, Input, TagChip, type TagChipColor } from '@crm/ui';
+import { Card, CardBody, CardHeader, Input, TagChip } from '@crm/ui';
 import { useId, useMemo, useRef, useState } from 'react';
 import { useTags } from '../lib/bulk';
 import { t } from '../lib/i18n';
@@ -28,7 +28,7 @@ export function TagList({
     <ul className="flex flex-wrap items-center gap-1" aria-label={t('tags.label')}>
       {shown.map((tag) => (
         <li key={tag.id} className="max-w-40">
-          <TagChip name={tag.name} color={tag.color as TagChipColor | null} />
+          <TagChip name={tag.name} color={tag.color} />
         </li>
       ))}
       {hidden > 0 ? (
@@ -137,7 +137,7 @@ export function TagEditor({
             <li key={tag.id} className="max-w-full">
               <TagChip
                 name={tag.name}
-                color={tag.color as TagChipColor | null}
+                color={tag.color}
                 removeLabel={t('tags.remove', { name: tag.name })}
                 onRemove={() => run('tag_remove', tag.name)}
               />

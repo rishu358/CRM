@@ -20,7 +20,6 @@ import {
   Th,
   THead,
   Tr,
-  type TagChipColor,
 } from '@crm/ui';
 import { useState } from 'react';
 import { t, tPlural } from '../lib/i18n';
@@ -121,7 +120,7 @@ export function TagsScreen() {
               {tags.map((tag) => (
                 <Tr key={tag.id}>
                   <Td>
-                    <TagChip name={tag.name} color={tag.color as TagChipColor | null} />
+                    <TagChip name={tag.name} color={tag.color} />
                   </Td>
                   <Td className="text-muted-foreground">{usageText(tag)}</Td>
                   <Td className="text-right">
