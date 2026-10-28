@@ -51,15 +51,17 @@ const relay = new OutboxRelay(client.db, {
   logger,
 });
 
-relay.on('contact.created.v1', projectTimeline);
-relay.on('contact.updated.v1', projectTimeline);
+// The timeline and the search index keep a record's own bookkeeping true, so they see imported
+// history too; everything else is quiet for it by default (ADR-0071).
+relay.onHistory('contact.created.v1', projectTimeline);
+relay.onHistory('contact.updated.v1', projectTimeline);
 relay.on('contact.deleted.v1', projectTimeline);
-relay.on('deal.created.v1', projectTimeline);
-relay.on('deal.updated.v1', projectTimeline);
+relay.onHistory('deal.created.v1', projectTimeline);
+relay.onHistory('deal.updated.v1', projectTimeline);
 relay.on('deal.deleted.v1', projectTimeline);
 relay.on('deal.stage_changed.v1', projectTimeline);
-relay.on('lead.created.v1', projectTimeline);
-relay.on('lead.updated.v1', projectTimeline);
+relay.onHistory('lead.created.v1', projectTimeline);
+relay.onHistory('lead.updated.v1', projectTimeline);
 relay.on('lead.deleted.v1', projectTimeline);
 relay.on('lead.converted.v1', projectTimeline);
 relay.on('contact.linked_from_lead.v1', projectTimeline);
@@ -118,8 +120,8 @@ relay.on('notification.digest_due.v1', sendDigest(notificationOptions));
 const search = new PostgresSearchProvider();
 
 for (const objectType of ['account', 'contact', 'lead', 'deal', 'activity'] as const) {
-  relay.on(`${objectType}.created.v1`, indexSearchDocument(search));
-  relay.on(`${objectType}.updated.v1`, indexSearchDocument(search));
+  relay.onHistory(`${objectType}.created.v1`, indexSearchDocument(search));
+  relay.onHistory(`${objectType}.updated.v1`, indexSearchDocument(search));
   // A restore is an un-delete, so it re-projects exactly as an update does
   // (MVP_SPEC M4). The index handler reads the record, so a record restored and
   // re-deleted before the relay caught up still ends in the right state.

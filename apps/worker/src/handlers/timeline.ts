@@ -1,6 +1,6 @@
 import { newId } from '@crm/core';
 import { timelineEvents, type Tx, sql } from '@crm/db';
-import type { OutboxRow } from '../relay.js';
+import { isHistoricalEvent, type OutboxRow } from '../relay.js';
 
 /**
  * Projects domain events into the per-record timeline (ADR-0005, ADR-0006).
@@ -74,8 +74,20 @@ export async function projectTimeline(tx: Tx, event: OutboxRow): Promise<void> {
     });
 }
 
-/** "Contact updated" is less useful than naming what changed. */
+/**
+ * What the timeline says, and for imported history that it came from a file: a record whose creation
+ * date was set by an import was not "created" on the day the row appears in its timeline.
+ */
 function describeChange(event: OutboxRow, fallback: string): string {
+  const text = describeEvent(event, fallback);
+  if (!isHistoricalEvent(event)) return text;
+  return event.event_type.endsWith('.created.v1')
+    ? text.replace(/ created$/, ' imported')
+    : `${text} (by an import)`;
+}
+
+/** "Contact updated" is less useful than naming what changed. */
+function describeEvent(event: OutboxRow, fallback: string): string {
   if (event.event_type === 'deal.stage_changed.v1') {
     const from = event.payload['fromStageName'];
     const to = event.payload['toStageName'];

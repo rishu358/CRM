@@ -551,6 +551,39 @@ describe('audit and events', () => {
     });
   });
 
+  it('marks every record event as coming from the import, so the relay keeps imported history quiet', async () => {
+    const tag = unique();
+    const existing = await h.fixtures.createContact(h.tenantId, {
+      ownerId: owner,
+      lastName: 'Existing',
+      email: `quiet-up-${tag}@x.io`,
+    });
+    const job = await importAs(
+      owner,
+      [
+        ['Last', 'Email', 'Title'],
+        ['New', `quiet-${tag}@x.io`, 'CEO'],
+        ['Existing', `quiet-up-${tag}@x.io`, 'VP'],
+      ],
+      { duplicateMode: 'update', matchField: 'email' },
+    );
+    expect(job).toMatchObject({ createdCount: 1, updatedCount: 1 });
+
+    const created = await h.pool.query(
+      `select e.payload from outbox_events e join contacts c on c.id = e.record_id
+       where e.tenant_id = $1 and c.email::text = $2 and e.event_type = 'contact.created.v1'`,
+      [h.tenantId, `quiet-${tag}@x.io`],
+    );
+    const updated = await h.pool.query(
+      `select payload from outbox_events
+       where tenant_id = $1 and record_id = $2 and event_type = 'contact.updated.v1'`,
+      [h.tenantId, existing],
+    );
+    for (const row of [created.rows[0], updated.rows[0]]) {
+      expect(row?.['payload']).toMatchObject({ source: 'import', importJobId: job.id });
+    }
+  });
+
   it('the import-job audit trail records start and completion with the counts', async () => {
     const job = await importAs(owner, [
       ['Last', 'Email', 'Title'],
