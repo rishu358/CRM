@@ -65,7 +65,7 @@ test.describe('merge', () => {
     await page.goto(`/contacts/${keep}`);
     const card = page.getByTestId('duplicates-card');
     await expect(card.getByRole('link', { name: new RegExp(`Duplicate${stamp}`) })).toBeVisible();
-    await card.getByRole('button', { name: /^Merge with / }).click();
+    await card.getByRole('button', { name: /^Merge with Ashaa/ }).click();
 
     // ---- choose values: the phone only the other has is selected for us; the first name we keep -------
     const dialog = page.getByTestId('merge-dialog');
@@ -128,10 +128,7 @@ test.describe('merge', () => {
 
     await page.goto(`/contacts/${keep}`);
     const card = page.getByTestId('duplicates-card');
-    await card
-      .getByRole('button', { name: /^Merge with / })
-      .first()
-      .click();
+    await card.getByRole('button', { name: /^Merge with RepDup/ }).click();
     const dialog = page.getByTestId('merge-dialog');
     await dialog.getByTestId('merge-review').click();
     await expect(dialog.getByRole('alert')).toContainText('may not merge them');

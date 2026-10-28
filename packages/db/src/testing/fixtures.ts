@@ -613,6 +613,7 @@ export class Fixtures {
       lastName?: string;
       email?: string | null;
       phone?: string | null;
+      title?: string | null;
       accountId?: string | null;
       customFields?: Record<string, unknown>;
     } = {},
@@ -620,8 +621,8 @@ export class Fixtures {
     const contactId = newId();
     await this.pool.query(
       `INSERT INTO contacts (id, tenant_id, owner_id, first_name, last_name, email, phone,
-                             account_id, custom_fields)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+                             account_id, custom_fields, title)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
       [
         contactId,
         tenantId,
@@ -633,6 +634,7 @@ export class Fixtures {
         options.phone ?? null,
         options.accountId ?? null,
         JSON.stringify(options.customFields ?? {}),
+        options.title ?? null,
       ],
     );
     return contactId;

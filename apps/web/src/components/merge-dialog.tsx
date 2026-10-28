@@ -10,6 +10,7 @@ import { useFieldDefinitions } from '../lib/fields';
 import { t, tPlural, type PluralBase, type TranslationKey } from '../lib/i18n';
 import {
   PLURALS,
+  REFERENCE_FIELDS,
   defaultChoices,
   loserFields,
   mergeRows,
@@ -57,6 +58,13 @@ function displayName(objectType: MergeableObjectType, record: MergeRecord): stri
     objectType === 'contact' ? [record['firstName'], record['lastName']] : [record['name']];
   const name = parts.filter((part) => typeof part === 'string' && part.length > 0).join(' ');
   return name.length > 0 ? name : t('field.empty');
+}
+
+/** A field's value as a person reads it: an id of another record is "a linked company", not the id. */
+function shown(key: string, value: unknown): string {
+  const text = plainValue(value);
+  if (text.length === 0) return t('field.empty');
+  return REFERENCE_FIELDS[key] === undefined ? text : t('merge.fields.reference');
 }
 
 function errorText(error: ApiRequestError): string {
@@ -291,11 +299,13 @@ export function MergeDialog({
                     {rows.map((row) => (
                       <tr key={row.key}>
                         <th scope="row" className="px-3 py-2 text-left font-medium">
-                          {row.label}
+                          {REFERENCE_FIELDS[row.key] === undefined
+                            ? row.label
+                            : t(REFERENCE_FIELDS[row.key] as TranslationKey)}
                         </th>
                         {row.same ? (
                           <td colSpan={2} className="px-3 py-2 text-muted-foreground">
-                            {plainValue(row.master) || t('field.empty')}
+                            {shown(row.key, row.master)}
                             <span className="ml-2 text-xs">{t('merge.fields.same')}</span>
                           </td>
                         ) : (
@@ -307,10 +317,7 @@ export function MergeDialog({
                                 onChange={() =>
                                   setOverrides((all) => ({ ...all, [row.key]: side }))
                                 }
-                                label={
-                                  plainValue(side === 'master' ? row.master : row.loser) ||
-                                  t('field.empty')
-                                }
+                                label={shown(row.key, side === 'master' ? row.master : row.loser)}
                                 data-testid={`merge-${row.key}-${side}`}
                               />
                             </td>
@@ -357,6 +364,9 @@ export function MergeDialog({
               return <li key={kind}>{tPlural(COUNT_LABELS[kind], count)}</li>;
             })}
           </ul>
+          {Object.values(result.counts).every((count) => count === null || count === 0) ? (
+            <p className="text-sm">{t('merge.review.nothing')}</p>
+          ) : null}
           <p className="text-sm text-muted-foreground">{t('merge.review.unseen')}</p>
           <p className="text-sm text-muted-foreground">
             {t(`merge.review.bin.${objectType}` as TranslationKey)}

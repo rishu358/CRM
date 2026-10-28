@@ -107,6 +107,17 @@ export function useMerge(objectType: MergeableObjectType) {
 /* The field table                                                              */
 /* -------------------------------------------------------------------------- */
 
+/**
+ * Fields that hold the id of another record. Their value is an id nobody can read, so the dialog says
+ * "a linked company" rather than showing it, and the label is the person's word, not the field key.
+ */
+export const REFERENCE_FIELDS: Readonly<
+  Record<string, 'merge.field.company' | 'merge.field.parent'>
+> = {
+  accountId: 'merge.field.company',
+  parentAccountId: 'merge.field.parent',
+};
+
 export interface MergeFieldRow {
   /** The key the API takes in `fields`: the API name for a standard field, the field key for a custom one. */
   readonly key: string;

@@ -443,7 +443,10 @@ describe('what the person is told afterwards', () => {
     dataOf<Result>(await post(await mergeBody('account', master, loser)), 200);
 
     const accountAudit = await harness.fixtures.auditEntries(tenantId, 'account');
-    const merges = accountAudit.filter((entry) => entry.action === 'merge');
+    // This workspace has merged other accounts in earlier tests; these two are the ones that matter.
+    const merges = accountAudit.filter(
+      (entry) => entry.action === 'merge' && [master, loser].includes(entry.recordId ?? ''),
+    );
     expect(merges.map((entry) => entry.recordId).sort()).toEqual([master, loser].sort());
     const loserEntry = merges.find((entry) => entry.recordId === loser)!;
     expect(loserEntry.changes).toMatchObject({
