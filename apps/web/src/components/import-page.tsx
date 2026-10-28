@@ -1,6 +1,12 @@
 'use client';
 
-import { IMPORT_LIMITS } from '@crm/core';
+import {
+  IMPORT_LIMITS,
+  detectTemplate,
+  suggestMapping,
+  templateHeadings,
+  type ImportTemplateId,
+} from '@crm/core';
 import {
   Button,
   Card,
@@ -398,8 +404,19 @@ function Working({ title, description }: { title: string; description: string })
 // Step 2: map columns
 // ---------------------------------------------------------------------------
 
-/** "Last Name", "last_name" and "LASTNAME" are the same heading. */
-const normalize = (value: string): string => value.toLowerCase().replace(/[^a-z0-9]/g, '');
+/** A blank file with the headings of the generic template, saved from the browser (nothing is uploaded). */
+function downloadTemplate(headings: readonly string[], fileName: string): void {
+  const BOM = '\uFEFF';
+  const blob = new Blob([`${BOM}${headings.join(',')}\n`], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = fileName;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+}
 
 function MapColumns({ job }: { job: ImportRecord }) {
   const columns = job.columns ?? [];
@@ -409,25 +426,23 @@ function MapColumns({ job }: { job: ImportRecord }) {
   const check = useCheckImport();
   const [checked, setChecked] = useState<{ id: string; signature: string } | null>(null);
 
-  // Suggest a mapping from the headings. A convenience only: the user sees and
-  // can change every choice, and the server validates the result.
-  const [choices, setChoices] = useState<Record<number, string>>(() => {
-    const suggested: Record<number, string> = {};
-    const used = new Set<string>();
-    columns.forEach((heading, index) => {
-      const key = normalize(heading);
-      const match = targets.find(
-        (target) =>
-          !used.has(target.key) &&
-          (normalize(target.label) === key || normalize(target.key) === key),
-      );
-      if (match !== undefined) {
-        suggested[index] = match.key;
-        used.add(match.key);
-      }
-    });
-    return suggested;
-  });
+  // Suggest a mapping from the headings, for the kind of file this looks like (ADR-0072). A
+  // convenience only: the user sees and can change every choice, and the server validates the result.
+  const [template, setTemplate] = useState<'auto' | ImportTemplateId>('auto');
+  const [choices, setChoices] = useState<Record<number, string>>(() =>
+    suggestMapping(job.objectType, columns, targets, detectTemplate(columns)),
+  );
+  const chooseTemplate = (next: 'auto' | ImportTemplateId) => {
+    setTemplate(next);
+    setChoices(
+      suggestMapping(
+        job.objectType,
+        columns,
+        targets,
+        next === 'auto' ? detectTemplate(columns) : next,
+      ),
+    );
+  };
   const [mode, setMode] = useState<'skip' | 'update' | 'create'>('skip');
   const [matchField, setMatchField] = useState<string>(matchFields[0] ?? '');
 
@@ -569,6 +584,35 @@ function MapColumns({ job }: { job: ImportRecord }) {
           </TableCard>
         </section>
       ) : null}
+
+      <div className="space-y-2">
+        <Select
+          label={t('import.template.label')}
+          hint={t('import.template.hint')}
+          value={template}
+          onChange={(event) => chooseTemplate(event.target.value as 'auto' | ImportTemplateId)}
+        >
+          <option value="auto">{t('import.template.auto')}</option>
+          <option value="zoho">{t('import.template.zoho')}</option>
+          <option value="generic">{t('import.template.generic')}</option>
+        </Select>
+        {job.objectType === 'contact' || job.objectType === 'deal' ? (
+          <p className="text-xs text-muted-foreground">{t('import.template.existing')}</p>
+        ) : null}
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() =>
+            downloadTemplate(
+              templateHeadings(job.objectType, targets),
+              `${job.objectType}-import-template.csv`,
+            )
+          }
+        >
+          {t('import.template.download')}
+        </Button>
+      </div>
 
       <fieldset className="space-y-2.5">
         <legend className="mb-1 text-sm font-semibold">{t('import.duplicates.title')}</legend>
