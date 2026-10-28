@@ -29,6 +29,7 @@ import {
   SecurityIcon,
   SetupIcon,
   SignOutIcon,
+  TagIcon,
   TeamIcon,
   cn,
 } from '@crm/ui';
@@ -124,6 +125,14 @@ const NAV: readonly {
       icon: <InboxIcon className="h-4 w-4 shrink-0" />,
       // Same proxy as the pipeline editor: the API answers whether the person may manage forms
       // (`lead_form` grant). Cosmetic: the screen and every write behind it check it on their own.
+      requiresSetupAccess: true,
+    },
+    {
+      href: '/settings/tags',
+      label: 'nav.tags',
+      icon: <TagIcon className="h-4 w-4 shrink-0" />,
+      // Same proxy as Customization (`tenant_settings:read`, answered by the API). Cosmetic: the
+      // screen and every write behind it need `update` on `tenant_settings` on their own.
       requiresSetupAccess: true,
     },
     { href: '/settings/team', label: 'nav.team', icon: <TeamIcon className="h-4 w-4 shrink-0" /> },

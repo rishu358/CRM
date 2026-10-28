@@ -8,6 +8,7 @@ import type { Selection } from '../lib/selection';
 import { formatDate, DEFAULT_PREFERENCES } from '../lib/format';
 import { Table, TableCard, THead, Td, Th, Tr } from '@crm/ui';
 import { t } from '../lib/i18n';
+import { TagList } from './tag-editor';
 import { CUSTOM_COLUMN_PREFIX, customCellText } from './custom-fields';
 import type { FieldDefinitionView } from '../lib/fields';
 
@@ -121,6 +122,7 @@ export function ContactsTable({
                   {flexRender(header.column.columnDef.header, header.getContext())}
                 </Th>
               ))}
+              <Th>{t('tags.label')}</Th>
               <Th>{t('contact.created')}</Th>
             </Tr>
           ))}
@@ -138,6 +140,9 @@ export function ContactsTable({
               {row.getVisibleCells().map((cell) => (
                 <Td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</Td>
               ))}
+              <Td>
+                <TagList tags={row.original.tags} />
+              </Td>
               <Td className="figures whitespace-nowrap text-muted-foreground">
                 {formatDate(row.original.createdAt, DEFAULT_PREFERENCES)}
               </Td>

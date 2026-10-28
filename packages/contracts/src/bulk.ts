@@ -9,6 +9,7 @@ import {
 } from '@crm/core';
 import { z } from 'zod';
 import { viewFiltersSchema } from './saved-views.js';
+import { tagColorSchema } from './tags.js';
 
 /**
  * Bulk action contracts (MVP_SPEC M3 and M4, ADR-0056).
@@ -126,6 +127,8 @@ export type BulkResult = z.infer<typeof bulkResultSchema>;
 export const tagSchema = z.object({
   id: z.uuid(),
   name: z.string(),
-  color: z.string().nullable(),
+  color: tagColorSchema.nullable(),
+  /** For the settings screen's edit and delete; a tag is edited at the version it was read at. */
+  version: z.number().int(),
 });
 export type Tag = z.infer<typeof tagSchema>;

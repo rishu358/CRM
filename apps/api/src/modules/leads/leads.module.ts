@@ -1,4 +1,5 @@
 import { Inject, Module, type OnModuleInit } from '@nestjs/common';
+import { TagsModule } from '../tags/tags.module.js';
 import { OwnershipRegistry } from '../../platform/ownership.registry.js';
 import { AccountsModule } from '../accounts/accounts.module.js';
 import { ContactsModule } from '../contacts/contacts.module.js';
@@ -17,7 +18,7 @@ import { LeadsService } from './leads.service.js';
  * touches leads through anything but `LeadsService` or a domain event.
  */
 @Module({
-  imports: [AccountsModule, ContactsModule, DealsModule],
+  imports: [TagsModule, AccountsModule, ContactsModule, DealsModule],
   controllers: [LeadsController],
   providers: [LeadsService, LeadsRepository, LeadsReportsService],
   exports: [LeadsService, LeadsReportsService],

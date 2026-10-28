@@ -4,6 +4,7 @@ import { Badge, SortableTh, Table, TableCard, THead, Td, Th, Tr } from '@crm/ui'
 import type { DealRecord, StageRecord } from '../lib/deals';
 import { DEFAULT_PREFERENCES, formatDate, formatMoney } from '../lib/format';
 import { t, type TranslationKey } from '../lib/i18n';
+import { TagList } from './tag-editor';
 import { EmptyCell, RecordLink, SelectAllTh, SelectRowTd } from './table-parts';
 import type { Selection } from '../lib/selection';
 import { customCellText } from './custom-fields';
@@ -136,6 +137,7 @@ export function DealsTable({
             {customColumns.map((definition) => (
               <Th key={definition.id}>{definition.label}</Th>
             ))}
+            <Th>{t('tags.label')}</Th>
           </Tr>
         </THead>
         <tbody>
@@ -160,6 +162,9 @@ export function DealsTable({
                 const text = customCellText(definition, deal);
                 return <Td key={definition.id}>{text.length > 0 ? text : <EmptyCell />}</Td>;
               })}
+              <Td>
+                <TagList tags={deal.tags} />
+              </Td>
             </Tr>
           ))}
         </tbody>

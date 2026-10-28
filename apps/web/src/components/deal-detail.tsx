@@ -26,6 +26,7 @@ import { BackLink } from './back-link';
 import { WhoCanSeeButton } from './who-can-see';
 import { ActivityPanel } from './activity-panel';
 import { AttachmentPanel } from './attachment-panel';
+import { TagsCard } from './tag-editor';
 import { InlineField } from './inline-field';
 import { CustomFieldsCard } from './custom-fields';
 import { InlineMoneyField } from './inline-money-field';
@@ -359,6 +360,7 @@ export function DealDetail({ id }: { id: string }) {
             </CardBody>
           </Card>
 
+          <TagsCard objectType="deal" recordId={id} tags={deal.tags} />
           <CustomFieldsCard
             objectType="deal"
             values={deal.customFields}
