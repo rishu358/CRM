@@ -81,6 +81,7 @@ const STATUS_BY_ERROR_CODE: Readonly<Record<ErrorCode, number>> = {
   [ErrorCode.INTERNAL]: 500,
   [ErrorCode.SERVICE_BUSY]: 503,
   [ErrorCode.SEARCH_TIMEOUT]: 503,
+  [ErrorCode.FORM_EXPIRED]: 422,
 };
 
 /** A one-line gloss per status, so the document reads without the code table. */
@@ -399,6 +400,11 @@ const TAG_DESCRIPTIONS: ReadonlyArray<{ name: string; description: string }> = [
   { name: 'Activities', description: 'Tasks, calls, meetings, notes and My Day.' },
   { name: 'Search', description: 'One query across every object the caller may read.' },
   { name: 'Notifications', description: 'The bell.' },
+  { name: 'Lead forms', description: 'Website lead forms: building them and their keys.' },
+  {
+    name: 'Public forms',
+    description: 'The two routes a website visitor reaches with no session (ADR-0065).',
+  },
   { name: 'Saved Views', description: 'A list’s search, filters, columns and sort, under a name.' },
   { name: 'Merge', description: 'Fold a duplicate contact or account into the one that stays.' },
   {

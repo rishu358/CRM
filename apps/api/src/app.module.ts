@@ -16,6 +16,7 @@ import { DealsModule } from './modules/deals/deals.module.js';
 import { ExportsModule } from './modules/exports/exports.module.js';
 import { ImportsModule } from './modules/imports/imports.module.js';
 import { InvitationsModule } from './modules/invitations/invitations.module.js';
+import { LeadFormsModule } from './modules/lead-forms/lead-forms.module.js';
 import { LeadsModule } from './modules/leads/leads.module.js';
 import { CustomizationModule } from './modules/customization/customization.module.js';
 import { DashboardModule } from './modules/dashboard/dashboard.module.js';
@@ -55,6 +56,7 @@ export class AppModule {
         DealsModule,
         PipelineEditorModule,
         LeadsModule,
+        LeadFormsModule,
         ActivitiesModule,
         AttachmentsModule,
         SearchModule,

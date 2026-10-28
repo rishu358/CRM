@@ -14,7 +14,13 @@ import {
   runErasure,
   runErasureRedaction,
 } from './data-rights/erasure-handler.js';
-import { notifyAssignment, notifyReminder, sendDigest } from './handlers/notifications.js';
+import {
+  notifyAssignment,
+  notifyReminder,
+  notifyWebFormDuplicate,
+  notifyWebFormLead,
+  sendDigest,
+} from './handlers/notifications.js';
 import { indexSearchDocument, removeSearchDocument } from './handlers/search.js';
 import { removeSampleDataJob } from './handlers/sample-data.js';
 import { projectTimeline } from './handlers/timeline.js';
@@ -61,6 +67,7 @@ relay.on('deal.stage_changed.v1', projectTimeline);
 relay.on('lead.created.v1', projectTimeline);
 relay.on('lead.updated.v1', projectTimeline);
 relay.on('lead.deleted.v1', projectTimeline);
+relay.on('lead.web_form_duplicate.v1', projectTimeline);
 relay.on('lead.converted.v1', projectTimeline);
 relay.on('contact.linked_from_lead.v1', projectTimeline);
 relay.on('account.linked_from_lead.v1', projectTimeline);
@@ -104,6 +111,8 @@ const notificationOptions = {
 
 relay.on('activity.assigned.v1', notifyAssignment(notificationOptions));
 relay.on('activity.reminder_due.v1', notifyReminder());
+relay.on('lead.created.v1', notifyWebFormLead(notificationOptions));
+relay.on('lead.web_form_duplicate.v1', notifyWebFormDuplicate(notificationOptions));
 relay.on('notification.digest_due.v1', sendDigest(notificationOptions));
 
 /**

@@ -44,8 +44,25 @@ export interface RateLimitCounter {
 /** What `RateLimitCounter` is provided as. */
 export const RATE_LIMIT_COUNTER = 'RATE_LIMIT_COUNTER';
 
+/**
+ * What a limit counts. The `public-*` kinds belong to the website lead form (ADR-0065) and are
+ * deliberately not `user` or `tenant`: a flood on a public form must never spend the budget the
+ * workspace's own staff use, and the staff must never starve the form.
+ */
 export type RateLimitKind =
-  'user' | 'tenant' | 'ip' | 'auth-ip' | 'auth-ip-fail' | 'auth-account-fail';
+  | 'user'
+  | 'tenant'
+  | 'ip'
+  | 'auth-ip'
+  | 'auth-ip-fail'
+  | 'auth-account-fail'
+  | 'public-form-address'
+  | 'public-address'
+  | 'public-form'
+  | 'public-tenant'
+  | 'public-bad-key'
+  | 'public-view-form'
+  | 'public-repeat';
 
 /** The key for one subject. Only ids and addresses go in: nothing a person typed. */
 export function rateLimitKey(kind: RateLimitKind, subject: string): string {

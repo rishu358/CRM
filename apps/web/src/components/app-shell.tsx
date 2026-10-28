@@ -8,6 +8,7 @@ import {
   AccountsIcon,
   AuditLogIcon,
   BoardViewIcon,
+  InboxIcon,
   Button,
   ContactsIcon,
   DataRightsIcon,
@@ -109,6 +110,14 @@ const NAV: readonly {
       // Same proxy as Customization (`tenant_settings:read`, answered by the API): a person who
       // can reshape the company's settings is the person who can reshape its pipeline. Cosmetic:
       // the screen and every write behind it check the `pipeline` grant on their own.
+      requiresSetupAccess: true,
+    },
+    {
+      href: '/settings/web-forms',
+      label: 'nav.webForms',
+      icon: <InboxIcon className="h-4 w-4 shrink-0" />,
+      // Same proxy as the pipeline editor: the API answers whether the person may manage forms
+      // (`lead_form` grant). Cosmetic: the screen and every write behind it check it on their own.
       requiresSetupAccess: true,
     },
     {
