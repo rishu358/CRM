@@ -265,7 +265,9 @@ export class ContactsService {
       payload: { ownerId: row.ownerId },
     });
 
-    return serializeContact(actor, row, fields);
+    // A record that was just made carries no tags yet. Said as an empty list, so a create answers in the
+    // same shape a read of it does (a replay of this request re-reads it, ADR-0060, and must match).
+    return { ...serializeContact(actor, row, fields), tags: [] };
   }
 
   async update(actor: Actor, id: string, input: ContactUpdateInput): Promise<SerializedContact> {

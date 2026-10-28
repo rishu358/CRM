@@ -294,7 +294,9 @@ export class AccountsService {
       payload: { ownerId: row.ownerId, parentAccountId: row.parentAccountId },
     });
 
-    return serializeAccount(actor, row, fields);
+    // A record that was just made carries no tags yet. Said as an empty list, so a create answers in the
+    // same shape a read of it does (a replay of this request re-reads it, ADR-0060, and must match).
+    return { ...serializeAccount(actor, row, fields), tags: [] };
   }
 
   async update(actor: Actor, id: string, input: AccountUpdateInput): Promise<SerializedAccount> {

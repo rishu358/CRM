@@ -260,7 +260,9 @@ export class LeadsService {
           });
 
           return {
-            answer: { lead: serializeLead(actor, row, fields), duplicates },
+            // A lead that was just made carries no tags yet; said as an empty list so the answer has the
+            // shape a read has, which is what a replay of this request returns (ADR-0060).
+            answer: { lead: { ...serializeLead(actor, row, fields), tags: [] }, duplicates },
             reference: { recordId: row.id },
           };
         },
@@ -646,7 +648,12 @@ export class LeadsService {
           }
 
           const result: LeadConversionResult = {
-            lead: serializeLead(actor, converted, leadFields) as LeadConversionResult['lead'],
+            lead: (await this.tags.attachOne(
+              tx,
+              actor,
+              'lead',
+              serializeLead(actor, converted, leadFields),
+            )) as LeadConversionResult['lead'],
             contact: { id: contactId, created: contactCreated },
             account: accountId === null ? null : { id: accountId, created: accountCreated },
             deal: dealId === null ? null : { id: dealId },
