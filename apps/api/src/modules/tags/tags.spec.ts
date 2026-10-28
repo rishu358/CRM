@@ -77,7 +77,7 @@ describe('tags on records', () => {
 
     const listed = await request(harness, {
       method: 'GET',
-      url: '/api/v1/contacts?q=Chipped',
+      url: `/api/v1/contacts?filter=${encodeURIComponent('last_name:eq:Chipped')}`,
       token: admin.token,
     });
     const rows = (listed.body as { data: { id: string; tags: { name: string }[] }[] }).data;
@@ -164,7 +164,7 @@ describe('filtering a list by tag', () => {
     const idsFor = async (filter: string) => {
       const response = await request(harness, {
         method: 'GET',
-        url: `/api/v1/contacts?q=Filter&filter=${encodeURIComponent(filter)}`,
+        url: `/api/v1/contacts?filter=${encodeURIComponent('last_name:starts_with:Filter')}&filter=${encodeURIComponent(filter)}`,
         token: admin.token,
       });
       expect(response.status, filter).toBe(200);
