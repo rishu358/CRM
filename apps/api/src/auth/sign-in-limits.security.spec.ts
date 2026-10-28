@@ -25,6 +25,10 @@ const ADDRESS_FAILURES = 6;
 let harness: ApiHarness;
 let nextHost = 1;
 
+/** `count` copies of a status, for comparing a run of answers. */
+const times = (status: number, count: number): number[] =>
+  Array.from({ length: count }, () => status);
+
 /** A new address for every call that should not share a budget with another. */
 const freshAddress = () => `198.51.100.${String(nextHost++)}`;
 
@@ -81,7 +85,7 @@ describe('successful sign-ins do not use up the failure budgets', () => {
     const statuses: number[] = [];
     for (const email of emails) statuses.push((await signIn(email, PASSWORD, office)).status);
 
-    expect(statuses).toEqual(Array(emails.length).fill(200));
+    expect(statuses).toEqual(times(200, emails.length));
   }, 120_000);
 
   it('lets one person sign in again and again, more often than an account may fail', async () => {
@@ -90,7 +94,7 @@ describe('successful sign-ins do not use up the failure budgets', () => {
     for (let i = 0; i < ACCOUNT_FAILURES * 3; i += 1) {
       statuses.push((await signIn(email, PASSWORD, freshAddress())).status);
     }
-    expect(statuses).toEqual(Array(ACCOUNT_FAILURES * 3).fill(200));
+    expect(statuses).toEqual(times(200, ACCOUNT_FAILURES * 3));
   }, 120_000);
 
   it('does not let colleagues who mistype once each lock the office out of signing in', async () => {
@@ -113,7 +117,7 @@ describe('failed sign-ins from one address are limited', () => {
     for (let i = 0; i < ADDRESS_FAILURES + 2; i += 1) {
       statuses.push((await signIn(uniqueEmail('spray'), WRONG, attacker)).status);
     }
-    expect(statuses).toEqual([...Array(ADDRESS_FAILURES).fill(401), 429, 429]);
+    expect(statuses).toEqual([...times(401, ADDRESS_FAILURES), 429, 429]);
 
     // Even a right password from that address waits: the budget is the address's, not the attempt's.
     const someone = await account('bystander');
@@ -145,7 +149,7 @@ describe('failed sign-ins on one account are limited, wherever they come from', 
     for (let i = 0; i < ACCOUNT_FAILURES + 1; i += 1) {
       statuses.push((await signIn(email, WRONG, freshAddress())).status);
     }
-    expect(statuses).toEqual([...Array(ACCOUNT_FAILURES).fill(401), 429]);
+    expect(statuses).toEqual([...times(401, ACCOUNT_FAILURES), 429]);
 
     // From an address that has never failed, with the right password: still refused, because
     // answering it would tell a guesser which attempt was right.
@@ -165,7 +169,7 @@ describe('failed sign-ins on one account are limited, wherever they come from', 
         (await signIn(email, WRONG, webServer, { 'x-forwarded-for': freshAddress() })).status,
       );
     }
-    expect(statuses).toEqual([...Array(ACCOUNT_FAILURES).fill(401), 429, 429, 429]);
+    expect(statuses).toEqual([...times(401, ACCOUNT_FAILURES), 429, 429, 429]);
   }, 120_000);
 
   it('does not depend on the case or spacing of the address typed', async () => {
