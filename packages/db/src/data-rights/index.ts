@@ -91,6 +91,16 @@ export async function erasePersonalColumns(
       and id = ${recordId}::uuid
   `);
 
+  // A lead a website form made has a consent record beside it (ADR-0063 6). Erasing the person removes
+  // it: it exists to show what this person accepted, and they have asked to be forgotten. It holds no
+  // copy of what they typed, so nothing else of theirs is there to find.
+  if (objectType === 'lead') {
+    await tx.execute(sql`
+      delete from lead_form_submissions
+      where tenant_id = ${tenantId}::uuid and lead_id = ${recordId}::uuid
+    `);
+  }
+
   return {
     recordsErased: result.rowCount ?? 0,
     erasedColumns: Object.keys(treatments),

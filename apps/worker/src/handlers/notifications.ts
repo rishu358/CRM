@@ -248,6 +248,11 @@ function renderDigest(
   appName: string,
 ): { to: string; subject: string; text: string; html: string } {
   const lines = rows.map((row) => {
+    // Web-form notifications say what happened and carry nothing a visitor typed.
+    if (row.type === 'lead.web_form_new') return 'A new lead from a web form is assigned to you';
+    if (row.type === 'lead.web_form_duplicate') {
+      return 'A web form was filled in by someone who matches a record you own';
+    }
     const subject = typeof row.payload['subject'] === 'string' ? row.payload['subject'] : 'A task';
     return row.type === 'activity.due' ? `Due: ${subject}` : `Assigned to you: ${subject}`;
   });
@@ -275,4 +280,55 @@ function renderDigest(
   ].join('\n');
 
   return { to: user.email, subject: `Your ${appName}: ${heading}`, text, html };
+}
+
+/**
+ * A website form made a lead and it was given to somebody (ADR-0063 8).
+ *
+ * Driven by `lead.created.v1`, which every lead announces; only the ones a form made (`source` is
+ * `web_form`) and that have an owner are of interest here. The notification carries **ids only**:
+ * what the visitor typed is never copied into a notification row or a digest, so a stranger's words
+ * cannot reach the bell or an e-mail by this route (and the lead itself is read through the lead
+ * endpoint, with the reader's own permissions).
+ */
+export function notifyWebFormLead(options: NotificationHandlerOptions) {
+  return async (tx: Tx, event: OutboxRow): Promise<void> => {
+    if (event.payload['source'] !== 'web_form' || event.record_id === null) return;
+    const ownerId = event.payload['ownerId'];
+    if (typeof ownerId !== 'string') return;
+
+    const written = await insertNotification(tx, {
+      tenantId: event.tenant_id,
+      userId: ownerId,
+      type: 'lead.web_form_new',
+      payload: { leadId: event.record_id, formId: event.payload['formId'] ?? null },
+      sourceEventId: event.id,
+    });
+    if (written) await scheduleDigest(tx, event, ownerId, options.digestWindowMinutes);
+  };
+}
+
+/**
+ * A website form was filled in by somebody who matches a record that already exists (ADR-0063 7).
+ * The owner of what it matched is told; the visitor never is. Ids only, like the one above.
+ */
+export function notifyWebFormDuplicate(options: NotificationHandlerOptions) {
+  return async (tx: Tx, event: OutboxRow): Promise<void> => {
+    const owner = event.payload['matchedOwnerId'];
+    if (typeof owner !== 'string' || event.record_id === null) return;
+
+    const written = await insertNotification(tx, {
+      tenantId: event.tenant_id,
+      userId: owner,
+      type: 'lead.web_form_duplicate',
+      payload: {
+        leadId: event.record_id,
+        matchedType: event.payload['matchedType'] ?? null,
+        matchedId: event.payload['matchedId'] ?? null,
+        formId: event.payload['formId'] ?? null,
+      },
+      sourceEventId: event.id,
+    });
+    if (written) await scheduleDigest(tx, event, owner, options.digestWindowMinutes);
+  };
 }

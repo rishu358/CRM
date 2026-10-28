@@ -25,6 +25,7 @@ const SUMMARIES: Readonly<Record<string, string>> = {
   'deal.stage_changed.v1': 'Deal moved',
   'lead.created.v1': 'Lead created',
   'lead.updated.v1': 'Lead updated',
+  'lead.web_form_duplicate.v1': 'Possible duplicate of an existing record',
   'lead.deleted.v1': 'Lead deleted',
   'lead.converted.v1': 'Lead converted',
   // A contact or account that conversion only *linked* gets no `created`
@@ -76,6 +77,20 @@ export async function projectTimeline(tx: Tx, event: OutboxRow): Promise<void> {
 
 /** "Contact updated" is less useful than naming what changed. */
 function describeChange(event: OutboxRow, fallback: string): string {
+  if (event.event_type === 'lead.created.v1' && event.payload['source'] === 'web_form') {
+    return 'Lead created from a web form';
+  }
+
+  if (event.event_type === 'lead.web_form_duplicate.v1') {
+    const kind = event.payload['matchedType'] === 'contact' ? 'contact' : 'lead';
+    const on = Array.isArray(event.payload['matchedOn'])
+      ? event.payload['matchedOn'].filter((v): v is string => typeof v === 'string').join(' and ')
+      : '';
+    return on.length > 0
+      ? `Possible duplicate of an existing ${kind} (matched on ${on})`
+      : `Possible duplicate of an existing ${kind}`;
+  }
+
   if (event.event_type === 'deal.stage_changed.v1') {
     const from = event.payload['fromStageName'];
     const to = event.payload['toStageName'];
