@@ -12,6 +12,10 @@ describe('the grant catalogue', () => {
 
   it('refuses switches that are wired to nothing', () => {
     expect(isGrantable('deal', 'import', 'all')).toBe(false);
+    // Original dates on import are one switch, workspace-wide, not scoped to anyone's records.
+    expect(isGrantable('import_history', 'create', 'all')).toBe(true);
+    expect(isGrantable('import_history', 'create', 'own')).toBe(false);
+    expect(isGrantable('import_history', 'read', 'all')).toBe(false);
     expect(isGrantable('activity', 'export', 'all')).toBe(false);
     expect(isGrantable('invitation', 'read', 'own')).toBe(false);
     expect(isGrantable('role', 'update', 'team')).toBe(false);

@@ -2918,6 +2918,7 @@
                 "data_subject",
                 "tenant_settings",
                 "pipeline",
+                "import_history",
                 "lead_form",
                 "user",
                 "session",
@@ -8439,6 +8440,130 @@
         }
       }
     },
+    "/imports/{id}/check": {
+      "post": {
+        "operationId": "checkImport",
+        "summary": "Check a file against a mapping without importing it",
+        "tags": [
+          "Import"
+        ],
+        "description": "Takes the same body as `start` and validates it the same way, then queues a job of its own that runs every row through the real import logic and rolls each chunk back, so nothing is written. Poll the returned job (`dryRun: true`); when it completes its counts are what an import would create, update, skip and fail, and its error file lists the rows that would fail. The import being checked is unchanged and can be checked again or started (ADR-0068).",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportStart"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "The check job, now running.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportCheckStartedResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No session, or the credentials offered were not accepted. `error.code` is one of: `UNAUTHENTICATED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, but not permitted. `error.code` is one of: `FORBIDDEN`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such record, or it is outside the caller’s tenant or visibility scope. `error.code` is one of: `NOT_FOUND`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The write conflicts with the record’s current state. `error.code` is one of: `CONFLICT`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Input failed validation at the API boundary. `error.code` is one of: `VALIDATION_FAILED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded. Limits are per user, per tenant and per address, shared across API instances. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `RATE_LIMITED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote `requestId` when reporting it. `error.code` is one of: `INTERNAL`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/imports/{id}/error-file": {
       "post": {
         "operationId": "importErrorFileLink",
@@ -8560,7 +8685,7 @@
         "tags": [
           "Import"
         ],
-        "description": "The mapping is validated against field metadata and **field-level write permissions** before anything is queued. `owner_id`, `tenant_id`, `version` and the like are not importable, so a column cannot be mapped onto them; records are owned by the importer. Processing happens in the background, in idempotent chunks (ADR-0029).",
+        "description": "The mapping is validated against field metadata and **field-level write permissions** before anything is queued. `tenant_id`, `version` and the like are not importable, so a column cannot be mapped onto them; `owner_id` is accepted only for someone who may reassign records (ADR-0067), and otherwise records are owned by the importer. Processing happens in the background, in idempotent chunks (ADR-0029).",
         "parameters": [
           {
             "name": "id",
@@ -18611,6 +18736,7 @@
                   "data_subject",
                   "tenant_settings",
                   "pipeline",
+                  "import_history",
                   "lead_form",
                   "user",
                   "session",
@@ -20525,6 +20651,7 @@
                     "data_subject",
                     "tenant_settings",
                     "pipeline",
+                    "import_history",
                     "lead_form"
                   ]
                 },
@@ -20587,6 +20714,7 @@
                     "data_subject",
                     "tenant_settings",
                     "pipeline",
+                    "import_history",
                     "lead_form"
                   ]
                 },
@@ -20658,6 +20786,7 @@
                     "data_subject",
                     "tenant_settings",
                     "pipeline",
+                    "import_history",
                     "lead_form"
                   ]
                 },
@@ -20720,6 +20849,7 @@
                     "data_subject",
                     "tenant_settings",
                     "pipeline",
+                    "import_history",
                     "lead_form"
                   ]
                 },
@@ -21226,6 +21356,7 @@
                         "data_subject",
                         "tenant_settings",
                         "pipeline",
+                        "import_history",
                         "lead_form"
                       ]
                     },
@@ -21371,6 +21502,7 @@
                         "data_subject",
                         "tenant_settings",
                         "pipeline",
+                        "import_history",
                         "lead_form"
                       ]
                     },
@@ -21762,6 +21894,7 @@
                         "data_subject",
                         "tenant_settings",
                         "pipeline",
+                        "import_history",
                         "lead_form"
                       ]
                     },
@@ -27566,6 +27699,9 @@
                 "hasErrorFile": {
                   "type": "boolean"
                 },
+                "dryRun": {
+                  "type": "boolean"
+                },
                 "failureReason": {
                   "type": [
                     "string",
@@ -27670,6 +27806,7 @@
                 "skippedCount",
                 "failedCount",
                 "hasErrorFile",
+                "dryRun",
                 "failureReason",
                 "startedAt",
                 "finishedAt",
@@ -27898,6 +28035,9 @@
                   "hasErrorFile": {
                     "type": "boolean"
                   },
+                  "dryRun": {
+                    "type": "boolean"
+                  },
                   "failureReason": {
                     "type": [
                       "string",
@@ -28002,6 +28142,7 @@
                   "skippedCount",
                   "failedCount",
                   "hasErrorFile",
+                  "dryRun",
                   "failureReason",
                   "startedAt",
                   "finishedAt",
@@ -28257,6 +28398,9 @@
               "hasErrorFile": {
                 "type": "boolean"
               },
+              "dryRun": {
+                "type": "boolean"
+              },
               "failureReason": {
                 "type": [
                   "string",
@@ -28361,6 +28505,323 @@
               "skippedCount",
               "failedCount",
               "hasErrorFile",
+              "dryRun",
+              "failureReason",
+              "startedAt",
+              "finishedAt",
+              "createdAt",
+              "updatedAt"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "additionalProperties": false
+      },
+      "ImportCheckStartedResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "objectType": {
+                "type": "string",
+                "enum": [
+                  "account",
+                  "contact",
+                  "lead"
+                ]
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "awaiting_upload",
+                  "analyzing",
+                  "awaiting_mapping",
+                  "staging",
+                  "processing",
+                  "completed",
+                  "failed",
+                  "rejected"
+                ]
+              },
+              "fileName": {
+                "type": "string"
+              },
+              "claimedFormat": {
+                "type": "string",
+                "enum": [
+                  "csv",
+                  "xlsx"
+                ]
+              },
+              "detectedFormat": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "csv",
+                      "xlsx"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "sizeBytes": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "columns": {
+                "anyOf": [
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "preview": {
+                "anyOf": [
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "mapping": {
+                "anyOf": [
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "column": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 199
+                        },
+                        "field": {
+                          "type": "string",
+                          "pattern": "^[a-z][a-z0-9_]{0,62}$"
+                        }
+                      },
+                      "required": [
+                        "column",
+                        "field"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "duplicateMode": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "skip",
+                      "update",
+                      "create"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "matchField": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "totalRows": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "processedRows": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "createdCount": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "updatedCount": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "skippedCount": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "failedCount": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "hasErrorFile": {
+                "type": "boolean"
+              },
+              "dryRun": {
+                "type": "boolean"
+              },
+              "failureReason": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "startedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "finishedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+              },
+              "updatedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+              },
+              "targets": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "key": {
+                      "type": "string"
+                    },
+                    "label": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string"
+                    },
+                    "required": {
+                      "type": "boolean"
+                    },
+                    "isSystem": {
+                      "type": "boolean"
+                    },
+                    "options": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": [
+                    "key",
+                    "label",
+                    "type",
+                    "required",
+                    "isSystem"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "matchFields": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "id",
+              "objectType",
+              "status",
+              "fileName",
+              "claimedFormat",
+              "detectedFormat",
+              "sizeBytes",
+              "columns",
+              "preview",
+              "mapping",
+              "duplicateMode",
+              "matchField",
+              "totalRows",
+              "processedRows",
+              "createdCount",
+              "updatedCount",
+              "skippedCount",
+              "failedCount",
+              "hasErrorFile",
+              "dryRun",
               "failureReason",
               "startedAt",
               "finishedAt",
@@ -28603,6 +29064,9 @@
               "hasErrorFile": {
                 "type": "boolean"
               },
+              "dryRun": {
+                "type": "boolean"
+              },
               "failureReason": {
                 "type": [
                   "string",
@@ -28707,6 +29171,7 @@
               "skippedCount",
               "failedCount",
               "hasErrorFile",
+              "dryRun",
               "failureReason",
               "startedAt",
               "finishedAt",
@@ -28915,6 +29380,9 @@
               "hasErrorFile": {
                 "type": "boolean"
               },
+              "dryRun": {
+                "type": "boolean"
+              },
               "failureReason": {
                 "type": [
                   "string",
@@ -29019,6 +29487,7 @@
               "skippedCount",
               "failedCount",
               "hasErrorFile",
+              "dryRun",
               "failureReason",
               "startedAt",
               "finishedAt",
@@ -31631,6 +32100,7 @@
                               "data_subject",
                               "tenant_settings",
                               "pipeline",
+                              "import_history",
                               "lead_form"
                             ]
                           },
@@ -31769,6 +32239,7 @@
                               "data_subject",
                               "tenant_settings",
                               "pipeline",
+                              "import_history",
                               "lead_form"
                             ]
                           },
@@ -31843,6 +32314,7 @@
                         "data_subject",
                         "tenant_settings",
                         "pipeline",
+                        "import_history",
                         "lead_form"
                       ]
                     },
@@ -31958,6 +32430,7 @@
                         "data_subject",
                         "tenant_settings",
                         "pipeline",
+                        "import_history",
                         "lead_form"
                       ]
                     },
@@ -34545,6 +35018,7 @@
                         "data_subject",
                         "tenant_settings",
                         "pipeline",
+                        "import_history",
                         "lead_form"
                       ]
                     },
@@ -34598,6 +35072,7 @@
                         "data_subject",
                         "tenant_settings",
                         "pipeline",
+                        "import_history",
                         "lead_form"
                       ]
                     },
@@ -34706,6 +35181,7 @@
                         "data_subject",
                         "tenant_settings",
                         "pipeline",
+                        "import_history",
                         "lead_form"
                       ]
                     },
@@ -34759,6 +35235,7 @@
                         "data_subject",
                         "tenant_settings",
                         "pipeline",
+                        "import_history",
                         "lead_form"
                       ]
                     },
@@ -34867,6 +35344,7 @@
                         "data_subject",
                         "tenant_settings",
                         "pipeline",
+                        "import_history",
                         "lead_form"
                       ]
                     },
@@ -34920,6 +35398,7 @@
                         "data_subject",
                         "tenant_settings",
                         "pipeline",
+                        "import_history",
                         "lead_form"
                       ]
                     },
@@ -35028,6 +35507,7 @@
                         "data_subject",
                         "tenant_settings",
                         "pipeline",
+                        "import_history",
                         "lead_form"
                       ]
                     },
@@ -35081,6 +35561,7 @@
                         "data_subject",
                         "tenant_settings",
                         "pipeline",
+                        "import_history",
                         "lead_form"
                       ]
                     },
@@ -35207,6 +35688,7 @@
                               "data_subject",
                               "tenant_settings",
                               "pipeline",
+                              "import_history",
                               "lead_form"
                             ]
                           },
@@ -35345,6 +35827,7 @@
                               "data_subject",
                               "tenant_settings",
                               "pipeline",
+                              "import_history",
                               "lead_form"
                             ]
                           },
@@ -35419,6 +35902,7 @@
                         "data_subject",
                         "tenant_settings",
                         "pipeline",
+                        "import_history",
                         "lead_form"
                       ]
                     },
@@ -35534,6 +36018,7 @@
                         "data_subject",
                         "tenant_settings",
                         "pipeline",
+                        "import_history",
                         "lead_form"
                       ]
                     },

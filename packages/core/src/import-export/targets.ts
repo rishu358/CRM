@@ -112,6 +112,37 @@ export function canImportLink(
   return can(actor, 'read', { objectType: 'account' }).allowed;
 }
 
+/**
+ * The date columns an import may fill (ADR-0069). `created_at` is the date a record was really
+ * created; it is a bookkeeping column, so it has no field definition and is offered here.
+ */
+export const IMPORT_DATE_KEYS: Readonly<Record<ImportableObjectType, readonly string[]>> = {
+  contact: ['created_at'],
+  account: ['created_at'],
+  lead: ['created_at'],
+};
+
+const DATE_LABELS: Readonly<Record<string, string>> = {
+  created_at: 'Created date (original date, YYYY-MM-DD)',
+};
+
+/**
+ * Whether this actor may bring original dates in from a file.
+ *
+ * Its own grant (`import_history:create`, Owner and Admin by default) on top of the field rule: a
+ * file that names creation dates lets records claim a past that every report then believes, which
+ * is not something `import` alone should allow.
+ */
+export function canImportDate(
+  actor: Actor,
+  objectType: ImportableObjectType,
+  key: string,
+): boolean {
+  if (!IMPORT_DATE_KEYS[objectType].includes(key)) return false;
+  if (!canWriteField(actor, objectType, key)) return false;
+  return can(actor, 'create', { objectType: 'import_history' }).allowed;
+}
+
 /** A value `status` may not take from a file. See above. */
 export const LEAD_STATUS_BLOCKED_FROM_IMPORT = 'converted';
 
@@ -170,7 +201,16 @@ export function importTargets(
       required: false,
       isSystem: true,
     }));
-  return [...targets, ...links];
+  const dates = IMPORT_DATE_KEYS[objectType]
+    .filter((key) => canImportDate(actor, objectType, key))
+    .map((key): ImportTarget => ({
+      key,
+      label: DATE_LABELS[key] ?? key,
+      type: 'datetime',
+      required: false,
+      isSystem: true,
+    }));
+  return [...targets, ...links, ...dates];
 }
 
 export interface MappingEntry {

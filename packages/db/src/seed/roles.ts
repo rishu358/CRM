@@ -149,6 +149,18 @@ const PIPELINE_GRANT: SystemRoleGrant = {
 };
 
 /**
+ * Original dates on an import (ADR-0069): a file may set when each record was really created.
+ *
+ * Owner and Admin only, by the owner's decision (2026-10-28). Migration 0030 backfills the same rows
+ * for tenants that already exist. A custom role gets nothing: it is an explicit grant.
+ */
+const IMPORT_HISTORY_GRANT: SystemRoleGrant = {
+  objectType: 'import_history',
+  actions: ['create'],
+  scope: 'all',
+};
+
+/**
  * Website lead forms (ADR-0065): creating a form, changing it, rotating its key, switching it off.
  *
  * Owner and Admin, like the other company-wide configuration. Migration 0027 backfills the same
@@ -179,6 +191,7 @@ export const SYSTEM_ROLES: readonly SystemRoleDefinition[] = [
       DATA_SUBJECT_ERASE_GRANT,
       TENANT_SETTINGS_GRANT,
       PIPELINE_GRANT,
+      IMPORT_HISTORY_GRANT,
       LEAD_FORM_GRANT,
     ],
   },
@@ -193,6 +206,7 @@ export const SYSTEM_ROLES: readonly SystemRoleDefinition[] = [
       DATA_SUBJECT_READ_GRANT,
       TENANT_SETTINGS_GRANT,
       PIPELINE_GRANT,
+      IMPORT_HISTORY_GRANT,
       LEAD_FORM_GRANT,
     ],
   },

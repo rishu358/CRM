@@ -6,9 +6,13 @@ import {
   canWriteField,
   coerceCell,
   diffChanges,
+  canImportDate,
+  IMPORT_DATE_KEYS,
   IMPORT_LINK_KEYS,
   IMPORTABLE_SYSTEM_KEYS,
   newId,
+  parseOriginalDate,
+  toTimeZone,
   type Actor,
   type FieldDefinition,
   type ImportableObjectType,
@@ -88,6 +92,8 @@ export interface ChunkContext {
   readonly mapping: readonly { readonly column: number; readonly field: string }[];
   readonly duplicateMode: 'skip' | 'update' | 'create';
   readonly matchField: string | null;
+  /** The workspace's IANA time zone, for dates written without one. UTC when not given. */
+  readonly timeZone?: string;
 }
 
 const SCHEMAS = {
@@ -96,6 +102,7 @@ const SCHEMAS = {
   lead: { create: leadCreateSchema, partial: leadCreateSchema.partial() },
 } as const;
 
+const dateLabel = (key: string): string => (key === 'created_at' ? 'Created date' : key);
 const LINK_LABELS: Readonly<Record<string, string>> = { owner_id: 'Owner', account_id: 'Account' };
 const linkLabel = (key: string): string => LINK_LABELS[key] ?? key;
 
@@ -111,6 +118,8 @@ interface ParsedRow {
   supplied: string[];
   /** Link columns (owner, account) as typed, resolved to ids after parsing. */
   links: LinkCell[];
+  /** The original creation date, when the file gave one. Applies to a new record only. */
+  createdAt?: Date;
   errors: { field: string | null; message: string }[];
 }
 
@@ -158,6 +167,9 @@ export async function processChunk(
     labelByCamel.get(head) ??
     (definitions.has(head) ? { field: head, label: definitions.get(head)?.label ?? head } : null);
 
+  const zone = toTimeZone(context.timeZone ?? 'UTC');
+  const now = new Date();
+
   const customSchema = buildCustomFieldsSchema(customDefinitions);
   const customPatchSchema = buildCustomFieldsPatchSchema(customDefinitions);
 
@@ -193,6 +205,37 @@ export async function processChunk(
     };
 
     for (const entry of context.mapping) {
+      // An original date (ADR-0069): its own permission, and read in the workspace's time zone.
+      if (IMPORT_DATE_KEYS[objectType].includes(entry.field)) {
+        const text = (row.cells[entry.column] ?? '').trim();
+        if (text === '') continue;
+        if (!canWriteField(actor, object, entry.field)) {
+          parsed.errors.push({
+            field: entry.field,
+            message: `${dateLabel(entry.field)}: you do not have permission to write this field`,
+          });
+          continue;
+        }
+        if (!canImportDate(actor, objectType, entry.field)) {
+          parsed.errors.push({
+            field: entry.field,
+            message: `${dateLabel(entry.field)}: you cannot import original dates`,
+          });
+          continue;
+        }
+        const date = parseOriginalDate(text, zone, now);
+        if (!date.ok) {
+          parsed.errors.push({
+            field: entry.field,
+            message: `${dateLabel(entry.field)}: ${date.message}`,
+          });
+          continue;
+        }
+        parsed.supplied.push(entry.field);
+        parsed.createdAt = date.value;
+        continue;
+      }
+
       // A link column (owner, account) is not a typed value: it is looked up after parsing.
       if (IMPORT_LINK_KEYS[objectType].includes(entry.field)) {
         const text = (row.cells[entry.column] ?? '').trim();
@@ -359,6 +402,7 @@ export async function processChunk(
       if (context.duplicateMode === 'update') {
         // Fold the later row into the record the earlier one is about to create:
         // the result is what two sequential rows would have produced.
+        // The record's date stays the one its first row gave; a later row only adds fields.
         Object.assign(pending.values, parsed.system);
         pending.values['customFields'] = {
           ...(pending.values['customFields'] as Record<string, unknown>),
@@ -444,6 +488,11 @@ export async function processChunk(
     const id = newId();
     const values: Record<string, unknown> = {
       ...parsed.system,
+      // A date from the file is the record's created and last-updated time at once: nothing has
+      // happened to it since. The audit log still carries the real time of the import.
+      ...(parsed.createdAt === undefined
+        ? {}
+        : { createdAt: parsed.createdAt, updatedAt: parsed.createdAt }),
       id,
       tenantId: actor.tenantId,
       // The importer, unless the file named an owner the importer may hand records to.
@@ -499,7 +548,25 @@ export async function processChunk(
   for (const create of creates) {
     if (inserted.has(create.id)) {
       created += 1;
-      record('create', create.id, identityChanges(objectType, create.values), actor.userId);
+      record(
+        'create',
+        create.id,
+        {
+          ...identityChanges(objectType, create.values),
+          // Said in the audit trail whenever a file set the date, with the real time beside it.
+          ...(create.parsed.createdAt === undefined
+            ? {}
+            : {
+                backdated: {
+                  new: {
+                    createdAt: create.parsed.createdAt.toISOString(),
+                    importedAt: now.toISOString(),
+                  },
+                },
+              }),
+        },
+        actor.userId,
+      );
     } else {
       create.parsed.errors.push({ field: null, message: 'The record could not be saved' });
       fail(create.parsed);
@@ -541,6 +608,39 @@ export async function processChunk(
   if (outboxRows.length > 0) await tx.insert(outboxEvents).values(outboxRows);
 
   return { created, updated, skipped, failed, errors };
+}
+
+class ChunkRolledBack extends Error {
+  constructor(readonly result: ChunkResult) {
+    super('This chunk was run as a check and rolled back');
+  }
+}
+
+/**
+ * Run a chunk exactly as `processChunk` does, then undo every write (ADR-0068).
+ *
+ * This is how a check can say what an import would do without a second implementation of "what an
+ * import does": it is the same code against the same database, inside a savepoint that is rolled
+ * back. Records, audit rows and outbox events written by the chunk all vanish with it, and the
+ * database's own constraints (uniqueness, links, the stage rules) are exercised as in a real run.
+ *
+ * What it cannot see is an earlier chunk of the same check: those were rolled back, so a row that
+ * repeats a value from 500 rows earlier is counted as new here and as a duplicate in the real run.
+ */
+export async function processChunkWithoutWriting(
+  tx: Tx,
+  context: ChunkContext,
+  rows: readonly ChunkRow[],
+): Promise<ChunkResult> {
+  try {
+    await tx.transaction(async (savepoint) => {
+      throw new ChunkRolledBack(await processChunk(savepoint, context, rows));
+    });
+  } catch (error) {
+    if (error instanceof ChunkRolledBack) return error.result;
+    throw error;
+  }
+  throw new Error('A check chunk finished without a result');
 }
 
 /** The fields an audit `create` entry carries, matching what each service records. */

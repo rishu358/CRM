@@ -73,6 +73,18 @@ export interface WorkerHarness {
       matchField?: string | null;
     },
   ): Promise<void>;
+  /**
+   * `POST /imports/{id}/check`: a job of its own over the same file and mapping, marked `dry_run`.
+   * Returns the id of the check; the job being checked is left waiting for its mapping.
+   */
+  check(
+    jobId: string,
+    input: {
+      mapping: ImportMappingEntry[];
+      duplicateMode?: ImportDuplicateMode;
+      matchField?: string | null;
+    },
+  ): Promise<string>;
   /** Upload, confirm, drain: the job as it stands once analysis has run. */
   analyze(options: Parameters<WorkerHarness['upload']>[0]): Promise<ImportJob>;
   /** Run the relay until nothing is left to claim. Returns how many events it processed. */
@@ -251,6 +263,40 @@ export async function startImportHarness(
         'import_job',
         jobId,
       );
+    },
+
+    async check(jobId, { mapping, duplicateMode = 'create', matchField = null }) {
+      const job = await harness.job(jobId);
+      const checkId = newId();
+      await withTenant(db.db, { tenantId: job.tenantId, userId: job.createdBy }, async (tx) => {
+        await tx.insert(importJobs).values({
+          id: checkId,
+          tenantId: job.tenantId,
+          objectType: job.objectType,
+          status: 'staging',
+          fileName: job.fileName,
+          claimedFormat: job.claimedFormat,
+          detectedFormat: job.detectedFormat,
+          storageKey: job.storageKey,
+          sizeBytes: job.sizeBytes,
+          columns: job.columns,
+          mapping,
+          duplicateMode,
+          matchField: duplicateMode === 'create' ? null : matchField,
+          dryRun: true,
+          startedAt: new Date(),
+          createdBy: job.createdBy,
+          updatedBy: job.createdBy,
+        });
+      });
+      await publish(
+        job.tenantId,
+        job.createdBy as string,
+        'import.started.v1',
+        'import_job',
+        checkId,
+      );
+      return checkId;
     },
 
     async analyze(options) {

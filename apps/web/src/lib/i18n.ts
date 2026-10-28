@@ -570,7 +570,19 @@ export const en = {
   'import.owner.note': 'Every record you import is assigned to you.',
   'import.owner.offered':
     'You may give rows to someone else: match a column to Owner and put their e-mail address in it.',
+  'import.dates.offered':
+    'You may bring original dates: match a column to Created date and write each as YYYY-MM-DD, or YYYY-MM-DD HH:MM. Dates in the future or before 1990 are refused, and the audit log still records when you imported.',
   'import.start': 'Start import',
+  'import.check': 'Check the file first',
+  'import.check.running': 'Checking the file. Nothing is being changed.',
+  'import.check.title': 'Check finished. Nothing was changed.',
+  'import.check.description':
+    'If you import now: {created} would be created, {updated} updated, {skipped} skipped and {failed} could not be imported.',
+  'import.check.stale':
+    'You changed the mapping after this check. Check again to see the result for the new mapping.',
+  'import.check.large':
+    'In a large file, a row that repeats a value from much earlier may be counted as new here and skipped when you import.',
+  'import.check.failed': 'The check could not finish',
   'import.running': 'Importing',
   'import.running.description':
     'You can leave this page. The import keeps running in the background.',
@@ -762,6 +774,7 @@ export const en = {
   'access.object.dataSubject': 'Data rights',
   'access.object.tenantSettings': 'Company setup',
   'access.object.pipeline': 'Pipeline stages',
+  'access.object.importHistory': 'Original dates on import',
   'access.objectOne.account': 'account',
   'access.objectOne.contact': 'contact',
   'access.objectOne.lead': 'lead',

@@ -157,6 +157,89 @@ describe('importTargets: metadata-driven, allowlisted, write-permission-filtered
   });
 });
 
+describe('the original-date target (ADR-0069)', () => {
+  const historian = () =>
+    makeActor({
+      rolePermissions: [
+        ...grant('contact'),
+        {
+          roleId,
+          objectType: 'import_history',
+          action: 'create',
+          scope: 'all',
+        },
+      ],
+    });
+
+  it('is offered only to someone who holds import_history:create', () => {
+    expect(importTargets(historian(), 'contact', contactFields).map((t) => t.key)).toContain(
+      'created_at',
+    );
+    expect(importTargets(actor(), 'contact', contactFields).map((t) => t.key)).not.toContain(
+      'created_at',
+    );
+  });
+
+  it('is not enough to hold import on contacts, even with every action on every scope', () => {
+    const everything = makeActor({ rolePermissions: [...grant('contact'), ...grant('account')] });
+    expect(importTargets(everything, 'contact', contactFields).map((t) => t.key)).not.toContain(
+      'created_at',
+    );
+  });
+
+  it('is withdrawn by a field rule that makes created_at unwritable', () => {
+    const rule: FieldPermissionRow = {
+      roleId,
+      objectType: 'contact',
+      fieldKey: 'created_at',
+      access: 'read',
+    };
+    const limited = makeActor({
+      rolePermissions: [
+        ...grant('contact'),
+        {
+          roleId,
+          objectType: 'import_history',
+          action: 'create',
+          scope: 'all',
+        },
+      ],
+      fieldPermissions: [rule],
+    });
+    expect(importTargets(limited, 'contact', contactFields).map((t) => t.key)).not.toContain(
+      'created_at',
+    );
+  });
+
+  it('refuses a mapping onto created_at for someone without the grant, like any unknown field', () => {
+    const issues = validateMapping(
+      actor(),
+      'contact',
+      contactFields,
+      [
+        { column: 0, field: 'last_name' },
+        { column: 1, field: 'created_at' },
+      ],
+      { columnCount: 5, duplicateMode: 'create', matchField: null },
+    );
+    expect(issues.map((issue) => issue.message)).toContain('Cannot import into created_at');
+  });
+
+  it('accepts it for someone with the grant', () => {
+    const issues = validateMapping(
+      historian(),
+      'contact',
+      contactFields,
+      [
+        { column: 0, field: 'last_name' },
+        { column: 1, field: 'created_at' },
+      ],
+      { columnCount: 5, duplicateMode: 'create', matchField: null },
+    );
+    expect(issues).toEqual([]);
+  });
+});
+
 describe('validateMapping', () => {
   const base = { columnCount: 5, duplicateMode: 'create' as const, matchField: null };
   const goodMapping = [

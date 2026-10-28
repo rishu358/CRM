@@ -38,6 +38,7 @@ export function serializeImportJob(
     skippedCount: job.skippedCount,
     failedCount: job.failedCount,
     hasErrorFile: job.errorFileKey !== null,
+    dryRun: job.dryRun,
     failureReason: job.failureReason ?? null,
     startedAt: job.startedAt?.toISOString() ?? null,
     finishedAt: job.finishedAt?.toISOString() ?? null,

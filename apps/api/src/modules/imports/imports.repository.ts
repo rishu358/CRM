@@ -75,7 +75,12 @@ export class ImportsRepository {
     userId: string,
     options: { limit: number; cursor?: string | undefined },
   ): Promise<ImportListResult> {
-    const predicates = [eq(importJobs.tenantId, tenantId), eq(importJobs.createdBy, userId)];
+    // A check is not an import: it is shown with the import it belongs to, not in the recent list.
+    const predicates = [
+      eq(importJobs.tenantId, tenantId),
+      eq(importJobs.createdBy, userId),
+      eq(importJobs.dryRun, false),
+    ];
 
     const cursor = options.cursor === undefined ? null : decodeCursor(options.cursor);
     if (cursor !== null && cursor.value !== null) {
