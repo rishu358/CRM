@@ -1,6 +1,8 @@
 # ADR-0063: The website lead form: a public door into a multi-tenant system, and the rules that keep it narrow
 
-- **Status:** Proposed (security plan, for review before any code is written)
+- **Status:** Accepted for build (plan approved 2026-10-28). Part A (forms, the public door, the hosted page, the admin
+  screens) is built in draft PR A; part B (assignment rules) follows. "Implementation notes" at the end lists where the
+  build differs from the plan above.
 - **Date:** 2026-10-28
 - **Related:** ADR-0002 (roles and RLS), ADR-0019 (invitation tokens), ADR-0023 (duplicates), ADR-0040 (outbound and
   browser hardening), ADR-0047 (entitlements), ADR-0053 (shared rate limits), ADR-0060 (idempotency key), CLAUDE.md §5, §10, §13
@@ -433,7 +435,50 @@ dependency, no new secret.
 6. **Add `web_form` to the lead `source` picklist** of every workspace (a migration touching existing field metadata).
 7. **Allow the exception to CLAUDE.md §10(d)** in the one-line form in §1.
 
-## 16. Delivery
+## 16. Implementation notes (part A)
+
+Where the build differs from the plan, or settles something the plan left open. Nothing here loosens a rule above.
+
+- **Routing role.** Exactly as §3.2: `crm_auth` holds `SELECT (tenant_id, form_id, key_hash, retires_at, revoked_at)` on
+  `lead_form_keys` and a read-only policy; `crm_app` does all other work in the workspace the row names. The database spec
+  (`packages/db/src/lead-forms.security.spec.ts`) asserts that `crm_auth` is refused `select *`, every other column, every other
+  table named in the plan, and every write.
+- **The boundary test is built** (`public-door.boundary.spec.ts`): the two public files may import only a listed set, `runAsAuth`
+  appears once, no `Actor` appears, and exactly two handlers carry `@Public()`.
+- **Browser cross-origin approval.** The API's CORS is now a per-request delegate (`@fastify/cors`'s `delegator`): the credentialed
+  allow-list everywhere, no approval at all under `/api/v1/public/`. A test sends an `Origin` and a preflight and asserts no
+  `Access-Control-*` header.
+- **Body cap** is a `preParsing` hook on the public prefix (declared length refused before reading; a counter stops a body that
+  lies or is chunked) and the web proxy refuses over 16 KB too. Body-parser failures (`FST_ERR_CTP_*`) now answer 4xx with fixed
+  words instead of 500; a small addition to the global error filter.
+- **Limits.** The per-address ceiling for page views is the existing global one (1,000 a minute); a view spends only a per-form
+  budget (`PUBLIC_FORM_RATE_VIEWS_PER_FORM`, new, because a popular page is read far more than it is filled in). The other limits
+  are as in §4.1. `HUMAN_CHECK_PROVIDER` was **not** added: a variable nothing reads is a promise the code does not keep, and the
+  adapter arrives with the first provider (§4.4).
+- **Duplicates.** The comparison is exact email and phone against leads and contacts, by the system, ignoring the reader's
+  visibility; the fuzzy company match against accounts is not run (a name typed by a stranger is a weak signal). The match goes
+  to a timeline entry on the new lead, a notification to the matched record's owner, and the submission row; the visitor's
+  answer is identical.
+- **Owner.** In part A the owner is the form's creator if they can still read and update leads, else the longest-standing
+  active member whose role can update web forms and work leads, else nobody. A person is recognised by capability, never by role
+  name. Part B replaces this behind `LEAD_ASSIGNER` without touching the public side. The call runs in a savepoint; a failure
+  there is audited and the lead is made unassigned rather than lost.
+- **Erasure.** Erasing a lead deletes its `lead_form_submissions` row in the same statement block (`erasePersonalColumns`);
+  `crm_worker` holds `DELETE` on that table and nothing else. **Not done:** the data-subject _export_ does not yet include the
+  consent record. It is listed as a follow-up in the PR.
+- **Fill-time trap.** A submission within three seconds of the page being drawn answers `422 FORM_EXPIRED` (a new error code),
+  not a silent drop; the hosted page tells the visitor to reload and send again. A password manager that fills and submits in
+  under three seconds therefore costs a retry, never a lead. Risk to watch: a browser that auto-fills the hidden trap field would
+  make a real visitor's submission vanish; the field is `aria-hidden`, `tabindex=-1` and `autocomplete=off`, and nothing is made
+  of that risk beyond that.
+- **Hosted page and framing.** `/f/<key>` is in the session gate's public list. `proxy.ts` asks the API for the form's allowed
+  origins (the same public definition the page reads, so a view costs two reads) and builds `frame-ancestors` from them for that
+  one path; every other path keeps `frame-ancestors 'none'` and `X-Frame-Options: DENY` (the header is excluded for `/f/`).
+  The CSP's script, style, connect and form directives are identical to the app's.
+- **Not in v1 and said so:** CORS direct-post embed (§5.2), CAPTCHA, the assignment rules (part B), the export of consent
+  records, a keyed-hash address for abuse tracing.
+
+## 17. Delivery
 
 - **PR A (draft):** forms, keys, the two public routes, the hosted page and snippet, the proxy and CSP changes, entitlement,
   caps, kill switches, audit and outbox events, notification handler, default-owner assignment, admin screens, tests and E2E.
