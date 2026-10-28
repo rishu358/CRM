@@ -129,7 +129,11 @@ export function plainValue(value: unknown): string {
   if (typeof value === 'object') {
     const parts = Object.values(value as Record<string, unknown>)
       .filter((part) => !isEmpty(part))
-      .map((part) => (typeof part === 'object' ? JSON.stringify(part) : String(part)));
+      .map((part) =>
+        typeof part === 'string' || typeof part === 'number' || typeof part === 'boolean'
+          ? String(part)
+          : JSON.stringify(part),
+      );
     return parts.join(', ');
   }
   return '';
