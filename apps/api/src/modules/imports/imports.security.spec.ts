@@ -181,9 +181,9 @@ describe('authorization: `import` is its own action, default deny', () => {
     expect((await createImport(user.token, { objectType: 'account' })).status).toBe(403);
   });
 
-  it('does not import deals: that is a business rule the spec does not give', async () => {
-    const response = await createImport(adminA.token, { objectType: 'deal' });
-    expect(response.status).toBe(422);
+  it('imports deals since ADR-0070, and still refuses an object nobody can import', async () => {
+    expect((await createImport(adminA.token, { objectType: 'deal' })).status).toBe(201);
+    expect((await createImport(adminA.token, { objectType: 'activity' })).status).toBe(422);
   });
 });
 

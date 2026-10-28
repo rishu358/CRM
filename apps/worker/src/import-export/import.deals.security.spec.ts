@@ -207,11 +207,11 @@ describe('amounts, accounts, contacts and owners', () => {
     ]);
     expect(job).toMatchObject({ createdCount: 2, failedCount: 1 });
     expect(await deal(`Own currency ${tag}`)).toMatchObject({
-      amount_minor: '150075',
+      amount_minor: 150075n,
       currency: 'USD',
     });
     const plain = await deal(`Plain ${tag}`);
-    expect(plain['amount_minor']).toBe('250000');
+    expect(plain['amount_minor']).toBe(250000n);
     expect(typeof plain['currency']).toBe('string');
   });
 
@@ -393,7 +393,7 @@ describe('duplicates are never silent', () => {
     expect(again).toMatchObject({ createdCount: 0, updatedCount: 1 });
     expect(await dealCount(`Idem ${tag}`)).toBe(1);
     expect(await deal(`Idem ${tag}`)).toMatchObject({
-      amount_minor: '25000',
+      amount_minor: 25000n,
       external_id: `crm-${tag}`,
       version: 2,
     });
@@ -494,19 +494,28 @@ describe('updating an existing deal', () => {
         { column: 0, field: 'external_id' },
         { column: 1, field: 'pipeline_id' },
         { column: 2, field: 'stage_id' },
+        { column: 3, field: 'name' },
       ],
       duplicateMode: 'update' as const,
       matchField: 'external_id',
     };
-    const head = ['ID', 'Pipeline', 'Stage'];
+    const head = ['ID', 'Pipeline', 'Stage', 'Name'];
 
-    const refused = await importDeals(owner, [head, [`mv-${tag}`, `Other ${tag}`, 'New']], opts);
+    const refused = await importDeals(
+      owner,
+      [head, [`mv-${tag}`, `Other ${tag}`, 'New', `Moving ${tag}`]],
+      opts,
+    );
     expect(refused).toMatchObject({ updatedCount: 0, failedCount: 1 });
     expect(h.readText(refused.errorFileKey as string)).toContain('another pipeline');
     expect((await deal(`Moving ${tag}`))['pipeline_id']).toBe(defaultPipeline.id);
     expect(other.pipelineId).toBeTruthy();
 
-    const moved = await importDeals(owner, [head, [`mv-${tag}`, '', won.name]], opts);
+    const moved = await importDeals(
+      owner,
+      [head, [`mv-${tag}`, '', won.name, `Moving ${tag}`]],
+      opts,
+    );
     expect(moved).toMatchObject({ updatedCount: 1, failedCount: 0 });
     const row = await deal(`Moving ${tag}`);
     expect(row).toMatchObject({ stage_id: won.id, probability: 100 });
