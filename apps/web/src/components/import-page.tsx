@@ -1,6 +1,12 @@
 'use client';
 
-import { IMPORT_LIMITS } from '@crm/core';
+import {
+  IMPORT_LIMITS,
+  detectTemplate,
+  suggestMapping,
+  templateHeadings,
+  type ImportTemplateId,
+} from '@crm/core';
 import {
   Button,
   Card,
@@ -28,6 +34,7 @@ import {
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ApiRequestError } from '../lib/api-client';
 import {
+  useCheckImport,
   useImportErrorFile,
   useImportJob,
   useRecentImports,
@@ -52,21 +59,23 @@ import { AppShell } from './app-shell';
  * Nothing here is enforcement. The mapping screen offers only the fields the
  * server says this person may write (`targets`), but the API re-checks every
  * one on Start, the worker checks again at every chunk, and a column can never
- * be mapped onto an owner, an id or a version because those are not offered and
- * would be refused if somebody sent them anyway.
+ * be mapped onto an id or a version, nor onto an owner by somebody who may not
+ * reassign records, because those are not offered and would be refused if
+ * somebody sent them anyway.
  */
 
 const MAX_MB = Math.round(IMPORT_LIMITS.maxUploadBytes / (1024 * 1024));
 
-type ObjectType = 'contact' | 'account' | 'lead';
+type ObjectType = 'contact' | 'account' | 'lead' | 'deal';
 const OBJECTS: readonly { value: ObjectType; label: TranslationKey }[] = [
   { value: 'contact', label: 'import.object.contact' },
   { value: 'account', label: 'import.object.account' },
   { value: 'lead', label: 'import.object.lead' },
+  { value: 'deal', label: 'import.object.deal' },
 ];
 
 function isObjectType(value: string | null): value is ObjectType {
-  return value === 'contact' || value === 'account' || value === 'lead';
+  return value === 'contact' || value === 'account' || value === 'lead' || value === 'deal';
 }
 
 /**
@@ -395,34 +404,45 @@ function Working({ title, description }: { title: string; description: string })
 // Step 2: map columns
 // ---------------------------------------------------------------------------
 
-/** "Last Name", "last_name" and "LASTNAME" are the same heading. */
-const normalize = (value: string): string => value.toLowerCase().replace(/[^a-z0-9]/g, '');
+/** A blank file with the headings of the generic template, saved from the browser (nothing is uploaded). */
+function downloadTemplate(headings: readonly string[], fileName: string): void {
+  const BOM = '\uFEFF';
+  const blob = new Blob([`${BOM}${headings.join(',')}\n`], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = fileName;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+}
 
 function MapColumns({ job }: { job: ImportRecord }) {
   const columns = job.columns ?? [];
   const targets = useMemo(() => job.targets ?? [], [job.targets]);
   const matchFields = job.matchFields ?? [];
   const start = useStartImport();
+  const check = useCheckImport();
+  const [checked, setChecked] = useState<{ id: string; signature: string } | null>(null);
 
-  // Suggest a mapping from the headings. A convenience only: the user sees and
-  // can change every choice, and the server validates the result.
-  const [choices, setChoices] = useState<Record<number, string>>(() => {
-    const suggested: Record<number, string> = {};
-    const used = new Set<string>();
-    columns.forEach((heading, index) => {
-      const key = normalize(heading);
-      const match = targets.find(
-        (target) =>
-          !used.has(target.key) &&
-          (normalize(target.label) === key || normalize(target.key) === key),
-      );
-      if (match !== undefined) {
-        suggested[index] = match.key;
-        used.add(match.key);
-      }
-    });
-    return suggested;
-  });
+  // Suggest a mapping from the headings, for the kind of file this looks like (ADR-0072). A
+  // convenience only: the user sees and can change every choice, and the server validates the result.
+  const [template, setTemplate] = useState<'auto' | ImportTemplateId>('auto');
+  const [choices, setChoices] = useState<Record<number, string>>(() =>
+    suggestMapping(job.objectType, columns, targets, detectTemplate(columns)),
+  );
+  const chooseTemplate = (next: 'auto' | ImportTemplateId) => {
+    setTemplate(next);
+    setChoices(
+      suggestMapping(
+        job.objectType,
+        columns,
+        targets,
+        next === 'auto' ? detectTemplate(columns) : next,
+      ),
+    );
+  };
   const [mode, setMode] = useState<'skip' | 'update' | 'create'>('skip');
   const [matchField, setMatchField] = useState<string>(matchFields[0] ?? '');
 
@@ -436,18 +456,22 @@ function MapColumns({ job }: { job: ImportRecord }) {
   const takenElsewhere = (column: number, key: string) =>
     Object.entries(choices).some(([other, field]) => Number(other) !== column && field === key);
 
-  const submit = () => {
-    start.mutate({
-      id: job.id,
-      mapping: Object.entries(choices)
-        .filter(([, field]) => field !== '')
-        .map(([column, field]) => ({ column: Number(column), field })),
-      duplicateMode: mode,
-      matchField: mode === 'create' ? null : matchField,
-    });
-  };
+  const body = () => ({
+    id: job.id,
+    mapping: Object.entries(choices)
+      .filter(([, field]) => field !== '')
+      .map(([column, field]) => ({ column: Number(column), field })),
+    duplicateMode: mode,
+    matchField: mode === 'create' ? null : matchField,
+  });
+  const submit = () => start.mutate(body());
 
-  const problem = start.error;
+  // A check answers for the mapping it was asked about; a change to any choice makes it stale.
+  const signature = JSON.stringify([choices, mode, matchField]);
+  const runCheck = () =>
+    check.mutate(body(), { onSuccess: (checkJob) => setChecked({ id: checkJob.id, signature }) });
+
+  const problem = start.error ?? check.error;
   const canStart = missing.length === 0 && matchMapped && mappedFields.size > 0;
 
   return (
@@ -561,6 +585,35 @@ function MapColumns({ job }: { job: ImportRecord }) {
         </section>
       ) : null}
 
+      <div className="space-y-2">
+        <Select
+          label={t('import.template.label')}
+          hint={t('import.template.hint')}
+          value={template}
+          onChange={(event) => chooseTemplate(event.target.value as 'auto' | ImportTemplateId)}
+        >
+          <option value="auto">{t('import.template.auto')}</option>
+          <option value="zoho">{t('import.template.zoho')}</option>
+          <option value="generic">{t('import.template.generic')}</option>
+        </Select>
+        {job.objectType === 'contact' || job.objectType === 'deal' ? (
+          <p className="text-xs text-muted-foreground">{t('import.template.existing')}</p>
+        ) : null}
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() =>
+            downloadTemplate(
+              templateHeadings(job.objectType, targets),
+              `${job.objectType}-import-template.csv`,
+            )
+          }
+        >
+          {t('import.template.download')}
+        </Button>
+      </div>
+
       <fieldset className="space-y-2.5">
         <legend className="mb-1 text-sm font-semibold">{t('import.duplicates.title')}</legend>
         {(['skip', 'update', 'create'] as const).map((value) => (
@@ -601,6 +654,12 @@ function MapColumns({ job }: { job: ImportRecord }) {
       </fieldset>
 
       <p className="text-sm text-muted-foreground">{t('import.owner.note')}</p>
+      {targets.some((target) => target.key === 'created_at') ? (
+        <p className="text-sm text-muted-foreground">{t('import.dates.offered')}</p>
+      ) : null}
+      {targets.some((target) => target.key === 'owner_id') ? (
+        <p className="text-sm text-muted-foreground">{t('import.owner.offered')}</p>
+      ) : null}
 
       {problem !== null ? (
         <div role="alert" className="space-y-1 text-sm text-destructive">
@@ -613,9 +672,28 @@ function MapColumns({ job }: { job: ImportRecord }) {
         </div>
       ) : null}
 
-      <Button type="submit" loading={start.isPending} disabled={!canStart}>
-        {t('import.start')}
-      </Button>
+      <div className="flex flex-wrap items-center gap-3">
+        <Button type="submit" loading={start.isPending} disabled={!canStart}>
+          {t('import.start')}
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          loading={check.isPending}
+          disabled={!canStart}
+          onClick={runCheck}
+        >
+          {t('import.check')}
+        </Button>
+      </div>
+
+      {checked === null ? null : (
+        <CheckResult
+          jobId={checked.id}
+          stale={checked.signature !== signature}
+          large={(job.totalRows ?? 0) > IMPORT_LIMITS.chunkRows}
+        />
+      )}
     </form>
   );
 }
@@ -640,6 +718,69 @@ function Counts({ job }: { job: ImportRecord }) {
         </div>
       ))}
     </dl>
+  );
+}
+
+/** What a check found: the counts an import would produce, and the rows that would fail. */
+function CheckResult({ jobId, stale, large }: { jobId: string; stale: boolean; large: boolean }) {
+  const query = useImportJob(jobId);
+  const errorFile = useImportErrorFile();
+  const job = query.data?.data;
+
+  if (stale) {
+    return <p className="text-sm text-muted-foreground">{t('import.check.stale')}</p>;
+  }
+  if (job === undefined || job.status === 'staging' || job.status === 'processing') {
+    return (
+      <p role="status" aria-live="polite" className="text-sm text-muted-foreground">
+        {t('import.check.running')}
+      </p>
+    );
+  }
+  if (job.status !== 'completed') {
+    return (
+      <div role="alert" className="space-y-1 text-sm text-destructive">
+        <p className="font-medium">{t('import.check.failed')}</p>
+        {job.failureReason === null ? null : <p>{job.failureReason}</p>}
+      </div>
+    );
+  }
+
+  return (
+    <section
+      aria-label={t('import.check.title')}
+      className="space-y-3 rounded-lg border border-border bg-card p-4 shadow-sm"
+    >
+      <h2 className="text-base font-semibold">{t('import.check.title')}</h2>
+      <p className="text-sm">
+        {t('import.check.description', {
+          created: job.createdCount.toLocaleString(),
+          updated: job.updatedCount.toLocaleString(),
+          skipped: job.skippedCount.toLocaleString(),
+          failed: job.failedCount.toLocaleString(),
+        })}
+      </p>
+      <Counts job={job} />
+      {large ? <p className="text-xs text-muted-foreground">{t('import.check.large')}</p> : null}
+      {job.hasErrorFile ? (
+        <div className="space-y-2">
+          <p className="text-sm text-muted-foreground">{t('import.errors.description')}</p>
+          <Button
+            type="button"
+            variant="outline"
+            loading={errorFile.isPending}
+            onClick={() => errorFile.mutate(job.id)}
+          >
+            {t('import.errors.download')}
+          </Button>
+          {errorFile.isError ? (
+            <p role="alert" className="text-sm text-destructive">
+              {errorFile.error.message}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+    </section>
   );
 }
 

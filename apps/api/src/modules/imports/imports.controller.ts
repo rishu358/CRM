@@ -81,6 +81,17 @@ export class ImportsController {
     return { data: await this.imports.start(actor, params.id, body) };
   }
 
+  /** The same body as `start`; imports nothing. The answer is a job to watch, like `start`'s. */
+  @Post(':id/check')
+  @HttpCode(202)
+  async check(
+    @CurrentActor() actor: Actor,
+    @Param(zodPipe(importParamsSchema)) params: { id: string },
+    @Body(zodPipe(importStartSchema)) body: ImportStartInput,
+  ) {
+    return { data: await this.imports.check(actor, params.id, body) };
+  }
+
   @Post(':id/error-file')
   @HttpCode(200)
   async errorFile(

@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm';
 import {
   bigint,
+  boolean,
   index,
   integer,
   jsonb,
@@ -41,7 +42,7 @@ export const importJobs = pgTable(
   'import_jobs',
   {
     ...baseColumns,
-    objectType: text('object_type').$type<'account' | 'contact' | 'lead'>().notNull(),
+    objectType: text('object_type').$type<'account' | 'contact' | 'lead' | 'deal'>().notNull(),
     status: text('status').$type<ImportStatus>().notNull().default('awaiting_upload'),
     fileName: text('file_name').notNull(),
     claimedFormat: text('claimed_format').$type<'csv' | 'xlsx'>().notNull(),
@@ -62,6 +63,8 @@ export const importJobs = pgTable(
     failedCount: integer('failed_count').notNull().default(0),
     errorFileKey: text('error_file_key'),
     failureReason: text('failure_reason'),
+    /** A check: the same rows through the same logic, every chunk rolled back (ADR-0068). */
+    dryRun: boolean('dry_run').notNull().default(false),
     startedAt: timestamptz('started_at'),
     finishedAt: timestamptz('finished_at'),
   },

@@ -19,7 +19,7 @@ import { z } from 'zod';
  *     to create is a presigned URL, and the bytes go to the object store.
  */
 
-export const importObjectTypeSchema = z.enum(['account', 'contact', 'lead']);
+export const importObjectTypeSchema = z.enum(['account', 'contact', 'lead', 'deal']);
 export type ImportObjectType = z.infer<typeof importObjectTypeSchema>;
 
 export const importStatusSchema = z.enum([
@@ -114,6 +114,8 @@ export const importJobSchema = z.object({
   skippedCount: z.number().int(),
   failedCount: z.number().int(),
   hasErrorFile: z.boolean(),
+  /** A check: nothing was written, the counts are what would happen. */
+  dryRun: z.boolean(),
   /** A sentence for the user. Never a stack trace or a driver message. */
   failureReason: z.string().nullable(),
   startedAt: z.iso.datetime({ offset: true }).nullable(),

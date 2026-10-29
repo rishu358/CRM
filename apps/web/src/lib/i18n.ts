@@ -541,6 +541,7 @@ export const en = {
   'import.object.contact': 'Contacts',
   'import.object.account': 'Accounts',
   'import.object.lead': 'Leads',
+  'import.object.deal': 'Deals',
   'import.file': 'File',
   'import.file.hint': 'CSV or XLSX, up to {size} MB. The first row must be column headings.',
   'import.file.invalid': 'Choose a .csv or .xlsx file.',
@@ -568,7 +569,30 @@ export const en = {
   'import.duplicates.matchBy.hint': 'A record counts as existing when this field is the same.',
   'import.duplicates.matchBy.unmapped': 'Match a column to this field first.',
   'import.owner.note': 'Every record you import is assigned to you.',
+  'import.owner.offered':
+    'You may give rows to someone else: match a column to Owner and put their e-mail address in it.',
+  'import.dates.offered':
+    'You may bring original dates: match a column to Created date and write each as YYYY-MM-DD, or YYYY-MM-DD HH:MM. Dates in the future or before 1990 are refused, and the audit log still records when you imported.',
+  'import.template.label': 'Where did this file come from?',
+  'import.template.hint':
+    'This only suggests which column is which. You can change any choice in the table.',
+  'import.template.auto': 'Detect automatically',
+  'import.template.zoho': 'A Zoho CRM export',
+  'import.template.generic': 'A spreadsheet or another system',
+  'import.template.existing':
+    'Accounts and contacts named in a file must already exist here, so import accounts first.',
+  'import.template.download': 'Download a blank template file',
   'import.start': 'Start import',
+  'import.check': 'Check the file first',
+  'import.check.running': 'Checking the file. Nothing is being changed.',
+  'import.check.title': 'Check finished. Nothing was changed.',
+  'import.check.description':
+    'If you import now: {created} would be created, {updated} updated, {skipped} skipped and {failed} could not be imported.',
+  'import.check.stale':
+    'You changed the mapping after this check. Check again to see the result for the new mapping.',
+  'import.check.large':
+    'In a large file, a row that repeats a value from much earlier may be counted as new here and skipped when you import.',
+  'import.check.failed': 'The check could not finish',
   'import.running': 'Importing',
   'import.running.description':
     'You can leave this page. The import keeps running in the background.',
@@ -582,7 +606,7 @@ export const en = {
     '{created} created, {updated} updated, {skipped} skipped, {failed} failed.',
   'import.errors.download': 'Download the error file',
   'import.errors.description':
-    'The error file lists each row that could not be imported, with the reason.',
+    'The file lists each row that could not be imported, and each deal skipped as a duplicate, with the reason.',
   'import.failed.title': 'The import could not finish',
   'import.rejected.title': 'We could not use that file',
   'import.again': 'Import another file',
@@ -760,6 +784,7 @@ export const en = {
   'access.object.dataSubject': 'Data rights',
   'access.object.tenantSettings': 'Company setup',
   'access.object.pipeline': 'Pipeline stages',
+  'access.object.importHistory': 'Original dates on import',
   'access.objectOne.account': 'account',
   'access.objectOne.contact': 'contact',
   'access.objectOne.lead': 'lead',

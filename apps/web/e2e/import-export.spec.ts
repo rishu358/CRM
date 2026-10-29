@@ -93,13 +93,16 @@ test.describe('import', () => {
     await expect(page.getByText('3 rows in this file')).toBeVisible();
     await expect(page.getByText('Every record you import is assigned to you.')).toBeVisible();
 
-    // The target list is what this person may write: never an owner.
+    // The target list is what this person may write. The workspace owner may reassign records, so
+    // an Owner column is on offer (ADR-0067); a person who may not (an `own`-scope rep) is not
+    // offered one, which the API's import tests pin.
     const options = await page
       .getByLabel('Do not import: First name')
       .locator('option')
       .allTextContents();
     expect(options).toContain('Last name *');
-    expect(options.join('|')).not.toMatch(/owner/i);
+    expect(options.join('|')).toMatch(/Owner \(e-mail address/);
+    await expect(page.getByText('Every record you import is assigned to you.')).toBeVisible();
 
     await page.getByLabel('Create a new record anyway').check();
     await page.getByRole('button', { name: 'Start import' }).click();
@@ -111,6 +114,40 @@ test.describe('import', () => {
     await page.goto('/contacts');
     await page.getByLabel('Search contacts').fill(`Hopper-${id}`);
     await expect(page.getByRole('link', { name: `Hopper-${id}` })).toBeVisible(SLOW);
+  });
+
+  test('suggests a mapping from a Zoho CRM export, and every suggestion can be changed', async ({
+    page,
+  }) => {
+    await signIn(page, credentials.owner);
+
+    await chooseFile(
+      page,
+      'zoho-contacts.csv',
+      [
+        'Contact Owner,First Name,Last Name,Account Name,Lead Source,Email',
+        `owner@e2e.example,Ada,Lovelace,Analytical Engines,Web,ada-${tag()}@e2e.example`,
+      ].join('\n'),
+    );
+    await expect(page.getByRole('heading', { name: 'Match columns to fields' })).toBeVisible(SLOW);
+
+    // Recognised as a Zoho file, and mapped by Zoho's own labels. Nothing has been imported.
+    await expect(page.getByLabel('Where did this file come from?')).toHaveValue('auto');
+    await expect(page.getByLabel('Do not import: Contact Owner')).toHaveValue('owner_id');
+    await expect(page.getByLabel('Do not import: Account Name')).toHaveValue('account_id');
+    await expect(page.getByLabel('Do not import: Lead Source')).toHaveValue('lead_source');
+    await expect(page.getByLabel('Do not import: Last Name')).toHaveValue('last_name');
+
+    // The source decides the suggestion: a plain spreadsheet has no `Contact Owner` convention.
+    await page.getByLabel('Where did this file come from?').selectOption('generic');
+    await expect(page.getByLabel('Do not import: Contact Owner')).toHaveValue('');
+    await expect(page.getByLabel('Do not import: Last Name')).toHaveValue('last_name');
+    await page.getByLabel('Where did this file come from?').selectOption('zoho');
+    await expect(page.getByLabel('Do not import: Contact Owner')).toHaveValue('owner_id');
+
+    // And it is only a suggestion: any column can be set back to "do not import".
+    await page.getByLabel('Do not import: Contact Owner').selectOption('');
+    await expect(page.getByLabel('Do not import: Contact Owner')).toHaveValue('');
   });
 
   test('a row that cannot be imported is reported by its row number, and the rest import', async ({

@@ -54,10 +54,10 @@ export const GRANT_CATALOGUE: readonly GrantCatalogueEntry[] = [
     scopes: RECORD_SCOPES,
   },
   {
-    // Deals are exportable but not importable: a row would have to name a stage.
+    // Deals are importable since ADR-0070: a row names its pipeline and stage by name.
     objectType: 'deal',
     kind: 'record',
-    actions: ['read', 'create', 'update', 'delete', 'export'],
+    actions: ['read', 'create', 'update', 'delete', 'export', 'import'],
     scopes: RECORD_SCOPES,
   },
   {
@@ -131,6 +131,15 @@ export const GRANT_CATALOGUE: readonly GrantCatalogueEntry[] = [
     objectType: 'pipeline',
     kind: 'administrative',
     actions: ['read', 'create', 'update', 'delete'],
+    scopes: ADMIN_SCOPES,
+  },
+  // Original dates on an import (ADR-0069). `create` is the one switch: a file may then carry the
+  // date each record was really created. It is apart from `import` because it lets a record claim
+  // a past that reports, ageing and "won this month" will then believe.
+  {
+    objectType: 'import_history',
+    kind: 'administrative',
+    actions: ['create'],
     scopes: ADMIN_SCOPES,
   },
   // Website lead forms (ADR-0065). `create` adds a form, `update` edits it, switches it on or off and

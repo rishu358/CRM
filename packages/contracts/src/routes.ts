@@ -1296,10 +1296,10 @@ const importRoutes: RouteDefinition[] = [
     summary: 'Map the columns, choose duplicate handling, and run',
     description:
       'The mapping is validated against field metadata and **field-level write ' +
-      'permissions** before anything is queued. `owner_id`, `tenant_id`, `version` and the ' +
-      'like are not importable, so a column cannot be mapped onto them; records are ' +
-      'owned by the importer. Processing happens in the background, in idempotent ' +
-      'chunks (ADR-0029).',
+      'permissions** before anything is queued. `tenant_id`, `version` and the like are not ' +
+      'importable, so a column cannot be mapped onto them; `owner_id` is accepted only for ' +
+      'someone who may reassign records (ADR-0067), and otherwise records are owned by the ' +
+      'importer. Processing happens in the background, in idempotent chunks (ADR-0029).',
     auth: 'session',
     params: importParamsSchema,
     body: { name: 'ImportStart', schema: importStartSchema },
@@ -1308,6 +1308,31 @@ const importRoutes: RouteDefinition[] = [
       status: 202,
       name: 'ImportStartedResponse',
       description: 'The job, now running.',
+      data: importJobSchema,
+    },
+    errors: [...RECORD, ErrorCode.CONFLICT],
+  },
+  {
+    method: 'POST',
+    path: '/imports/{id}/check',
+    operationId: 'checkImport',
+    tag: 'Import',
+    summary: 'Check a file against a mapping without importing it',
+    description:
+      'Takes the same body as `start` and validates it the same way, then queues a job of its ' +
+      'own that runs every row through the real import logic and rolls each chunk back, so ' +
+      'nothing is written. Poll the returned job (`dryRun: true`); when it completes its counts ' +
+      'are what an import would create, update, skip and fail, and its error file lists the ' +
+      'rows that would fail. The import being checked is unchanged and can be checked again or ' +
+      'started (ADR-0068).',
+    auth: 'session',
+    params: importParamsSchema,
+    body: { name: 'ImportStart', schema: importStartSchema },
+    response: {
+      kind: 'object',
+      status: 202,
+      name: 'ImportCheckStartedResponse',
+      description: 'The check job, now running.',
       data: importJobSchema,
     },
     errors: [...RECORD, ErrorCode.CONFLICT],

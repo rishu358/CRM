@@ -132,7 +132,8 @@ does, row by row:
 - **Fields.** A mapped column is checked against `canWriteField` for every row
   that supplies a value; a hidden or read-only field fails the row (it is not
   silently dropped). A blank cell supplies nothing and needs no permission.
-- **What a file can never set.** `owner_id`, `tenant_id`, `id`, `version` and the
+- **What a file can never set.** (`owner_id` may now be set by someone who may reassign records,
+  and a contact's account may be linked, both by name; see ADR-0067.) `owner_id`, `tenant_id`, `id`, `version` and the
   audit columns are not in `IMPORTABLE_SYSTEM_KEYS` (an allowlist, so a column
   added tomorrow is not importable by default). Every imported record is owned by
   the importer. Lead `status = converted` is refused by the same contract schema

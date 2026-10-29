@@ -26,7 +26,8 @@ import {
 import type { Logger } from 'pino';
 import { csvLine, CSV_BOM } from './csv.js';
 import { publishEvent } from './events.js';
-import { processChunk, type ChunkRow } from './import-rows.js';
+import { SKIPPED_NOTE_PREFIX } from './import-deals.js';
+import { processChunk, processChunkWithoutWriting, type ChunkRow } from './import-rows.js';
 import { openUpload, UploadRejected } from './parse.js';
 import type { EventHandler, ExhaustedHandler, OutboxRow } from '../relay.js';
 
@@ -113,6 +114,9 @@ async function endJob(
 }
 
 async function removeUpload(deps: ImportDeps, job: ImportJob): Promise<void> {
+  // A check shares its file with the import it is checking, which is still waiting for its mapping
+  // or about to run for real. Only that import's end may delete the file (ADR-0068).
+  if (job.dryRun) return;
   try {
     await deps.storage.delete(job.storageKey);
   } catch (error) {
@@ -386,19 +390,30 @@ export function processImportChunk(deps: ImportDeps): EventHandler {
       cells: row.cells,
     }));
 
-    const result = await processChunk(
-      tx,
-      {
-        actor,
-        jobId: job.id,
-        objectType,
-        fields,
-        mapping,
-        duplicateMode: mode,
-        matchField: job.matchField,
-      },
-      rows,
-    );
+    const tenantRow = (
+      await tx.execute(
+        sql`select timezone, default_currency from tenants where id = ${job.tenantId}`,
+      )
+    ).rows[0];
+    const timeZone = typeof tenantRow?.['timezone'] === 'string' ? tenantRow['timezone'] : 'UTC';
+    const defaultCurrency =
+      typeof tenantRow?.['default_currency'] === 'string'
+        ? tenantRow['default_currency']
+        : undefined;
+    const chunkContext = {
+      timeZone,
+      ...(defaultCurrency === undefined ? {} : { defaultCurrency }),
+      actor,
+      jobId: job.id,
+      objectType,
+      fields,
+      mapping,
+      duplicateMode: mode,
+      matchField: job.matchField,
+    };
+    const result = job.dryRun
+      ? await processChunkWithoutWriting(tx, chunkContext, rows)
+      : await processChunk(tx, chunkContext, rows);
 
     // Error rows, bounded. Beyond the cap we keep counting and stop describing.
     const recorded = Number(
@@ -410,7 +425,8 @@ export function processImportChunk(deps: ImportDeps): EventHandler {
       ).rows[0]?.['n'] ?? 0,
     );
     const room = Math.max(0, IMPORT_LIMITS.maxRecordedErrors - recorded);
-    const toStore = result.errors.slice(0, room);
+    // Failures first, then the rows skipped as duplicates that the file explains (deals).
+    const toStore = [...result.errors, ...result.notes].slice(0, room);
     for (let offset = 0; offset < toStore.length; offset += 1000) {
       await tx.insert(importErrors).values(
         toStore.slice(offset, offset + 1000).map((error) => ({
@@ -477,13 +493,15 @@ async function finishImport(
 
   let errorFileKey: string | null = null;
 
-  if (fresh.failedCount > 0) {
-    const errors = await tx
-      .select()
-      .from(importErrors)
-      .where(and(eq(importErrors.tenantId, job.tenantId), eq(importErrors.jobId, job.id)))
-      .orderBy(asc(importErrors.rowNumber), asc(importErrors.id));
+  const errors = await tx
+    .select()
+    .from(importErrors)
+    .where(and(eq(importErrors.tenantId, job.tenantId), eq(importErrors.jobId, job.id)))
+    .orderBy(asc(importErrors.rowNumber), asc(importErrors.id));
 
+  // Failed rows, and rows skipped as duplicates that the file says so about (deals): either one is
+  // a reason to hand the person a file, so nothing is dropped without being said.
+  if (fresh.failedCount > 0 || errors.length > 0) {
     // The original row for each error, so the file says what was in it.
     const sourceRows = [...new Set(errors.map((error) => error.rowNumber))];
     const byRow = new Map<number, readonly string[]>();
@@ -512,12 +530,14 @@ async function finishImport(
       );
       lines.push(csvLine([error.rowNumber, error.field ?? '', error.message, ...original]));
     }
-    const unlisted = fresh.failedCount - new Set(errors.map((error) => error.rowNumber)).size;
+    const failures = errors.filter((error) => !error.message.startsWith(SKIPPED_NOTE_PREFIX));
+    const unlisted = fresh.failedCount - new Set(failures.map((error) => error.rowNumber)).size;
     if (unlisted > 0) {
       lines.push(csvLine(['', '', `${unlisted} further failed rows are not listed`]));
     }
 
-    errorFileKey = `${fresh.storageKey}.errors.csv`;
+    // A check's file has a name of its own: the import it checked will write the usual one.
+    errorFileKey = `${fresh.storageKey}${fresh.dryRun ? '.check' : ''}.errors.csv`;
     await deps.storage.write(errorFileKey, Buffer.from(lines.join(''), 'utf8'), 'text/csv');
   }
 
@@ -547,6 +567,7 @@ async function finishImport(
     objectType: 'import_job',
     recordId: job.id,
     changes: {
+      ...(fresh.dryRun ? { dryRun: { new: true } } : {}),
       status: { old: 'processing', new: 'completed' },
       created: { new: fresh.createdCount },
       updated: { new: fresh.updatedCount },
@@ -554,13 +575,16 @@ async function finishImport(
       failed: { new: fresh.failedCount },
     },
   });
-  await publishEvent(tx, {
-    tenantId: job.tenantId,
-    actorId,
-    eventType: 'import.completed.v1',
-    objectType: 'import_job',
-    recordId: job.id,
-  });
+  // Nothing was imported, so there is nothing for a notification or an automation to follow.
+  if (!fresh.dryRun) {
+    await publishEvent(tx, {
+      tenantId: job.tenantId,
+      actorId,
+      eventType: 'import.completed.v1',
+      objectType: 'import_job',
+      recordId: job.id,
+    });
+  }
 
   // The uploaded file is no longer needed: keep customers' spreadsheets for as
   // short a time as the product needs them, which is until the import is done.

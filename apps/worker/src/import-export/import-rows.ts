@@ -1,4 +1,9 @@
-import { accountCreateSchema, contactCreateSchema, leadCreateSchema } from '@crm/contracts';
+import {
+  accountCreateSchema,
+  contactCreateSchema,
+  dealCreateSchema,
+  leadCreateSchema,
+} from '@crm/contracts';
 import {
   buildCustomFieldsPatchSchema,
   buildCustomFieldsSchema,
@@ -6,8 +11,15 @@ import {
   canWriteField,
   coerceCell,
   diffChanges,
+  canImportDate,
+  canImportPlain,
+  IMPORT_DATE_KEYS,
+  IMPORT_LINK_KEYS,
+  IMPORT_PLAIN_KEYS,
   IMPORTABLE_SYSTEM_KEYS,
   newId,
+  parseOriginalDate,
+  toTimeZone,
   type Actor,
   type FieldDefinition,
   type ImportableObjectType,
@@ -22,6 +34,19 @@ import {
   type RecordRow,
   type Tx,
 } from '@crm/db';
+import {
+  loadPlacement,
+  pipelineNamed,
+  placeNewDeal,
+  SKIPPED_NOTE_PREFIX,
+  stageNamed,
+  stageStateFor,
+  toMoneyInput,
+  withDefaultCurrency,
+  type Placement,
+} from './import-deals.js';
+import { linkValueKey, resolveLinks, type LinkCell } from './import-links.js';
+import { HISTORY_SOURCE } from '../relay.js';
 
 /**
  * Turn one chunk of staged rows into records (MVP_SPEC §M8, ADR-0029).
@@ -33,9 +58,13 @@ import {
  *     was checked when the job started and is checked again before every
  *     chunk, but a mapped column is still run through `canWriteField` per
  *     field here, so a mistake in either earlier check cannot become a write.
- *   - **It cannot set `owner_id`, `tenant_id`, `version` or an id.** Those are
- *     not in `IMPORTABLE_SYSTEM_KEYS`, so no mapped column can reach them, and
- *     the values are set below from the actor and the job, never from a cell.
+ *   - **It cannot set `tenant_id`, `version` or an id.** Those are not in
+ *     `IMPORTABLE_SYSTEM_KEYS`, so no mapped column can reach them, and the
+ *     values are set below from the actor and the job, never from a cell.
+ *   - **The owner and a contact's account come from a cell only through
+ *     `import-links.ts`** (ADR-0067): named by e-mail address, name or domain,
+ *     looked up inside the actor's own reach, and refused unless the actor may
+ *     reassign records of that kind. Otherwise the importer owns every row.
  *   - **Every system value goes through the same Zod schema the API's create
  *     endpoint uses** (`contactCreateSchema` and friends), so an import cannot
  *     hold a looser definition of a valid email, phone, domain or GSTIN than a
@@ -72,6 +101,11 @@ export interface ChunkResult {
   readonly skipped: number;
   readonly failed: number;
   readonly errors: readonly RowError[];
+  /**
+   * Rows that were skipped as duplicates and are explained in the downloadable file rather than
+   * silently dropped (deals only, ADR-0070). Not failures: they do not count as failed.
+   */
+  readonly notes: readonly RowError[];
 }
 
 export interface ChunkContext {
@@ -82,13 +116,29 @@ export interface ChunkContext {
   readonly mapping: readonly { readonly column: number; readonly field: string }[];
   readonly duplicateMode: 'skip' | 'update' | 'create';
   readonly matchField: string | null;
+  /** The workspace's IANA time zone, for dates written without one. UTC when not given. */
+  readonly timeZone?: string;
+  /** The workspace's currency, for a deal amount written without one. */
+  readonly defaultCurrency?: string;
 }
 
 const SCHEMAS = {
   contact: { create: contactCreateSchema, partial: contactCreateSchema.partial() },
   account: { create: accountCreateSchema, partial: accountCreateSchema.partial() },
   lead: { create: leadCreateSchema, partial: leadCreateSchema.partial() },
+  deal: { create: dealCreateSchema, partial: dealCreateSchema.partial() },
 } as const;
+
+const dateLabel = (key: string): string =>
+  key === 'created_at' ? 'Created date' : key === 'closed_at' ? 'Closed date' : key;
+const LINK_LABELS: Readonly<Record<string, string>> = {
+  owner_id: 'Owner',
+  account_id: 'Account',
+  primary_contact_id: 'Primary contact',
+  pipeline_id: 'Pipeline',
+  stage_id: 'Stage',
+};
+const linkLabel = (key: string): string => LINK_LABELS[key] ?? key;
 
 const snakeToCamel = (key: string): string =>
   key.replace(/_([a-z])/g, (_, letter: string) => letter.toUpperCase());
@@ -100,6 +150,16 @@ interface ParsedRow {
   custom: Record<string, unknown>;
   /** Field keys this row actually supplied (a blank cell supplies nothing). */
   supplied: string[];
+  /** Link columns (owner, account) as typed, resolved to ids after parsing. */
+  links: LinkCell[];
+  /** The original creation date, when the file gave one. Applies to a new record only. */
+  createdAt?: Date;
+  /** A deal's closed date, when the file gave one (original dates only). */
+  closedAt?: Date;
+  /** A deal's own id for itself. */
+  externalId?: string;
+  /** The pipeline and stage a deal row named, as typed. */
+  named: { pipeline?: string; stage?: string };
   errors: { field: string | null; message: string }[];
 }
 
@@ -107,6 +167,8 @@ interface PendingCreate {
   readonly parsed: ParsedRow;
   readonly id: string;
   readonly values: Record<string, unknown>;
+  /** Extra fields for the `created` event, beyond the owner. */
+  readonly payload?: Record<string, unknown>;
 }
 
 function formatIssues(
@@ -147,14 +209,29 @@ export async function processChunk(
     labelByCamel.get(head) ??
     (definitions.has(head) ? { field: head, label: definitions.get(head)?.label ?? head } : null);
 
+  const zone = toTimeZone(context.timeZone ?? 'UTC');
+  const now = new Date();
+
   const customSchema = buildCustomFieldsSchema(customDefinitions);
   const customPatchSchema = buildCustomFieldsPatchSchema(customDefinitions);
 
   const errors: RowError[] = [];
+  const notes: RowError[] = [];
+  const placement: Placement | null =
+    objectType === 'deal' ? await loadPlacement(tx, actor.tenantId) : null;
   let created = 0;
   let updated = 0;
   let skipped = 0;
   let failed = 0;
+
+  const note = (parsed: ParsedRow, message: string): void => {
+    notes.push({
+      sourceRow: parsed.row.sourceRow,
+      rowNumber: parsed.row.rowNumber,
+      field: null,
+      message: `${SKIPPED_NOTE_PREFIX}${message}`,
+    });
+  };
 
   const fail = (parsed: ParsedRow): void => {
     failed += 1;
@@ -172,9 +249,88 @@ export async function processChunk(
   // 1. Parse and validate every row. Nothing is written yet.
   // -------------------------------------------------------------------------
   const parsedRows: ParsedRow[] = rows.map((row) => {
-    const parsed: ParsedRow = { row, system: {}, custom: {}, supplied: [], errors: [] };
+    const parsed: ParsedRow = {
+      row,
+      system: {},
+      custom: {},
+      supplied: [],
+      links: [],
+      named: {},
+      errors: [],
+    };
 
     for (const entry of context.mapping) {
+      // An original date (ADR-0069): its own permission, and read in the workspace's time zone.
+      if (IMPORT_DATE_KEYS[objectType].includes(entry.field)) {
+        const text = (row.cells[entry.column] ?? '').trim();
+        if (text === '') continue;
+        if (!canWriteField(actor, object, entry.field)) {
+          parsed.errors.push({
+            field: entry.field,
+            message: `${dateLabel(entry.field)}: you do not have permission to write this field`,
+          });
+          continue;
+        }
+        if (!canImportDate(actor, objectType, entry.field)) {
+          parsed.errors.push({
+            field: entry.field,
+            message: `${dateLabel(entry.field)}: you cannot import original dates`,
+          });
+          continue;
+        }
+        const date = parseOriginalDate(text, zone, now);
+        if (!date.ok) {
+          parsed.errors.push({
+            field: entry.field,
+            message: `${dateLabel(entry.field)}: ${date.message}`,
+          });
+          continue;
+        }
+        parsed.supplied.push(entry.field);
+        if (entry.field === 'closed_at') parsed.closedAt = date.value;
+        else parsed.createdAt = date.value;
+        continue;
+      }
+
+      // A plain text column that is not a field: a deal's own id for itself (ADR-0070).
+      if (IMPORT_PLAIN_KEYS[objectType].includes(entry.field)) {
+        const text = (row.cells[entry.column] ?? '').trim();
+        if (text === '') continue;
+        if (!canImportPlain(actor, objectType, entry.field)) {
+          parsed.errors.push({
+            field: entry.field,
+            message: 'ID: you do not have permission to write this field',
+          });
+          continue;
+        }
+        if (text.length > 200) {
+          parsed.errors.push({ field: entry.field, message: 'ID: at most 200 characters' });
+          continue;
+        }
+        parsed.supplied.push(entry.field);
+        parsed.externalId = text;
+        continue;
+      }
+
+      // A link column (owner, account) is not a typed value: it is looked up after parsing.
+      if (IMPORT_LINK_KEYS[objectType].includes(entry.field)) {
+        const text = (row.cells[entry.column] ?? '').trim();
+        if (text === '') continue;
+        if (!canWriteField(actor, object, entry.field)) {
+          parsed.errors.push({
+            field: entry.field,
+            message: `${linkLabel(entry.field)}: you do not have permission to write this field`,
+          });
+          continue;
+        }
+        parsed.supplied.push(entry.field);
+        // Where a deal goes is settled with the stage rules, not by a lookup of one value.
+        if (entry.field === 'pipeline_id') parsed.named.pipeline = text;
+        else if (entry.field === 'stage_id') parsed.named.stage = text;
+        else parsed.links.push({ key: entry.field, value: text });
+        continue;
+      }
+
       const definition = definitions.get(entry.field);
       if (definition === undefined) {
         parsed.errors.push({ field: entry.field, message: 'This field is no longer available' });
@@ -191,7 +347,12 @@ export async function processChunk(
         });
         continue;
       }
-      const cell = coerceCell(definition, row.cells[entry.column] ?? '');
+      const isAmount = objectType === 'deal' && entry.field === 'amount';
+      const raw = row.cells[entry.column] ?? '';
+      const cell = coerceCell(
+        definition,
+        isAmount ? withDefaultCurrency(raw, context.defaultCurrency) : raw,
+      );
       // A blank cell supplies nothing, so it writes nothing and needs no
       // permission. Only a *value* is held to the actor's field permissions.
       if (cell.ok && 'blank' in cell) continue;
@@ -211,7 +372,8 @@ export async function processChunk(
       }
 
       parsed.supplied.push(entry.field);
-      if (definition.isSystem) parsed.system[snakeToCamel(entry.field)] = cell.value;
+      if (isAmount) parsed.system['amount'] = toMoneyInput(cell.value);
+      else if (definition.isSystem) parsed.system[snakeToCamel(entry.field)] = cell.value;
       else parsed.custom[entry.field] = cell.value;
     }
 
@@ -236,6 +398,30 @@ export async function processChunk(
     return parsed;
   });
 
+  // Turn the owner and account cells into ids, once for the whole chunk.
+  const linkCells = parsedRows
+    .filter((parsed) => parsed.errors.length === 0)
+    .flatMap((parsed) => parsed.links);
+  if (linkCells.length > 0) {
+    const resolution = await resolveLinks(tx, actor, objectType, linkCells);
+    for (const parsed of parsedRows) {
+      if (parsed.errors.length > 0) continue;
+      for (const link of parsed.links) {
+        const value = linkValueKey(link.key, link.value);
+        const problem = resolution.problems.get(link.key)?.get(value);
+        const id = resolution.ids.get(link.key)?.get(value);
+        if (problem !== undefined || id === undefined) {
+          parsed.errors.push({
+            field: link.key,
+            message: problem ?? `${linkLabel(link.key)}: not found`,
+          });
+        } else {
+          parsed.system[snakeToCamel(link.key)] = id;
+        }
+      }
+    }
+  }
+
   const valid = parsedRows.filter((parsed) => parsed.errors.length === 0);
   for (const parsed of parsedRows) if (parsed.errors.length > 0) fail(parsed);
 
@@ -245,16 +431,34 @@ export async function processChunk(
   const matchKey = context.duplicateMode === 'create' ? null : context.matchField;
   const matchCamel = matchKey === null ? null : snakeToCamel(matchKey);
 
+  // What a row is matched on, and the key two rows share when they mean one record. A deal matches
+  // on its own id, or on its name **together with its account** (ADR-0070): the same name on two
+  // accounts is two deals.
+  const dealByName = objectType === 'deal' && matchKey === 'name';
+  const fetchValueOf = (parsed: ParsedRow): string | undefined => {
+    const value =
+      matchKey === 'external_id'
+        ? parsed.externalId
+        : matchCamel === null
+          ? undefined
+          : parsed.system[matchCamel];
+    return typeof value === 'string' && value !== '' ? value : undefined;
+  };
+  const keyFor = (value: string, accountId: unknown): string =>
+    dealByName ? `${value}\u0000${typeof accountId === 'string' ? accountId : ''}` : value;
+  const duplicateOf = (parsed: ParsedRow): string =>
+    matchKey === 'external_id'
+      ? `a deal with the ID "${parsed.externalId ?? ''}" already exists`
+      : typeof parsed.system['accountId'] === 'string'
+        ? `a deal named "${String(parsed.system['name'])}" already exists on this account`
+        : `a deal named "${String(parsed.system['name'])}" with no account already exists`;
+
   const existing = new Map<string, RecordRow[]>();
   if (matchKey !== null && matchCamel !== null) {
     const read = can(actor, 'read', { objectType: object });
     if (read.allowed) {
       const values = [
-        ...new Set(
-          valid
-            .map((parsed) => parsed.system[matchCamel])
-            .filter((value): value is string => typeof value === 'string' && value !== ''),
-        ),
+        ...new Set(valid.map(fetchValueOf).filter((value): value is string => value !== undefined)),
       ];
       const scope = constraintToSql(read.constraint, descriptor.ownerId);
       const found = await descriptor.selectByMatch(tx, {
@@ -265,7 +469,7 @@ export async function processChunk(
       });
       for (const record of found) {
         const raw = record[matchCamel];
-        const key = typeof raw === 'string' ? raw : '';
+        const key = typeof raw === 'string' ? keyFor(raw, record['accountId']) : '';
         existing.set(key, [...(existing.get(key) ?? []), record]);
       }
     }
@@ -292,15 +496,22 @@ export async function processChunk(
   };
 
   for (const parsed of valid) {
-    const value = matchCamel === null ? undefined : parsed.system[matchCamel];
-    const key = typeof value === 'string' && value !== '' ? value : null;
+    const value = fetchValueOf(parsed);
+    const key = value === undefined ? null : keyFor(value, parsed.system['accountId']);
 
     // A row that repeats a value an earlier row in this chunk created.
     const pending = key === null ? undefined : pendingByKey.get(key);
     if (pending !== undefined) {
+      if (objectType === 'deal') {
+        // Two rows for one deal in a file: the first makes it, the second is said to be a duplicate.
+        note(parsed, `${duplicateOf(parsed)} earlier in this file`);
+        skipped += 1;
+        continue;
+      }
       if (context.duplicateMode === 'update') {
         // Fold the later row into the record the earlier one is about to create:
         // the result is what two sequential rows would have produced.
+        // The record's date stays the one its first row gave; a later row only adds fields.
         Object.assign(pending.values, parsed.system);
         pending.values['customFields'] = {
           ...(pending.values['customFields'] as Record<string, unknown>),
@@ -317,6 +528,7 @@ export async function processChunk(
 
     if (context.duplicateMode === 'skip' && matches.length > 0) {
       skipped += 1;
+      if (objectType === 'deal') note(parsed, duplicateOf(parsed));
       continue;
     }
 
@@ -345,9 +557,19 @@ export async function processChunk(
       }
 
       const patch: Record<string, unknown> = {};
-      for (const [camel, next] of Object.entries(parsed.system)) {
-        if (JSON.stringify(record[camel] ?? null) !== JSON.stringify(next ?? null)) {
-          patch[camel] = next;
+      if (objectType === 'deal' && placement !== null) {
+        const result = dealPatch(parsed, record, placement, now);
+        if (!result.ok) {
+          parsed.errors.push(result.problem);
+          fail(parsed);
+          continue;
+        }
+        Object.assign(patch, result.patch);
+      } else {
+        for (const [camel, next] of Object.entries(parsed.system)) {
+          if (JSON.stringify(record[camel] ?? null) !== JSON.stringify(next ?? null)) {
+            patch[camel] = next;
+          }
         }
       }
       if (Object.keys(parsed.custom).length > 0) {
@@ -378,6 +600,17 @@ export async function processChunk(
       const custom = customSchema.safeParse(parsed.custom);
       if (!custom.success) parsed.errors.push(...formatIssues(custom.error.issues, labelFor));
     }
+    let dealValues: Record<string, unknown> = {};
+    let dealPayload: Record<string, unknown> | undefined;
+    if (parsed.errors.length === 0 && objectType === 'deal' && placement !== null) {
+      const result = dealCreate(parsed, placement, now);
+      if (result.ok) {
+        dealValues = result.values;
+        dealPayload = result.payload;
+      } else {
+        parsed.errors.push(result.problem);
+      }
+    }
     if (parsed.errors.length > 0) {
       fail(parsed);
       continue;
@@ -385,16 +618,30 @@ export async function processChunk(
 
     const id = newId();
     const values: Record<string, unknown> = {
-      ...parsed.system,
+      ...(objectType === 'deal'
+        ? omit(parsed.system, ['amount', 'probability', 'lostReason'])
+        : parsed.system),
+      // A date from the file is the record's created and last-updated time at once: nothing has
+      // happened to it since. The audit log still carries the real time of the import.
+      ...(parsed.createdAt === undefined
+        ? {}
+        : { createdAt: parsed.createdAt, updatedAt: parsed.createdAt }),
       id,
       tenantId: actor.tenantId,
-      // Always the importer. A file cannot reassign ownership (see the top).
-      ownerId: actor.userId,
+      // The importer, unless the file named an owner the importer may hand records to.
+      ownerId:
+        typeof parsed.system['ownerId'] === 'string' ? parsed.system['ownerId'] : actor.userId,
       customFields: parsed.custom,
       createdBy: actor.userId,
       updatedBy: actor.userId,
+      ...dealValues,
     };
-    const create: PendingCreate = { parsed, id, values };
+    const create: PendingCreate = {
+      parsed,
+      id,
+      values,
+      ...(dealPayload === undefined ? {} : { payload: dealPayload }),
+    };
     creates.push(create);
     if (key !== null) pendingByKey.set(key, create);
   }
@@ -411,6 +658,7 @@ export async function processChunk(
     recordId: string,
     changes: Record<string, { old?: unknown; new?: unknown }>,
     ownerId: unknown,
+    payload: Record<string, unknown> = {},
   ): void => {
     auditRows.push({
       id: newId(),
@@ -428,10 +676,15 @@ export async function processChunk(
       eventType: `${objectType}.${action === 'create' ? 'created' : 'updated'}.v1`,
       objectType,
       recordId,
-      payload:
-        action === 'create'
-          ? { ownerId: ownerId ?? null }
-          : { changedFields: Object.keys(changes) },
+      // `source` is what keeps imported history quiet: the relay withholds the event from every
+      // consumer that has not asked to see it (ADR-0071).
+      payload: {
+        ...(action === 'create'
+          ? { ownerId: ownerId ?? null, ...payload }
+          : { changedFields: Object.keys(changes) }),
+        source: HISTORY_SOURCE,
+        importJobId: context.jobId,
+      },
       actorId: actor.userId,
     });
   };
@@ -440,7 +693,26 @@ export async function processChunk(
   for (const create of creates) {
     if (inserted.has(create.id)) {
       created += 1;
-      record('create', create.id, identityChanges(objectType, create.values), actor.userId);
+      record(
+        'create',
+        create.id,
+        {
+          ...identityChanges(objectType, create.values),
+          // Said in the audit trail whenever a file set the date, with the real time beside it.
+          ...(create.parsed.createdAt === undefined
+            ? {}
+            : {
+                backdated: {
+                  new: {
+                    createdAt: create.parsed.createdAt.toISOString(),
+                    importedAt: now.toISOString(),
+                  },
+                },
+              }),
+        },
+        actor.userId,
+        create.payload,
+      );
     } else {
       create.parsed.errors.push({ field: null, message: 'The record could not be saved' });
       fail(create.parsed);
@@ -481,7 +753,205 @@ export async function processChunk(
   if (auditRows.length > 0) await tx.insert(auditLogs).values(auditRows);
   if (outboxRows.length > 0) await tx.insert(outboxEvents).values(outboxRows);
 
-  return { created, updated, skipped, failed, errors };
+  return { created, updated, skipped, failed, errors, notes };
+}
+
+class ChunkRolledBack extends Error {
+  constructor(readonly result: ChunkResult) {
+    super('This chunk was run as a check and rolled back');
+  }
+}
+
+/**
+ * Run a chunk exactly as `processChunk` does, then undo every write (ADR-0068).
+ *
+ * This is how a check can say what an import would do without a second implementation of "what an
+ * import does": it is the same code against the same database, inside a savepoint that is rolled
+ * back. Records, audit rows and outbox events written by the chunk all vanish with it, and the
+ * database's own constraints (uniqueness, links, the stage rules) are exercised as in a real run.
+ *
+ * What it cannot see is an earlier chunk of the same check: those were rolled back, so a row that
+ * repeats a value from 500 rows earlier is counted as new here and as a duplicate in the real run.
+ */
+export async function processChunkWithoutWriting(
+  tx: Tx,
+  context: ChunkContext,
+  rows: readonly ChunkRow[],
+): Promise<ChunkResult> {
+  try {
+    await tx.transaction(async (savepoint) => {
+      throw new ChunkRolledBack(await processChunk(savepoint, context, rows));
+    });
+  } catch (error) {
+    if (error instanceof ChunkRolledBack) return error.result;
+    throw error;
+  }
+  throw new Error('A check chunk finished without a result');
+}
+
+function omit(source: Record<string, unknown>, keys: readonly string[]): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(source).filter(([key]) => !keys.includes(key)));
+}
+
+type DealProblem = { readonly field: string; readonly message: string };
+
+/**
+ * The columns a new deal takes from the stage rules and the file: where it goes, how likely it
+ * is, whether and when it closed, its amount and its own id (ADR-0070).
+ */
+function dealCreate(
+  parsed: ParsedRow,
+  placement: Placement,
+  now: Date,
+):
+  | { ok: true; values: Record<string, unknown>; payload: Record<string, unknown> }
+  | { ok: false; problem: DealProblem } {
+  const placed = placeNewDeal(placement, parsed.named);
+  if (!placed.ok) return { ok: false, problem: placed.problem };
+  const { pipeline, stage } = placed.value;
+
+  if (parsed.closedAt !== undefined && parsed.createdAt === undefined) {
+    return {
+      ok: false,
+      problem: {
+        field: 'closed_at',
+        message:
+          'Closed date: also give the Created date, so the deal is not closed before it was created',
+      },
+    };
+  }
+
+  const state = stageStateFor({
+    stage,
+    probability: parsed.system['probability'] as number | undefined,
+    lostReason: parsed.system['lostReason'] as string | null | undefined,
+    closedAt: parsed.closedAt,
+    createdAt: parsed.createdAt,
+    now,
+  });
+  if (!state.ok) return { ok: false, problem: state.problem };
+
+  const amount = parsed.system['amount'] as { amountMinor: string; currency: string } | undefined;
+  return {
+    ok: true,
+    values: {
+      pipelineId: pipeline.id,
+      stageId: stage.id,
+      probability: state.value.probability,
+      closedAt: state.value.closedAt,
+      lostReason: state.value.lostReason,
+      amountMinor: amount === undefined ? null : BigInt(amount.amountMinor),
+      currency: amount === undefined ? null : amount.currency,
+      externalId: parsed.externalId ?? null,
+      // A deal closed on a date from the file was last touched then, not before it was made.
+      ...(parsed.closedAt === undefined ? {} : { updatedAt: parsed.closedAt }),
+    },
+    payload: { pipelineId: pipeline.id, stageId: stage.id, stageName: stage.name },
+  };
+}
+
+/**
+ * What an update changes on an existing deal. The deal keeps its pipeline: a file does not move a
+ * deal between pipelines. A stage named in the file moves it within its pipeline by the stage
+ * rules, with the deal's current state as the "previous" they read (ADR-0020).
+ */
+function dealPatch(
+  parsed: ParsedRow,
+  record: RecordRow,
+  placement: Placement,
+  now: Date,
+): { ok: true; patch: Record<string, unknown> } | { ok: false; problem: DealProblem } {
+  const patch: Record<string, unknown> = {};
+  const set = (key: string, next: unknown): void => {
+    if (JSON.stringify(record[key] ?? null) !== JSON.stringify(next ?? null)) patch[key] = next;
+  };
+
+  for (const key of ['name', 'expectedCloseDate', 'accountId', 'primaryContactId', 'ownerId']) {
+    if (key in parsed.system) set(key, parsed.system[key]);
+  }
+  if (parsed.externalId !== undefined) set('externalId', parsed.externalId);
+
+  const amount = parsed.system['amount'] as { amountMinor: string; currency: string } | undefined;
+  if (amount !== undefined) {
+    if (
+      (typeof record['amountMinor'] === 'bigint' || typeof record['amountMinor'] === 'string'
+        ? record['amountMinor'].toString()
+        : '') !== amount.amountMinor ||
+      record['currency'] !== amount.currency
+    ) {
+      patch['amountMinor'] = BigInt(amount.amountMinor);
+      patch['currency'] = amount.currency;
+    }
+  }
+
+  const pipelineId = String(record['pipelineId']);
+  const pipeline = placement.pipelines.find((candidate) => candidate.id === pipelineId);
+  if (parsed.named.pipeline !== undefined) {
+    const named = pipelineNamed(placement, parsed.named.pipeline);
+    if (!named.ok) return { ok: false, problem: named.problem };
+    if (named.value.id !== pipelineId) {
+      return {
+        ok: false,
+        problem: {
+          field: 'pipeline_id',
+          message: 'Pipeline: an existing deal cannot be moved to another pipeline by a file',
+        },
+      };
+    }
+  }
+
+  const probability = parsed.system['probability'] as number | undefined;
+  const lostReason = parsed.system['lostReason'] as string | null | undefined;
+  if (
+    parsed.named.stage !== undefined ||
+    probability !== undefined ||
+    lostReason !== undefined ||
+    parsed.closedAt !== undefined
+  ) {
+    const stages = placement.stages.get(pipelineId) ?? [];
+    const stage =
+      parsed.named.stage === undefined
+        ? stages.find((candidate) => candidate.id === record['stageId'])
+        : (() => {
+            const named = stageNamed(
+              placement,
+              pipeline ?? { id: pipelineId, name: '' },
+              parsed.named.stage,
+            );
+            return named.ok ? named.value : undefined;
+          })();
+    if (stage === undefined) {
+      return {
+        ok: false,
+        problem: {
+          field: 'stage_id',
+          message:
+            parsed.named.stage === undefined
+              ? 'Stage: the deal is in a stage that has been retired; name a stage to move it to'
+              : `Stage: the pipeline has no stage named "${parsed.named.stage}"`,
+        },
+      };
+    }
+    const state = stageStateFor({
+      stage,
+      previous: {
+        stageId: String(record['stageId']),
+        probability: Number(record['probability']),
+        closedAt: (record['closedAt'] as Date | null | undefined) ?? null,
+        lostReason: (record['lostReason'] as string | null | undefined) ?? null,
+      },
+      probability,
+      lostReason,
+      closedAt: parsed.closedAt,
+      now,
+    });
+    if (!state.ok) return { ok: false, problem: state.problem };
+    set('stageId', stage.id);
+    set('probability', state.value.probability);
+    set('closedAt', state.value.closedAt);
+    set('lostReason', state.value.lostReason);
+  }
+  return { ok: true, patch };
 }
 
 /** The fields an audit `create` entry carries, matching what each service records. */
@@ -490,13 +960,20 @@ function identityChanges(
   values: Record<string, unknown>,
 ): Record<string, { old?: unknown; new?: unknown }> {
   const pick: Record<ImportableObjectType, readonly string[]> = {
-    contact: ['lastName', 'email', 'ownerId'],
+    contact: ['lastName', 'email', 'accountId', 'ownerId'],
     account: ['name', 'domain', 'ownerId'],
     lead: ['lastName', 'company', 'email', 'status', 'ownerId'],
+    deal: ['name', 'stageId', 'pipelineId', 'amountMinor', 'currency', 'ownerId'],
   };
   return diffChanges(
     {},
-    Object.fromEntries(pick[objectType].map((key) => [key, values[key] ?? null])),
+    Object.fromEntries(
+      pick[objectType].map((key) => {
+        const value = values[key] ?? null;
+        // An amount is a bigint, which a JSON column cannot hold: it is written as its digits.
+        return [key, typeof value === 'bigint' ? value.toString() : value];
+      }),
+    ),
   );
 }
 

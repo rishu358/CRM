@@ -88,7 +88,7 @@ export function useUploadImport() {
   return useMutation<
     ImportRecord,
     Error,
-    { objectType: 'account' | 'contact' | 'lead'; file: File }
+    { objectType: 'account' | 'contact' | 'lead' | 'deal'; file: File }
   >({
     mutationFn: async ({ objectType, file }) => {
       const created = await api.post<ItemEnvelope<CreatedImport>>(
@@ -158,6 +158,25 @@ export function useStartImport() {
     onSuccess: (job) => {
       queryClient.setQueryData(importKeys.job(job.id), { data: job });
       void queryClient.invalidateQueries({ queryKey: importKeys.recent });
+    },
+  });
+}
+
+/**
+ * Check a file against a mapping without importing it (ADR-0068). The answer is a job of its own to
+ * watch with `useImportJob`; nothing is written and the import being checked is unchanged.
+ */
+export function useCheckImport() {
+  return useMutation<ImportRecord, ApiRequestError, StartImportInput>({
+    mutationFn: async ({ id, ...body }) => {
+      const result = await api.post<ItemEnvelope<ImportRecord>>(`/imports/${id}/check`, {
+        mapping: body.mapping,
+        duplicateMode: body.duplicateMode,
+        ...(body.duplicateMode === 'create' || body.matchField === null
+          ? {}
+          : { matchField: body.matchField }),
+      });
+      return result.data;
     },
   });
 }

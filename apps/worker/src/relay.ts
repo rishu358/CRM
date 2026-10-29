@@ -29,6 +29,28 @@ export interface OutboxRow {
 export type EventHandler = (tx: Tx, event: OutboxRow) => Promise<void>;
 
 /**
+ * Imported history is quiet by default (ADR-0071).
+ *
+ * A record that an import creates or changes is announced like any other, but its event says where it
+ * came from (`payload.source = 'import'`). Moving a business's last five years in must not send five
+ * years of notifications or start five years of automations, so the relay **withholds** such an event
+ * from every handler registered with `on`. A handler that has to see imported rows (the search
+ * index, the record timeline) says so by registering with `onHistory`. The default is the safe side:
+ * a consumer added next year that nobody remembered to think about does not fire for imports.
+ */
+export const HISTORY_SOURCE = 'import';
+
+export function isHistoricalEvent(event: Pick<OutboxRow, 'payload'>): boolean {
+  return event.payload['source'] === HISTORY_SOURCE;
+}
+
+interface Subscription {
+  readonly handler: EventHandler;
+  /** Also receives the events of imported history. */
+  readonly history: boolean;
+}
+
+/**
  * Runs when an event has used up its attempts and will never be retried.
  *
  * It runs **after** the failing attempt's transaction has rolled back and after
@@ -94,7 +116,7 @@ function backoffSeconds(attempts: number): number {
 }
 
 export class OutboxRelay {
-  private readonly handlers = new Map<string, EventHandler[]>();
+  private readonly handlers = new Map<string, Subscription[]>();
   private readonly exhaustedHandlers = new Map<string, ExhaustedHandler[]>();
 
   constructor(
@@ -104,8 +126,21 @@ export class OutboxRelay {
 
   /** Subscribe to an event type. Several handlers may share one type. */
   on(eventType: string, handler: EventHandler): this {
+    return this.subscribe(eventType, handler, false);
+  }
+
+  /**
+   * Subscribe to an event type **including the events of imported history** (`HISTORY_SOURCE`).
+   * For the consumers that keep a record's own bookkeeping true (search, timeline), never for one
+   * that tells a person or starts work.
+   */
+  onHistory(eventType: string, handler: EventHandler): this {
+    return this.subscribe(eventType, handler, true);
+  }
+
+  private subscribe(eventType: string, handler: EventHandler, history: boolean): this {
     const existing = this.handlers.get(eventType) ?? [];
-    existing.push(handler);
+    existing.push({ handler, history });
     this.handlers.set(eventType, existing);
     return this;
   }
@@ -129,7 +164,10 @@ export class OutboxRelay {
   }
 
   private async process(event: OutboxRow): Promise<void> {
-    const handlers = this.handlers.get(event.event_type) ?? [];
+    const quiet = isHistoricalEvent(event);
+    const handlers = (this.handlers.get(event.event_type) ?? [])
+      .filter((subscription) => !quiet || subscription.history)
+      .map((subscription) => subscription.handler);
 
     if (handlers.length === 0) {
       // Nobody is listening yet. Mark it relayed rather than retrying forever:
