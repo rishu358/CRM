@@ -570,24 +570,21 @@ export async function moveMergeChildren(
   );
   note('tags', tags.length + droppedTags.length);
 
-  // Emails sent from or about the duplicate move to the surviving record; one linked to both stays one
-  // (ADR-0073). A message names its contact in `contact_id` too, so the log still finds the right person.
-  const droppedEmailLinks = await idsOf(
-    tx,
-    sql`delete from email_message_links lk using email_message_links mk
-        where lk.tenant_id = ${t} and mk.tenant_id = ${t}
-          and lk.object_type = ${ot} and mk.object_type = ${ot}
-          and lk.record_id = ${l} and mk.record_id = ${m}
-          and lk.email_message_id = mk.email_message_id
-        returning lk.id, true as live`,
-  );
+  // Emails sent from or about the duplicate move to the surviving record (ADR-0073). One already linked to
+  // both stays linked to the survivor only once: its link on the duplicate is left where it is, because
+  // the application role may move a link but not delete one, and it goes with the duplicate when the
+  // Recycle Bin purges it. A message names its contact in `contact_id` too, so the log still finds the person.
   const emailLinks = await idsOf(
     tx,
-    sql`update email_message_links set record_id = ${m}, updated_at = now(), updated_by = ${u}
-        where tenant_id = ${t} and object_type = ${ot} and record_id = ${l}
-        returning id, true as live`,
+    sql`update email_message_links lk set record_id = ${m}, updated_at = now(), updated_by = ${u}
+        where lk.tenant_id = ${t} and lk.object_type = ${ot} and lk.record_id = ${l}
+          and not exists (
+            select 1 from email_message_links mk
+            where mk.tenant_id = ${t} and mk.object_type = ${ot} and mk.record_id = ${m}
+              and mk.email_message_id = lk.email_message_id)
+        returning lk.id, true as live`,
   );
-  note('emails', emailLinks.length + droppedEmailLinks.length);
+  note('emails', emailLinks.length);
 
   const timeline = await idsOf(
     tx,

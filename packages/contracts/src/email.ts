@@ -27,8 +27,12 @@ export const emailSourceTypeSchema = z.enum(EMAIL_SOURCE_TYPES);
 export const emailStatusSchema = z.enum(EMAIL_STATUSES);
 export const emailFailureCodeSchema = z.enum(EMAIL_FAILURE_CODES);
 
+/** A line break in a header is how mail gets injected: refuse it, do not quietly flatten it. */
+const oneLine = (value: string): boolean => !/[\r\n\u0000]/u.test(value);
+
 const subjectSchema = z
   .string()
+  .refine(oneLine, 'A subject is one line')
   .transform(normalizeSingleLine)
   .refine(isValidSubject, `Use 1 to ${EMAIL_SUBJECT_MAX} characters on one line`);
 
@@ -145,6 +149,7 @@ export const emailSettingsUpdateSchema = z
   .object({
     fromName: z
       .string()
+      .refine(oneLine, 'A name is one line')
       .transform(normalizeSingleLine)
       .refine(
         isValidFromName,
