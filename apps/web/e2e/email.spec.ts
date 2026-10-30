@@ -26,14 +26,26 @@ async function signIn(page: Page, email: string): Promise<void> {
 async function createContact(
   page: Page,
   data: { lastName: string; email?: string },
-): Promise<string> {
+): Promise<{ id: string; version: number }> {
   const response = await page.request.post('/api/proxy/contacts', {
     headers: { origin: new URL(page.url()).origin },
     data,
   });
   expect(response.ok(), `creating ${data.lastName}`).toBe(true);
-  const body = (await response.json()) as { data: { id: string } };
-  return body.data.id;
+  const body = (await response.json()) as { data: { id: string; version: number } };
+  return body.data;
+}
+
+/**
+ * Remove a contact again, as somebody who may (the owner). Other specs count what the sales rep owns
+ * ("the two they own"), so a contact left behind in the rep's name would change their answer.
+ */
+async function deleteContact(page: Page, contact: { id: string; version: number }): Promise<void> {
+  const response = await page.request.delete(
+    `/api/proxy/contacts/${contact.id}?version=${String(contact.version)}`,
+    { headers: { origin: new URL(page.url()).origin } },
+  );
+  expect(response.ok(), 'removing the contact the spec made').toBe(true);
 }
 
 test.describe('email', () => {
@@ -44,7 +56,8 @@ test.describe('email', () => {
     const stamp = Date.now().toString().slice(-6);
     const address = `e2e-${stamp}@customer.example`;
     const subject = `Your quote ${stamp}`;
-    const id = await createContact(page, { lastName: `Mailed${stamp}`, email: address });
+    const contact = await createContact(page, { lastName: `Mailed${stamp}`, email: address });
+    const id = contact.id;
 
     await page.goto(`/contacts/${id}`);
     const panel = page.getByTestId('email-panel');
@@ -78,11 +91,16 @@ test.describe('email', () => {
       .filter({ hasText: subject });
     await expect(seen).toBeVisible();
     await expect(seen).toContainText(address);
+
+    // The contact was the rep's, so it is removed by the owner before the next spec counts the rep's own.
+    await deleteContact(page, contact);
   });
 
   test('says there is nothing to send to when a contact has no address', async ({ page }) => {
-    await signIn(page, credentials.rep);
-    const id = await createContact(page, { lastName: `Nomail${Date.now().toString().slice(-6)}` });
+    await signIn(page, credentials.owner);
+    const { id } = await createContact(page, {
+      lastName: `Nomail${Date.now().toString().slice(-6)}`,
+    });
 
     await page.goto(`/contacts/${id}`);
     await page.getByTestId('email-send').click();
@@ -104,7 +122,7 @@ test.describe('email', () => {
     await page.getByRole('button', { name: 'Save' }).click();
     await expect(page.getByTestId('email-settings-saved')).toBeVisible();
 
-    const id = await createContact(page, {
+    const { id } = await createContact(page, {
       lastName: `Named${stamp}`,
       email: `named-${stamp}@customer.example`,
     });
