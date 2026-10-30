@@ -129,6 +129,14 @@ export const ErrorCode = {
    * request to erase one of them is open (ADR-0064). The message says which.
    */
   MERGE_BLOCKED: 'MERGE_BLOCKED',
+  /**
+   * The record has no email address the caller may use: none is stored, or the field is hidden from
+   * them. One answer for both, so the error cannot be used to learn that a hidden field has a value
+   * (CLAUDE.md §5.4, ADR-0073).
+   */
+  NO_EMAIL_ADDRESS: 'NO_EMAIL_ADDRESS',
+  /** The person has withdrawn consent to email, so the CRM will not send to them (ADR-0073). */
+  CONSENT_WITHDRAWN: 'CONSENT_WITHDRAWN',
   /** Unexpected failure. Details are logged, never returned. */
   INTERNAL: 'INTERNAL',
 } as const;
@@ -304,6 +312,28 @@ export class SearchTimeoutError extends DomainError {
 export class FormExpiredError extends DomainError {
   constructor() {
     super(ErrorCode.FORM_EXPIRED, 'Please reload the page and send the form again.', 422);
+  }
+}
+
+export class NoEmailAddressError extends DomainError {
+  constructor() {
+    super(
+      ErrorCode.NO_EMAIL_ADDRESS,
+      'This record has no email address you can send to. Add one to the record first.',
+      422,
+      [{ path: 'recordId', message: 'No email address' }],
+    );
+  }
+}
+
+export class ConsentWithdrawnError extends DomainError {
+  constructor() {
+    super(
+      ErrorCode.CONSENT_WITHDRAWN,
+      'This person has withdrawn consent to receive email, so it cannot be sent.',
+      422,
+      [{ path: 'recordId', message: 'Consent to email was withdrawn' }],
+    );
   }
 }
 

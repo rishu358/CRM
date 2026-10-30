@@ -14,8 +14,27 @@ export interface EmailMessage {
   readonly subject: string;
   readonly text: string;
   readonly html?: string;
+  /**
+   * The display name on the From line (`"Name" <address>`). Only the name is per message: the address
+   * is the one the provider was built with, so no caller can send as another domain (ADR-0073).
+   * Validated by `isValidFromName`, and again by each adapter.
+   */
+  readonly fromName?: string;
+  /** Where a reply goes: one plain address. Validated by `isValidReplyTo`, and again by each adapter. */
+  readonly replyTo?: string;
+  /** Our own `Message-ID` (`<id@domain>`), so a reply can be matched to the email later (ADR-0073). */
+  readonly messageId?: string;
+}
+
+/** What a provider tells us about a message it accepted. Nothing in it is secret. */
+export interface EmailReceipt {
+  /** The provider's own id for the message, when it gives one. */
+  readonly providerMessageId?: string;
 }
 
 export interface EmailProvider {
-  send(message: EmailMessage): Promise<void>;
+  /** Resolves when the provider has **accepted** the message, which is not the same as delivered. */
+  send(message: EmailMessage): Promise<EmailReceipt>;
 }
+
+export * from './outreach.js';

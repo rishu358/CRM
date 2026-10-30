@@ -1,5 +1,5 @@
-import type { EmailMessage, EmailProvider } from '@crm/core';
-import { createRemoteEmailProvider } from '@crm/outbound';
+import type { EmailMessage, EmailProvider, EmailReceipt } from '@crm/core';
+import { createRemoteEmailProvider, EmailSendError } from '@crm/outbound';
 import type { Logger } from 'pino';
 
 /**
@@ -18,25 +18,40 @@ import type { Logger } from 'pino';
 export class ConsoleEmailProvider implements EmailProvider {
   constructor(private readonly logger: Logger) {}
 
-  async send(message: EmailMessage): Promise<void> {
+  async send(message: EmailMessage): Promise<EmailReceipt> {
     this.logger.info(
       { to: message.to, subject: message.subject },
       `[email] ${message.subject} -> ${message.to}\n${message.text}`,
     );
-    return Promise.resolve();
+    return Promise.resolve({});
   }
 }
 
 /** Keeps messages in memory instead of delivering them. Tests and CI only. */
 export class MemoryEmailProvider implements EmailProvider {
   private readonly sent: EmailMessage[] = [];
+  private readonly failures: EmailSendError[] = [];
+  private counter = 0;
 
-  async send(message: EmailMessage): Promise<void> {
+  async send(message: EmailMessage): Promise<EmailReceipt> {
+    const failure = this.failures.shift();
+    if (failure !== undefined) throw failure;
     this.sent.push(message);
     // Bounded, so a long-running dev worker does not hold every message it
     // has ever produced.
     if (this.sent.length > 200) this.sent.shift();
-    return Promise.resolve();
+    this.counter += 1;
+    return Promise.resolve({ providerMessageId: `memory-${String(this.counter)}` });
+  }
+
+  /**
+   * Make the next send fail, as a real adapter would (tests only). `retryable` is the adapter's own
+   * flag: a timeout or a 5xx is retryable, a refusal of the address is not (ADR-0073).
+   */
+  failNext(options: { retryable: boolean; status?: number | null }): void {
+    this.failures.push(
+      new EmailSendError('Email was not sent: test', options.status ?? null, options.retryable),
+    );
   }
 
   messages(): readonly EmailMessage[] {

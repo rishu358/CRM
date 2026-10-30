@@ -1,5 +1,6 @@
-import type { EmailMessage, EmailProvider } from '@crm/core';
+import type { EmailMessage, EmailProvider, EmailReceipt } from '@crm/core';
 import { GuardedOutboundHttp } from './client.js';
+import { assertSendable, formatFromHeader, providerMessageIdFrom } from './message.js';
 import { EmailSendError } from './resend.js';
 import { signV4 } from './sigv4.js';
 import { OutboundError, type OutboundHttp } from './types.js';
@@ -79,10 +80,12 @@ export class SesEmailProvider implements EmailProvider {
     this.http = options.http ?? pinnedSesClient(options.region);
   }
 
-  async send(message: EmailMessage): Promise<void> {
+  async send(message: EmailMessage): Promise<EmailReceipt> {
+    assertSendable(message);
     const body = JSON.stringify({
-      FromEmailAddress: this.options.from,
+      FromEmailAddress: formatFromHeader(this.options.from, message.fromName),
       Destination: { ToAddresses: [message.to] },
+      ...(message.replyTo === undefined ? {} : { ReplyToAddresses: [message.replyTo] }),
       Content: {
         Simple: {
           Subject: { Data: message.subject, Charset: 'UTF-8' },
@@ -114,6 +117,7 @@ export class SesEmailProvider implements EmailProvider {
 
     let status: number;
     let errorType: string | undefined;
+    let responseBody: Uint8Array;
     try {
       const response = await this.http.request({
         url: `https://${this.host}${PATH}`,
@@ -124,6 +128,7 @@ export class SesEmailProvider implements EmailProvider {
         maxRedirects: 0,
       });
       status = response.status;
+      responseBody = response.body;
       errorType = response.headers['x-amzn-errortype'];
     } catch (error) {
       if (error instanceof OutboundError) {
@@ -136,7 +141,10 @@ export class SesEmailProvider implements EmailProvider {
       throw error;
     }
 
-    if (status >= 200 && status < 300) return;
+    if (status >= 200 && status < 300) {
+      const providerMessageId = providerMessageIdFrom(responseBody, 'MessageId');
+      return providerMessageId === undefined ? {} : { providerMessageId };
+    }
 
     // 408, 429 and any 5xx are worth another try; the rest (a rejected message, an unverified
     // identity, a bad signature) are not.

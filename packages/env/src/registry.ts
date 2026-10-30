@@ -712,6 +712,14 @@ export const REGISTRY = {
     },
     { default: 'no-reply@localhost' },
   ),
+  EMAIL_OUTREACH_FROM: optionalEmail({
+    scopes: ['api', 'worker'],
+    group: 'email',
+    description:
+      'The address email sent from a contact, lead or deal is sent from (a bare address, no display name: the company’s own name is added per message). Unset means the same address as `EMAIL_FROM`.',
+    example: 'mail@send.example.com',
+    note: 'Must be on a domain verified with the email provider (SPF and DKIM), like `EMAIL_FROM`. A separate address keeps a spam complaint about a salesperson’s email from damaging the reputation of sign-in and password-reset mail.',
+  }),
   RESEND_API_KEY: optionalText(
     {
       scopes: ['api', 'worker'],

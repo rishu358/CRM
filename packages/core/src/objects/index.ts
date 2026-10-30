@@ -47,6 +47,12 @@
  * `lead_assignment` is the same kind of thing for the rules that choose who gets a new lead (ADR-0065 10):
  * who may change them is a company-wide decision, and it decides what a stranger's submission turns into.
  *
+ * `email_message` is the same kind of thing for email sent from a record (ADR-0073). `create` means "send"
+ * and `read` means "read the emails on the records I can see"; neither says which records, so every use is
+ * paired with the ordinary `read` check on the record itself, at the person's own scope. It has no owner: a
+ * message is visible through the records it is linked to, not through whoever sent it, so the whole team
+ * sees a customer's thread.
+ *
  * They are kept apart rather than folded into one `data_rights` type because
  * the three differ in blast radius: a whole-workspace archive, one person's
  * file, and an irreversible erasure are not the same decision, and a single
@@ -71,6 +77,7 @@ export const OBJECT_TYPES = [
   'import_history',
   'lead_form',
   'lead_assignment',
+  'email_message',
 ] as const;
 
 export type ObjectType = (typeof OBJECT_TYPES)[number];
@@ -200,6 +207,7 @@ export const ADMINISTRATIVE_OBJECT_TYPES = [
   'import_history',
   'lead_form',
   'lead_assignment',
+  'email_message',
 ] as const;
 export type AdministrativeObjectType = (typeof ADMINISTRATIVE_OBJECT_TYPES)[number];
 

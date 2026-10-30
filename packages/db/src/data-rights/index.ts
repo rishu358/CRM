@@ -101,6 +101,25 @@ export async function erasePersonalColumns(
     `);
   }
 
+  // Email sent to this person (ADR-0073): the address, subject and body are theirs, so they are scrubbed.
+  // The row stays, so counts and the log's own history stay true, marked `erased_at`. Found through the
+  // contact it was written to, or through a link to this record (a lead's mail).
+  await tx.execute(sql`
+    update email_messages
+    set to_address = null, subject = '', body_text = '', erased_at = now(), updated_at = now()
+    where tenant_id = ${tenantId}::uuid
+      and erased_at is null
+      and (
+        contact_id = ${recordId}::uuid
+        or id in (
+          select email_message_id from email_message_links
+          where tenant_id = ${tenantId}::uuid
+            and object_type = ${objectType}
+            and record_id = ${recordId}::uuid
+        )
+      )
+  `);
+
   return {
     recordsErased: result.rowCount ?? 0,
     erasedColumns: Object.keys(treatments),
@@ -214,6 +233,9 @@ export const TENANT_ARCHIVE_TABLES = [
   'tags',
   'record_tags',
   'timeline_events',
+  'email_messages',
+  'email_message_links',
+  'email_sender_config',
   'pipelines',
   'pipeline_stages',
   'field_definitions',
@@ -311,6 +333,32 @@ export async function selectSubjectActivities(
       and l.object_type = ${objectType}
       and l.record_id = ${recordId}::uuid
     order by a.id
+  `);
+  return result.rows;
+}
+
+/** The emails sent to or about the subject, as the subject is entitled to see them (ADR-0073). */
+export async function selectSubjectEmails(
+  tx: Tx,
+  tenantId: string,
+  objectType: ErasableObjectType,
+  recordId: string,
+): Promise<Record<string, unknown>[]> {
+  const result = await tx.execute(sql`
+    select m.id, m.status, m.from_name, m.to_address::text as to_address, m.subject, m.body_text,
+           m.queued_at, m.sent_at, m.failure_code
+    from email_messages m
+    where m.tenant_id = ${tenantId}::uuid
+      and (
+        m.contact_id = ${recordId}::uuid
+        or m.id in (
+          select email_message_id from email_message_links
+          where tenant_id = ${tenantId}::uuid
+            and object_type = ${objectType}
+            and record_id = ${recordId}::uuid
+        )
+      )
+    order by m.id
   `);
   return result.rows;
 }

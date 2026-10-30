@@ -181,6 +181,20 @@ const LEAD_ASSIGNMENT_GRANT: SystemRoleGrant = {
   scope: 'all',
 };
 
+/**
+ * Sending email from a record, and reading the emails on the records one can see (ADR-0073).
+ *
+ * Owner, Admin, Manager and Sales Rep; Read-only gets none, because an email body is a conversation
+ * with a customer and not a field. The grant says nothing about *which* records: every use is paired
+ * with the ordinary read check on the record at the person's own scope. Migration 0032 backfills the
+ * same rows for tenants that already exist. A custom role gets nothing.
+ */
+const EMAIL_MESSAGE_GRANT: SystemRoleGrant = {
+  objectType: 'email_message',
+  actions: ['read', 'create'],
+  scope: 'all',
+};
+
 const TENANT_DATA_GRANT: SystemRoleGrant = {
   objectType: 'tenant_data',
   actions: ['export'],
@@ -203,6 +217,7 @@ export const SYSTEM_ROLES: readonly SystemRoleDefinition[] = [
       IMPORT_HISTORY_GRANT,
       LEAD_FORM_GRANT,
       LEAD_ASSIGNMENT_GRANT,
+      EMAIL_MESSAGE_GRANT,
     ],
   },
   {
@@ -219,17 +234,21 @@ export const SYSTEM_ROLES: readonly SystemRoleDefinition[] = [
       IMPORT_HISTORY_GRANT,
       LEAD_FORM_GRANT,
       LEAD_ASSIGNMENT_GRANT,
+      EMAIL_MESSAGE_GRANT,
     ],
   },
   {
     name: 'Manager',
     description: "Sees and manages the team's records, and can reassign work.",
-    grants: grantsFor(['read', 'create', 'update', 'delete', 'export', 'import'], 'team'),
+    grants: [
+      ...grantsFor(['read', 'create', 'update', 'delete', 'export', 'import'], 'team'),
+      EMAIL_MESSAGE_GRANT,
+    ],
   },
   {
     name: 'Sales Rep',
     description: 'Works their own records. Cannot see other reps’ books.',
-    grants: grantsFor(['read', 'create', 'update', 'export'], 'own'),
+    grants: [...grantsFor(['read', 'create', 'update', 'export'], 'own'), EMAIL_MESSAGE_GRANT],
   },
   {
     name: 'Read-only',

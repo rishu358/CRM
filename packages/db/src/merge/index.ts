@@ -176,6 +176,7 @@ export async function countMergeWork(
     + (select count(*) from record_tags where tenant_id = ${t} and object_type = ${objectType} and record_id = ${l})
     + (select count(*) from timeline_events where tenant_id = ${t} and object_type = ${objectType} and record_id = ${l})
     + (select count(*) from record_views where tenant_id = ${t} and object_type = ${objectType} and record_id = ${l})
+    + (select count(*) from email_message_links where tenant_id = ${t} and object_type = ${objectType} and record_id = ${l})
   `;
   const direct =
     objectType === 'contact'
@@ -568,6 +569,25 @@ export async function moveMergeChildren(
         returning id, true as live`,
   );
   note('tags', tags.length + droppedTags.length);
+
+  // Emails sent from or about the duplicate move to the surviving record; one linked to both stays one
+  // (ADR-0073). A message names its contact in `contact_id` too, so the log still finds the right person.
+  const droppedEmailLinks = await idsOf(
+    tx,
+    sql`delete from email_message_links lk using email_message_links mk
+        where lk.tenant_id = ${t} and mk.tenant_id = ${t}
+          and lk.object_type = ${ot} and mk.object_type = ${ot}
+          and lk.record_id = ${l} and mk.record_id = ${m}
+          and lk.email_message_id = mk.email_message_id
+        returning lk.id, true as live`,
+  );
+  const emailLinks = await idsOf(
+    tx,
+    sql`update email_message_links set record_id = ${m}, updated_at = now(), updated_by = ${u}
+        where tenant_id = ${t} and object_type = ${ot} and record_id = ${l}
+        returning id, true as live`,
+  );
+  note('emails', emailLinks.length + droppedEmailLinks.length);
 
   const timeline = await idsOf(
     tx,

@@ -51,6 +51,10 @@ const SUMMARIES: Readonly<Record<string, string>> = {
   // this line is what tells a reader why the timeline suddenly has older entries.
   'contact.merged.v1': 'Contact merged: a duplicate was folded into this record',
   'account.merged.v1': 'Account merged: a duplicate was folded into this record',
+  // An email sent from this record, and where it got to (ADR-0073). The payload holds ids and a failure
+  // code only: the address, the subject and the body never reach the timeline.
+  'email.sent.v1': 'Email sent',
+  'email.failed.v1': 'Email failed',
 };
 
 export async function projectTimeline(tx: Tx, event: OutboxRow): Promise<void> {

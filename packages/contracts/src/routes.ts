@@ -167,6 +167,7 @@ import {
   fieldUpdateSchema,
 } from './fields.js';
 import { auditEntrySchema, auditListQuerySchema } from './audit.js';
+import { emailRoutes } from './email-routes.js';
 import { leadAssignmentRoutes } from './lead-assignment-routes.js';
 import { leadFormRoutes } from './lead-form-routes.js';
 import { pipelineEditorRoutes } from './pipeline-editor-routes.js';
@@ -2956,6 +2957,7 @@ export const API_ROUTES: readonly RouteDefinition[] = [
   ...onboardingRoutes,
   ...dashboardRoutes,
   ...customizationRoutes,
+  ...emailRoutes,
 ];
 
 /** `GET /contacts/{id}` — how the drift test and the generator name a route. */

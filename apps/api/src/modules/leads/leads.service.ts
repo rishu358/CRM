@@ -17,6 +17,7 @@ import {
   VersionConflictError,
   type Action,
   type Actor,
+  type EmailRecipient,
   WEB_FORM_SOURCE,
   type FieldDefinition,
   type RecordConstraint,
@@ -181,6 +182,32 @@ export class LeadsService {
 
     const fields = await this.fieldMetadata.forObject(tx, actor.tenantId, 'lead');
     return this.tags.attachOne(tx, actor, 'lead', serializeLead(actor, row, fields));
+  }
+
+  /**
+   * Who an email to this lead would go to, for the email module (ADR-0073, ADR-0001).
+   *
+   * The same checks as `getByIdInTx`. A lead carries no consent record, so it is always `none`: the
+   * dialog says so, and nothing stops the send.
+   */
+  async emailRecipientInTx(actor: Actor, tx: Tx, id: string): Promise<EmailRecipient> {
+    assertCan(actor, 'read', { objectType: 'lead' });
+    const row = await this.loadOrNotFound(tx, actor, id);
+    assertCan(actor, 'read', {
+      objectType: 'lead',
+      record: await recordRefFor(tx, actor, row.ownerId),
+    });
+    const name = [
+      canReadField(actor, 'lead', 'first_name') ? row.firstName : null,
+      canReadField(actor, 'lead', 'last_name') ? row.lastName : null,
+    ]
+      .filter((part): part is string => part !== null && part !== '')
+      .join(' ');
+    return {
+      email: canReadField(actor, 'lead', 'email') ? (row.email ?? null) : null,
+      name: name === '' ? null : name,
+      consent: 'none',
+    };
   }
 
   /**

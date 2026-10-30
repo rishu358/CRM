@@ -19,6 +19,7 @@ import {
   selectArchivePage,
   selectMemberDirectory,
   selectSubjectActivities,
+  selectSubjectEmails,
   selectSubjectRecord,
   selectSubjectTags,
   selectSubjectTimeline,
@@ -391,6 +392,7 @@ async function subjectSections(
     subject.recordId,
   );
   const timeline = await selectSubjectTimeline(tx, tenantId, subject.objectType, subject.recordId);
+  const emails = await selectSubjectEmails(tx, tenantId, subject.objectType, subject.recordId);
   const tags = await selectSubjectTags(tx, tenantId, subject.objectType, subject.recordId);
 
   const history = (
@@ -424,6 +426,7 @@ async function subjectSections(
       objectType: subject.objectType,
       record: record === null ? null : JSON.parse(JSON.stringify(record, replacer)),
       activities,
+      emails,
       timeline,
       tags,
       history: visibleHistory,
@@ -431,6 +434,7 @@ async function subjectSections(
     rows:
       (record === null ? 0 : 1) +
       activities.length +
+      emails.length +
       timeline.length +
       tags.length +
       visibleHistory.length,
