@@ -28,7 +28,7 @@ export const emailStatusSchema = z.enum(EMAIL_STATUSES);
 export const emailFailureCodeSchema = z.enum(EMAIL_FAILURE_CODES);
 
 /** A line break in a header is how mail gets injected: refuse it, do not quietly flatten it. */
-const oneLine = (value: string): boolean => !/[\r\n\u0000]/u.test(value);
+const oneLine = (value: string): boolean => !/[\r\n]/u.test(value) && !value.includes('\u0000');
 
 const subjectSchema = z
   .string()
