@@ -28,9 +28,15 @@ export const emailStatusSchema = z.enum(EMAIL_STATUSES);
 export const emailFailureCodeSchema = z.enum(EMAIL_FAILURE_CODES);
 
 /** A line break in a header is how mail gets injected: refuse it, do not quietly flatten it. */
-const oneLine = (value: string): boolean => !/[\r\n]/u.test(value) && !value.includes('\u0000');
+function oneLine(value: string): boolean {
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.charCodeAt(index);
+    if (code < 32 || code === 127) return false;
+  }
+  return true;
+}
 
-const subjectSchema = z
+export const emailSubjectSchema = z
   .string()
   .refine(oneLine, 'A subject is one line')
   .transform(normalizeSingleLine)
@@ -58,7 +64,7 @@ const CONTACT_RULE_MESSAGE =
   'A deal needs the contact it is written to; a contact or a lead takes none';
 
 export const emailSendSchema = z
-  .object({ ...targetShape, subject: subjectSchema, body: bodySchema })
+  .object({ ...targetShape, subject: emailSubjectSchema, body: bodySchema })
   .strict()
   .refine(contactRule, { message: CONTACT_RULE_MESSAGE, path: ['contactId'] });
 export type EmailSendInput = z.infer<typeof emailSendSchema>;
