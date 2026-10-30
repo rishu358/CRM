@@ -144,6 +144,13 @@ export const GRANT_CATALOGUE: readonly GrantCatalogueEntry[] = [
   },
   // Website lead forms (ADR-0065). `create` adds a form, `update` edits it, switches it on or off and
   // rotates or revokes its key, `delete` removes it. Owner and Admin by default.
+  // The rules that choose who gets a new lead (ADR-0065 10). Owner and Admin by default.
+  {
+    objectType: 'lead_assignment',
+    kind: 'administrative',
+    actions: ['read', 'create', 'update', 'delete'],
+    scopes: ADMIN_SCOPES,
+  },
   {
     objectType: 'lead_form',
     kind: 'administrative',

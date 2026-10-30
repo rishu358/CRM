@@ -113,6 +113,13 @@ const NAV: readonly {
       requiresSetupAccess: true,
     },
     {
+      href: '/settings/lead-assignment',
+      label: 'nav.leadAssignment',
+      icon: <TeamIcon className="h-4 w-4 shrink-0" />,
+      // Same proxy as web forms; the API decides (`lead_assignment` grant). Cosmetic only.
+      requiresSetupAccess: true,
+    },
+    {
       href: '/settings/web-forms',
       label: 'nav.webForms',
       icon: <InboxIcon className="h-4 w-4 shrink-0" />,

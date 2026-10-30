@@ -44,6 +44,9 @@
  * form, rotating or revoking its key and switching it off are company-wide configuration, and the
  * form is a door onto the public internet, so it is an explicit grant that no record permission implies.
  *
+ * `lead_assignment` is the same kind of thing for the rules that choose who gets a new lead (ADR-0065 10):
+ * who may change them is a company-wide decision, and it decides what a stranger's submission turns into.
+ *
  * They are kept apart rather than folded into one `data_rights` type because
  * the three differ in blast radius: a whole-workspace archive, one person's
  * file, and an irreversible erasure are not the same decision, and a single
@@ -67,6 +70,7 @@ export const OBJECT_TYPES = [
   'pipeline',
   'import_history',
   'lead_form',
+  'lead_assignment',
 ] as const;
 
 export type ObjectType = (typeof OBJECT_TYPES)[number];
@@ -195,6 +199,7 @@ export const ADMINISTRATIVE_OBJECT_TYPES = [
   'pipeline',
   'import_history',
   'lead_form',
+  'lead_assignment',
 ] as const;
 export type AdministrativeObjectType = (typeof ADMINISTRATIVE_OBJECT_TYPES)[number];
 

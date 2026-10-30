@@ -1,7 +1,9 @@
 import { Module } from '@nestjs/common';
 import { AccessModule } from '../access/access.module.js';
 import { LeadsModule } from '../leads/leads.module.js';
-import { DefaultOwnerAssigner, LEAD_ASSIGNER } from './lead-assigner.js';
+import { LEAD_FALLBACK_ASSIGNER } from '../../platform/lead-assigner.js';
+import { LeadAssignmentModule } from '../lead-assignment/lead-assignment.module.js';
+import { DefaultOwnerAssigner } from './lead-assigner.js';
 import { LeadFormsController } from './lead-forms.controller.js';
 import { LeadFormsRepository } from './lead-forms.repository.js';
 import { LeadFormsService } from './lead-forms.service.js';
@@ -17,17 +19,17 @@ import { PublicLeadFormsService } from './public-lead-forms.service.js';
  *
  * It reaches leads through `LeadsService`, and people through the access module's narrow
  * `LeadOwnerDirectory`; never through their repositories. Who owns a new lead is behind
- * `LEAD_ASSIGNER`, which the assignment rules take over without the public side changing.
+ * `LEAD_ASSIGNER`, which the assignment rules module provides; the simple default owner is the fallback.
  */
 @Module({
-  imports: [LeadsModule, AccessModule],
+  imports: [LeadsModule, AccessModule, LeadAssignmentModule],
   controllers: [LeadFormsController, PublicLeadFormsController],
   providers: [
     LeadFormsRepository,
     LeadFormsService,
     PublicLeadFormsService,
     DefaultOwnerAssigner,
-    { provide: LEAD_ASSIGNER, useExisting: DefaultOwnerAssigner },
+    { provide: LEAD_FALLBACK_ASSIGNER, useExisting: DefaultOwnerAssigner },
   ],
 })
 export class LeadFormsModule {}

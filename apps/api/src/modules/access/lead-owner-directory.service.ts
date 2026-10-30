@@ -35,4 +35,22 @@ export class LeadOwnerDirectory {
       action: 'update',
     });
   }
+
+  /** Everyone who can be given a lead, by name, for a picker. */
+  async workers(tx: Tx, tenantId: string): Promise<{ id: string; name: string }[]> {
+    return this.repository.leadWorkers(tx, tenantId);
+  }
+
+  /** Each team's members (a team that does not exist is simply absent from the answer). */
+  async teamMembers(
+    tx: Tx,
+    tenantId: string,
+    teamIds: readonly string[],
+  ): Promise<Map<string, string[]>> {
+    return this.repository.teamMemberIds(tx, tenantId, [...new Set(teamIds)]);
+  }
+
+  async teams(tx: Tx, tenantId: string): Promise<{ id: string; name: string }[]> {
+    return this.repository.teamNames(tx, tenantId);
+  }
 }

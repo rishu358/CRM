@@ -14,3 +14,4 @@ export * from './onboarding.js';
 export * from './entitlements.js';
 export * from './bulk.js';
 export * from './lead-forms.js';
+export * from './lead-assignment.js';

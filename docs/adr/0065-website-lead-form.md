@@ -492,6 +492,31 @@ Where the build differs from the plan, or settles something the plan left open. 
 - **Not in v1 and said so:** CORS direct-post embed (§5.2), CAPTCHA, the assignment rules (part B), the export of consent
   records, a keyed-hash address for abuse tracing.
 
+## 16b. Implementation notes (part B, assignment rules)
+
+- **Where it lives.** `packages/core/src/lead-assignment` is the pure engine (`evaluateAssignment`, `conditionHolds`,
+  `nextInTurn`, `checkRuleShape`); `apps/api/src/modules/lead-assignment` owns migration 0028's three tables
+  (`lead_assignment_rules`, `lead_assignment_pointers`, `lead_assignment_settings`) and provides the `LEAD_ASSIGNER` the web
+  form asks. The interface now lives in `platform/lead-assigner.ts` so neither module depends on the other; the simple default
+  from part A stays as `LEAD_FALLBACK_ASSIGNER`.
+- **The trigger is a parameter** (`web_form`, `manual`, `import`), and a rule says which it applies to; only the web form asks
+  today. A manual or imported lead can call the same assigner later with no change to the engine.
+- **A rule that cannot be carried out is skipped, not stopped at** (its person has left, its team has nobody who can work
+  leads): the next rule is tried, then the defaults, in this order: the company's default owner, the form's maker, the
+  longest-standing person who manages forms. Nobody eligible at all means the lead is saved with no owner.
+- **Round-robin.** The turn goes to the next eligible member after the pointer, members taken in id order, wrapping. The
+  decision is made once without a lock to find the rule, then the rule's pointer row is locked (`FOR UPDATE`, two seconds at most,
+  the setting restored after) and the decision is made again with the locked value, then the pointer is written. A real lead
+  takes a turn; **a test of a sample lead never does**.
+- **Failure.** Rules run in a savepoint. If they fail (a lock that timed out, say) the failure is audited on the form, the
+  fallback answers in a savepoint of its own, and only if that fails too is the lead saved without an owner and that audited.
+  The decision of every web form lead (`rule: <name>`, `default_owner`, `fallback`, `nobody_eligible`) is audited on the lead.
+- **No regular expressions.** Seven fixed operators; a pattern typed by a company and run on text typed by a stranger is a way to
+  stall a server. Limits: 50 rules (also enforced by a trigger under an advisory lock), 10 conditions a rule, 20 values in a list.
+- **The default owner is a table** (`lead_assignment_settings`), not `tenants.settings`, for the reason given for the pause switch.
+- **Permission.** New object type `lead_assignment` (read, create, update, delete), Owner and Admin by default, backfilled by
+  migration 0028; `read` also allows the sample-lead test.
+
 ## 17. Delivery
 
 - **PR A (draft):** forms, keys, the two public routes, the hosted page and snippet, the proxy and CSP changes, entitlement,

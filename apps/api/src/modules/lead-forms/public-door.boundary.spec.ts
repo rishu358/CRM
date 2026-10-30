@@ -38,7 +38,7 @@ const ALLOWED_SERVICE_IMPORTS: readonly string[] = [
   '../../platform/outbox.service.js',
   '../../platform/rate-limit/counter.js',
   '../leads/leads.service.js',
-  './lead-assigner.js',
+  '../../platform/lead-assigner.js',
   './lead-forms.repository.js',
 ];
 

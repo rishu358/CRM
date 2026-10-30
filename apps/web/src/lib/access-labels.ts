@@ -26,6 +26,7 @@ const OBJECT_KEYS: Readonly<Record<string, TranslationKey>> = {
   pipeline: 'access.object.pipeline',
   import_history: 'access.object.importHistory',
   lead_form: 'access.object.lead_form',
+  lead_assignment: 'access.object.lead_assignment',
 };
 
 const OBJECT_SINGULAR_KEYS: Readonly<Record<string, TranslationKey>> = {
