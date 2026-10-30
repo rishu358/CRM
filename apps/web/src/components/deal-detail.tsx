@@ -25,6 +25,7 @@ import { AppShell } from './app-shell';
 import { BackLink } from './back-link';
 import { WhoCanSeeButton } from './who-can-see';
 import { ActivityPanel } from './activity-panel';
+import { EmailPanel } from './email-panel';
 import { AttachmentPanel } from './attachment-panel';
 import { TagsCard } from './tag-editor';
 import { InlineField } from './inline-field';
@@ -53,6 +54,18 @@ function AccountLink({ id }: { id: string }) {
       {name === undefined || name.length === 0 ? t('deal.account') : name}
     </Link>
   );
+}
+
+/** The people an email from this deal can be written to: its main contact first, then the others. */
+function dealPeople(deal: {
+  readonly primaryContactId?: string | null | undefined;
+  readonly contacts?: readonly { readonly contactId: string }[] | undefined;
+}): string[] {
+  const ids = [
+    ...(deal.primaryContactId == null ? [] : [deal.primaryContactId]),
+    ...(deal.contacts ?? []).map((person) => person.contactId),
+  ];
+  return [...new Set(ids)];
 }
 
 function ContactLink({ id, role }: { id: string; role?: string | null }) {
@@ -387,6 +400,7 @@ export function DealDetail({ id }: { id: string }) {
           )}
         </div>
         <ActivityPanel objectType="deal" recordId={id} />
+        <EmailPanel objectType="deal" recordId={id} people={dealPeople(deal)} />
         <AttachmentPanel objectType="deal" recordId={id} />
       </div>
     </AppShell>

@@ -22,6 +22,7 @@ export interface ChecklistFacts {
   readonly inviteTeam: boolean;
   readonly importContacts: boolean;
   readonly addFirstDeal: boolean;
+  readonly setEmailSender: boolean;
 }
 
 /**
@@ -95,7 +96,7 @@ export class OnboardingRepository {
     return (result.rowCount ?? 0) > 0;
   }
 
-  /** The three checklist questions in one round trip. */
+  /** The checklist questions in one round trip. */
   async checklist(tx: Tx, tenantId: string): Promise<ChecklistFacts> {
     const result = await tx.execute(sql`
       select
@@ -119,17 +120,23 @@ export class OnboardingRepository {
                 and s.object_type = 'deal'
                 and s.record_id = d.id
             )
-        ) as add_first_deal
+        ) as add_first_deal,
+        -- The company has saved how its emails to customers are sent (ADR-0073).
+        exists (
+          select 1 from email_sender_config where tenant_id = ${tenantId}::uuid
+        ) as set_email_sender
     `);
     const row = result.rows[0] as {
       invite_team: boolean;
       import_contacts: boolean;
       add_first_deal: boolean;
+      set_email_sender: boolean;
     };
     return {
       inviteTeam: row.invite_team,
       importContacts: row.import_contacts,
       addFirstDeal: row.add_first_deal,
+      setEmailSender: row.set_email_sender,
     };
   }
 

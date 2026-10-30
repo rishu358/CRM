@@ -24,6 +24,7 @@ import { BackLink } from './back-link';
 import { useBrand } from './brand-provider';
 import { WhoCanSeeButton } from './who-can-see';
 import { ActivityPanel } from './activity-panel';
+import { EmailPanel } from './email-panel';
 import { AttachmentPanel } from './attachment-panel';
 import { DuplicatesCard } from './duplicates-card';
 import { TagsCard } from './tag-editor';
@@ -221,6 +222,7 @@ export function ContactDetail({ id }: { id: string }) {
           />
         </div>
         <ActivityPanel objectType="contact" recordId={id} />
+        <EmailPanel objectType="contact" recordId={id} />
         <AttachmentPanel objectType="contact" recordId={id} />
       </div>
     </AppShell>

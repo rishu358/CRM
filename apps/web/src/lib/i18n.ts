@@ -1904,6 +1904,100 @@ export const en = {
   'tags.delete.confirm': 'Delete tag',
   'tags.delete.deleted': 'The tag was deleted.',
   'tags.delete.error': 'The tag could not be deleted.',
+  // Email sent from a record, and the log of it (ADR-0073).
+  'nav.email': 'Email',
+  'email.card.title': 'Emails',
+  'email.send': 'Send email',
+  'email.empty.title': 'No emails yet',
+  'email.empty.description':
+    'Emails you send from this record are kept here, so the whole team can see what was said.',
+  'email.empty.action': 'Send the first email',
+  'email.error.title': 'Emails could not be loaded',
+  'email.error.description': 'Something went wrong on our side. Try again in a moment.',
+  'email.forbidden.title': 'You do not have access to email history',
+  'email.forbidden.description': 'Ask an administrator if you need to send or read emails here.',
+  'email.disabled.title': 'Email is not switched on for this workspace',
+  'email.disabled.description': 'It is not included in the current plan.',
+  'email.status.queued': 'Queued',
+  'email.status.sending': 'Sending',
+  'email.status.sent': 'Sent',
+  'email.status.failed': 'Failed',
+  'email.status.delivered': 'Delivered',
+  'email.status.bounced': 'Bounced',
+  'email.status.complained': 'Reported as spam',
+  'email.status.sent.hint': 'Accepted by the mail service. It may not have reached the inbox yet.',
+  'email.row.to': 'To {address}',
+  'email.row.by': 'by {name}',
+  'email.row.erased': 'The content of this email was erased at the request of the person.',
+  'email.row.show': 'Show message',
+  'email.row.hide': 'Hide message',
+  'email.row.retry': 'Try again',
+  'email.row.retried': 'Tried again',
+  'email.row.retry.unknown.title': 'Send it again?',
+  'email.row.retry.unknown.body':
+    'We could not confirm what happened to this email. It may already have been delivered, and the person could receive it twice.',
+  'email.row.retry.confirm': 'Send again',
+  'email.row.retry.error': 'The email could not be queued again.',
+  'email.failure.rejected': 'The mail service refused this message.',
+  'email.failure.invalid_recipient': 'The mail service says this address cannot receive email.',
+  'email.failure.provider_unavailable':
+    'The mail service was not available. Try again in a few minutes.',
+  'email.failure.timeout': 'The mail service did not answer in time. Try again in a few minutes.',
+  'email.failure.outcome_unknown':
+    'We could not confirm what happened to this message. It may already have been delivered, so check before sending it again.',
+  'email.failure.not_configured': 'Email sending is not set up on this installation.',
+  'email.dialog.title': 'Send an email',
+  'email.dialog.writeTo': 'Write to',
+  'email.dialog.to': 'To',
+  'email.dialog.subject': 'Subject',
+  'email.dialog.body': 'Message',
+  'email.dialog.bodyHint': 'Plain text. Your company’s footer is added below it.',
+  'email.dialog.send': 'Send',
+  'email.dialog.sentAs': 'Sent as {name}. Replies go to {address}.',
+  'email.dialog.usage': 'You have sent {sent} of {limit} emails today.',
+  'email.dialog.noContacts': 'This deal has no contact you can write to.',
+  'email.dialog.noAddress.title': 'No email address to send to',
+  'email.dialog.noAddress.description':
+    'Add an email address to this record first, then send from here.',
+  'email.dialog.consent.none': 'No consent to email is recorded for this person.',
+  'email.dialog.consent.withdrawn':
+    'This person has withdrawn consent to receive email, so it cannot be sent.',
+  'email.dialog.notSetUp':
+    'Your company has not set its sender yet, so the company name is used. An administrator can change it under Settings, Email.',
+  'email.dialog.limit': 'You have reached today’s limit of emails. It resets at midnight.',
+  'email.dialog.tooFast': 'You are sending too fast. Wait a minute and try again.',
+  'email.dialog.error': 'The email was not queued. Check what you wrote and try again.',
+  'email.dialog.forbidden': 'You cannot send email from this record.',
+  'email.settings.title': 'Email',
+  'email.settings.description':
+    'The name your company’s emails are sent under, where replies go, and a footer added to every email.',
+  'email.settings.fromName': 'Sender name',
+  'email.settings.fromName.hint':
+    'Shown to everyone you write to. Letters, digits and . , & ’ ( ) - / only.',
+  'email.settings.replyTo': 'Reply address',
+  'email.settings.replyTo.hint':
+    'Leave empty to send replies to whoever wrote the email. We do not check that you own this address.',
+  'email.settings.footer': 'Footer',
+  'email.settings.footer.hint':
+    'Plain text added below every email: a company name, an address, a line about how to opt out.',
+  'email.settings.sendingAddress': 'Emails are sent from',
+  'email.settings.sendingAddress.none': 'Not set up on this installation',
+  'email.settings.sendingAddress.hint':
+    'Set by whoever runs this installation. Your company cannot change it.',
+  'email.settings.usage':
+    'Today: you have sent {sent} of {limit}; your company {company} of {companyLimit}.',
+  'email.settings.save': 'Save',
+  'email.settings.saved': 'Saved.',
+  'email.settings.error': 'The settings were not saved. Check the fields and try again.',
+  'email.settings.conflict': 'Someone else changed these settings. Reload and try again.',
+  'email.settings.forbidden.title': 'You do not have access to email settings',
+  'email.settings.forbidden.description': 'Ask an administrator.',
+  'email.settings.loadError.title': 'Email settings could not be loaded',
+  'email.settings.loadError.description':
+    'Something went wrong on our side. Try again in a moment.',
+  'setup.checklist.set_email_sender': 'Set your email sender',
+  'setup.checklist.set_email_sender.hint':
+    'Choose the name your emails to customers are sent under and where replies go.',
 } as const;
 
 export type TranslationKey = keyof typeof en;

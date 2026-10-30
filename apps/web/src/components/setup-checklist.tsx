@@ -29,6 +29,11 @@ const STEPS: Readonly<
     title: 'setup.checklist.add_first_deal',
     hint: 'setup.checklist.add_first_deal.hint',
   },
+  set_email_sender: {
+    href: '/settings/email',
+    title: 'setup.checklist.set_email_sender',
+    hint: 'setup.checklist.set_email_sender.hint',
+  },
 };
 
 /**

@@ -360,7 +360,7 @@ are out of scope (ADR-0032).
 
 **Phase 2 (P1, ~6–8 weeks):** Gmail/Outlook two-way email sync, WhatsApp Business API, workflow automation builder (trigger → condition → action, built on outbox events), report builder, quotes with GST + PDF, products & price books, public API keys + webhooks, self-serve billing (Razorpay/Stripe), record merge, calendar sync.
 
-**Email send and log (Phase 2, in progress):** send a plain-text email from a contact, lead or deal contact and log it on the record. Planned in `docs/plans/email-send-log.md`, decided in ADR-0073. The server (PR 1a) is built; the screens (PR 1b), templates, delivery status and inbound replies follow. Two-way mailbox sync stays later.
+**Email send and log (Phase 2, in progress):** send a plain-text email from a contact, lead or deal contact and log it on the record. Planned in `docs/plans/email-send-log.md`, decided in ADR-0073. The server (PR 1a) and the screens (PR 1b: the Send dialog, an Emails card on contact, lead and deal pages, Settings > Email and a checklist step) are built; templates, delivery status and inbound replies follow. Two-way mailbox sync stays later.
 
 **Phase 3 (P2):** custom objects + relationships, territories, approval processes, AI (lead scoring, email/call summaries, next-best-action, natural-language search via pgvector), mobile apps (React Native), SSO/SCIM, data residency regions, integration marketplace, support desk module.
 

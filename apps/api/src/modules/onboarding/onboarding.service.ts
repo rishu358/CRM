@@ -198,6 +198,7 @@ export class OnboardingService {
       invite_team: facts.inviteTeam,
       import_contacts: facts.importContacts,
       add_first_deal: facts.addFirstDeal,
+      set_email_sender: facts.setEmailSender,
     };
     return {
       setupCompleted: profile.setupCompletedAt !== null,
