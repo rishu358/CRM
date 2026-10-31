@@ -236,6 +236,8 @@ export const TENANT_ARCHIVE_TABLES = [
   'email_messages',
   'email_message_links',
   'email_sender_config',
+  'email_templates',
+  'email_signatures',
   'pipelines',
   'pipeline_stages',
   'field_definitions',

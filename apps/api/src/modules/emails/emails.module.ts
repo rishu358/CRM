@@ -1,9 +1,16 @@
 import { Module } from '@nestjs/common';
+import { AccountsModule } from '../accounts/accounts.module.js';
 import { ContactsModule } from '../contacts/contacts.module.js';
 import { DealsModule } from '../deals/deals.module.js';
 import { LeadsModule } from '../leads/leads.module.js';
 import { EmailSettingsService } from './email-settings.service.js';
-import { EmailSettingsController, EmailsController } from './emails.controller.js';
+import { EmailTemplatesService } from './email-templates.service.js';
+import {
+  EmailSettingsController,
+  EmailSignatureController,
+  EmailsController,
+  EmailTemplatesController,
+} from './emails.controller.js';
 import { EmailsRepository } from './emails.repository.js';
 import { EmailsService } from './emails.service.js';
 
@@ -15,9 +22,14 @@ import { EmailsService } from './emails.service.js';
  * field permissions are theirs. It never sends: the worker does, from the outbox.
  */
 @Module({
-  imports: [ContactsModule, LeadsModule, DealsModule],
-  controllers: [EmailsController, EmailSettingsController],
-  providers: [EmailsService, EmailSettingsService, EmailsRepository],
+  imports: [AccountsModule, ContactsModule, LeadsModule, DealsModule],
+  controllers: [
+    EmailsController,
+    EmailSettingsController,
+    EmailTemplatesController,
+    EmailSignatureController,
+  ],
+  providers: [EmailsService, EmailSettingsService, EmailTemplatesService, EmailsRepository],
   exports: [EmailsService],
 })
 export class EmailsModule {}

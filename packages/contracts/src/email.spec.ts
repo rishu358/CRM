@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { emailSendSchema, emailSettingsUpdateSchema, emailSubjectSchema } from './email.js';
+import {
+  emailSendSchema,
+  emailSettingsUpdateSchema,
+  emailSignatureUpdateSchema,
+  emailSubjectSchema,
+  emailTemplateCreateSchema,
+  emailTemplateUpdateSchema,
+} from './email.js';
 
 const target = {
   objectType: 'contact',
@@ -35,5 +42,51 @@ describe('a subject or a sender name is one line', () => {
     for (const extra of [{ to: 'a@b.example' }, { from: 'a@b.example' }, { status: 'sent' }]) {
       expect(emailSendSchema.safeParse({ ...target, subject: 'Hi', ...extra }).success).toBe(false);
     }
+  });
+});
+
+describe('merge fields in what is sent or saved', () => {
+  it('accepts the fields on the list, with or without spaces inside the braces', () => {
+    expect(
+      emailSendSchema.safeParse({
+        ...target,
+        subject: 'Hi {{contact.first_name}}',
+        body: 'Dear {{ contact.last_name }} from {{sender.name}} at {{company.name}}',
+      }).success,
+    ).toBe(true);
+  });
+
+  it.each(['{{contact.email}}', '{{ Contact Name }}', '{{}}', '{{contact.phone}}'])(
+    'refuses %s in a subject, a message and a template',
+    (field) => {
+      expect(
+        emailSendSchema.safeParse({ ...target, subject: `Hi ${field}`, body: 'x' }).success,
+      ).toBe(false);
+      expect(
+        emailSendSchema.safeParse({ ...target, subject: 'Hi', body: `Hello ${field}` }).success,
+      ).toBe(false);
+      expect(
+        emailTemplateCreateSchema.safeParse({ name: 'T', subject: 'Hi', body: `Hello ${field}` })
+          .success,
+      ).toBe(false);
+    },
+  );
+
+  it('needs a template change to change something, and a version', () => {
+    expect(emailTemplateUpdateSchema.safeParse({ version: 1 }).success).toBe(false);
+    expect(emailTemplateUpdateSchema.safeParse({ name: 'New', version: 1 }).success).toBe(true);
+    expect(emailTemplateUpdateSchema.safeParse({ name: 'New' }).success).toBe(false);
+  });
+
+  it('refuses a template or signature that names an owner or an id of its own', () => {
+    expect(
+      emailTemplateCreateSchema.safeParse({ name: 'T', subject: 's', body: 'b', createdBy: 'x' })
+        .success,
+    ).toBe(false);
+    expect(emailSignatureUpdateSchema.safeParse({ text: 'Priya', userId: 'x' }).success).toBe(
+      false,
+    );
+    expect(emailSignatureUpdateSchema.safeParse({ text: 'x'.repeat(501) }).success).toBe(false);
+    expect(emailSignatureUpdateSchema.safeParse({ text: '' }).success).toBe(true);
   });
 });

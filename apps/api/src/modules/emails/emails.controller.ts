@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Headers,
   HttpCode,
@@ -16,16 +17,25 @@ import {
   emailParamsSchema,
   emailSendSchema,
   emailSettingsUpdateSchema,
+  emailSignatureUpdateSchema,
+  emailTemplateCreateSchema,
+  emailTemplateDeleteQuerySchema,
+  emailTemplateUpdateSchema,
   type EmailContextQuery,
   type EmailListQuery,
   type EmailSendInput,
   type EmailSettingsUpdateInput,
+  type EmailSignatureUpdateInput,
+  type EmailTemplateCreateInput,
+  type EmailTemplateDeleteQuery,
+  type EmailTemplateUpdateInput,
 } from '@crm/contracts';
 import type { Actor } from '@crm/core';
 import { CurrentActor } from '../../auth/auth.guard.js';
 import { parseIdempotencyKey } from '../../common/idempotency.js';
 import { zodPipe } from '../../common/zod-validation.pipe.js';
 import { EmailSettingsService } from './email-settings.service.js';
+import { EmailTemplatesService } from './email-templates.service.js';
 import { EmailsService } from './emails.service.js';
 
 /**
@@ -101,5 +111,63 @@ export class EmailSettingsController {
     @Body(zodPipe(emailSettingsUpdateSchema)) body: EmailSettingsUpdateInput,
   ) {
     return { data: await this.settings.save(actor, body) };
+  }
+}
+
+/** `/api/v1/email-templates`: the company's templates (ADR-0074). */
+@Controller('email-templates')
+export class EmailTemplatesController {
+  constructor(@Inject(EmailTemplatesService) private readonly templates: EmailTemplatesService) {}
+
+  @Get()
+  async list(@CurrentActor() actor: Actor) {
+    return { data: await this.templates.list(actor) };
+  }
+
+  @Post()
+  @HttpCode(201)
+  async create(
+    @CurrentActor() actor: Actor,
+    @Body(zodPipe(emailTemplateCreateSchema)) body: EmailTemplateCreateInput,
+  ) {
+    return { data: await this.templates.create(actor, body) };
+  }
+
+  @Patch(':id')
+  async update(
+    @CurrentActor() actor: Actor,
+    @Param(zodPipe(emailParamsSchema)) params: { id: string },
+    @Body(zodPipe(emailTemplateUpdateSchema)) body: EmailTemplateUpdateInput,
+  ) {
+    return { data: await this.templates.update(actor, params.id, body) };
+  }
+
+  @Delete(':id')
+  @HttpCode(204)
+  async remove(
+    @CurrentActor() actor: Actor,
+    @Param(zodPipe(emailParamsSchema)) params: { id: string },
+    @Query(zodPipe(emailTemplateDeleteQuerySchema)) query: EmailTemplateDeleteQuery,
+  ): Promise<void> {
+    await this.templates.remove(actor, params.id, query.version);
+  }
+}
+
+/** `/api/v1/email-signature`: the signed-in person's own signature (ADR-0074). */
+@Controller('email-signature')
+export class EmailSignatureController {
+  constructor(@Inject(EmailTemplatesService) private readonly templates: EmailTemplatesService) {}
+
+  @Get()
+  async get(@CurrentActor() actor: Actor) {
+    return { data: await this.templates.getSignature(actor) };
+  }
+
+  @Patch()
+  async save(
+    @CurrentActor() actor: Actor,
+    @Body(zodPipe(emailSignatureUpdateSchema)) body: EmailSignatureUpdateInput,
+  ) {
+    return { data: await this.templates.saveSignature(actor, body) };
   }
 }

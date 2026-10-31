@@ -180,6 +180,9 @@ export class ContactsService {
       email: canReadField(actor, 'contact', 'email') ? (row.email ?? null) : null,
       name: name === '' ? null : name,
       consent: emailConsentState(row.consent),
+      firstName: canReadField(actor, 'contact', 'first_name') ? row.firstName : null,
+      lastName: canReadField(actor, 'contact', 'last_name') ? row.lastName : null,
+      accountId: canReadField(actor, 'contact', 'account_id') ? row.accountId : null,
     };
   }
 

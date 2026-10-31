@@ -9,18 +9,22 @@ import {
   EMAIL_LIMITS,
   emailLimitsFor,
   ForbiddenError,
+  isValidBody,
   isValidFromName,
   isValidReplyTo,
+  isValidSubject,
   localDay,
   newId,
   NoEmailAddressError,
   normalizeSingleLine,
   NotFoundError,
   RateLimitedError,
+  renderEmailMergeFields,
   secondsUntilLocalMidnight,
   tenantAgeDays,
   ValidationError,
   type Actor,
+  type EmailMergeValues,
   type EmailRecipient,
   type EmailSourceType,
 } from '@crm/core';
@@ -41,6 +45,7 @@ import { EntitlementsService } from '../../platform/entitlements.service.js';
 import { IdempotencyService } from '../../platform/idempotency.service.js';
 import { OutboxService } from '../../platform/outbox.service.js';
 import { TenantClock } from '../../platform/tenant-clock.service.js';
+import { AccountsService } from '../accounts/accounts.service.js';
 import { ContactsService } from '../contacts/contacts.service.js';
 import { DealsService } from '../deals/deals.service.js';
 import { LeadsService } from '../leads/leads.service.js';
@@ -60,6 +65,8 @@ interface Resolved {
   readonly links: readonly { objectType: EmailSourceType; recordId: string }[];
   /** The contact it is written to, when there is one. */
   readonly contactId: string | null;
+  /** The deal's name, for a deal and when the caller may read it. */
+  readonly dealName: string | null;
 }
 
 /** The sender as it will appear, with whether the company has set it up yet. */
@@ -67,6 +74,9 @@ interface Sender {
   readonly fromName: string;
   readonly replyTo: string;
   readonly configured: boolean;
+  /** The person's own name and the company's, for the merge fields (ADR-0074). */
+  readonly userName: string;
+  readonly companyName: string;
 }
 
 /**
@@ -92,6 +102,7 @@ export class EmailsService {
     @Inject(IdempotencyService) private readonly idempotency: IdempotencyService,
     @Inject(EntitlementsService) private readonly entitlements: EntitlementsService,
     @Inject(TenantClock) private readonly clock: TenantClock,
+    @Inject(AccountsService) private readonly accounts: AccountsService,
     @Inject(ContactsService) private readonly contacts: ContactsService,
     @Inject(LeadsService) private readonly leads: LeadsService,
     @Inject(DealsService) private readonly deals: DealsService,
@@ -111,6 +122,7 @@ export class EmailsService {
       await this.requireFeatureAndGrant(tx, actor, 'create');
       const resolved = await this.resolve(tx, actor, query);
       const sender = await this.senderFor(tx, actor);
+      const signature = await this.repository.findSignature(tx, actor.tenantId, actor.userId);
       return {
         to: resolved.recipient.email,
         toName: resolved.recipient.name,
@@ -119,6 +131,8 @@ export class EmailsService {
         replyTo: sender.replyTo,
         usage: await this.usageFor(tx, actor),
         senderConfigured: sender.configured,
+        mergeValues: await this.mergeValuesFor(tx, actor, resolved, sender),
+        signature: signature?.signatureText ?? '',
       };
     });
   }
@@ -255,6 +269,13 @@ export class EmailsService {
       throw new ConflictError('Email sending is not set up on this installation');
     }
 
+    // The words that are sent: merge fields filled from records this person may read, and their
+    // signature below. A retry sends the stored words as they were, so nothing is filled or added twice.
+    const words =
+      retryOf === null
+        ? await this.compose(tx, actor, input, resolved, sender)
+        : { subject: input.subject, body: input.body };
+
     await this.spendOne(tx, actor);
 
     const id = newId();
@@ -271,8 +292,8 @@ export class EmailsService {
       fromAddress,
       replyTo: sender.replyTo,
       toAddress: to,
-      subject: input.subject,
-      bodyText: input.body,
+      subject: words.subject,
+      bodyText: words.body,
       messageId: buildMessageId(id, domain),
       attempts: 0,
       retryOf,
@@ -425,7 +446,88 @@ export class EmailsService {
         { path: 'sender', message: 'Set the name and reply address email is sent under first' },
       ]);
     }
-    return { fromName, replyTo, configured: config !== null };
+    return {
+      fromName,
+      replyTo,
+      configured: config !== null,
+      userName: user?.name ?? '',
+      companyName: facts.name,
+    };
+  }
+
+  /**
+   * What each merge field is for this person, from records the caller may read (ADR-0074).
+   *
+   * A value the caller may not read, or that the record does not have, is an empty string: the same
+   * answer, so a hidden field cannot be told apart from an empty one. Every value goes through the
+   * record's own module as the caller, never around it.
+   */
+  private async mergeValuesFor(
+    tx: Tx,
+    actor: Actor,
+    resolved: Resolved,
+    sender: Sender,
+  ): Promise<Record<string, string>> {
+    const recipient = resolved.recipient;
+    let accountName = recipient.company ?? '';
+    if (recipient.accountId !== undefined && recipient.accountId !== null) {
+      try {
+        const account = await this.accounts.getByIdInTx(actor, tx, recipient.accountId);
+        if (typeof account['name'] === 'string') accountName = account['name'];
+      } catch (error) {
+        // An account the caller cannot see is an empty field, not an error.
+        if (!(error instanceof NotFoundError) && !(error instanceof ForbiddenError)) throw error;
+      }
+    }
+    return {
+      'contact.first_name': recipient.firstName ?? '',
+      'contact.last_name': recipient.lastName ?? '',
+      'account.name': accountName,
+      'deal.name': resolved.dealName ?? '',
+      'sender.name': sender.userName,
+      'company.name': sender.companyName,
+    };
+  }
+
+  /** The subject and message as they will be sent, or a 422 saying which one cannot be. */
+  private async compose(
+    tx: Tx,
+    actor: Actor,
+    input: EmailSendInput,
+    resolved: Resolved,
+    sender: Sender,
+  ): Promise<{ subject: string; body: string }> {
+    const values = (await this.mergeValuesFor(tx, actor, resolved, sender)) as EmailMergeValues;
+    const subject = normalizeSingleLine(renderEmailMergeFields(input.subject, values));
+    const signature = (await this.repository.findSignature(tx, actor.tenantId, actor.userId))
+      ?.signatureText;
+    const filled = renderEmailMergeFields(input.body, values);
+    const body =
+      signature === undefined || signature.trim() === ''
+        ? filled
+        : `${filled.trimEnd()}\n\n${signature.trim()}`;
+
+    const problems = [
+      ...(isValidSubject(subject)
+        ? []
+        : [
+            {
+              path: 'subject',
+              message: 'The subject is empty or too long once its fields are filled in',
+            },
+          ]),
+      ...(isValidBody(body)
+        ? []
+        : [
+            {
+              path: 'body',
+              message:
+                'The message is empty or too long once its fields and your signature are added',
+            },
+          ]),
+    ];
+    if (problems.length > 0) throw new ValidationError(problems);
+    return { subject, body };
   }
 
   /** The footer the company appends to every email, or null. */
@@ -448,6 +550,7 @@ export class EmailsService {
         recipient,
         links: [{ objectType: 'contact', recordId: target.recordId }],
         contactId: target.recordId,
+        dealName: null,
       };
     }
     if (target.objectType === 'lead') {
@@ -456,6 +559,7 @@ export class EmailsService {
         recipient,
         links: [{ objectType: 'lead', recordId: target.recordId }],
         contactId: null,
+        dealName: null,
       };
     }
 
@@ -479,6 +583,7 @@ export class EmailsService {
         { objectType: 'contact', recordId: target.contactId },
       ],
       contactId: target.contactId,
+      dealName: typeof deal['name'] === 'string' ? deal['name'] : null,
     };
   }
 

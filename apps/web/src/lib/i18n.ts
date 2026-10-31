@@ -1998,6 +1998,56 @@ export const en = {
   'setup.checklist.set_email_sender': 'Set your email sender',
   'setup.checklist.set_email_sender.hint':
     'Choose the name your emails to customers are sent under and where replies go.',
+  // Templates, merge fields and signatures (ADR-0074).
+  'email.template.pick': 'Start from a template',
+  'email.template.none': 'No template',
+  'email.fields.insert': 'Insert a field',
+  'email.fields.choose': 'Choose a field',
+  'email.fields.help':
+    'Fields such as {{contact.first_name}} are filled in with that person’s own details when the email is sent.',
+  'email.fields.empty':
+    'These fields have nothing for this person and will be left blank: {fields}.',
+  'email.fields.unknown': 'Use only the fields in the list. An unknown one is not sent as typed.',
+  'email.field.contact.first_name': 'Contact: first name',
+  'email.field.contact.last_name': 'Contact: last name',
+  'email.field.account.name': 'Company name of the contact',
+  'email.field.deal.name': 'Deal name',
+  'email.field.sender.name': 'Your name',
+  'email.field.company.name': 'Your company’s name',
+  'email.signature.title': 'Your signature',
+  'email.signature.none': 'No signature yet. It is added below every email you send.',
+  'email.signature.added': 'Added below your message:',
+  'email.signature.edit': 'Edit signature',
+  'email.signature.hint': 'Plain text, up to 500 characters. Added below every email you send.',
+  'email.signature.save': 'Save signature',
+  'email.signature.saved': 'Signature saved.',
+  'email.signature.error': 'The signature was not saved. Try again.',
+  'email.signature.conflict':
+    'Your signature was changed somewhere else. Close this and open it again.',
+  'email.templates.title': 'Templates',
+  'email.templates.description':
+    'Wording your team can start an email from. Fields in double braces are filled in per person.',
+  'email.templates.new': 'New template',
+  'email.templates.empty.title': 'No templates yet',
+  'email.templates.empty.description':
+    'A template saves retyping the same email. Add the first one, then pick it when you write.',
+  'email.templates.empty.action': 'Add a template',
+  'email.templates.error.title': 'Templates could not be loaded',
+  'email.templates.name': 'Name',
+  'email.templates.subject': 'Subject',
+  'email.templates.body': 'Message',
+  'email.templates.edit': 'Edit',
+  'email.templates.delete': 'Delete',
+  'email.templates.save': 'Save template',
+  'email.templates.saveError': 'The template was not saved. Check the fields and try again.',
+  'email.templates.nameTaken': 'A template with that name already exists.',
+  'email.templates.conflict': 'Someone else changed this template. Close this and open it again.',
+  'email.templates.limit': 'A company can have at most 100 templates.',
+  'email.templates.delete.title': 'Delete this template?',
+  'email.templates.delete.body':
+    '{name} will no longer be offered. Emails already sent from it are not changed.',
+  'email.templates.delete.confirm': 'Delete template',
+  'email.templates.delete.error': 'The template was not deleted. Try again.',
 } as const;
 
 export type TranslationKey = keyof typeof en;

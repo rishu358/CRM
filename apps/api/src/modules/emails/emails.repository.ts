@@ -1,17 +1,23 @@
 import { Injectable } from '@nestjs/common';
 import {
   and,
+  asc,
   emailMessageLinks,
   emailMessages,
   emailSenderConfig,
+  emailSignatures,
+  emailTemplates,
   eq,
   inArray,
+  isNull,
   sql,
   tenants,
   users,
   type EmailMessageLinkRow,
   type EmailMessageRow,
   type EmailSenderConfigRow,
+  type EmailSignatureRow,
+  type EmailTemplateRow,
   type NewEmailMessageRow,
   type Tx,
 } from '@crm/db';
@@ -296,6 +302,149 @@ export class EmailsRepository {
       .from(users)
       .where(eq(users.id, userId))
       .limit(1);
+    return rows[0] ?? null;
+  }
+
+  // ---- templates (ADR-0074) --------------------------------------------------------------------------
+
+  async listTemplates(tx: Tx, tenantId: string): Promise<EmailTemplateRow[]> {
+    return tx
+      .select()
+      .from(emailTemplates)
+      .where(and(eq(emailTemplates.tenantId, tenantId), isNull(emailTemplates.deletedAt)))
+      .orderBy(asc(sql`lower(${emailTemplates.name})`), asc(emailTemplates.id));
+  }
+
+  async findTemplate(tx: Tx, tenantId: string, id: string): Promise<EmailTemplateRow | null> {
+    const rows = await tx
+      .select()
+      .from(emailTemplates)
+      .where(
+        and(
+          eq(emailTemplates.tenantId, tenantId),
+          eq(emailTemplates.id, id),
+          isNull(emailTemplates.deletedAt),
+        ),
+      )
+      .limit(1);
+    return rows[0] ?? null;
+  }
+
+  async countTemplates(tx: Tx, tenantId: string): Promise<number> {
+    const result = await tx.execute(sql`
+      select count(*)::int as n from email_templates
+      where tenant_id = ${tenantId}::uuid and deleted_at is null
+    `);
+    return (result.rows[0] as unknown as { n: number } | undefined)?.n ?? 0;
+  }
+
+  async insertTemplate(
+    tx: Tx,
+    values: typeof emailTemplates.$inferInsert,
+  ): Promise<EmailTemplateRow> {
+    const [row] = await tx.insert(emailTemplates).values(values).returning();
+    if (row === undefined) throw new Error('The template was not stored');
+    return row;
+  }
+
+  /** The update, only if the template is still at the version the caller read. Null means it is not. */
+  async updateTemplate(
+    tx: Tx,
+    args: {
+      tenantId: string;
+      id: string;
+      version: number;
+      userId: string;
+      patch: { name?: string; subject?: string; bodyText?: string };
+    },
+  ): Promise<EmailTemplateRow | null> {
+    const rows = await tx
+      .update(emailTemplates)
+      .set({
+        ...args.patch,
+        version: args.version + 1,
+        updatedAt: new Date(),
+        updatedBy: args.userId,
+      })
+      .where(
+        and(
+          eq(emailTemplates.tenantId, args.tenantId),
+          eq(emailTemplates.id, args.id),
+          eq(emailTemplates.version, args.version),
+          isNull(emailTemplates.deletedAt),
+        ),
+      )
+      .returning();
+    return rows[0] ?? null;
+  }
+
+  async softDeleteTemplate(
+    tx: Tx,
+    args: { tenantId: string; id: string; version: number; userId: string },
+  ): Promise<boolean> {
+    const rows = await tx
+      .update(emailTemplates)
+      .set({
+        deletedAt: new Date(),
+        version: args.version + 1,
+        updatedAt: new Date(),
+        updatedBy: args.userId,
+      })
+      .where(
+        and(
+          eq(emailTemplates.tenantId, args.tenantId),
+          eq(emailTemplates.id, args.id),
+          eq(emailTemplates.version, args.version),
+          isNull(emailTemplates.deletedAt),
+        ),
+      )
+      .returning({ id: emailTemplates.id });
+    return rows.length > 0;
+  }
+
+  // ---- signatures ------------------------------------------------------------------------------------
+
+  async findSignature(tx: Tx, tenantId: string, userId: string): Promise<EmailSignatureRow | null> {
+    const rows = await tx
+      .select()
+      .from(emailSignatures)
+      .where(and(eq(emailSignatures.tenantId, tenantId), eq(emailSignatures.userId, userId)))
+      .limit(1);
+    return rows[0] ?? null;
+  }
+
+  async insertSignature(
+    tx: Tx,
+    values: typeof emailSignatures.$inferInsert,
+  ): Promise<EmailSignatureRow | null> {
+    const rows = await tx
+      .insert(emailSignatures)
+      .values(values)
+      .onConflictDoNothing({ target: [emailSignatures.tenantId, emailSignatures.userId] })
+      .returning();
+    return rows[0] ?? null;
+  }
+
+  async updateSignature(
+    tx: Tx,
+    args: { tenantId: string; userId: string; version: number; text: string },
+  ): Promise<EmailSignatureRow | null> {
+    const rows = await tx
+      .update(emailSignatures)
+      .set({
+        signatureText: args.text,
+        version: args.version + 1,
+        updatedAt: new Date(),
+        updatedBy: args.userId,
+      })
+      .where(
+        and(
+          eq(emailSignatures.tenantId, args.tenantId),
+          eq(emailSignatures.userId, args.userId),
+          eq(emailSignatures.version, args.version),
+        ),
+      )
+      .returning();
     return rows[0] ?? null;
   }
 }

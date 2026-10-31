@@ -387,3 +387,141 @@ describe('what an erasure and a purge do to mail', () => {
     expect(links.rows).toEqual([{ record_id: stays }]);
   });
 });
+
+describe('templates and signatures (migration 0033)', () => {
+  let templateA: string;
+  let templateB: string;
+
+  beforeAll(async () => {
+    templateA = randomUUID();
+    templateB = randomUUID();
+    await superuser.query(
+      `insert into email_templates (id, tenant_id, name, subject, body_text)
+       values ($1, $2, 'Welcome', 's', 'b'), ($3, $4, 'Welcome', 's', 'b')`,
+      [templateA, tenantA, templateB, tenantB],
+    );
+    await superuser.query(
+      `insert into email_signatures (id, tenant_id, user_id, signature_text)
+       values ($1, $2, $3, 'A sig'), ($4, $5, $6, 'B sig')`,
+      [randomUUID(), tenantA, userA, randomUUID(), tenantB, randomUUID()],
+    );
+  });
+
+  it.each(['email_templates', 'email_signatures'])(
+    '%s is limited to the caller’s own company',
+    async (table) => {
+      const mine = await withTenant(db.app.db, as(tenantA), (tx) =>
+        tx.execute(sql.raw(`select tenant_id from ${table}`)),
+      );
+      expect(mine.rows.length).toBeGreaterThan(0);
+      for (const row of mine.rows) expect(row['tenant_id']).toBe(tenantA);
+      const none = await withoutTenant(db.app.db, (tx) =>
+        tx.execute(sql.raw(`select tenant_id from ${table}`)),
+      );
+      expect(none.rows).toHaveLength(0);
+    },
+  );
+
+  it('cannot change or remove another company’s template', async () => {
+    const update = await withTenant(db.app.db, as(tenantA), (tx) =>
+      tx.execute(sql`update email_templates set name = 'Hijacked' where id = ${templateB}`),
+    );
+    expect(update.rowCount).toBe(0);
+    const error = await captureDbError(() =>
+      withTenant(db.app.db, as(tenantA), (tx) =>
+        tx.execute(sql`delete from email_templates where id = ${templateB}`),
+      ),
+    );
+    // No DELETE grant at all: a template is removed by marking it, never by deleting the row.
+    expect(error.code).toBe(INSUFFICIENT_PRIVILEGE);
+  });
+
+  it('lets the application role write and change a template, and the worker only read it', async () => {
+    const id = randomUUID();
+    const inserted = await withTenant(db.app.db, as(tenantA), (tx) =>
+      tx.execute(sql`
+        insert into email_templates (id, tenant_id, name, subject, body_text)
+        values (${id}, ${tenantA}, 'Mine', 's', 'b')`),
+    );
+    expect(inserted.rowCount).toBe(1);
+    const changed = await withTenant(db.app.db, as(tenantA), (tx) =>
+      tx.execute(sql`update email_templates set subject = 'new' where id = ${id}`),
+    );
+    expect(changed.rowCount).toBe(1);
+    const error = await captureDbError(() =>
+      withTenant(db.worker.db, as(tenantA), (tx) =>
+        tx.execute(sql`update email_templates set subject = 'worker' where id = ${id}`),
+      ),
+    );
+    expect(error.code).toBe(INSUFFICIENT_PRIVILEGE);
+  });
+
+  it('keeps a template name unique in a company ignoring case, among those in use', async () => {
+    const duplicate = (name: string) =>
+      superuser.query(
+        `insert into email_templates (id, tenant_id, name, subject, body_text)
+         values ($1, $2, $3, 's', 'b')`,
+        [randomUUID(), tenantA, name],
+      );
+    expect((await captureDbError(() => duplicate('WELCOME'))).code).toBe(UNIQUE_VIOLATION);
+    await superuser.query(`update email_templates set deleted_at = now() where id = $1`, [
+      templateA,
+    ]);
+    await expect(duplicate('welcome')).resolves.toBeDefined();
+  });
+
+  it('refuses a template or signature in a shape the screens cannot show', async () => {
+    const template = (name: string, subject: string, body: string) =>
+      superuser.query(
+        `insert into email_templates (id, tenant_id, name, subject, body_text)
+         values ($1, $2, $3, $4, $5)`,
+        [randomUUID(), tenantA, name, subject, body],
+      );
+    expect((await captureDbError(() => template('', 's', 'b'))).code).toBe(CHECK_VIOLATION);
+    expect((await captureDbError(() => template('n1', '', 'b'))).code).toBe(CHECK_VIOLATION);
+    expect((await captureDbError(() => template('n2', 's', ''))).code).toBe(CHECK_VIOLATION);
+    expect((await captureDbError(() => template('x'.repeat(81), 's', 'b'))).code).toBe(
+      CHECK_VIOLATION,
+    );
+    const signature = (text: string) =>
+      superuser.query(
+        `insert into email_signatures (id, tenant_id, user_id, signature_text) values ($1, $2, $3, $4)`,
+        [randomUUID(), tenantA, randomUUID(), text],
+      );
+    expect((await captureDbError(() => signature('x'.repeat(501)))).code).toBe(CHECK_VIOLATION);
+  });
+
+  it('allows one signature per person', async () => {
+    const error = await captureDbError(() =>
+      superuser.query(
+        `insert into email_signatures (id, tenant_id, user_id, signature_text) values ($1, $2, $3, 'again')`,
+        [randomUUID(), tenantA, userA],
+      ),
+    );
+    expect(error.code).toBe(UNIQUE_VIOLATION);
+  });
+
+  it('lets the worker add a link to a message, and still not change what the message says', async () => {
+    const added = await withTenant(db.worker.db, as(tenantA), (tx) =>
+      tx.execute(sql`
+        insert into email_message_links (id, tenant_id, email_message_id, object_type, record_id)
+        values (${randomUUID()}, ${tenantA}, ${messageA}, 'deal', ${randomUUID()})`),
+    );
+    expect(added.rowCount).toBe(1);
+    const error = await captureDbError(() =>
+      withTenant(db.worker.db, as(tenantA), (tx) =>
+        tx.execute(sql`update email_messages set message_id = 'x' where id = ${messageA}`),
+      ),
+    );
+    expect(error.code).toBe(INSUFFICIENT_PRIVILEGE);
+    // The application role still cannot add a link to another company's message (row-level security).
+    const crossed = await captureDbError(() =>
+      withTenant(db.app.db, as(tenantA), (tx) =>
+        tx.execute(sql`
+          insert into email_message_links (id, tenant_id, email_message_id, object_type, record_id)
+          values (${randomUUID()}, ${tenantB}, ${messageB}, 'deal', ${randomUUID()})`),
+      ),
+    );
+    expect(crossed.code).toBeDefined();
+  });
+});

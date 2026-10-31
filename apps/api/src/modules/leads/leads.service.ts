@@ -207,6 +207,9 @@ export class LeadsService {
       email: canReadField(actor, 'lead', 'email') ? (row.email ?? null) : null,
       name: name === '' ? null : name,
       consent: 'none',
+      firstName: canReadField(actor, 'lead', 'first_name') ? row.firstName : null,
+      lastName: canReadField(actor, 'lead', 'last_name') ? row.lastName : null,
+      company: canReadField(actor, 'lead', 'company') ? row.company : null,
     };
   }
 

@@ -5,6 +5,11 @@ import type {
   EmailMessage,
   EmailSettings,
   EmailSettingsUpdateInput,
+  EmailSignature,
+  EmailSignatureUpdateInput,
+  EmailTemplate,
+  EmailTemplateCreateInput,
+  EmailTemplateUpdateInput,
 } from '@crm/contracts';
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, type ApiRequestError, type ItemEnvelope, type ListEnvelope } from './api-client';
@@ -19,7 +24,7 @@ import type { TranslationKey } from './i18n';
  * that it arrived; the wording on screen says so.
  */
 
-export type { EmailContext, EmailMessage, EmailSettings };
+export type { EmailContext, EmailMessage, EmailSettings, EmailSignature, EmailTemplate };
 
 export type EmailSourceType = 'contact' | 'lead' | 'deal';
 
@@ -30,6 +35,8 @@ export const emailKeys = {
   context: (objectType: string, recordId: string, contactId: string | undefined) =>
     ['emails', 'context', objectType, recordId, contactId ?? null] as const,
   settings: ['emails', 'settings'] as const,
+  templates: ['emails', 'templates'] as const,
+  signature: ['emails', 'signature'] as const,
 };
 
 /** A 402 (feature off) and a 403 (no grant) are answers, not faults: asking again will not change them. */
@@ -149,5 +156,61 @@ export function useContactNames(ids: readonly string[]) {
       queryKey: contactKeys.detail(id),
       queryFn: () => api.get<ItemEnvelope<ContactRecord>>(`/contacts/${id}`),
     })),
+  });
+}
+
+/** The company's templates, for the Send dialog's picker and the settings list. */
+export function useEmailTemplates(enabled = true) {
+  return useQuery<ItemEnvelope<EmailTemplate[]>, ApiRequestError>({
+    queryKey: emailKeys.templates,
+    enabled,
+    queryFn: () => api.get<ItemEnvelope<EmailTemplate[]>>('/email-templates'),
+    retry,
+  });
+}
+
+function useTemplateWrite<TInput, TResult>(run: (input: TInput) => Promise<TResult>) {
+  const client = useQueryClient();
+  return useMutation<TResult, ApiRequestError, TInput>({
+    mutationFn: run,
+    onSuccess: () => client.invalidateQueries({ queryKey: emailKeys.templates }),
+  });
+}
+
+export function useCreateEmailTemplate() {
+  return useTemplateWrite((input: EmailTemplateCreateInput) =>
+    api.post<ItemEnvelope<EmailTemplate>>('/email-templates', input),
+  );
+}
+
+export function useUpdateEmailTemplate(id: string) {
+  return useTemplateWrite((input: EmailTemplateUpdateInput) =>
+    api.patch<ItemEnvelope<EmailTemplate>>(`/email-templates/${id}`, input),
+  );
+}
+
+export function useDeleteEmailTemplate() {
+  return useTemplateWrite(async (input: { id: string; version: number }) => {
+    await api.delete<void>(`/email-templates/${input.id}?version=${String(input.version)}`);
+  });
+}
+
+/** The signed-in person's own signature. */
+export function useEmailSignature(enabled = true) {
+  return useQuery<ItemEnvelope<EmailSignature>, ApiRequestError>({
+    queryKey: emailKeys.signature,
+    enabled,
+    staleTime: 0,
+    queryFn: () => api.get<ItemEnvelope<EmailSignature>>('/email-signature'),
+    retry,
+  });
+}
+
+export function useSaveEmailSignature() {
+  const client = useQueryClient();
+  return useMutation<ItemEnvelope<EmailSignature>, ApiRequestError, EmailSignatureUpdateInput>({
+    mutationFn: (input) => api.patch<ItemEnvelope<EmailSignature>>('/email-signature', input),
+    // The dialog's context carries the signature too, so everything about email is read again.
+    onSuccess: () => client.invalidateQueries({ queryKey: emailKeys.all }),
   });
 }
