@@ -28,6 +28,8 @@ const PUBLIC_PREFIXES = [
   '/accept-invite',
   // The hosted website lead form (ADR-0065): opened by a stranger on a company's site, so no session.
   '/f',
+  // The link at the foot of every email (ADR-0076): opened by a stranger from their inbox, so no session.
+  '/u',
 ] as const;
 
 export function isPublicPath(pathname: string): boolean {

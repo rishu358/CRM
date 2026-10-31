@@ -38,8 +38,10 @@ import type {
   EmailSendInput,
   EmailUsage,
 } from '@crm/contracts';
+import { issueUnsubscribeToken } from '@crm/core/email-unsubscribe-token';
 import { isConstraintViolation } from '../../common/db-errors.js';
 import { decodeCursor, encodeCursor } from '../../common/cursor.js';
+import { unsubscribeSigningSecret } from '../../common/unsubscribe-secrets.js';
 import { API_ENV_TOKEN, type ApiEnv } from '../../config/env.js';
 import { DatabaseService } from '../../database/database.service.js';
 import { AuditService } from '../../platform/audit.service.js';
@@ -310,6 +312,9 @@ export class EmailsService {
       subject: words.subject,
       bodyText: words.body,
       messageId: buildMessageId(id, domain),
+      // Every email carries a way to stop receiving them (ADR-0076). Signed here because only the API
+      // holds the key; the worker puts the link in the message it sends.
+      unsubscribeToken: issueUnsubscribeToken(unsubscribeSigningSecret(this.env), id),
       attempts: 0,
       retryOf,
       queuedAt: now,

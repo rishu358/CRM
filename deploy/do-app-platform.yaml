@@ -86,6 +86,14 @@ services:
       - { key: DEPLOYMENT_MODE, value: '@@DEPLOYMENT_MODE@@', scope: RUN_TIME }
       - { key: CORS_ORIGINS, value: '@@WEB_URL@@', scope: RUN_TIME }
       - { key: AUTH_SECRET, value: '@@AUTH_SECRET@@', scope: RUN_TIME, type: SECRET }
+      # Signs the unsubscribe link in every email (ADR-0076). Its own key, set once and never rotated on a
+      # schedule: a link in an old email must still work. Never the same value as AUTH_SECRET.
+      - {
+          key: EMAIL_UNSUBSCRIBE_SECRET,
+          value: '@@EMAIL_UNSUBSCRIBE_SECRET@@',
+          scope: RUN_TIME,
+          type: SECRET,
+        }
       # Two roles, two pools (ADR-0002). Never doadmin, never crm_migrator.
       - { key: DATABASE_URL, value: '@@DATABASE_URL@@', scope: RUN_TIME, type: SECRET }
       - { key: DATABASE_AUTH_URL, value: '@@DATABASE_AUTH_URL@@', scope: RUN_TIME, type: SECRET }

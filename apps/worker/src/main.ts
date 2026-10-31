@@ -86,6 +86,7 @@ relay.on('email.failed.v1', projectTimeline);
 relay.on('email.delivered.v1', projectTimeline);
 relay.on('email.bounced.v1', projectTimeline);
 relay.on('email.complained.v1', projectTimeline);
+relay.on('email.unsubscribed.v1', projectTimeline);
 relay.on('contact.merged.v1', projectTimeline);
 relay.on('account.merged.v1', projectTimeline);
 
@@ -130,6 +131,7 @@ const notificationOptions = {
 const emailDeps = {
   db: client.db,
   logger,
+  origins: { web: env.WEB_URL, api: env.API_URL },
   email: createEmailProvider({
     kind: env.EMAIL_PROVIDER,
     nodeEnv: env.NODE_ENV,
