@@ -37850,7 +37850,8 @@
                       "enum": [
                         "invite_team",
                         "import_contacts",
-                        "add_first_deal"
+                        "add_first_deal",
+                        "set_email_sender"
                       ]
                     },
                     "done": {
@@ -37959,7 +37960,8 @@
                       "enum": [
                         "invite_team",
                         "import_contacts",
-                        "add_first_deal"
+                        "add_first_deal",
+                        "set_email_sender"
                       ]
                     },
                     "done": {

@@ -211,6 +211,7 @@ describe('setup state and the checklist', () => {
       { key: 'invite_team', done: false },
       { key: 'import_contacts', done: false },
       { key: 'add_first_deal', done: false },
+      { key: 'set_email_sender', done: false },
     ]);
     expect(state.sampleData).toEqual({
       present: false,
@@ -281,6 +282,21 @@ describe('setup state and the checklist', () => {
     expect((await status(w)).checklist.find((entry) => entry.key === 'import_contacts')?.done).toBe(
       true,
     );
+  });
+
+  it('ticks "set your email sender" once the company has saved how its emails are sent', async () => {
+    const w = await workspace();
+    const done = async () =>
+      (await status(w)).checklist.find((entry) => entry.key === 'set_email_sender')?.done;
+    expect(await done()).toBe(false);
+
+    const saved = await call(w.admin.token, 'PATCH', '/email-settings', {
+      fromName: 'Onboarding Traders',
+      replyTo: null,
+      footerText: null,
+    });
+    expect(saved.status).toBe(200);
+    expect(await done()).toBe(true);
   });
 
   it('ticks "add your first deal" for a deal somebody made, and not for a deleted one', async () => {

@@ -25,6 +25,7 @@ import { BackLink } from './back-link';
 import { useBrand } from './brand-provider';
 import { WhoCanSeeButton } from './who-can-see';
 import { ActivityPanel } from './activity-panel';
+import { EmailPanel } from './email-panel';
 import { AttachmentPanel } from './attachment-panel';
 import { TagsCard } from './tag-editor';
 import { ConvertLeadDialog } from './convert-lead-dialog';
@@ -309,6 +310,7 @@ export function LeadDetail({ id }: { id: string }) {
           ) : null}
         </div>
         <ActivityPanel objectType="lead" recordId={id} />
+        <EmailPanel objectType="lead" recordId={id} />
         <AttachmentPanel objectType="lead" recordId={id} />
       </div>
     </AppShell>

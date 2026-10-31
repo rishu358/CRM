@@ -91,7 +91,12 @@ export const tenantProfileUpdateSchema = z
 export type TenantProfileUpdateInput = z.infer<typeof tenantProfileUpdateSchema>;
 
 /** The things the checklist asks a new company to do, in the order it asks. */
-export const CHECKLIST_KEYS = ['invite_team', 'import_contacts', 'add_first_deal'] as const;
+export const CHECKLIST_KEYS = [
+  'invite_team',
+  'import_contacts',
+  'add_first_deal',
+  'set_email_sender',
+] as const;
 export const checklistKeySchema = z.enum(CHECKLIST_KEYS);
 export type ChecklistKey = z.infer<typeof checklistKeySchema>;
 

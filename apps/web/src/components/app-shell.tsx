@@ -9,6 +9,7 @@ import {
   AuditLogIcon,
   BoardViewIcon,
   InboxIcon,
+  MailIcon,
   Button,
   ContactsIcon,
   DataRightsIcon,
@@ -125,6 +126,14 @@ const NAV: readonly {
       icon: <InboxIcon className="h-4 w-4 shrink-0" />,
       // Same proxy as the pipeline editor: the API answers whether the person may manage forms
       // (`lead_form` grant). Cosmetic: the screen and every write behind it check it on their own.
+      requiresSetupAccess: true,
+    },
+    {
+      href: '/settings/email',
+      label: 'nav.email',
+      icon: <MailIcon className="h-4 w-4 shrink-0" />,
+      // Same proxy as Customization (`tenant_settings:read`, answered by the API). Cosmetic: the
+      // screen and every write behind it need `tenant_settings` on their own.
       requiresSetupAccess: true,
     },
     {
