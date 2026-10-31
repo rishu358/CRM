@@ -21,9 +21,9 @@ this plan refers to them by number and by ADR (0073, 0074), which live on those 
    get their own security design below, built on what the lead form's door taught us.
 5. **I recommend two pull requests**: 3a (delivery events and suppression) and 3b (the unsubscribe link). **Do this before
    anyone sends in volume.**
-6. **I can only build the part for the provider you choose, and I cannot verify any provider's event format from
-   here.** You have not named a provider (question 1). Until you do, the plan is the shape and the checks, not a
-   vendor's field names.
+6. **The provider is Resend (question 1, answered by the owner on 2026-10-31).** I read Resend's public documentation
+   for events and signing on that day; section 3.2 says exactly what it says and what it does not. Nothing has been
+   tested against a real Resend account, and the other five questions are still open.
 7. **Legal review is still pending** for the consent and unsubscribe wording (question 6).
 
 ## 2. What I read, and what I found (not assumed)
@@ -59,14 +59,50 @@ providerMessageId, type: 'delivered' | 'bounced' | 'complained', permanent, at }
 - **The secret** is a new registry variable per provider whose events we accept (for example `RESEND_WEBHOOK_SECRET`),
   marked secret, in the `api` scope only, and `pnpm config:docs` is run. Never in `web`. An adapter with no secret set
   refuses the route (the door answers 404, as for an unknown provider).
-- **I will check the chosen provider's current documentation for the signing method and the event names when you name
-  it.** What I believe today (**unverified**): Resend signs webhooks in the Svix style (an id, a timestamp and a signature
-  header, HMAC-SHA256 with a per-endpoint secret). SES delivers events through Amazon SNS, whose messages are signed with
-  a certificate **that we would have to fetch from a URL in the message** (a server-side request to an address a stranger
-  supplied, which CLAUDE.md section 5.13 makes an SSRF risk), so SES events are **deferred** to a later step with their
-  own plan. SMTP has none.
+- **Resend is the provider this step is built for** (section 3.2 has what its documentation says). SES delivers events
+  through Amazon SNS, whose messages are signed with a certificate **that we would have to fetch from a URL in the
+  message** (a server-side request to an address a stranger supplied, which CLAUDE.md section 5.13 makes an SSRF risk),
+  so SES events are **deferred** to a later step with their own plan. SMTP has none.
 
-### 3.2 Finding the company, safely
+### 3.2 What Resend's documentation says (read 2026-10-31, nothing tested)
+
+Read at `resend.com/docs`: the webhook introduction, the event types, the signature-verification page, the `email.bounced`
+page and the send-email API page; and Svix's manual-verification page, which Resend's verification page points to.
+
+- **Events:** `email.sent`, `email.delivered`, `email.delivery_delayed` (a temporary problem such as a full inbox),
+  `email.bounced` ("permanently rejected"), `email.complained` (delivered, then marked as spam), `email.failed`,
+  `email.suppressed` ("Resend suppressed the email"), plus opened, clicked, scheduled and received. We would subscribe to
+  `delivered`, `bounced`, `complained` and `suppressed` only. **We will not subscribe to opened or clicked:** the plan has no
+  tracking, and a tracking pixel is a privacy cost with no benefit here.
+- **Payload** (from the `email.bounced` example): `type`, `created_at`, and `data` holding `email_id`, `message_id` (the
+  RFC `Message-ID`), `from`, `to`, `subject`, `tags` and, for a bounce, `bounce` with `type` (`Permanent` in the example,
+  `Temporary` named as another value), `subType` (`Suppressed` and `MessageRejected` appear) and `message`; a
+  `diagnosticCode` list of SMTP replies is documented too. **We store none of `to`, `subject` or `message`:** only the
+  type, the closed reason list in 3.4, and the ids.
+- **Matching:** the send API answers `{"id": "..."}` and an event carries `data.email_id`. They look like the same
+  identifier, and our adapter already saves `id` as `provider_message_id`. **One real send must confirm they are equal**
+  before 3a is called done. `data.message_id` is Resend's own `Message-ID`; whether Resend keeps a `Message-ID` we supply is
+  not documented on the page I read, so it is not relied on.
+- **Signing:** the headers are `svix-id`, `svix-timestamp` and `svix-signature`, and the **raw body is required**
+  (re-serialising the JSON breaks the check). Resend's page does not give the algorithm; Svix's does: the signed text is
+  `svix-id`, `svix-timestamp` and the raw body joined with full stops; the key is the secret with its `whsec_` prefix removed
+  and the rest base64-decoded; the signature is HMAC-SHA256 of the signed text, base64-encoded; the header may hold several
+  space-separated entries, each with a version prefix such as `v1,`, and **any** match is valid; compare in constant time.
+  Neither page names a timestamp tolerance, so the five minutes in 3.1 is **our choice**. This is implemented with
+  `node:crypto`, no Svix library, and tested against Svix's published test vector so a wrong canonicalisation cannot pass by
+  accident (the same discipline as the SES signing in ADR-0048).
+- **Retries and the source addresses of Resend's calls** were not on the pages I read. The door does not depend on either: it
+  answers 2xx to anything correctly signed and never trusts an address.
+- **Sending side, checked for later work:** the send API accepts custom `headers` (an object), but the page does not say
+  whether `List-Unsubscribe` or `Message-ID` are honoured; and it supports an **`Idempotency-Key`** request header (unique
+  per request, kept for 24 hours, up to 256 characters). Using that key on our send, with the message's own id, would
+  strengthen the at-most-once rule from ADR-0073 at no cost. It is a small adapter change I would add in 3a, **not**
+  something to rely on until a real send shows it works.
+- **Resend keeps its own suppression list** (that is what the example `bounce.message` says, and `email.suppressed`
+  reports it). Ours is separate and still needed: it is per company, it covers unsubscribes, and it holds in our database
+  whichever provider is used later.
+
+### 3.3 Finding the company, safely
 
 The event names a provider id and nothing about a company. Following the lead form (ADR-0065 3.2):
 
@@ -78,7 +114,7 @@ The event names a provider id and nothing about a company. Following the lead fo
 3. Unknown id: if our message is not saved yet, **the event is parked** as an outbox event dated a minute ahead, up to
    five tries (the race in section 2); after that it is dropped with a counter, never guessed at.
 
-### 3.3 Recording it
+### 3.4 Recording it
 
 - The door writes one outbox event per accepted provider event (`email.provider_event.v1`, ids and the type only) and
   a row in a new `email_provider_events` table keyed `(tenant, provider, provider_event_id)` so a **replay changes
@@ -114,15 +150,16 @@ source_email_id, created_at, lifted_at, lifted_by)`, unique per company and addr
 
 - **Every email carries one.** A line at the bottom of the text ("To stop receiving email from {company}, open: {link}")
   and, where the adapter can carry it, the `List-Unsubscribe` and `List-Unsubscribe-Post: List-Unsubscribe=One-Click`
-  headers (RFC 8058), so a mail program can offer its own button. Whether Resend and SES pass custom headers is
-  **unverified**; the line in the body is what we rely on.
+  headers (RFC 8058), so a mail program can offer its own button. Resend's send API takes a `headers` object, but its
+  page does not say these headers are honoured, so **one real send must confirm it**; the line in the body is what we rely
+  on until then.
 - **The link:** `<WEB_URL>/u/<token>`, a hosted page in the web app (as `/f/<key>` is). The token is the email's id plus an
   HMAC from a key derived from the instance's auth secret with its own label (`crm:email-unsubscribe:v1`), so **no new
   secret and no new variable**. It names the email, never a person's address, and carries no tenant id.
 - **A page that asks, then does it.** Opening the link (a GET) shows "Stop emails from {company}?" with one button;
   only the button (a POST) does it, because mail scanners open every link and must not unsubscribe people. The answer
   to a bad, tampered or unknown token is one fixed "this link is not valid". Doing it twice is harmless.
-- **Routing and writing** are as in section 3.2: the same column-limited `crm_auth` lookup finds the company, and the
+- **Routing and writing** are as in section 3.3: the same column-limited `crm_auth` lookup finds the company, and the
   work runs as `crm_app` in that company. It adds an `unsubscribed` suppression, sets the matching contacts' consent to
   `withdrawn`, writes an audit entry (actor: none, source: unsubscribe) and a timeline line.
 - **Rate limits:** per address and per token on both public doors, from the existing counters (ADR-0053), with the daily
@@ -188,10 +225,9 @@ All strings through `t()`; dates through the shared formatters; keyboard reachab
 
 ## 10. Questions for you, with my recommended answer
 
-1. **Which provider will send first (Resend, Amazon SES, or an SMTP server)?** _Recommend: whichever you already hold an
-   account with, and Resend if you have none._ It decides which events I build. With SMTP there are no events, so this step
-   would be only the unsubscribe link. I will read that provider's current documentation, and test with a signed sample I
-   make myself. Real events arrive only once you connect your own account.
+1. **Which provider will send first?** **Answered by the owner on 2026-10-31: Resend.** The events I build are Resend's
+   (section 3.2). I test with a signed sample I make myself, using Svix's published test vector as well; real events arrive
+   only once you connect your own Resend account and add the webhook there.
 2. **An unsubscribe line on every email, or only on templates?** _Recommend every email._ It is the one thing that makes
    "stop" work for a person who wants it, and it costs one line. Some salespeople dislike it in a one-to-one message; the
    footer text is yours to word.
@@ -205,8 +241,11 @@ All strings through `t()`; dates through the shared formatters; keyboard reachab
 
 ## 11. Risks and honest limits
 
-- Nothing in this plan was run. Every statement about a provider's event format, signing and headers is unverified until the
-  provider is named and its documentation read.
+- Nothing in this plan was run. What I say about Resend comes from its public documentation as I read it on 2026-10-31
+  (section 3.2), not from a test against a real account; where a page did not say something, the plan says it does not.
+  Four things need one real send and one real event to settle: that `email_id` equals the id the send call returned, that
+  `List-Unsubscribe` headers are carried, that a supplied `Message-ID` is kept, and that the `Idempotency-Key` behaves as
+  documented.
 - Two new public doors are new attack surface. They copy the lead form's design (small body cap, no cookies, uniform
   answers, a column-limited routing grant, a boundary test), and the events door adds a signature check that happens before
   anything else.
