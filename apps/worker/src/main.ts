@@ -24,6 +24,7 @@ import {
 import { indexSearchDocument, removeSearchDocument } from './handlers/search.js';
 import { removeSampleDataJob } from './handlers/sample-data.js';
 import { failEmailOnExhaustion, sendQueuedEmail, watchEmail } from './handlers/email.js';
+import { linkLeadEmailsOnConversion } from './handlers/email-links.js';
 import { projectTimeline } from './handlers/timeline.js';
 import { failExportOnExhaustion, runExport } from './import-export/export-handler.js';
 import {
@@ -145,6 +146,8 @@ const emailDeps = {
 relay.on('email.queued.v1', sendQueuedEmail(emailDeps));
 relay.on('email.watchdog_due.v1', watchEmail(emailDeps));
 relay.onExhausted('email.queued.v1', failEmailOnExhaustion(emailDeps));
+// A converted lead's emails also show on the contact and deal it became (ADR-0074).
+relay.on('lead.converted.v1', linkLeadEmailsOnConversion());
 
 relay.on('activity.assigned.v1', notifyAssignment(notificationOptions));
 relay.on('activity.reminder_due.v1', notifyReminder());

@@ -20,6 +20,7 @@ import { z } from 'zod';
 import { useEmailSettings, useSaveEmailSettings, type EmailSettings } from '../lib/emails';
 import { t } from '../lib/i18n';
 import { AppShell } from './app-shell';
+import { EmailTemplatesPanel } from './email-templates-panel';
 
 /**
  * Settings, Email: the name the company's emails are sent under, where replies go, and a footer
@@ -89,6 +90,9 @@ export function EmailSettingsScreen() {
     <AppShell>
       {header}
       <SettingsForm settings={query.data.data} />
+      <div className="mt-6">
+        <EmailTemplatesPanel />
+      </div>
     </AppShell>
   );
 }

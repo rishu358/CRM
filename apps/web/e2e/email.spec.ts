@@ -25,7 +25,7 @@ async function signIn(page: Page, email: string): Promise<void> {
 /** Create a contact through the same proxy the app uses, as whoever is signed in. */
 async function createContact(
   page: Page,
-  data: { lastName: string; email?: string },
+  data: { firstName?: string; lastName: string; email?: string },
 ): Promise<{ id: string; version: number }> {
   const response = await page.request.post('/api/proxy/contacts', {
     headers: { origin: new URL(page.url()).origin },
@@ -136,5 +136,95 @@ test.describe('email', () => {
     await page.goto('/settings/email');
     await expect(page.getByText('You do not have access to email settings')).toBeVisible();
     await expect(page.getByLabel('Sender name')).toHaveCount(0);
+  });
+
+  test('an administrator keeps a template, a sender starts from it, and its fields are filled in per person', async ({
+    page,
+  }) => {
+    await signIn(page, credentials.owner);
+    const stamp = Date.now().toString().slice(-6);
+    const templateName = `Follow-up ${stamp}`;
+
+    // ---- the administrator adds a template ----------------------------------------------------------
+    await page.goto('/settings/email');
+    const templates = page.getByTestId('email-templates');
+    await templates.getByTestId('email-template-new').click();
+    const form = page.getByTestId('email-template-dialog');
+    await form.getByLabel('Name').fill(templateName);
+    await form.getByLabel('Subject').fill('Thanks, {{contact.first_name}}');
+    await form
+      .getByLabel('Message')
+      .fill('Dear {{contact.first_name}} {{contact.last_name}},\n\nFrom {{sender.name}}.');
+    await form.getByRole('button', { name: 'Save template' }).click();
+    await expect(form).toBeHidden();
+    await expect(
+      templates.getByTestId('email-template-row').filter({ hasText: templateName }),
+    ).toBeVisible();
+
+    // ---- a field that is not on the list is refused where it is typed -------------------------------
+    await templates.getByTestId('email-template-new').click();
+    await page.getByTestId('email-template-dialog').getByLabel('Name').fill(`Bad ${stamp}`);
+    await page
+      .getByTestId('email-template-dialog')
+      .getByLabel('Subject')
+      .fill('Hi {{contact.email}}');
+    await page.getByTestId('email-template-dialog').getByLabel('Message').fill('Hello');
+    await page
+      .getByTestId('email-template-dialog')
+      .getByRole('button', { name: 'Save template' })
+      .click();
+    await expect(page.getByTestId('email-template-dialog')).toContainText(
+      'Use only the fields in the list',
+    );
+    await page.getByRole('button', { name: 'Close' }).click();
+
+    // ---- the sender starts from it, with a signature ------------------------------------------------
+    const { id } = await createContact(page, {
+      firstName: 'Anil',
+      lastName: `Templated${stamp}`,
+      email: `templated-${stamp}@customer.example`,
+    });
+    await page.goto(`/contacts/${id}`);
+    await page.getByTestId('email-send').click();
+    const dialog = page.getByTestId('send-email-dialog');
+    await dialog.getByLabel('Start from a template').selectOption({ label: templateName });
+    await expect(dialog.getByLabel('Subject')).toHaveValue('Thanks, {{contact.first_name}}');
+
+    await dialog.getByRole('button', { name: 'Edit signature' }).click();
+    await dialog.getByLabel('Your signature').fill(`Sent by the owner ${stamp}`);
+    await dialog.getByRole('button', { name: 'Save signature' }).click();
+    await expect(dialog.getByTestId('send-email-signature')).toContainText(
+      `Sent by the owner ${stamp}`,
+    );
+
+    await dialog.getByRole('button', { name: 'Send', exact: true }).click();
+    await expect(dialog).toBeHidden();
+
+    // The fields are filled in for this person, and the signature is below the message.
+    const row = page
+      .getByTestId('email-panel')
+      .getByTestId('email-row')
+      .filter({ hasText: 'Thanks, Anil' });
+    await expect(row).toBeVisible();
+    await row.getByRole('button', { name: 'Show message' }).click();
+    await expect(row).toContainText(`Dear Anil Templated${stamp},`);
+    await expect(row).toContainText(`Sent by the owner ${stamp}`);
+    await expect(row).not.toContainText('{{');
+  });
+
+  test('says which fields have nothing for this person before it is sent', async ({ page }) => {
+    await signIn(page, credentials.owner);
+    const stamp = Date.now().toString().slice(-6);
+    const { id } = await createContact(page, {
+      lastName: `Nofirst${stamp}`,
+      email: `nofirst-${stamp}@customer.example`,
+    });
+    await page.goto(`/contacts/${id}`);
+    await page.getByTestId('email-send').click();
+    const dialog = page.getByTestId('send-email-dialog');
+    await dialog.getByLabel('Message').fill('Hello {{contact.first_name}}');
+    await expect(dialog.getByTestId('send-email-empty-fields')).toContainText(
+      'Contact: first name',
+    );
   });
 });

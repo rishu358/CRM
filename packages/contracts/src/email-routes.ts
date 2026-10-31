@@ -1,6 +1,13 @@
 import { ErrorCode } from '@crm/core';
+import { z } from 'zod';
 import {
   emailContextQuerySchema,
+  emailSignatureSchema,
+  emailSignatureUpdateSchema,
+  emailTemplateCreateSchema,
+  emailTemplateDeleteQuerySchema,
+  emailTemplateSchema,
+  emailTemplateUpdateSchema,
   emailContextSchema,
   emailListQuerySchema,
   emailMessageSchema,
@@ -186,5 +193,124 @@ export const emailRoutes: RouteDefinition[] = [
       data: emailSettingsSchema,
     },
     errors: [ErrorCode.VERSION_CONFLICT, ErrorCode.CONFLICT, ErrorCode.ENTITLEMENT_REQUIRED],
+  },
+  {
+    method: 'GET',
+    path: '/email-templates',
+    operationId: 'listEmailTemplates',
+    tag: 'Email',
+    summary: 'The company’s email templates',
+    description:
+      'Plain-text subjects and messages with merge fields (`{{contact.first_name}}`, ' +
+      '`{{contact.last_name}}`, `{{account.name}}`, `{{deal.name}}`, `{{sender.name}}`, ' +
+      '`{{company.name}}`), filled in when an email is queued. Needs the `email_message` `create` ' +
+      'grant, the one a person needs to send, and the `email` feature (ADR-0074).',
+    auth: 'session',
+    response: {
+      kind: 'object',
+      status: 200,
+      name: 'EmailTemplateListResponse',
+      description: 'Every template in use, by name.',
+      data: z.array(emailTemplateSchema),
+    },
+    errors: [ErrorCode.ENTITLEMENT_REQUIRED],
+  },
+  {
+    method: 'POST',
+    path: '/email-templates',
+    operationId: 'createEmailTemplate',
+    tag: 'Email',
+    summary: 'Add an email template',
+    description:
+      'Needs `update` on `tenant_settings`. A name is unique ignoring case; a field between double ' +
+      'braces that is not on the list is refused; at most 100 templates.',
+    auth: 'session',
+    body: { name: 'EmailTemplateCreate', schema: emailTemplateCreateSchema },
+    response: {
+      kind: 'object',
+      status: 201,
+      name: 'EmailTemplateCreateResponse',
+      description: 'The new template.',
+      data: emailTemplateSchema,
+    },
+    errors: [ErrorCode.CONFLICT, ErrorCode.ENTITLEMENT_REQUIRED],
+  },
+  {
+    method: 'PATCH',
+    path: '/email-templates/{id}',
+    operationId: 'updateEmailTemplate',
+    tag: 'Email',
+    summary: 'Change an email template',
+    description: 'Needs `update` on `tenant_settings`. Carries `version`; a stale one is a 409.',
+    auth: 'session',
+    params: emailParamsSchema,
+    body: { name: 'EmailTemplateUpdate', schema: emailTemplateUpdateSchema },
+    response: {
+      kind: 'object',
+      status: 200,
+      name: 'EmailTemplateUpdateResponse',
+      description: 'The template after the change.',
+      data: emailTemplateSchema,
+    },
+    errors: [
+      ErrorCode.NOT_FOUND,
+      ErrorCode.VERSION_CONFLICT,
+      ErrorCode.CONFLICT,
+      ErrorCode.ENTITLEMENT_REQUIRED,
+    ],
+  },
+  {
+    method: 'DELETE',
+    path: '/email-templates/{id}',
+    operationId: 'deleteEmailTemplate',
+    tag: 'Email',
+    summary: 'Remove an email template',
+    description:
+      'Needs `update` on `tenant_settings`. Emails already sent from it are not touched: an email ' +
+      'holds its own words.',
+    auth: 'session',
+    params: emailParamsSchema,
+    query: emailTemplateDeleteQuerySchema,
+    response: { kind: 'empty', status: 204, description: 'The template is gone.' },
+    errors: [ErrorCode.NOT_FOUND, ErrorCode.VERSION_CONFLICT, ErrorCode.ENTITLEMENT_REQUIRED],
+  },
+  {
+    method: 'GET',
+    path: '/email-signature',
+    operationId: 'getEmailSignature',
+    tag: 'Email',
+    summary: 'Your email signature',
+    description:
+      'The lines added below what you write, for you only: the person is the session’s, never ' +
+      'named in the request. Needs the `email_message` `create` grant.',
+    auth: 'session',
+    response: {
+      kind: 'object',
+      status: 200,
+      name: 'EmailSignatureResponse',
+      description: 'Your signature (empty text before you set one).',
+      data: emailSignatureSchema,
+    },
+    errors: [ErrorCode.ENTITLEMENT_REQUIRED],
+  },
+  {
+    method: 'PATCH',
+    path: '/email-signature',
+    operationId: 'saveEmailSignature',
+    tag: 'Email',
+    summary: 'Save your email signature',
+    description:
+      'Needs the `email_message` `create` grant. The first save omits `version`; later saves send the ' +
+      'one they read. At most 500 characters, plain text.',
+    auth: 'session',
+    body: { name: 'EmailSignatureUpdate', schema: emailSignatureUpdateSchema },
+    response: {
+      kind: 'object',
+      status: 200,
+      name: 'EmailSignatureSaveResponse',
+      description: 'Your signature after the save.',
+      data: emailSignatureSchema,
+    },
+    errors: [ErrorCode.VERSION_CONFLICT, ErrorCode.ENTITLEMENT_REQUIRED],
   },
 ];

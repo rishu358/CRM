@@ -1,8 +1,13 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { emailSubjectSchema } from '@crm/contracts';
-import { EMAIL_BODY_MAX, isValidBody } from '@crm/core';
+import { emailBodySchema, emailSubjectSchema } from '@crm/contracts';
+import {
+  EMAIL_BODY_MAX,
+  EMAIL_MERGE_FIELDS,
+  EMAIL_SIGNATURE_MAX,
+  emptyEmailMergeFields,
+} from '@crm/core';
 import {
   Button,
   Dialog,
@@ -15,12 +20,15 @@ import {
   Textarea,
 } from '@crm/ui';
 import { useEffect, useState } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
 import { z } from 'zod';
 import { formatName } from '../lib/format';
 import {
   useContactNames,
   useEmailContext,
+  useEmailSignature,
+  useEmailTemplates,
+  useSaveEmailSignature,
   useSendEmail,
   type EmailSourceType,
 } from '../lib/emails';
@@ -36,7 +44,7 @@ import { t } from '../lib/i18n';
  */
 const formSchema = z.object({
   subject: emailSubjectSchema,
-  body: z.string().refine(isValidBody, { message: 'error.required' }),
+  body: emailBodySchema,
 });
 type FormValues = z.input<typeof formSchema>;
 
@@ -69,6 +77,9 @@ export function SendEmailDialog({
     register,
     handleSubmit,
     setFocus,
+    setValue,
+    getValues,
+    control,
     formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -81,6 +92,11 @@ export function SendEmailDialog({
   useEffect(() => {
     if (ready) setFocus('subject');
   }, [ready, setFocus]);
+
+  const templates = useEmailTemplates(context.data !== undefined);
+  const [templateId, setTemplateId] = useState('');
+  const [typedSubject, typedBody] = useWatch({ control, name: ['subject', 'body'] });
+  const typed = `${typedSubject}\n${typedBody}`;
 
   const title = t('email.dialog.title');
   const shell = (children: React.ReactNode) => (
@@ -155,6 +171,15 @@ export function SendEmailDialog({
     );
   }
 
+  const fieldError = (message: string | undefined): string | undefined =>
+    message === undefined
+      ? undefined
+      : message.startsWith('Use only these fields')
+        ? t('email.fields.unknown')
+        : t('error.required');
+  const emptyFields = emptyEmailMergeFields(typed, info.mergeValues);
+  const templateList = templates.data?.data ?? [];
+
   const withdrawn = info.consent === 'withdrawn';
   const reachedLimit = info.usage.sentToday >= info.usage.limitPerUser;
 
@@ -213,10 +238,32 @@ export function SendEmailDialog({
         <p className="text-sm text-muted-foreground">{t('email.dialog.consent.none')}</p>
       ) : null}
 
+      {templateList.length > 0 ? (
+        <Select
+          label={t('email.template.pick')}
+          value={templateId}
+          onChange={(event) => {
+            const picked = templateList.find((template) => template.id === event.target.value);
+            setTemplateId(event.target.value);
+            if (picked !== undefined) {
+              setValue('subject', picked.subject, { shouldValidate: true });
+              setValue('body', picked.body, { shouldValidate: true });
+            }
+          }}
+        >
+          <option value="">{t('email.template.none')}</option>
+          {templateList.map((template) => (
+            <option key={template.id} value={template.id}>
+              {template.name}
+            </option>
+          ))}
+        </Select>
+      ) : null}
+
       <Input
         label={t('email.dialog.subject')}
         aria-required="true"
-        error={errors.subject === undefined ? undefined : t('error.required')}
+        error={fieldError(errors.subject?.message)}
         {...register('subject')}
       />
 
@@ -226,13 +273,44 @@ export function SendEmailDialog({
         rows={8}
         maxLength={EMAIL_BODY_MAX}
         aria-required="true"
-        error={errors.body === undefined ? undefined : t('error.required')}
+        error={fieldError(errors.body?.message)}
         {...register('body')}
         onKeyDown={(event) => {
           // Ctrl or Cmd + Enter sends, as in every mail program.
           if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') void submit();
         }}
       />
+
+      <Select
+        label={t('email.fields.insert')}
+        hint={t('email.fields.help')}
+        value=""
+        onChange={(event) => {
+          const field = event.target.value;
+          if (field === '') return;
+          // Added at the end of the message: the person moves it where it belongs.
+          const body = getValues('body');
+          setValue('body', `${body}${body === '' || body.endsWith(' ') ? '' : ' '}{{${field}}}`, {
+            shouldValidate: true,
+          });
+        }}
+      >
+        <option value="">{t('email.fields.choose')}</option>
+        {EMAIL_MERGE_FIELDS.map((field) => (
+          <option key={field} value={field}>
+            {t(`email.field.${field}`)}
+          </option>
+        ))}
+      </Select>
+      {emptyFields.length > 0 ? (
+        <p className="text-sm text-muted-foreground" data-testid="send-email-empty-fields">
+          {t('email.fields.empty', {
+            fields: emptyFields.map((field) => t(`email.field.${field}`)).join(', '),
+          })}
+        </p>
+      ) : null}
+
+      <SignatureBlock signature={info.signature} />
 
       <p className="text-sm text-muted-foreground">
         {t('email.dialog.sentAs', { name: info.fromName, address: info.replyTo })}
@@ -302,5 +380,87 @@ function PersonChoice({
         );
       })}
     </Select>
+  );
+}
+
+/**
+ * The person's own signature: shown as it will be added, and editable here, because the sender is not
+ * always somebody who can reach the settings screen (ADR-0074).
+ */
+function SignatureBlock({ signature }: { signature: string }) {
+  const [editing, setEditing] = useState(false);
+  const [text, setText] = useState('');
+  const current = useEmailSignature(editing);
+  const save = useSaveEmailSignature();
+
+  if (!editing) {
+    return (
+      <div className="text-sm" data-testid="send-email-signature">
+        {signature.trim() === '' ? (
+          <p className="text-muted-foreground">{t('email.signature.none')}</p>
+        ) : (
+          <>
+            <p className="text-muted-foreground">{t('email.signature.added')}</p>
+            <pre className="whitespace-pre-wrap font-sans">{signature}</pre>
+          </>
+        )}
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={() => {
+            setText(signature);
+            setEditing(true);
+          }}
+        >
+          {t('email.signature.edit')}
+        </Button>
+      </div>
+    );
+  }
+
+  const version = current.data?.data.version;
+  const failed =
+    save.error === null
+      ? null
+      : save.error.status === 409
+        ? t('email.signature.conflict')
+        : t('email.signature.error');
+
+  return (
+    <div className="space-y-2" data-testid="send-email-signature-editor">
+      <Textarea
+        label={t('email.signature.title')}
+        hint={t('email.signature.hint')}
+        rows={3}
+        maxLength={EMAIL_SIGNATURE_MAX}
+        value={text}
+        onChange={(event) => setText(event.target.value)}
+      />
+      {failed !== null ? (
+        <p role="alert" className="text-sm text-destructive">
+          {failed}
+        </p>
+      ) : null}
+      <div className="flex gap-2">
+        <Button
+          type="button"
+          size="sm"
+          loading={save.isPending}
+          disabled={current.data === undefined}
+          onClick={() =>
+            save.mutate(
+              { text, ...(version === null || version === undefined ? {} : { version }) },
+              { onSuccess: () => setEditing(false) },
+            )
+          }
+        >
+          {t('email.signature.save')}
+        </Button>
+        <Button type="button" variant="ghost" size="sm" onClick={() => setEditing(false)}>
+          {t('field.cancel')}
+        </Button>
+      </div>
+    </div>
   );
 }

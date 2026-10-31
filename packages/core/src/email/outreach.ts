@@ -6,6 +6,8 @@
  * building). No database, no clock of its own, no vendor.
  */
 
+import { hasControlCharacter } from './merge-fields.js';
+
 export const EMAIL_SUBJECT_MAX = 200;
 /** Plain text only in v1, so there is nothing to sanitize and nothing rendered as markup (ADR-0073). */
 export const EMAIL_BODY_MAX = 10_000;
@@ -93,13 +95,9 @@ export function secondsUntilLocalMidnight(now: Date, timeZone: string): number {
   return Math.max(1, 86_400 - elapsed);
 }
 
-// A control character in a header is how header injection starts; a plain-text mail has no reason for one.
-// eslint-disable-next-line no-control-regex
-const CONTROL = /[\u0000-\u001f\u007f]/u;
-
 /** One line, no control characters, within the limit. */
 export function isSingleLine(value: string, max: number): boolean {
-  return value.length > 0 && value.length <= max && !CONTROL.test(value);
+  return value.length > 0 && value.length <= max && !hasControlCharacter(value);
 }
 
 export function normalizeSingleLine(value: string): string {
@@ -224,6 +222,13 @@ export interface EmailRecipient {
   readonly email: string | null;
   readonly name: string | null;
   readonly consent: 'recorded' | 'none' | 'withdrawn';
+  /** The parts of the name, each only when the caller may read it (for the merge fields, ADR-0074). */
+  readonly firstName?: string | null | undefined;
+  readonly lastName?: string | null | undefined;
+  /** A contact's company, when the caller may read the link; the record module resolves its name. */
+  readonly accountId?: string | null | undefined;
+  /** A lead's company name, when the caller may read it. */
+  readonly company?: string | null | undefined;
 }
 
 /** A person's consent to email, as one of three words. */

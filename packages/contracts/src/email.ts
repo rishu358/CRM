@@ -5,13 +5,19 @@ import {
   EMAIL_BODY_MAX,
   EMAIL_FOOTER_MAX,
   EMAIL_FROM_NAME_MAX,
+  EMAIL_MERGE_FIELDS,
+  EMAIL_SIGNATURE_MAX,
   EMAIL_SUBJECT_MAX,
+  EMAIL_TEMPLATE_NAME_MAX,
   isValidBody,
   isValidFooter,
   isValidFromName,
   isValidReplyTo,
+  isValidSignature,
   isValidSubject,
+  isValidTemplateName,
   normalizeSingleLine,
+  unknownEmailMergeFields,
 } from '@crm/core';
 import { z } from 'zod';
 import { DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from './pagination.js';
@@ -36,15 +42,21 @@ function oneLine(value: string): boolean {
   return true;
 }
 
+/** A field between double braces that is not on the list is refused, never sent as typed (ADR-0074). */
+const knownFieldsOnly = (value: string): boolean => unknownEmailMergeFields(value).length === 0;
+const UNKNOWN_FIELD = `Use only these fields: ${EMAIL_MERGE_FIELDS.map((name) => `{{${name}}}`).join(', ')}`;
+
 export const emailSubjectSchema = z
   .string()
   .refine(oneLine, 'A subject is one line')
   .transform(normalizeSingleLine)
-  .refine(isValidSubject, `Use 1 to ${EMAIL_SUBJECT_MAX} characters on one line`);
+  .refine(isValidSubject, `Use 1 to ${EMAIL_SUBJECT_MAX} characters on one line`)
+  .refine(knownFieldsOnly, UNKNOWN_FIELD);
 
-const bodySchema = z
+export const emailBodySchema = z
   .string()
-  .refine(isValidBody, `Write a message of up to ${EMAIL_BODY_MAX} characters`);
+  .refine(isValidBody, `Write a message of up to ${EMAIL_BODY_MAX} characters`)
+  .refine(knownFieldsOnly, UNKNOWN_FIELD);
 
 export const emailParamsSchema = z.object({ id: z.uuid() }).strict();
 
@@ -64,7 +76,7 @@ const CONTACT_RULE_MESSAGE =
   'A deal needs the contact it is written to; a contact or a lead takes none';
 
 export const emailSendSchema = z
-  .object({ ...targetShape, subject: emailSubjectSchema, body: bodySchema })
+  .object({ ...targetShape, subject: emailSubjectSchema, body: emailBodySchema })
   .strict()
   .refine(contactRule, { message: CONTACT_RULE_MESSAGE, path: ['contactId'] });
 export type EmailSendInput = z.infer<typeof emailSendSchema>;
@@ -134,6 +146,14 @@ export const emailContextSchema = z.object({
   usage: emailUsageSchema,
   /** Whether the sender has been set up, or is still using the company name as a default. */
   senderConfigured: z.boolean(),
+  /**
+   * What each merge field would be for this person, as the caller may read it: an empty string where
+   * there is nothing (or nothing they may see). The dialog previews with it; the server fills the real
+   * ones when the email is queued (ADR-0074).
+   */
+  mergeValues: z.record(z.string(), z.string()),
+  /** The lines this person's emails end with, or an empty string. */
+  signature: z.string(),
 });
 export type EmailContext = z.infer<typeof emailContextSchema>;
 
@@ -175,3 +195,62 @@ export const emailSettingsUpdateSchema = z
   })
   .strict();
 export type EmailSettingsUpdateInput = z.infer<typeof emailSettingsUpdateSchema>;
+
+// ---- templates and signatures (ADR-0074) ---------------------------------------------------------------------
+
+const templateNameSchema = z
+  .string()
+  .refine(oneLine, 'A name is one line')
+  .transform(normalizeSingleLine)
+  .refine(isValidTemplateName, `Use 1 to ${EMAIL_TEMPLATE_NAME_MAX} characters on one line`);
+
+export const emailTemplateSchema = z.object({
+  id: z.uuid(),
+  name: z.string(),
+  subject: z.string(),
+  body: z.string(),
+  version: z.number().int(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+export type EmailTemplate = z.infer<typeof emailTemplateSchema>;
+
+export const emailTemplateCreateSchema = z
+  .object({ name: templateNameSchema, subject: emailSubjectSchema, body: emailBodySchema })
+  .strict();
+export type EmailTemplateCreateInput = z.infer<typeof emailTemplateCreateSchema>;
+
+export const emailTemplateUpdateSchema = z
+  .object({
+    name: templateNameSchema.optional(),
+    subject: emailSubjectSchema.optional(),
+    body: emailBodySchema.optional(),
+    version: z.coerce.number().int().positive(),
+  })
+  .strict()
+  .refine(
+    (value) => value.name !== undefined || value.subject !== undefined || value.body !== undefined,
+    { message: 'Change the name, the subject or the message' },
+  );
+export type EmailTemplateUpdateInput = z.infer<typeof emailTemplateUpdateSchema>;
+
+export const emailTemplateDeleteQuerySchema = z
+  .object({ version: z.coerce.number().int().positive() })
+  .strict();
+export type EmailTemplateDeleteQuery = z.infer<typeof emailTemplateDeleteQuerySchema>;
+
+/** The person's own signature. `version` is null until they have saved one. */
+export const emailSignatureSchema = z.object({
+  text: z.string(),
+  version: z.number().int().nullable(),
+});
+export type EmailSignature = z.infer<typeof emailSignatureSchema>;
+
+export const emailSignatureUpdateSchema = z
+  .object({
+    text: z.string().refine(isValidSignature, `Use at most ${EMAIL_SIGNATURE_MAX} characters`),
+    /** Absent the first time; the version read thereafter. */
+    version: z.coerce.number().int().positive().optional(),
+  })
+  .strict();
+export type EmailSignatureUpdateInput = z.infer<typeof emailSignatureUpdateSchema>;
