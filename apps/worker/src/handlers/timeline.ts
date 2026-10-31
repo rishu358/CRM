@@ -55,6 +55,10 @@ const SUMMARIES: Readonly<Record<string, string>> = {
   // code only: the address, the subject and the body never reach the timeline.
   'email.sent.v1': 'Email sent',
   'email.failed.v1': 'Email failed',
+  // What the mail service reported afterwards (ADR-0075). Ids and a closed reason only.
+  'email.delivered.v1': 'Email delivered',
+  'email.bounced.v1': 'Email bounced',
+  'email.complained.v1': 'Email reported as spam',
 };
 
 export async function projectTimeline(tx: Tx, event: OutboxRow): Promise<void> {

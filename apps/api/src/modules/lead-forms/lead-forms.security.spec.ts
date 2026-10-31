@@ -288,6 +288,8 @@ describe('(d) unauthenticated requests get 401, except the two public routes', (
     'GET /openapi.json',
     'GET /public/forms/{key}',
     'POST /public/forms/{key}/submissions',
+    // Where the mail service reports what happened to an email (ADR-0075): signed, never called by people.
+    'POST /public/email-events/{provider}',
     // The sign-in family and invitations: public by nature, each guarded by its own credential.
     'POST /auth/sign-up',
     'POST /auth/sign-in',

@@ -181,6 +181,8 @@ export function SendEmailDialog({
   const templateList = templates.data?.data ?? [];
 
   const withdrawn = info.consent === 'withdrawn';
+  // A blocked address or a paused company cannot be written to, and the screen says why before anything is typed.
+  const blocked = info.suppressed !== null || info.paused;
   const reachedLimit = info.usage.sentToday >= info.usage.limitPerUser;
 
   const submit = handleSubmit((values) => {
@@ -204,13 +206,17 @@ export function SendEmailDialog({
         ? send.error.message.includes('too fast')
           ? t('email.dialog.tooFast')
           : t('email.dialog.limit')
-        : send.error.code === 'CONSENT_WITHDRAWN'
-          ? t('email.dialog.consent.withdrawn')
-          : send.error.code === 'NO_EMAIL_ADDRESS'
-            ? t('email.dialog.noAddress.title')
-            : send.error.status === 403
-              ? t('email.dialog.forbidden')
-              : t('email.dialog.error');
+        : send.error.code === 'EMAIL_PAUSED'
+          ? t('email.paused.notice')
+          : send.error.code === 'ADDRESS_SUPPRESSED'
+            ? t('email.suppressed.hard_bounce')
+            : send.error.code === 'CONSENT_WITHDRAWN'
+              ? t('email.dialog.consent.withdrawn')
+              : send.error.code === 'NO_EMAIL_ADDRESS'
+                ? t('email.dialog.noAddress.title')
+                : send.error.status === 403
+                  ? t('email.dialog.forbidden')
+                  : t('email.dialog.error');
 
   return shell(
     <form
@@ -230,6 +236,16 @@ export function SendEmailDialog({
         </span>
       </div>
 
+      {info.paused ? (
+        <p role="alert" className="text-sm text-destructive" data-testid="send-email-paused">
+          {t('email.paused.notice')}
+        </p>
+      ) : null}
+      {info.suppressed !== null ? (
+        <p role="alert" className="text-sm text-destructive" data-testid="send-email-suppressed">
+          {t(`email.suppressed.${info.suppressed.reason}`)}
+        </p>
+      ) : null}
       {withdrawn ? (
         <p role="alert" className="text-sm text-destructive">
           {t('email.dialog.consent.withdrawn')}
@@ -337,7 +353,11 @@ export function SendEmailDialog({
         <Button type="button" variant="ghost" onClick={onClose}>
           {t('field.cancel')}
         </Button>
-        <Button type="submit" loading={send.isPending} disabled={withdrawn || reachedLimit}>
+        <Button
+          type="submit"
+          loading={send.isPending}
+          disabled={withdrawn || reachedLimit || blocked}
+        >
           {t('email.dialog.send')}
         </Button>
       </div>

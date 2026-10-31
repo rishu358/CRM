@@ -35,6 +35,7 @@ import { CurrentActor } from '../../auth/auth.guard.js';
 import { parseIdempotencyKey } from '../../common/idempotency.js';
 import { zodPipe } from '../../common/zod-validation.pipe.js';
 import { EmailSettingsService } from './email-settings.service.js';
+import { EmailSuppressionsService } from './email-suppressions.service.js';
 import { EmailTemplatesService } from './email-templates.service.js';
 import { EmailsService } from './emails.service.js';
 
@@ -169,5 +170,41 @@ export class EmailSignatureController {
     @Body(zodPipe(emailSignatureUpdateSchema)) body: EmailSignatureUpdateInput,
   ) {
     return { data: await this.templates.saveSignature(actor, body) };
+  }
+}
+
+/** `/api/v1/email-suppressions`: the addresses the company's email is not written to (ADR-0075). */
+@Controller('email-suppressions')
+export class EmailSuppressionsController {
+  constructor(
+    @Inject(EmailSuppressionsService) private readonly suppressions: EmailSuppressionsService,
+  ) {}
+
+  @Get()
+  async list(@CurrentActor() actor: Actor) {
+    return { data: await this.suppressions.list(actor) };
+  }
+
+  @Post(':id/lift')
+  @HttpCode(204)
+  async lift(
+    @CurrentActor() actor: Actor,
+    @Param(zodPipe(emailParamsSchema)) params: { id: string },
+  ): Promise<void> {
+    await this.suppressions.lift(actor, params.id);
+  }
+}
+
+/** `/api/v1/email-pause`: ending the pause a bad run of bounces or complaints started (ADR-0075). */
+@Controller('email-pause')
+export class EmailPauseController {
+  constructor(
+    @Inject(EmailSuppressionsService) private readonly suppressions: EmailSuppressionsService,
+  ) {}
+
+  @Post('resume')
+  @HttpCode(204)
+  async resume(@CurrentActor() actor: Actor): Promise<void> {
+    await this.suppressions.resume(actor);
   }
 }

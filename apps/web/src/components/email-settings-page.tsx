@@ -20,6 +20,7 @@ import { z } from 'zod';
 import { useEmailSettings, useSaveEmailSettings, type EmailSettings } from '../lib/emails';
 import { t } from '../lib/i18n';
 import { AppShell } from './app-shell';
+import { EmailPauseBanner, EmailSuppressionsPanel } from './email-suppressions-panel';
 import { EmailTemplatesPanel } from './email-templates-panel';
 
 /**
@@ -89,9 +90,17 @@ export function EmailSettingsScreen() {
   return (
     <AppShell>
       {header}
+      {query.data.data.paused === null ? null : (
+        <div className="mb-6">
+          <EmailPauseBanner paused={query.data.data.paused} />
+        </div>
+      )}
       <SettingsForm settings={query.data.data} />
       <div className="mt-6">
         <EmailTemplatesPanel />
+      </div>
+      <div className="mt-6">
+        <EmailSuppressionsPanel />
       </div>
     </AppShell>
   );

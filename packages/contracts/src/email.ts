@@ -1,7 +1,9 @@
 import {
+  EMAIL_BOUNCE_REASONS,
   EMAIL_FAILURE_CODES,
   EMAIL_SOURCE_TYPES,
   EMAIL_STATUSES,
+  EMAIL_SUPPRESSION_REASONS,
   EMAIL_BODY_MAX,
   EMAIL_FOOTER_MAX,
   EMAIL_FROM_NAME_MAX,
@@ -32,6 +34,8 @@ import { DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from './pagination.js';
 export const emailSourceTypeSchema = z.enum(EMAIL_SOURCE_TYPES);
 export const emailStatusSchema = z.enum(EMAIL_STATUSES);
 export const emailFailureCodeSchema = z.enum(EMAIL_FAILURE_CODES);
+export const emailBounceReasonSchema = z.enum(EMAIL_BOUNCE_REASONS);
+export const emailSuppressionReasonSchema = z.enum(EMAIL_SUPPRESSION_REASONS);
 
 /** A line break in a header is how mail gets injected: refuse it, do not quietly flatten it. */
 function oneLine(value: string): boolean {
@@ -109,6 +113,8 @@ export const emailMessageSchema = z.object({
   subject: z.string(),
   body: z.string(),
   failureCode: emailFailureCodeSchema.nullable(),
+  /** Why it bounced, from a closed list, once the mail service has said so (ADR-0075). */
+  bounceReason: emailBounceReasonSchema.nullable(),
   /** True when a person's erasure scrubbed the address, subject and body. */
   erased: z.boolean(),
   contactId: z.uuid().nullable(),
@@ -154,6 +160,10 @@ export const emailContextSchema = z.object({
   mergeValues: z.record(z.string(), z.string()),
   /** The lines this person's emails end with, or an empty string. */
   signature: z.string(),
+  /** Set when the address is blocked: the send is refused and the screen says why (ADR-0075). */
+  suppressed: z.object({ reason: emailSuppressionReasonSchema, since: z.string() }).nullable(),
+  /** True while the company's email is paused. */
+  paused: z.boolean(),
 });
 export type EmailContext = z.infer<typeof emailContextSchema>;
 
@@ -168,6 +178,8 @@ export const emailSettingsSchema = z.object({
   /** The company's name, which `fromName` starts as. */
   defaultFromName: z.string(),
   usage: emailUsageSchema,
+  /** Set while the company's email is paused after a bad run of bounces or complaints (ADR-0075). */
+  paused: z.object({ since: z.string(), reason: z.enum(['bounces', 'complaints']) }).nullable(),
 });
 export type EmailSettings = z.infer<typeof emailSettingsSchema>;
 
@@ -254,3 +266,20 @@ export const emailSignatureUpdateSchema = z
   })
   .strict();
 export type EmailSignatureUpdateInput = z.infer<typeof emailSignatureUpdateSchema>;
+
+// ---- the block list, the pause and the public events door (ADR-0075) -------------------------------------------
+
+export const emailSuppressionSchema = z.object({
+  id: z.uuid(),
+  /** Null once the email that caused the block no longer holds the address (an erasure, a purge). */
+  address: z.string().nullable(),
+  reason: emailSuppressionReasonSchema,
+  createdAt: z.string(),
+  /** Only a bounce can be lifted; a complaint or an unsubscribe is the person's own refusal. */
+  liftable: z.boolean(),
+});
+export type EmailSuppression = z.infer<typeof emailSuppressionSchema>;
+
+/** `{provider}` is the name of an adapter that reports events, nothing else. Unknown names answer 404. */
+export const emailEventParamsSchema = z.object({ provider: z.string().min(1).max(32) }).strict();
+export type EmailEventParams = z.infer<typeof emailEventParamsSchema>;

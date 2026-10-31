@@ -17,3 +17,4 @@ export * from './lead-forms.js';
 export * from './lead-assignment.js';
 export * from './email.js';
 export * from './email-templates.js';
+export * from './email-delivery.js';

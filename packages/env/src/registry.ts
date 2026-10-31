@@ -733,6 +733,21 @@ export const REGISTRY = {
     { min: 1 },
   ),
 
+  RESEND_WEBHOOK_SECRET: optionalText(
+    {
+      scopes: ['api'],
+      group: 'email',
+      secret: true,
+      description:
+        'Signing secret of the Resend webhook that reports delivered, bounced and spam-reported email (starts with `whsec_`). Unset means the events address answers 404 and nothing is received.',
+      obtain:
+        'Resend dashboard, Webhooks: add an endpoint at `<API_URL>/api/v1/public/email-events/resend` for the events email.delivered, email.bounced, email.complained and email.suppressed, then copy its signing secret.',
+      example: 'CHANGE_ME',
+      note: 'API only, never the web app. Only needed when `EMAIL_PROVIDER=resend`. Until it is set, "Sent" is the last status an email reaches.',
+    },
+    { min: 1 },
+  ),
+
   SES_REGION: optionalText(
     {
       scopes: ['api', 'worker'],

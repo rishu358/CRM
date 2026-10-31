@@ -4,10 +4,13 @@ import { ContactsModule } from '../contacts/contacts.module.js';
 import { DealsModule } from '../deals/deals.module.js';
 import { LeadsModule } from '../leads/leads.module.js';
 import { EmailSettingsService } from './email-settings.service.js';
+import { EmailSuppressionsService } from './email-suppressions.service.js';
 import { EmailTemplatesService } from './email-templates.service.js';
 import {
+  EmailPauseController,
   EmailSettingsController,
   EmailSignatureController,
+  EmailSuppressionsController,
   EmailsController,
   EmailTemplatesController,
 } from './emails.controller.js';
@@ -28,8 +31,16 @@ import { EmailsService } from './emails.service.js';
     EmailSettingsController,
     EmailTemplatesController,
     EmailSignatureController,
+    EmailSuppressionsController,
+    EmailPauseController,
   ],
-  providers: [EmailsService, EmailSettingsService, EmailTemplatesService, EmailsRepository],
+  providers: [
+    EmailsService,
+    EmailSettingsService,
+    EmailTemplatesService,
+    EmailSuppressionsService,
+    EmailsRepository,
+  ],
   exports: [EmailsService],
 })
 export class EmailsModule {}

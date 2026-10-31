@@ -137,6 +137,10 @@ export const ErrorCode = {
   NO_EMAIL_ADDRESS: 'NO_EMAIL_ADDRESS',
   /** The person has withdrawn consent to email, so the CRM will not send to them (ADR-0073). */
   CONSENT_WITHDRAWN: 'CONSENT_WITHDRAWN',
+  /** The address bounced, or its owner complained or unsubscribed, so it is not written to (ADR-0075). */
+  ADDRESS_SUPPRESSED: 'ADDRESS_SUPPRESSED',
+  /** The company's email is paused after a bad run of bounces or complaints (ADR-0075). */
+  EMAIL_PAUSED: 'EMAIL_PAUSED',
   /** Unexpected failure. Details are logged, never returned. */
   INTERNAL: 'INTERNAL',
 } as const;
@@ -333,6 +337,27 @@ export class ConsentWithdrawnError extends DomainError {
       'This person has withdrawn consent to receive email, so it cannot be sent.',
       422,
       [{ path: 'recordId', message: 'Consent to email was withdrawn' }],
+    );
+  }
+}
+
+export class AddressSuppressedError extends DomainError {
+  constructor(reason: 'hard_bounce' | 'complaint' | 'unsubscribed') {
+    super(
+      ErrorCode.ADDRESS_SUPPRESSED,
+      'This address is blocked: it cannot be written to from here.',
+      422,
+      [{ path: 'recordId', message: 'Address blocked', meta: { reason } }],
+    );
+  }
+}
+
+export class EmailPausedError extends DomainError {
+  constructor() {
+    super(
+      ErrorCode.EMAIL_PAUSED,
+      'Email is paused for your company. An administrator can resume it.',
+      409,
     );
   }
 }
