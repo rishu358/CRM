@@ -40,10 +40,10 @@ refusal that the send path already respects, and approved it for every email, no
      column, the company id, and cannot read the token, the address or the words), never from the request;
    - **GET asks and changes nothing**, because mail scanners open every link in a message: it answers with the name
      the email was sent under, so the page can say "Stop emails from {name}?";
-   - **POST does it.** It is the address a mail program posts to, and the one the page's button posts to; its body
-     (`List-Unsubscribe=One-Click`) is read and thrown away, so nothing in it can name a company, a person or an
-     address. A form body is accepted on this address only (a parser registered for that path); everywhere else it is
-     still refused as unsupported.
+   - **POST does it.** It is the address a mail program posts to, and the one the page's button posts to. Its body
+     (`List-Unsubscribe=One-Click`) is capped at 16 KB before anything reads it, parsed by the framework like any form
+     body, and then ignored by the handler: nothing in it can name a company, a person or an address, and a test posts
+     a company, an address and a reason in it to show that.
 4. **It is applied by the machinery that applies a spam complaint** (ADR-0075), not by a second path. The door records
    one row in `email_provider_events` (provider `unsubscribe_link`, the event id is the email id, so a repeat is
    recognised and does nothing) and one `email.provider_event.v1` outbox event of type `unsubscribed`. The worker, in

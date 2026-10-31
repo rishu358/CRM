@@ -312,23 +312,14 @@ describe('(c) what a request may not say', () => {
     expect((await outboxFor(mail.id))[0]!.payload).toMatchObject({ eventType: 'unsubscribed' });
   });
 
-  it('accepts a form post on this address only: anywhere else it is still refused as unsupported', async () => {
-    const attempts = [
-      ['/api/v1/public/email-events/resend', 415],
-      [`/api/v1/public/forms/lfk_${'a'.repeat(43)}/submissions`, 415],
-    ] as const;
-    for (const [url, expected] of attempts) {
-      const response = await harness.app
-        .getHttpAdapter()
-        .getInstance()
-        .inject({
-          method: 'POST',
-          url,
-          headers: { 'content-type': FORM },
-          payload: 'a=b',
-        });
-      expect(response.statusCode, url).toBe(expected);
-    }
+  it('ignores a JSON body just as it ignores a form one', async () => {
+    const mail = await insertMessage(tenantA);
+    const response = await call('POST', mail.token, {
+      headers: { 'content-type': 'application/json' },
+      payload: JSON.stringify({ tenantId: tenantB, address: 'other@customer.example' }),
+    });
+    expect(response.status).toBe(204);
+    expect((await outboxFor(mail.id)).map((row) => row.tenant_id)).toEqual([tenantA]);
   });
 });
 
