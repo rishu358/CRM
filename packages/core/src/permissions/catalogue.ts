@@ -157,6 +157,14 @@ export const GRANT_CATALOGUE: readonly GrantCatalogueEntry[] = [
     actions: ['read', 'create', 'update', 'delete'],
     scopes: ADMIN_SCOPES,
   },
+  // Email sent from a record and the log of it (ADR-0073). `create` sends, `read` reads the emails on
+  // the records the person can already see. Owner, Admin, Manager and Sales Rep by default; Read-only none.
+  {
+    objectType: 'email_message',
+    kind: 'administrative',
+    actions: ['read', 'create'],
+    scopes: ADMIN_SCOPES,
+  },
 ];
 
 export function catalogueEntry(objectType: ObjectType): GrantCatalogueEntry | undefined {

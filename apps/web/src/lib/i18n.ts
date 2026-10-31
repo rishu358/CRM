@@ -1657,6 +1657,7 @@ export const en = {
   // ---- lead assignment rules (ADR-0065 10) -----------------------------------------------------
   'nav.leadAssignment': 'Lead assignment',
   'access.object.lead_assignment': 'Lead assignment rules',
+  'access.object.email_message': 'Email sent from records',
   'assignment.title': 'Lead assignment',
   'assignment.description':
     'Choose who gets a new lead from a web form. Rules are tried from the top; the first that fits is used.',

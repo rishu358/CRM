@@ -77,6 +77,8 @@ const STATUS_BY_ERROR_CODE: Readonly<Record<ErrorCode, number>> = {
   [ErrorCode.VALIDATION_FAILED]: 422,
   [ErrorCode.MERGE_TOO_LARGE]: 422,
   [ErrorCode.MERGE_BLOCKED]: 422,
+  [ErrorCode.NO_EMAIL_ADDRESS]: 422,
+  [ErrorCode.CONSENT_WITHDRAWN]: 422,
   [ErrorCode.RATE_LIMITED]: 429,
   [ErrorCode.INTERNAL]: 500,
   [ErrorCode.SERVICE_BUSY]: 503,

@@ -1,4 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
+import type { EmailMessage, EmailProvider, EmailReceipt } from '@crm/core';
 import { API_ENV_TOKEN, type ApiEnv } from '../../config/env.js';
 import { createLogger } from '../../common/logger.js';
 import { currentRequestContext } from '../../common/request-context.js';
@@ -20,16 +21,9 @@ import { currentRequestContext } from '../../common/request-context.js';
  */
 export const EMAIL_PROVIDER = 'EMAIL_PROVIDER';
 
-export interface EmailMessage {
-  readonly to: string;
-  readonly subject: string;
-  readonly text: string;
-  readonly html?: string;
-}
-
-export interface EmailProvider {
-  send(message: EmailMessage): Promise<void>;
-}
+// The interface is declared once, in `@crm/core`, which the worker shares. This file used to carry a
+// second copy that could drift; it now only re-exports, so existing imports keep working (ADR-0073).
+export type { EmailMessage, EmailProvider, EmailReceipt } from '@crm/core';
 
 /**
  * Prints to the log instead of sending. Development only.
@@ -51,13 +45,13 @@ export class ConsoleEmailProvider implements EmailProvider {
     }
   }
 
-  async send(message: EmailMessage): Promise<void> {
+  async send(message: EmailMessage): Promise<EmailReceipt> {
     const context = currentRequestContext();
     this.logger.info(
       { requestId: context?.requestId ?? null, to: message.to, subject: message.subject },
       `[email] ${message.subject} -> ${message.to}\n${message.text}`,
     );
-    return Promise.resolve();
+    return Promise.resolve({});
   }
 }
 
@@ -82,12 +76,12 @@ export class MemoryEmailProvider implements EmailProvider {
     }
   }
 
-  async send(message: EmailMessage): Promise<void> {
+  async send(message: EmailMessage): Promise<EmailReceipt> {
     this.sent.push(message);
     // Bounded, so a long-running dev server does not hold every message it
     // has ever produced.
     if (this.sent.length > 200) this.sent.shift();
-    return Promise.resolve();
+    return Promise.resolve({});
   }
 
   messages(): readonly EmailMessage[] {

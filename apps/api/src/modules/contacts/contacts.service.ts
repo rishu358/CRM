@@ -5,6 +5,7 @@ import {
   buildCustomFieldsSchema,
   can,
   canReadField,
+  emailConsentState,
   MAX_DUPLICATE_MATCHES,
   newId,
   NotFoundError,
@@ -13,6 +14,7 @@ import {
   VersionConflictError,
   type Action,
   type Actor,
+  type EmailRecipient,
   type FieldDefinition,
   type RecordConstraint,
 } from '@crm/core';
@@ -152,6 +154,33 @@ export class ContactsService {
 
     const fields = await this.fieldMetadata.forObject(tx, actor.tenantId, 'contact');
     return this.tags.attachOne(tx, actor, 'contact', serializeContact(actor, row, fields));
+  }
+
+  /**
+   * Who an email to this contact would go to, for the email module (ADR-0073, ADR-0001).
+   *
+   * The same checks as `getByIdInTx`: `read` on contacts, the record in the caller's scope (404
+   * otherwise), and the field rules: an address the caller may not read is reported as no address at
+   * all, the same answer as an empty one. Consent is read here because it is not an API field.
+   */
+  async emailRecipientInTx(actor: Actor, tx: Tx, id: string): Promise<EmailRecipient> {
+    assertCan(actor, 'read', { objectType: 'contact' });
+    const row = await this.loadOrMerged(tx, actor, id);
+    assertCan(actor, 'read', {
+      objectType: 'contact',
+      record: await recordRefFor(tx, actor, row.ownerId),
+    });
+    const name = [
+      canReadField(actor, 'contact', 'first_name') ? row.firstName : null,
+      canReadField(actor, 'contact', 'last_name') ? row.lastName : null,
+    ]
+      .filter((part): part is string => part !== null && part !== '')
+      .join(' ');
+    return {
+      email: canReadField(actor, 'contact', 'email') ? (row.email ?? null) : null,
+      name: name === '' ? null : name,
+      consent: emailConsentState(row.consent),
+    };
   }
 
   async create(actor: Actor, input: ContactCreateInput): Promise<SerializedContact> {

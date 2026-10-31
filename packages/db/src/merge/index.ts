@@ -176,6 +176,7 @@ export async function countMergeWork(
     + (select count(*) from record_tags where tenant_id = ${t} and object_type = ${objectType} and record_id = ${l})
     + (select count(*) from timeline_events where tenant_id = ${t} and object_type = ${objectType} and record_id = ${l})
     + (select count(*) from record_views where tenant_id = ${t} and object_type = ${objectType} and record_id = ${l})
+    + (select count(*) from email_message_links where tenant_id = ${t} and object_type = ${objectType} and record_id = ${l})
   `;
   const direct =
     objectType === 'contact'
@@ -568,6 +569,22 @@ export async function moveMergeChildren(
         returning id, true as live`,
   );
   note('tags', tags.length + droppedTags.length);
+
+  // Emails sent from or about the duplicate move to the surviving record (ADR-0073). One already linked to
+  // both stays linked to the survivor only once: its link on the duplicate is left where it is, because
+  // the application role may move a link but not delete one, and it goes with the duplicate when the
+  // Recycle Bin purges it. A message names its contact in `contact_id` too, so the log still finds the person.
+  const emailLinks = await idsOf(
+    tx,
+    sql`update email_message_links lk set record_id = ${m}, updated_at = now(), updated_by = ${u}
+        where lk.tenant_id = ${t} and lk.object_type = ${ot} and lk.record_id = ${l}
+          and not exists (
+            select 1 from email_message_links mk
+            where mk.tenant_id = ${t} and mk.object_type = ${ot} and mk.record_id = ${m}
+              and mk.email_message_id = lk.email_message_id)
+        returning lk.id, true as live`,
+  );
+  note('emails', emailLinks.length);
 
   const timeline = await idsOf(
     tx,

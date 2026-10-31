@@ -1,5 +1,6 @@
-import type { EmailMessage, EmailProvider } from '@crm/core';
+import type { EmailMessage, EmailProvider, EmailReceipt } from '@crm/core';
 import { GuardedOutboundHttp } from './client.js';
+import { assertSendable, formatFromHeader, providerMessageIdFrom } from './message.js';
 import { OutboundError, type OutboundHttp } from './types.js';
 
 /**
@@ -68,10 +69,12 @@ export class ResendEmailProvider implements EmailProvider {
     this.http = options.http ?? pinnedResendClient();
   }
 
-  async send(message: EmailMessage): Promise<void> {
+  async send(message: EmailMessage): Promise<EmailReceipt> {
+    assertSendable(message);
     const body = JSON.stringify({
-      from: this.options.from,
+      from: formatFromHeader(this.options.from, message.fromName),
       to: [message.to],
+      ...(message.replyTo === undefined ? {} : { reply_to: message.replyTo }),
       subject: message.subject,
       text: message.text,
       ...(message.html === undefined ? {} : { html: message.html }),
@@ -105,7 +108,10 @@ export class ResendEmailProvider implements EmailProvider {
       throw error;
     }
 
-    if (status >= 200 && status < 300) return;
+    if (status >= 200 && status < 300) {
+      const providerMessageId = providerMessageIdFrom(responseBody, 'id');
+      return providerMessageId === undefined ? {} : { providerMessageId };
+    }
 
     // 408, 409 (idempotency in flight), 429 and any 5xx are worth another try; the rest are not.
     const retryable = status === 408 || status === 409 || status === 429 || status >= 500;

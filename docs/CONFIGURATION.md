@@ -102,6 +102,7 @@ always wins over the file.
 | [`PUBLIC_FORMS_BASE_URL`](#public_forms_base_url)                               | api                        | no            | no     |
 | [`EMAIL_PROVIDER`](#email_provider)                                             | api, worker                | in production | no     |
 | [`EMAIL_FROM`](#email_from)                                                     | api, worker                | in production | no     |
+| [`EMAIL_OUTREACH_FROM`](#email_outreach_from)                                   | api, worker                | no            | no     |
 | [`RESEND_API_KEY`](#resend_api_key)                                             | api, worker                | in production | yes    |
 | [`SES_REGION`](#ses_region)                                                     | api, worker                | in production | no     |
 | [`SES_ACCESS_KEY_ID`](#ses_access_key_id)                                       | api, worker                | in production | yes    |
@@ -755,6 +756,16 @@ The sender address, optionally with a display name: `Name <no-reply@mail.example
 - **Default:** `no-reply@localhost`
 
 Must be on a domain verified with the email provider (SPF and DKIM), or mail is not delivered.
+
+### `EMAIL_OUTREACH_FROM`
+
+The address email sent from a contact, lead or deal is sent from (a bare address, no display name: the company’s own name is added per message). Unset means the same address as `EMAIL_FROM`.
+
+- **Used by:** api, worker
+- **Required:** no
+- **Secret:** no
+
+Must be on a domain verified with the email provider (SPF and DKIM), like `EMAIL_FROM`. A separate address keeps a spam complaint about a salesperson’s email from damaging the reputation of sign-in and password-reset mail.
 
 ### `RESEND_API_KEY`
 

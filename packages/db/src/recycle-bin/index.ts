@@ -332,6 +332,8 @@ export const POLYMORPHIC_REFERENCE_TABLE_LIST = [
   'record_tags',
   'timeline_events',
   'record_views',
+  // The emails on a record (ADR-0073). A message whose every link is purged is deleted too, below.
+  'email_message_links',
   // Which records began as sample data (ADR-0037). A purged record's registration
   // goes with it; the registry has no foreign key to its target (ADR-0005).
   'sample_records',
@@ -354,6 +356,25 @@ export async function removeReferences(
     ids.map((id) => sql`${id}::uuid`),
     sql`, `,
   );
+
+  // An email linked only to records that are being purged has nothing left to be shown on, so it goes
+  // too (its links follow by cascade). One that is also linked to a record that stays is kept (ADR-0073).
+  await tx.execute(sql`
+    delete from email_messages m
+    where m.tenant_id = ${tenantId}::uuid
+      and m.id in (
+        select email_message_id from email_message_links
+        where tenant_id = ${tenantId}::uuid
+          and object_type = ${objectType}
+          and record_id in (${idList})
+      )
+      and not exists (
+        select 1 from email_message_links o
+        where o.tenant_id = m.tenant_id
+          and o.email_message_id = m.id
+          and not (o.object_type = ${objectType} and o.record_id in (${idList}))
+      )
+  `);
 
   for (const table of POLYMORPHIC_REFERENCE_TABLE_LIST) {
     await tx.execute(sql`

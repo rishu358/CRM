@@ -1,5 +1,6 @@
-import type { EmailMessage, EmailProvider } from '@crm/core';
+import { bareAddress, type EmailMessage, type EmailProvider, type EmailReceipt } from '@crm/core';
 import { createTransport, type Transporter } from 'nodemailer';
+import { assertSendable } from './message.js';
 import { EmailSendError } from './resend.js';
 
 /**
@@ -106,21 +107,30 @@ export class SmtpEmailProvider implements EmailProvider {
       });
   }
 
-  async send(message: EmailMessage): Promise<void> {
+  async send(message: EmailMessage): Promise<EmailReceipt> {
     // Defence in depth: the library encodes headers, and these values are ours, but a line break in
     // an address or subject is never legitimate, so it is refused rather than relied on to be safe.
-    if (HEADER_UNSAFE.test(message.to) || HEADER_UNSAFE.test(message.subject)) {
-      throw new EmailSendError('Email was not sent: invalid_request', null, false);
-    }
+    assertSendable(message);
+
+    // Only the display name is per message; the address is the one this provider was built with.
+    const address = bareAddress(this.options.from);
+    const from =
+      message.fromName === undefined || address === null
+        ? this.options.from
+        : { name: message.fromName, address };
 
     try {
-      await this.transport.sendMail({
-        from: this.options.from,
+      const result: unknown = await this.transport.sendMail({
+        from,
         to: message.to,
         subject: message.subject,
         text: message.text,
         ...(message.html === undefined ? {} : { html: message.html }),
+        ...(message.replyTo === undefined ? {} : { replyTo: message.replyTo }),
+        ...(message.messageId === undefined ? {} : { messageId: message.messageId }),
       });
+      const id = field(result, 'messageId');
+      return typeof id === 'string' && id.length <= 256 ? { providerMessageId: id } : {};
     } catch (error) {
       throw failure(error);
     }

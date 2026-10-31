@@ -23,6 +23,7 @@ import {
 } from './handlers/notifications.js';
 import { indexSearchDocument, removeSearchDocument } from './handlers/search.js';
 import { removeSampleDataJob } from './handlers/sample-data.js';
+import { failEmailOnExhaustion, sendQueuedEmail, watchEmail } from './handlers/email.js';
 import { projectTimeline } from './handlers/timeline.js';
 import { failExportOnExhaustion, runExport } from './import-export/export-handler.js';
 import {
@@ -78,6 +79,8 @@ relay.on('activity.completed.v1', projectTimeline);
 for (const objectType of ['account', 'contact', 'lead', 'deal', 'activity'] as const) {
   relay.on(`${objectType}.restored.v1`, projectTimeline);
 }
+relay.on('email.sent.v1', projectTimeline);
+relay.on('email.failed.v1', projectTimeline);
 relay.on('contact.merged.v1', projectTimeline);
 relay.on('account.merged.v1', projectTimeline);
 
@@ -110,6 +113,38 @@ const notificationOptions = {
   appName: env.APP_NAME,
   digestWindowMinutes: env.DIGEST_WINDOW_MINUTES,
 };
+
+/**
+ * Email sent from a record (ADR-0073).
+ *
+ * A second provider instance of the same adapter, built with the outreach address, so a customer's
+ * email is sent as `EMAIL_OUTREACH_FROM` and a spam complaint about it cannot touch the reputation of
+ * sign-in mail. It sends in no transaction and at most once; the watchdog is what notices a message
+ * a crashed worker left behind.
+ */
+const emailDeps = {
+  db: client.db,
+  logger,
+  email: createEmailProvider({
+    kind: env.EMAIL_PROVIDER,
+    nodeEnv: env.NODE_ENV,
+    logger,
+    resendApiKey: env.RESEND_API_KEY,
+    sesRegion: env.SES_REGION,
+    sesAccessKeyId: env.SES_ACCESS_KEY_ID,
+    sesSecretAccessKey: env.SES_SECRET_ACCESS_KEY,
+    sesConfigurationSet: env.SES_CONFIGURATION_SET,
+    smtpHost: env.SMTP_HOST,
+    smtpPort: env.SMTP_PORT,
+    smtpSecurity: env.SMTP_SECURITY,
+    smtpUser: env.SMTP_USER,
+    smtpPassword: env.SMTP_PASSWORD,
+    from: env.EMAIL_OUTREACH_FROM ?? env.EMAIL_FROM,
+  }),
+};
+relay.on('email.queued.v1', sendQueuedEmail(emailDeps));
+relay.on('email.watchdog_due.v1', watchEmail(emailDeps));
+relay.onExhausted('email.queued.v1', failEmailOnExhaustion(emailDeps));
 
 relay.on('activity.assigned.v1', notifyAssignment(notificationOptions));
 relay.on('activity.reminder_due.v1', notifyReminder());

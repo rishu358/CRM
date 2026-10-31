@@ -122,7 +122,7 @@ const provider = (port: number, security: SmtpSecurity, extra: object = {}) =>
     ...extra,
   });
 
-async function failureOf(promise: Promise<void>): Promise<EmailSendError> {
+async function failureOf(promise: Promise<unknown>): Promise<EmailSendError> {
   try {
     await promise;
   } catch (error) {

@@ -61,7 +61,7 @@ const message = {
   text: 'Link: https://x/verify?t=TOKEN123',
 };
 
-async function failureOf(promise: Promise<void>): Promise<EmailSendError> {
+async function failureOf(promise: Promise<unknown>): Promise<EmailSendError> {
   try {
     await promise;
   } catch (error) {

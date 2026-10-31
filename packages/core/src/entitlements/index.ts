@@ -19,7 +19,7 @@ import type { DeploymentMode } from '../deployment/index.js';
  * data-rights module) are **never** features and never will be: a plan must not be able to withhold
  * them. A test keeps the list honest.
  */
-export const FEATURES = ['imports', 'exports', 'web_forms'] as const;
+export const FEATURES = ['imports', 'exports', 'web_forms', 'email'] as const;
 export type Feature = (typeof FEATURES)[number];
 
 export function isFeature(value: string): value is Feature {
@@ -31,6 +31,8 @@ export const FEATURE_DESCRIPTIONS: Readonly<Record<Feature, string>> = {
   imports: 'Importing records from a CSV file (MVP_SPEC M8).',
   exports: 'Exporting records to a CSV file (MVP_SPEC M8). Not the data-rights export of a person.',
   web_forms: 'Website lead forms that turn a submission into a lead (ADR-0065).',
+  email:
+    'Sending email to a contact, lead or deal contact from the CRM, and the log of it (ADR-0073).',
 };
 
 /**
@@ -41,9 +43,9 @@ export const FEATURE_DESCRIPTIONS: Readonly<Record<Feature, string>> = {
  * until someone decides what a plan is. When they do, this table is the only thing that edits.
  */
 export const PLAN_CATALOGUE: Readonly<Record<string, readonly Feature[]>> = {
-  free: ['imports', 'exports', 'web_forms'],
-  pro: ['imports', 'exports', 'web_forms'],
-  enterprise: ['imports', 'exports', 'web_forms'],
+  free: ['imports', 'exports', 'web_forms', 'email'],
+  pro: ['imports', 'exports', 'web_forms', 'email'],
+  enterprise: ['imports', 'exports', 'web_forms', 'email'],
 };
 
 export const PLANS: readonly string[] = Object.keys(PLAN_CATALOGUE);
