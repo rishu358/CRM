@@ -228,15 +228,15 @@ All strings through `t()`; dates through the shared formatters; keyboard reachab
 1. **Which provider will send first?** **Answered by the owner on 2026-10-31: Resend.** The events I build are Resend's
    (section 3.2). I test with a signed sample I make myself, using Svix's published test vector as well; real events arrive
    only once you connect your own Resend account and add the webhook there.
-2. **An unsubscribe line on every email, or only on templates?** _Recommend every email._ It is the one thing that makes
+2. **An unsubscribe line on every email, or only on templates?** **Approved as recommended by the owner on 2026-10-31.** _Recommend every email._ It is the one thing that makes
    "stop" work for a person who wants it, and it costs one line. Some salespeople dislike it in a one-to-one message; the
    footer text is yours to word.
-3. **May an administrator lift a suppression?** _Recommend: a hard bounce yes, after correcting the address; a complaint or an
+3. **May an administrator lift a suppression?** **Approved as recommended by the owner on 2026-10-31.** _Recommend: a hard bounce yes, after correcting the address; a complaint or an
    unsubscribe no, in the first version._
-4. **Pause a company's email automatically on a bad run?** _Recommend yes, with the proposed thresholds and an alert to the
+4. **Pause a company's email automatically on a bad run?** **Approved as recommended by the owner on 2026-10-31.** _Recommend yes, with the proposed thresholds and an alert to the
    Owner._ The numbers are my guess, not a standard I verified.
-5. **Two pull requests (3a events and suppression, 3b the unsubscribe link)?** _Recommend yes._
-6. **Who reviews the consent and unsubscribe wording?** _Recommend counsel, before the first real customer sends an
+5. **Two pull requests (3a events and suppression, 3b the unsubscribe link)?** **Approved as recommended by the owner on 2026-10-31.** _Recommend yes._
+6. **Who reviews the consent and unsubscribe wording?** **Approved as recommended by the owner on 2026-10-31.** _Recommend counsel, before the first real customer sends an
    email._ I have not drafted legal text, and I do not claim any rule is satisfied.
 
 ## 11. Risks and honest limits
