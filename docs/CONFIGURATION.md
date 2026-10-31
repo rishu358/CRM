@@ -105,6 +105,8 @@ always wins over the file.
 | [`EMAIL_OUTREACH_FROM`](#email_outreach_from)                                   | api, worker                | no            | no     |
 | [`RESEND_API_KEY`](#resend_api_key)                                             | api, worker                | in production | yes    |
 | [`RESEND_WEBHOOK_SECRET`](#resend_webhook_secret)                               | api                        | no            | yes    |
+| [`EMAIL_UNSUBSCRIBE_SECRET`](#email_unsubscribe_secret)                         | api                        | in production | yes    |
+| [`EMAIL_UNSUBSCRIBE_SECRET_PREVIOUS`](#email_unsubscribe_secret_previous)       | api                        | no            | yes    |
 | [`SES_REGION`](#ses_region)                                                     | api, worker                | in production | no     |
 | [`SES_ACCESS_KEY_ID`](#ses_access_key_id)                                       | api, worker                | in production | yes    |
 | [`SES_SECRET_ACCESS_KEY`](#ses_secret_access_key)                               | api, worker                | in production | yes    |
@@ -465,7 +467,7 @@ Signing, cookies and sign-in limits.
 
 ### `AUTH_SECRET`
 
-Encrypts authenticator (MFA) secrets and backup codes at rest, keys the API cookie signer, and signs the unsubscribe link in every email (a key derived from it). At least 32 characters of randomness.
+Encrypts authenticator (MFA) secrets and backup codes at rest, and keys the API cookie signer. At least 32 characters of randomness.
 
 - **Used by:** api
 - **Required:** yes: the process refuses to start without it
@@ -787,6 +789,28 @@ Signing secret of the Resend webhook that reports delivered, bounced and spam-re
 - **Where to get it:** Resend dashboard, Webhooks: add an endpoint at `<API_URL>/api/v1/public/email-events/resend` for the events email.delivered, email.bounced, email.complained and email.suppressed, then copy its signing secret.
 
 API only, never the web app. Only needed when `EMAIL_PROVIDER=resend`. Until it is set, "Sent" is the last status an email reaches.
+
+### `EMAIL_UNSUBSCRIBE_SECRET`
+
+Signs the unsubscribe link in every email sent from a record, so a link cannot be forged or made for an email that was never sent. Left unset in development, the API signs with a key derived from `AUTH_SECRET` so nothing needs configuring; production refuses to start without it.
+
+- **Used by:** api
+- **Required:** in production (a production process refuses to run without a real value)
+- **Secret:** yes: never logged, never committed, never on the web app
+- **Where to get it:** `openssl rand -base64 48`. Generate one per environment; never reuse, and never the same value as `AUTH_SECRET`.
+
+API only, never the web app or the worker (the worker reads the signed token from the database). Unlike every other secret it is **not rotated on a schedule**: a link in an email sent last year must still work, and changing the value ends it. Set it before the first real email is sent, and read docs/SECRETS.md before ever changing it.
+
+### `EMAIL_UNSUBSCRIBE_SECRET_PREVIOUS`
+
+Earlier `EMAIL_UNSUBSCRIBE_SECRET` values whose links must keep working, newest first, separated by commas. Used only to check a link, never to sign one.
+
+- **Used by:** api
+- **Required:** no
+- **Secret:** yes: never logged, never committed, never on the web app
+- **Where to get it:** The value `EMAIL_UNSUBSCRIBE_SECRET` had before you changed it. See docs/SECRETS.md.
+
+Keep an old key here for as long as links in the email it signed should keep working. Each key must be at least 32 characters, and at most three are accepted. Needs `EMAIL_UNSUBSCRIBE_SECRET` to be set.
 
 ### `SES_REGION`
 

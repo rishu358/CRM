@@ -110,9 +110,10 @@ const sameAnswer = (payload: string) => payload.replace(/"requestId":"[^"]*"/, '
 
 beforeAll(async () => {
   const urls = inject('dbUrls');
+  // The link has a secret of its own, apart from the session secret the harness runs with (ADR-0076).
   harness = await startApiHarness(urls, {
-    AUTH_SECRET: CURRENT_KEY,
-    AUTH_SECRET_PREVIOUS: PREVIOUS_KEY,
+    EMAIL_UNSUBSCRIBE_SECRET: CURRENT_KEY,
+    EMAIL_UNSUBSCRIBE_SECRET_PREVIOUS: PREVIOUS_KEY,
   });
   superuser = new pg.Pool({ connectionString: urls.superuser, max: 2 });
 
@@ -156,6 +157,7 @@ describe('opening the link', () => {
         ['a changed signature', flipped],
         ['a signature on another email', `v1.${randomUUID()}.${signature}`],
         ['a key this installation does not hold', signWith(FOREIGN_KEY, mail.id)],
+        ['a link signed with the session secret', signWith(harness.env.AUTH_SECRET, mail.id)],
         ['a good signature for an email that is not there', signWith(CURRENT_KEY, randomUUID())],
         ['an email of a suspended company', suspended.token],
       ] as const) {
@@ -223,7 +225,7 @@ describe('unsubscribing', () => {
     expect(await outboxFor(mail.id)).toHaveLength(1);
   });
 
-  it('still accepts a link signed before the secret was rotated, because old emails must keep working', async () => {
+  it('still accepts a link signed under an earlier unsubscribe key, because old emails must keep working', async () => {
     const mail = await insertMessage(tenantA);
     const old = signWith(PREVIOUS_KEY, mail.id);
     expect((await post(old)).status).toBe(204);

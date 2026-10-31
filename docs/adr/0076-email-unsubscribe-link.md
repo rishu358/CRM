@@ -4,7 +4,8 @@
 - **Date:** 2026-10-31
 - **Related:** `docs/plans/email-delivery-status.md` (the plan this builds, section 5), ADR-0075 (delivery events and
   blocked addresses, whose machinery this reuses), ADR-0073 (send and log), ADR-0065 (the lead form's public door,
-  which this copies), ADR-0049 (key ids and rotating `AUTH_SECRET`), CLAUDE.md sections 5 and 13
+  which this copies), ADR-0049 (key ids and rotating `AUTH_SECRET`, which this link deliberately does not share), CLAUDE.md
+  sections 5 and 13
 
 ## Context
 
@@ -17,9 +18,14 @@ refusal that the send path already respects, and approved it for every email, no
 
 1. **Every email carries a token**, put in the row when the API queues it (`email_messages.unsubscribe_token`,
    migration 0035): `v1.<email id>.<signature>`, where the signature is an HMAC-SHA256 of the email id under a key
-   derived (HKDF, label `crm:email-unsubscribe:v1`) from `AUTH_SECRET`. It names an email, never a person's address,
-   and carries no company id. It does not expire, because a link in an old email must still work. **No new secret
-   and no new variable**, as the plan said.
+   derived (HKDF, label `crm:email-unsubscribe:v1`) from **its own secret, `EMAIL_UNSUBSCRIBE_SECRET`**. It names an
+   email, never a person's address, and carries no company id. It does not expire, because a link in an old email must
+   still work, which is exactly why the key is not `AUTH_SECRET`: the session secret is rotated, and a rotation must
+   never end a link already sent. The secret is in the API's scope only, required and checked by the production guard
+   (unset, weak, a placeholder or the same value as `AUTH_SECRET` all refuse to start), and has an
+   `EMAIL_UNSUBSCRIBE_SECRET_PREVIOUS` list so an old key can be kept for as long as its links matter. Outside
+   production, with it unset, the key falls back to one derived from `AUTH_SECRET`, so a local stack, the tests and CI
+   need no setting; that fallback is the thing production must never run, and the guard is what stops it.
 2. **The worker puts the link in the message when it sends**, not the API when it queues: the footer is built from
    the stored token, the company's `WEB_URL` and `API_URL`. Plain text gets the sentence "To stop receiving email from
    {name}, open: {link}" under the same separator as the company footer; HTML gets the same sentence with the link as a
@@ -62,18 +68,24 @@ refusal that the send path already respects, and approved it for every email, no
    the one place counsel reads before the first real customer sends (question 6).
 6. **Limits.** One link may be used twenty times an hour (counted in the shared counter, so it holds across API
    instances); the per-address limit that already applies to every request applies as well.
-7. **Configuration:** `API_URL` is now also read by the worker (it is a public origin, not a secret), to build the
-   address a mail program posts to. Nothing else.
+7. **Configuration:** two new variables, both API-scope only and both secret: `EMAIL_UNSUBSCRIBE_SECRET` and
+   `EMAIL_UNSUBSCRIBE_SECRET_PREVIOUS` (`docs/SECRETS.md` says how and when, and that it is the one secret not
+   rotated on a schedule). `API_URL` is now also read by the worker (a public origin, not a secret), to build the
+   address a mail program posts to. The deploy templates, the App Platform spec, its renderer and the compose example
+   carry the new secret.
 
 ## Differences from the plan
 
-- **The token is stored, and the plan said it was stateless.** The plan derived the key from `AUTH_SECRET` and signed
-  the token when it was needed. The worker has to put the link in the message, and the worker does not hold
-  `AUTH_SECRET` and must not (CLAUDE.md section 13.4: the secret encrypts everyone's authenticator and is deliberately
-  in the API's scope only). So the API signs the token when it queues the email and stores it, and the worker reads it.
-  Checking a token is still stateless: the signature is the proof, and the stored copy is never used to check one.
-  The column is readable by the application role and the worker only; the routing role cannot read it (a database
-  spec says so).
+- **The key is its own secret, and the plan said no new secret.** The plan derived it from `AUTH_SECRET` to avoid a
+  new variable. The cost, found while building it, is that rotating `AUTH_SECRET` (which `docs/SECRETS.md` says to do
+  at least yearly) would end every unsubscribe link in every email already sent, unless the old key were kept for ever.
+  The owner chose the dedicated secret over carrying that trap, on 2026-10-31, after seeing both.
+- **The token is stored, and the plan said it was stateless.** The plan signed it when it was needed. The worker has to
+  put the link in the message and does not hold the signing key and must not (CLAUDE.md section 13.4: secrets are
+  scoped on purpose, and the worker has no use for this one beyond reading the finished token). So the API signs the
+  token when it queues the email and stores it, and the worker reads it. Checking a token is still stateless: the
+  signature is the proof, and the stored copy is never used to check one. The column is readable by the application
+  role and the worker only; the routing role cannot read it (a database spec says so).
 - **The limit is per link, not per address.** The door never learns the address (the person's address is on the email,
   not in the request), so "per address and per token" became per token, plus the per-address limit every request
   already has.
@@ -86,12 +98,14 @@ refusal that the send path already respects, and approved it for every email, no
 
 ## Consequences and limits
 
-- **Rotating `AUTH_SECRET` ends every link signed under the old key unless that key stays in `AUTH_SECRET_PREVIOUS`.**
-  A token is checked against the current key and every key in `AUTH_SECRET_PREVIOUS` (at most three), so links keep
-  working through a rotation, but `docs/SECRETS.md` says to remove the old key once authenticators are re-encrypted.
-  Removing it also ends the links in email sent under it. The document now says so, and leaves the decision to the
-  operator: keep the old key as long as links in those emails should work. This is the price of "no new secret"; a
-  dedicated, rarely rotated secret would remove it, and is the alternative below.
+- **Changing `EMAIL_UNSUBSCRIBE_SECRET` ends the links signed under the old one, unless the old one is kept in
+  `EMAIL_UNSUBSCRIBE_SECRET_PREVIOUS`.** Rotating `AUTH_SECRET` does not touch them at all (a test proves the same link
+  checks out before and after). So the secret is set once, before the first real email, and left alone; if it is ever
+  exposed, `docs/SECRETS.md` says to set the new one, keep the old one in the previous list for as long as those links
+  should work, and what exposure costs (someone with the key and an email's non-guessable id could unsubscribe that
+  person from that company's email, and do nothing else).
+- **Setting it for the first time on a stack that has already sent email ends those emails' links**, because until
+  then the key was the development fallback. Nothing is deployed anywhere, so this is a note for whoever upgrades.
 - **There is a short window between a click and the block.** The door records the unsubscribe and queues the event;
   the worker applies it a moment later (the relay's polling interval). A send queued in those seconds still goes. The
   same window exists for a spam complaint and for a bounce, and closing it would mean the public door writing to the
@@ -115,9 +129,9 @@ refusal that the send path already respects, and approved it for every email, no
 
 ## Alternatives considered
 
-- **A dedicated unsubscribe secret** (`EMAIL_UNSUBSCRIBE_SECRET`, in the API scope, rotated rarely). It would remove the
-  rotation trap above, at the cost of a new secret, a new variable and a new rotation procedure, all of which the plan
-  said not to add. Worth reconsidering if the owner would rather add a secret than carry that note.
+- **Sharing `AUTH_SECRET`'s key** (what the plan said, and what this PR first did). No new variable, but a rotation of
+  the session secret ends every link already sent unless the old key is kept for ever, which `docs/SECRETS.md`
+  tells operators to remove. Rejected by the owner for that reason.
 - **A random token and a stored hash**, as the lead form's key does. No signing key at all, so no rotation trap, but the
   worker cannot build a link from a hash, and the routing role would need to read the hash column to find the email.
 - **Giving the worker the signing key.** Rejected: it widens a secret's scope for a convenience (CLAUDE.md section 13.4).

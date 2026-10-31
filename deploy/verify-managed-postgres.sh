@@ -317,6 +317,8 @@ cmd_bootstrap() {
     echo "# against that CA instead (ADR-0042). Check it with deploy/check-app-connection.mjs before deploying."
     echo "DATABASE_CA_CERT=$(ca_cert_base64)"
     echo "AUTH_SECRET=$(head -c 48 /dev/urandom | base64 | tr -d '\n')"
+    echo "# Signs the unsubscribe link in every email. Generated once: never change it without reading docs/SECRETS.md."
+    echo "EMAIL_UNSUBSCRIBE_SECRET=$(head -c 48 /dev/urandom | base64 | tr -d '\n')"
     for r in app auth worker erasure migrator; do
       local var
       case $r in app) var=DATABASE_URL;; auth) var=DATABASE_AUTH_URL;; worker) var=DATABASE_WORKER_URL;; erasure) var=DATABASE_ERASURE_URL;; migrator) var=DATABASE_MIGRATION_URL;; esac
@@ -337,7 +339,7 @@ cmd_bootstrap() {
     echo "CRM_VERSION="
   } > "$out"
   chmod 600 "$out"
-  pass "Wrote connection strings and a generated AUTH_SECRET to $out (mode 600). They were not printed."
+  pass "Wrote connection strings and generated AUTH_SECRET and EMAIL_UNSUBSCRIBE_SECRET to $out (mode 600). They were not printed."
   check_roles_and_schema "$db" crm_
   audit_dev_passwords
 }

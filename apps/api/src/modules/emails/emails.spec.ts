@@ -345,6 +345,8 @@ describe('the unsubscribe link (ADR-0076)', () => {
     );
     const token = row.rows[0]?.unsubscribe_token ?? null;
     expect(token).not.toBeNull();
+    // This stack sets no unsubscribe secret of its own, so the key is the one derived from AUTH_SECRET: the
+    // development fallback. Production refuses to start like this; the own-secret path is in the door's spec.
     expect(verifyUnsubscribeToken([deriveUnsubscribeSecret(harness.env.AUTH_SECRET)], token)).toBe(
       sent.id,
     );

@@ -26,6 +26,9 @@ export interface ProductionConfigInput {
   readonly authSecret?: string | undefined;
   /** Comma-separated earlier values, as configured: each must be as good as the current one. */
   readonly authSecretPrevious?: string | undefined;
+  /** Signs the unsubscribe link in every email (ADR-0076). Required in production, and its own key. */
+  readonly emailUnsubscribeSecret?: string | undefined;
+  readonly emailUnsubscribeSecretPrevious?: string | undefined;
   readonly emailProvider?: string | undefined;
   readonly emailFrom?: string | undefined;
   readonly resendApiKey?: string | undefined;
@@ -183,6 +186,24 @@ export function productionConfigProblems(input: ProductionConfigInput): Producti
     // A retired key is still a key that opens stored data: a weak one is a weak lock.
     for (const previous of (input.authSecretPrevious ?? '').split(',')) {
       if (previous.trim() !== '') checkSecret('AUTH_SECRET_PREVIOUS', previous.trim(), problems);
+    }
+
+    // The unsubscribe link has a key of its own (ADR-0076): a link in an old email must outlive any rotation of
+    // the session secret, so it must not be the same value, or sharing one would bring the old trap back.
+    checkSecret('EMAIL_UNSUBSCRIBE_SECRET', input.emailUnsubscribeSecret, problems);
+    if (
+      input.emailUnsubscribeSecret !== undefined &&
+      input.emailUnsubscribeSecret !== '' &&
+      input.emailUnsubscribeSecret === input.authSecret
+    ) {
+      problems.push(
+        'EMAIL_UNSUBSCRIBE_SECRET must be a different value from AUTH_SECRET, or rotating one would end the other',
+      );
+    }
+    for (const previous of (input.emailUnsubscribeSecretPrevious ?? '').split(',')) {
+      if (previous.trim() !== '') {
+        checkSecret('EMAIL_UNSUBSCRIBE_SECRET_PREVIOUS', previous.trim(), problems);
+      }
     }
   }
 
