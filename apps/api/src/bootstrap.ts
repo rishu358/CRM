@@ -13,7 +13,12 @@ import {
   type RequestContext,
 } from './common/request-context.js';
 import { corsOrigins, loadApiEnv, previousAuthSecrets, type ApiEnv } from './config/env.js';
-import { captureRawBody, isPublicApiPath, limitPublicBodies } from './common/public-routes.js';
+import {
+  acceptOneClickPosts,
+  captureRawBody,
+  isPublicApiPath,
+  limitPublicBodies,
+} from './common/public-routes.js';
 import { AddressRateLimitService } from './platform/rate-limit.service.js';
 
 /**
@@ -103,6 +108,8 @@ export async function createApp(env: ApiEnv = loadApiEnv()): Promise<NestFastify
   limitPublicBodies(instance);
   // The mail service's reports are signed over their exact bytes, so that one address keeps them raw (ADR-0075).
   captureRawBody(instance);
+  // A mail program's one-click unsubscribe is a form post; that address, and no other, accepts one (ADR-0076).
+  acceptOneClickPosts(instance);
 
   const credentialedCors = {
     origin: corsOrigins(env),

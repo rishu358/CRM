@@ -3,6 +3,9 @@ import { z } from 'zod';
 import {
   emailContextQuerySchema,
   emailEventParamsSchema,
+  emailUnsubscribePageSchema,
+  emailUnsubscribeParamsSchema,
+  emailUnsubscribeQuerySchema,
   emailSuppressionSchema,
   emailSignatureSchema,
   emailSignatureUpdateSchema,
@@ -380,5 +383,48 @@ export const emailRoutes: RouteDefinition[] = [
     params: emailEventParamsSchema,
     response: { kind: 'empty', status: 204, description: 'Received.' },
     errors: [ErrorCode.UNAUTHENTICATED, ErrorCode.NOT_FOUND],
+  },
+  {
+    method: 'GET',
+    path: '/public/email-unsubscribe/{token}',
+    operationId: 'getEmailUnsubscribePage',
+    tag: 'Email',
+    summary: 'Whose email an unsubscribe link belongs to',
+    description:
+      'Public, with no session: the link at the foot of every email. Answers with the name the email was ' +
+      'sent under, so the page can ask “stop email from …?”, and **changes nothing**, because mail ' +
+      'scanners open every link in a message. A token that is not signed by this installation, a changed ' +
+      'id and an email that is gone are the same 404. The company is found from the email the signed token ' +
+      'names, never from anything in the request (ADR-0076).',
+    auth: 'public',
+    params: emailUnsubscribeParamsSchema,
+    query: emailUnsubscribeQuerySchema,
+    response: {
+      kind: 'object',
+      status: 200,
+      name: 'EmailUnsubscribePageResponse',
+      description: 'Whose email it is.',
+      data: emailUnsubscribePageSchema,
+    },
+    errors: [ErrorCode.NOT_FOUND],
+  },
+  {
+    method: 'POST',
+    path: '/public/email-unsubscribe/{token}',
+    operationId: 'unsubscribeFromEmail',
+    tag: 'Email',
+    summary: 'Stop receiving email from the company that sent this one',
+    description:
+      'Public, with no session. The address a mail program posts to for its own “unsubscribe” button ' +
+      '(RFC 8058, `List-Unsubscribe-Post: List-Unsubscribe=One-Click`) and the one the page’s button posts ' +
+      'to. The body is never read. The address is blocked for the company (a block no one can lift), the ' +
+      'matching contacts’ consent to email is withdrawn, and the timeline and audit log say so. Doing it ' +
+      'twice is harmless. A token that does not check out is a 404; more than twenty uses of one link in ' +
+      'an hour is a 429.',
+    auth: 'public',
+    params: emailUnsubscribeParamsSchema,
+    query: emailUnsubscribeQuerySchema,
+    response: { kind: 'empty', status: 204, description: 'Done.' },
+    errors: [ErrorCode.NOT_FOUND, ErrorCode.RATE_LIMITED],
   },
 ];

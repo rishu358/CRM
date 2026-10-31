@@ -1638,6 +1638,18 @@ export const en = {
     'The link may be wrong, or the form may have been switched off.',
   'publicForm.submit': 'Send',
   'publicForm.sending': 'Sending',
+  // The page the link at the foot of an email opens (ADR-0076). Counsel reads this wording before the first
+  // real customer sends; it is all here so that is one edit.
+  'unsubscribe.pageTitle': 'Unsubscribe',
+  'unsubscribe.ask.title': 'Stop emails from {company}?',
+  'unsubscribe.ask.description':
+    'You will no longer receive email from {company} sent through this service. This cannot be undone from this page.',
+  'unsubscribe.ask.button': 'Stop emails',
+  'unsubscribe.done.title': 'You will not receive more email',
+  'unsubscribe.done.description': 'Your request has been recorded. You can close this page.',
+  'unsubscribe.invalid.title': 'This link is not valid',
+  'unsubscribe.invalid.description':
+    'It may have been copied incompletely. If you still want to stop receiving email, reply to the message you received and say so.',
   'publicForm.required': 'This is required',
   'publicForm.requiredMark': 'required',
   'publicForm.consentRequired': 'Please tick the box to continue',

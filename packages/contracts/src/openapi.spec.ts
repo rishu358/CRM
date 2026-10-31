@@ -87,6 +87,9 @@ describe('openapi document', () => {
         'POST /invitations/accept',
         // Where the mail service reports what happened to an email: signed, never called by people (ADR-0075).
         'POST /public/email-events/{provider}',
+        // The link at the foot of every email, opened by a person or posted to by a mail program (ADR-0076).
+        'GET /public/email-unsubscribe/{token}',
+        'POST /public/email-unsubscribe/{token}',
       ].sort(),
     );
   });

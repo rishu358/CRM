@@ -28,6 +28,16 @@ export function isEmailEventsPath(url: string): boolean {
   return (url.split('?')[0] ?? '').startsWith(EMAIL_EVENTS_PREFIX);
 }
 
+/**
+ * The unsubscribe link's own address (ADR-0076). A mail program's one-click post (RFC 8058) is a form post
+ * with the body `List-Unsubscribe=One-Click`, which nothing else in the API accepts.
+ */
+export const EMAIL_UNSUBSCRIBE_PREFIX = `${PUBLIC_API_PREFIX}email-unsubscribe/`;
+
+export function isEmailUnsubscribePath(url: string): boolean {
+  return (url.split('?')[0] ?? '').startsWith(EMAIL_UNSUBSCRIBE_PREFIX);
+}
+
 /** How big a public body may be: a form's, or (only on the events address) the larger one a provider needs. */
 function bodyLimitFor(url: string, formLimit: number): number {
   return isEmailEventsPath(url) ? EMAIL_EVENT_BODY_MAX_BYTES : formLimit;
@@ -105,6 +115,31 @@ export function captureRawBody(instance: FastifyInstance): void {
       const replay = Readable.from([body]);
       (replay as Readable & { receivedEncodedLength?: number }).receivedEncodedLength = body.length;
       return replay;
+    },
+  );
+}
+
+/**
+ * Accept a form post on the unsubscribe address, and only there (ADR-0076). The body is read (it was capped before
+ * this) and thrown away: what a mail program sends is a fixed phrase that carries nothing, and nothing in it may
+ * ever choose a company, a person or an address. Anywhere else a form body is still refused as unsupported, as it
+ * was before this parser existed.
+ */
+export function acceptOneClickPosts(instance: FastifyInstance): void {
+  instance.addContentTypeParser(
+    'application/x-www-form-urlencoded',
+    { parseAs: 'buffer' },
+    (request, _body, done) => {
+      if (isEmailUnsubscribePath(request.url)) {
+        done(null, undefined);
+        return;
+      }
+      done(
+        Object.assign(new Error('Unsupported Media Type'), {
+          statusCode: 415,
+          code: 'FST_ERR_CTP_INVALID_MEDIA_TYPE',
+        }),
+      );
     },
   );
 }

@@ -101,11 +101,11 @@ export const REGISTRY = {
   ),
   API_URL: defaultedUrl(
     {
-      scopes: ['api', 'web'],
+      scopes: ['api', 'web', 'worker'],
       group: 'addresses',
       requirement: 'production',
       description:
-        "The API's own public origin. The API uses it to build the Google OAuth redirect URI, which Google compares byte for byte; the web app forwards every API call to it.",
+        "The API's own public origin. The API uses it to build the Google OAuth redirect URI, which Google compares byte for byte; the web app forwards every API call to it; the worker builds the address a mail program posts to for its own unsubscribe button from it.",
       local: 'http://localhost:3001',
       example: 'https://api.example.com',
       note: 'Must be `https` in production. The web app reaches the API only over this public URL.',
@@ -426,7 +426,7 @@ export const REGISTRY = {
       group: 'auth',
       secret: true,
       description:
-        'Encrypts authenticator (MFA) secrets and backup codes at rest, and keys the API cookie signer. At least 32 characters of randomness.',
+        'Encrypts authenticator (MFA) secrets and backup codes at rest, keys the API cookie signer, and signs the unsubscribe link in every email (a key derived from it). At least 32 characters of randomness.',
       obtain: '`openssl rand -base64 48`. Generate one per environment; never reuse.',
       local: 'dev-only-insecure-secret-replace-me-with-48-random-bytes',
       note: 'Rotate it without losing enrolled authenticators by keeping the old value in `AUTH_SECRET_PREVIOUS` until `pnpm auth:rotate-keys` has re-encrypted what is stored (docs/SECRETS.md). It does not sign anyone out: sessions are random tokens, not keyed by it. Production refuses a value that looks like a placeholder.',

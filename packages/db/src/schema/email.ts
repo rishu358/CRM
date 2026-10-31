@@ -40,6 +40,8 @@ export const emailMessages = pgTable(
     failureCode: text('failure_code'),
     /** Why a bounced message bounced, from a closed list; set by the worker from the provider's event. */
     bounceReason: text('bounce_reason'),
+    /** The token in this email's unsubscribe link (ADR-0076). Null on a message queued before it existed. */
+    unsubscribeToken: text('unsubscribe_token'),
     attempts: integer('attempts').notNull().default(0),
     retryOf: uuid('retry_of'),
     queuedAt: timestamptz('queued_at').notNull(),

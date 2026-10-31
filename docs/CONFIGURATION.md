@@ -48,7 +48,7 @@ always wins over the file.
 | [`DEPLOYMENT_MODE`](#deployment_mode)                                           | api, web                   | no            | no     |
 | [`API_PORT`](#api_port)                                                         | api                        | no            | no     |
 | [`API_HOST`](#api_host)                                                         | api                        | no            | no     |
-| [`API_URL`](#api_url)                                                           | api, web                   | in production | no     |
+| [`API_URL`](#api_url)                                                           | api, web, worker           | in production | no     |
 | [`WEB_URL`](#web_url)                                                           | api, worker                | in production | no     |
 | [`CORS_ORIGINS`](#cors_origins)                                                 | api                        | in production | no     |
 | [`APP_NAME`](#app_name)                                                         | api, worker, web           | no            | no     |
@@ -209,9 +209,9 @@ Interface the API binds to. `0.0.0.0` inside a container.
 
 ### `API_URL`
 
-The API's own public origin. The API uses it to build the Google OAuth redirect URI, which Google compares byte for byte; the web app forwards every API call to it.
+The API's own public origin. The API uses it to build the Google OAuth redirect URI, which Google compares byte for byte; the web app forwards every API call to it; the worker builds the address a mail program posts to for its own unsubscribe button from it.
 
-- **Used by:** api, web
+- **Used by:** api, web, worker
 - **Required:** in production (a production process refuses to run without a real value)
 - **Secret:** no
 - **Default:** `http://localhost:3001`
@@ -465,7 +465,7 @@ Signing, cookies and sign-in limits.
 
 ### `AUTH_SECRET`
 
-Encrypts authenticator (MFA) secrets and backup codes at rest, and keys the API cookie signer. At least 32 characters of randomness.
+Encrypts authenticator (MFA) secrets and backup codes at rest, keys the API cookie signer, and signs the unsubscribe link in every email (a key derived from it). At least 32 characters of randomness.
 
 - **Used by:** api
 - **Required:** yes: the process refuses to start without it

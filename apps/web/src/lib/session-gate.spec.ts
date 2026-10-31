@@ -23,6 +23,13 @@ describe('isPublicPath', () => {
     expect(isPublicPath('/accept-invite/anything')).toBe(true);
   });
 
+  it('lets the unsubscribe link through, with its token, and not a path that merely starts with u', () => {
+    expect(isPublicPath('/u/v1.token')).toBe(true);
+    expect(isPublicPath('/u')).toBe(true);
+    expect(isPublicPath('/users')).toBe(false);
+    expect(isPublicPath('/uu/x')).toBe(false);
+  });
+
   it('lets the hosted lead form through, with its key, and not a path that merely starts with f', () => {
     expect(isPublicPath('/f/lfk_abc')).toBe(true);
     expect(isPublicPath('/f')).toBe(true);

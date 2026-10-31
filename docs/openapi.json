@@ -16347,6 +16347,165 @@
         }
       }
     },
+    "/public/email-unsubscribe/{token}": {
+      "get": {
+        "operationId": "getEmailUnsubscribePage",
+        "summary": "Whose email an unsubscribe link belongs to",
+        "tags": [
+          "Email"
+        ],
+        "description": "Public, with no session: the link at the foot of every email. Answers with the name the email was sent under, so the page can ask “stop email from …?”, and **changes nothing**, because mail scanners open every link in a message. A token that is not signed by this installation, a changed id and an email that is gone are the same 404. The company is found from the email the signed token names, never from anything in the request (ADR-0076).",
+        "security": [],
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Whose email it is.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmailUnsubscribePageResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such record, or it is outside the caller’s tenant or visibility scope. `error.code` is one of: `NOT_FOUND`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Input failed validation at the API boundary. `error.code` is one of: `VALIDATION_FAILED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded. Limits are per user, per tenant and per address, shared across API instances. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `RATE_LIMITED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote `requestId` when reporting it. `error.code` is one of: `INTERNAL`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "unsubscribeFromEmail",
+        "summary": "Stop receiving email from the company that sent this one",
+        "tags": [
+          "Email"
+        ],
+        "description": "Public, with no session. The address a mail program posts to for its own “unsubscribe” button (RFC 8058, `List-Unsubscribe-Post: List-Unsubscribe=One-Click`) and the one the page’s button posts to. The body is never read. The address is blocked for the company (a block no one can lift), the matching contacts’ consent to email is withdrawn, and the timeline and audit log say so. Doing it twice is harmless. A token that does not check out is a 404; more than twenty uses of one link in an hour is a 429.",
+        "security": [],
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Done."
+          },
+          "404": {
+            "description": "No such record, or it is outside the caller’s tenant or visibility scope. `error.code` is one of: `NOT_FOUND`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Input failed validation at the API boundary. `error.code` is one of: `VALIDATION_FAILED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded. Limits are per user, per tenant and per address, shared across API instances. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `RATE_LIMITED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote `requestId` when reporting it. `error.code` is one of: `INTERNAL`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/public/forms/{key}": {
       "get": {
         "operationId": "getPublicLeadForm",
@@ -40730,6 +40889,34 @@
               ],
               "additionalProperties": false
             }
+          },
+          "meta": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "additionalProperties": false
+      },
+      "EmailUnsubscribePageResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "object",
+            "properties": {
+              "companyName": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "companyName"
+            ],
+            "additionalProperties": false
           },
           "meta": {
             "type": "object",

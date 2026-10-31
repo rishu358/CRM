@@ -1,3 +1,4 @@
+import { deriveUnsubscribeSecret, verifyUnsubscribeToken } from '@crm/core/email-unsubscribe-token';
 import pg from 'pg';
 import { afterAll, afterEach, beforeAll, describe, expect, inject, it } from 'vitest';
 import { dataOf, request, startApiHarness, type ApiHarness } from '../../testing/harness.js';
@@ -331,6 +332,40 @@ describe('sending', () => {
 
     const reused = await send(rep.token, ok('Different'), headers);
     expect(reused.status).toBe(409);
+  });
+});
+
+describe('the unsubscribe link (ADR-0076)', () => {
+  // Sent as the administrator, so these do not spend the sales rep’s daily allowance that later tests count.
+  it('signs a token for every email it queues, naming that email, and never shows it to the sender', async () => {
+    const sent = dataOf<Email>(await send(admin.token, ok('With a link')));
+    const row = await superuser.query<{ unsubscribe_token: string | null }>(
+      `select unsubscribe_token from email_messages where id = $1`,
+      [sent.id],
+    );
+    const token = row.rows[0]?.unsubscribe_token ?? null;
+    expect(token).not.toBeNull();
+    expect(verifyUnsubscribeToken([deriveUnsubscribeSecret(harness.env.AUTH_SECRET)], token)).toBe(
+      sent.id,
+    );
+
+    // The token is for the person who receives the email: it is in no answer the API gives the sender.
+    const read = await request(harness, {
+      method: 'GET',
+      url: `/api/v1/emails/${sent.id}`,
+      token: admin.token,
+    });
+    expect(JSON.stringify([sent, read.body])).not.toContain(token ?? 'no-token');
+  });
+
+  it('gives each email its own token, a retry included', async () => {
+    const first = dataOf<Email>(await send(admin.token, ok('First')));
+    const second = dataOf<Email>(await send(admin.token, ok('Second')));
+    const tokens = await superuser.query<{ unsubscribe_token: string }>(
+      `select unsubscribe_token from email_messages where id = any($1::uuid[])`,
+      [[first.id, second.id]],
+    );
+    expect(new Set(tokens.rows.map((row) => row.unsubscribe_token)).size).toBe(2);
   });
 });
 
