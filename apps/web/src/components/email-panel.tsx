@@ -174,6 +174,16 @@ function EmailRow({ email }: { email: EmailMessage }) {
           {t(failureKey(email.failureCode))}
         </p>
       ) : null}
+      {email.status === 'bounced' ? (
+        <p className="mt-1 text-sm text-destructive" data-testid="email-bounce">
+          {t(`email.bounce.is_${email.bounceReason ?? 'other'}`)}
+        </p>
+      ) : null}
+      {email.status === 'complained' ? (
+        <p className="mt-1 text-sm text-destructive" data-testid="email-complaint">
+          {t('email.complained.note')}
+        </p>
+      ) : null}
 
       <div className="mt-1 flex flex-wrap gap-2">
         {email.erased ? null : (

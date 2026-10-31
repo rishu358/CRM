@@ -104,6 +104,7 @@ always wins over the file.
 | [`EMAIL_FROM`](#email_from)                                                     | api, worker                | in production | no     |
 | [`EMAIL_OUTREACH_FROM`](#email_outreach_from)                                   | api, worker                | no            | no     |
 | [`RESEND_API_KEY`](#resend_api_key)                                             | api, worker                | in production | yes    |
+| [`RESEND_WEBHOOK_SECRET`](#resend_webhook_secret)                               | api                        | no            | yes    |
 | [`SES_REGION`](#ses_region)                                                     | api, worker                | in production | no     |
 | [`SES_ACCESS_KEY_ID`](#ses_access_key_id)                                       | api, worker                | in production | yes    |
 | [`SES_SECRET_ACCESS_KEY`](#ses_secret_access_key)                               | api, worker                | in production | yes    |
@@ -775,6 +776,17 @@ API key for Resend. Required when `EMAIL_PROVIDER=resend`.
 - **Required:** in production (a production process refuses to run without a real value)
 - **Secret:** yes: never logged, never committed, never on the web app
 - **Where to get it:** Resend dashboard, API Keys. Create one per environment with sending access only.
+
+### `RESEND_WEBHOOK_SECRET`
+
+Signing secret of the Resend webhook that reports delivered, bounced and spam-reported email (starts with `whsec_`). Unset means the events address answers 404 and nothing is received.
+
+- **Used by:** api
+- **Required:** no
+- **Secret:** yes: never logged, never committed, never on the web app
+- **Where to get it:** Resend dashboard, Webhooks: add an endpoint at `<API_URL>/api/v1/public/email-events/resend` for the events email.delivered, email.bounced, email.complained and email.suppressed, then copy its signing secret.
+
+API only, never the web app. Only needed when `EMAIL_PROVIDER=resend`. Until it is set, "Sent" is the last status an email reaches.
 
 ### `SES_REGION`
 

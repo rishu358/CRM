@@ -7,6 +7,7 @@ import type {
   EmailSettingsUpdateInput,
   EmailSignature,
   EmailSignatureUpdateInput,
+  EmailSuppression,
   EmailTemplate,
   EmailTemplateCreateInput,
   EmailTemplateUpdateInput,
@@ -24,7 +25,14 @@ import type { TranslationKey } from './i18n';
  * that it arrived; the wording on screen says so.
  */
 
-export type { EmailContext, EmailMessage, EmailSettings, EmailSignature, EmailTemplate };
+export type {
+  EmailContext,
+  EmailMessage,
+  EmailSettings,
+  EmailSignature,
+  EmailSuppression,
+  EmailTemplate,
+};
 
 export type EmailSourceType = 'contact' | 'lead' | 'deal';
 
@@ -37,6 +45,7 @@ export const emailKeys = {
   settings: ['emails', 'settings'] as const,
   templates: ['emails', 'templates'] as const,
   signature: ['emails', 'signature'] as const,
+  suppressions: ['emails', 'suppressions'] as const,
 };
 
 /** A 402 (feature off) and a 403 (no grant) are answers, not faults: asking again will not change them. */
@@ -211,6 +220,36 @@ export function useSaveEmailSignature() {
   return useMutation<ItemEnvelope<EmailSignature>, ApiRequestError, EmailSignatureUpdateInput>({
     mutationFn: (input) => api.patch<ItemEnvelope<EmailSignature>>('/email-signature', input),
     // The dialog's context carries the signature too, so everything about email is read again.
+    onSuccess: () => client.invalidateQueries({ queryKey: emailKeys.all }),
+  });
+}
+
+/** The addresses the company's email is not written to. A 403 means the person may not look. */
+export function useEmailSuppressions() {
+  return useQuery<ItemEnvelope<EmailSuppression[]>, ApiRequestError>({
+    queryKey: emailKeys.suppressions,
+    queryFn: () => api.get<ItemEnvelope<EmailSuppression[]>>('/email-suppressions'),
+    retry,
+  });
+}
+
+export function useLiftEmailSuppression() {
+  const client = useQueryClient();
+  return useMutation<void, ApiRequestError, string>({
+    mutationFn: async (id) => {
+      await api.post<void>(`/email-suppressions/${id}/lift`);
+    },
+    // A context answer carries the block too, so everything about email is read again.
+    onSuccess: () => client.invalidateQueries({ queryKey: emailKeys.all }),
+  });
+}
+
+export function useResumeEmail() {
+  const client = useQueryClient();
+  return useMutation<void, ApiRequestError, void>({
+    mutationFn: async () => {
+      await api.post<void>('/email-pause/resume');
+    },
     onSuccess: () => client.invalidateQueries({ queryKey: emailKeys.all }),
   });
 }

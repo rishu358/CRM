@@ -137,7 +137,13 @@ export class EmailSettingsService {
       sendingAddress: this.emails.sendingAddress(),
       defaultFromName: facts.name,
       usage: await this.emails.usageFor(tx, actor),
+      paused: await this.pausedState(tx, actor),
     };
+  }
+
+  private async pausedState(tx: Tx, actor: Actor): Promise<EmailSettings['paused']> {
+    const pause = await this.repository.findLivePause(tx, actor.tenantId);
+    return pause === null ? null : { since: pause.pausedAt.toISOString(), reason: pause.reason };
   }
 
   private inTenant<T>(actor: Actor, work: (tx: Tx) => Promise<T>): Promise<T> {

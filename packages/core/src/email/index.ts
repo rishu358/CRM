@@ -37,5 +37,6 @@ export interface EmailProvider {
   send(message: EmailMessage): Promise<EmailReceipt>;
 }
 
+export * from './events.js';
 export * from './merge-fields.js';
 export * from './outreach.js';

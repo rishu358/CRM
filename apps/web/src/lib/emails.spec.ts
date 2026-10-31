@@ -1,4 +1,9 @@
-import { EMAIL_FAILURE_CODES, EMAIL_STATUSES } from '@crm/core';
+import {
+  EMAIL_BOUNCE_REASONS,
+  EMAIL_FAILURE_CODES,
+  EMAIL_STATUSES,
+  EMAIL_SUPPRESSION_REASONS,
+} from '@crm/core';
 import { describe, expect, it } from 'vitest';
 import { FAILURE_TEXT, failureKey } from './emails';
 import { en, t, type TranslationKey } from './i18n';
@@ -30,5 +35,15 @@ describe('email wording', () => {
 
   it('says that "sent" is not "delivered"', () => {
     expect(t('email.status.sent.hint')).toMatch(/may not have reached/i);
+  });
+
+  it('explains every reason an email can bounce and every reason an address can be blocked', () => {
+    for (const reason of EMAIL_BOUNCE_REASONS) {
+      expect(en[`email.bounce.is_${reason}` as TranslationKey], reason).toBeDefined();
+    }
+    for (const reason of EMAIL_SUPPRESSION_REASONS) {
+      expect(en[`email.suppressed.${reason}` as TranslationKey], reason).toBeDefined();
+      expect(en[`email.suppressions.reason.${reason}` as TranslationKey], reason).toBeDefined();
+    }
   });
 });

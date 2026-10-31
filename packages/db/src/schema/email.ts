@@ -38,6 +38,8 @@ export const emailMessages = pgTable(
     messageId: text('message_id').notNull(),
     providerMessageId: text('provider_message_id'),
     failureCode: text('failure_code'),
+    /** Why a bounced message bounced, from a closed list; set by the worker from the provider's event. */
+    bounceReason: text('bounce_reason'),
     attempts: integer('attempts').notNull().default(0),
     retryOf: uuid('retry_of'),
     queuedAt: timestamptz('queued_at').notNull(),

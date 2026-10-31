@@ -24,6 +24,7 @@ import {
 import { indexSearchDocument, removeSearchDocument } from './handlers/search.js';
 import { removeSampleDataJob } from './handlers/sample-data.js';
 import { failEmailOnExhaustion, sendQueuedEmail, watchEmail } from './handlers/email.js';
+import { applyEmailProviderEvent } from './handlers/email-events.js';
 import { linkLeadEmailsOnConversion } from './handlers/email-links.js';
 import { projectTimeline } from './handlers/timeline.js';
 import { failExportOnExhaustion, runExport } from './import-export/export-handler.js';
@@ -82,6 +83,9 @@ for (const objectType of ['account', 'contact', 'lead', 'deal', 'activity'] as c
 }
 relay.on('email.sent.v1', projectTimeline);
 relay.on('email.failed.v1', projectTimeline);
+relay.on('email.delivered.v1', projectTimeline);
+relay.on('email.bounced.v1', projectTimeline);
+relay.on('email.complained.v1', projectTimeline);
 relay.on('contact.merged.v1', projectTimeline);
 relay.on('account.merged.v1', projectTimeline);
 
@@ -146,6 +150,8 @@ const emailDeps = {
 relay.on('email.queued.v1', sendQueuedEmail(emailDeps));
 relay.on('email.watchdog_due.v1', watchEmail(emailDeps));
 relay.onExhausted('email.queued.v1', failEmailOnExhaustion(emailDeps));
+// What the mail service reported about an email, applied inside the company it belongs to (ADR-0075).
+relay.on('email.provider_event.v1', applyEmailProviderEvent());
 // A converted lead's emails also show on the contact and deal it became (ADR-0074).
 relay.on('lead.converted.v1', linkLeadEmailsOnConversion());
 
