@@ -188,10 +188,16 @@ describe('accepting a report', () => {
       event('email.opened', providerA),
       event('email.delivery_delayed', providerA),
       event('email.bounced', providerA, { bounce: { type: 'Temporary', subType: 'MailboxFull' } }),
-      'not json at all',
     ]) {
       expect((await post('resend', body, signedHeaders(body))).status, body.slice(0, 40)).toBe(204);
     }
+    expect([await eventRows(tenantA), await eventRows(tenantB)]).toEqual(before);
+  });
+
+  it('answers 400 to a body that is not JSON, before anything is checked, and writes nothing', async () => {
+    const before = [await eventRows(tenantA), await eventRows(tenantB)];
+    const body = 'not json at all';
+    expect((await post('resend', body, signedHeaders(body))).status).toBe(400);
     expect([await eventRows(tenantA), await eventRows(tenantB)]).toEqual(before);
   });
 
