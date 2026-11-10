@@ -125,3 +125,27 @@ carries, and a sender line can say anything.
 - **Putting the reply token in the routing role's column grant.** It would widen what the public door can read for the sake
   of a lookup the signature already makes unnecessary.
 - **Storing the HTML part, sanitised.** A stored-XSS surface for little value in v1; the plain text is what a reader needs.
+
+## PR 4b: the screens
+
+Added with the screens, so the decision record stays in one place.
+
+- **The Emails card** shows a reply as a row with a "Reply received" badge and an **"Unverified sender"** badge, the sender as
+  claimed ("From {name} ({address})"), and one more claim: whether the sender is **the address we wrote to** (computed on read from the sent
+  email's recipient, case-insensitively; not known for what we sent, or when either email has been erased). The body is drawn as text in
+  the same `<pre>` as before, collapsed behind "Show message". **Earlier history quoted in the reply is folded** behind "Show earlier
+  messages": the split is a small, deliberately simple rule (a line "On ... wrote:", a line starting `>`, an "original message" line)
+  that may miss, in which case the whole message simply shows; **nothing is removed**, only folded. "Message shortened" and "{n}
+  attachment(s), not saved" are said where true. There is no Try again and no sending from a reply.
+- **The bell** gains one notification type, `email.reply_received`, written by the worker for the person who sent the original, with **ids
+  only** (the reply, the kind of record and its id): the line is fixed words ("A customer replied to an email you sent"), and clicking it
+  opens the record (the address is built from the ids and only for the three kinds of record an email is sent from). A reply
+  never schedules a digest of its own, but a later digest that carries it says only that a customer replied.
+- **Settings > Email** gains a read-only "Replies" card: **on** (with the domain they arrive at), **off** (no inbound domain; says who can
+  turn it on), or **unsupported** (a domain is set but the provider cannot receive). It is read-only because the domain, the DNS record and the provider's
+  webhook are set up by whoever runs the installation, not by a company's administrator; nothing on it pretends to be a switch.
+- **Not done, on purpose:** showing the sender's SPF/DKIM/DMARC results (Resend's API reference says they exist), saving attachments,
+  and showing HTML. Each is a decision of its own.
+- **Tested:** the quoted-history fold, the bell's link, the claim on the sender, the settings states and the bell notice are unit or
+  database tests. The browser test covers what a browser can show here, the settings card; **it cannot file a reply**, because that needs the
+  provider's signed event and a receiving adapter, which the end-to-end stack has neither of.

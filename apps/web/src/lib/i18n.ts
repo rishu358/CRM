@@ -1526,6 +1526,7 @@ export const en = {
   // ---- website lead forms (ADR-0065) ---------------------------------------------------------
   'nav.webForms': 'Web forms',
   'access.object.lead_form': 'Web forms',
+  'notifications.emailReply': 'A customer replied to an email you sent',
   'notifications.webFormLead': 'A new lead from a web form is assigned to you',
   'notifications.webFormDuplicate':
     'A web form was filled in by someone who matches a record you own',
@@ -1940,6 +1941,18 @@ export const en = {
   'email.status.received': 'Reply received',
   'email.status.sent.hint': 'Accepted by the mail service. It may not have reached the inbox yet.',
   'email.row.to': 'To {address}',
+  // A customer's reply on the record (ADR-0077). The sender is only what the message says it is.
+  'email.row.from': 'From {name} ({address})',
+  'email.row.unverified': 'Unverified sender',
+  'email.row.unverified.hint':
+    'The sender is whoever the message says it is. Nothing here has checked it.',
+  'email.row.matches': 'From the address we wrote to',
+  'email.row.differs': 'Not the address we wrote to',
+  'email.row.shortened': 'This message was shortened to fit.',
+  'email.row.attachments.one': '{count} attachment, not saved',
+  'email.row.attachments.other': '{count} attachments, not saved',
+  'email.row.quoted.show': 'Show earlier messages',
+  'email.row.quoted.hide': 'Hide earlier messages',
   'email.row.by': 'by {name}',
   'email.row.erased': 'The content of this email was erased at the request of the person.',
   'email.row.show': 'Show message',
@@ -2085,6 +2098,13 @@ export const en = {
   'email.paused.since': 'Paused {when}.',
   'email.paused.resume': 'Resume email',
   'email.paused.resume.error': 'Email could not be resumed. Try again.',
+  'email.replies.title': 'Replies',
+  'email.replies.on':
+    'Customers’ replies to emails sent from a record are filed on that record, as messages from an unverified sender. They arrive at {domain}. Each reply also still reaches the person who sent the email.',
+  'email.replies.off':
+    'Customers’ replies are not filed on the record. They still reach the person who sent each email. Whoever runs this installation can turn filing on (see EMAIL_INBOUND_DOMAIN in docs/CONFIGURATION.md).',
+  'email.replies.unsupported':
+    'A reply address is set up, but this installation’s email provider cannot receive mail, so replies are not filed on the record.',
   'email.suppressions.title': 'Blocked addresses',
   'email.suppressions.description':
     'Addresses your company’s email is not written to: they bounced, reported spam or unsubscribed.',

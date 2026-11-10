@@ -1,12 +1,13 @@
 import { EMAIL_REPLY_LIMITS, NO_PLAIN_TEXT, newId, type ReceivedEmail } from '@crm/core';
-import { createDbClient, sql, withoutTenant, type DbClient } from '@crm/db';
+import { createDbClient, sql, withTenant, withoutTenant, type DbClient } from '@crm/db';
 import { Fixtures } from '@crm/db/testing';
 import pg from 'pg';
 import { pino } from 'pino';
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
-import { MemoryInboundEmailProvider } from '../email/provider.js';
-import { OutboxRelay } from '../relay.js';
+import { MemoryEmailProvider, MemoryInboundEmailProvider } from '../email/provider.js';
+import { OutboxRelay, type OutboxRow } from '../relay.js';
 import { fileReply } from './email-replies.js';
+import { notifyEmailReply, sendDigest } from './notifications.js';
 import { projectTimeline } from './timeline.js';
 
 /**
@@ -22,6 +23,7 @@ let worker: DbClient;
 let superuserPool: pg.Pool;
 let fixtures: Fixtures;
 let inbound: MemoryInboundEmailProvider;
+let mail: MemoryEmailProvider;
 let tenantId: string;
 let otherTenantId: string;
 let userId: string;
@@ -54,7 +56,18 @@ function relay(): OutboxRelay {
       'email.reply_received.v1',
       fileReply({ db: worker.db, inbound, logger, ownAddresses: [OWN] }),
     )
-    .on('email.replied.v1', projectTimeline);
+    .on('email.replied.v1', projectTimeline)
+    .on('email.replied.v1', notifyEmailReply())
+    .on(
+      'notification.digest_due.v1',
+      sendDigest({
+        email: (mail = new MemoryEmailProvider()),
+        emailFrom: 'no-reply@example.test',
+        webUrl: 'https://crm.example.test',
+        appName: 'Reply Desk',
+        digestWindowMinutes: 0,
+      }),
+    );
 }
 
 const received = (change: Partial<ReceivedEmail> = {}): ReceivedEmail => ({
@@ -413,5 +426,126 @@ describe('company isolation', () => {
     );
     expect(filed.rows[0]).toEqual({ n: 0 });
     expect(inbound.fetchCount()).toBe(0);
+  });
+});
+
+describe('telling the person who sent the email (ADR-0077)', () => {
+  const notificationsFor = async (user: string) =>
+    (
+      await superuserPool.query<{
+        type: string;
+        payload: Record<string, unknown>;
+        read_at: Date | null;
+      }>(
+        `select type, payload, read_at from notifications where tenant_id = $1 and user_id = $2
+           and type = 'email.reply_received' order by created_at`,
+        [tenantId, user],
+      )
+    ).rows;
+
+  it('writes one notification for whoever sent the original, with ids and fixed words only', async () => {
+    const sent = await sentEmail();
+    const before = (await notificationsFor(userId)).length;
+    const instance = relay();
+    inbound.add(
+      'recv-n1',
+      received({ subject: 'Secret subject line', text: 'Secret words of the reply' }),
+    );
+    await fire(sent.id, 'recv-n1');
+    await instance.tick();
+    await instance.tick();
+
+    const rows = await notificationsFor(userId);
+    expect(rows).toHaveLength(before + 1);
+    const latest = rows.at(-1)!;
+    expect(Object.keys(latest.payload).sort()).toEqual(['emailId', 'objectType', 'recordId']);
+    expect(latest.payload).toMatchObject({ objectType: 'contact', recordId: contactId });
+    expect(latest.read_at).toBeNull();
+    // Nothing the customer wrote, and no address, is in what the bell holds.
+    const everything = JSON.stringify(rows);
+    for (const secret of [
+      'Secret subject line',
+      'Secret words',
+      'sam@customer.example',
+      'Sam Customer',
+    ]) {
+      expect(everything).not.toContain(secret);
+    }
+  });
+
+  it('is written once however many times the same event is delivered', async () => {
+    const sent = await sentEmail();
+    const before = (await notificationsFor(userId)).length;
+    const handler = notifyEmailReply();
+    const event = {
+      id: newId(),
+      tenant_id: tenantId,
+      event_type: 'email.replied.v1',
+      object_type: 'contact',
+      record_id: contactId,
+      payload: { emailId: newId(), repliedToId: sent.id },
+      actor_id: null,
+    } as unknown as OutboxRow;
+    for (let delivery = 0; delivery < 3; delivery += 1) {
+      await withTenant(worker.db, { tenantId, userId: null }, (tx) => handler(tx, event));
+    }
+    expect((await notificationsFor(userId)).length).toBe(before + 1);
+  });
+
+  it('tells nobody when the email has no sender to tell, and files the reply all the same', async () => {
+    const sent = await sentEmail({ tenant: tenantId, links: [['contact', contactId]] });
+    await superuserPool.query(`update email_messages set created_by = null where id = $1`, [
+      sent.id,
+    ]);
+    const before = (await notificationsFor(userId)).length;
+    const instance = relay();
+    inbound.add('recv-n3', received());
+    await fire(sent.id, 'recv-n3');
+    await instance.tick();
+    expect(await repliesTo(sent.id)).toHaveLength(1);
+    expect((await notificationsFor(userId)).length).toBe(before);
+  });
+
+  it('schedules no email of its own: a reply is news for the bell', async () => {
+    const sent = await sentEmail();
+    const instance = relay();
+    inbound.add('recv-n4', received());
+    await fire(sent.id, 'recv-n4');
+    await instance.tick();
+    const digests = await superuserPool.query<{ n: number }>(
+      `select count(*)::int as n from outbox_events
+       where tenant_id = $1 and event_type = 'notification.digest_due.v1' and payload ->> 'userId' = $2`,
+      [tenantId, userId],
+    );
+    expect(digests.rows[0]!.n).toBe(0);
+  });
+
+  it('is described in a later digest as that a reply arrived, never in the customer’s words', async () => {
+    const sent = await sentEmail();
+    const instance = relay();
+    inbound.add(
+      'recv-n5',
+      received({ subject: 'Secret subject line', text: 'Secret words of the reply' }),
+    );
+    await fire(sent.id, 'recv-n5');
+    await instance.tick();
+    await withoutTenant(worker.db, (tx) =>
+      tx.execute(sql`
+        insert into outbox_events (id, tenant_id, event_type, object_type, record_id, payload, available_at)
+        values (${newId()}, ${tenantId}, 'notification.digest_due.v1', 'user', ${userId},
+                ${JSON.stringify({ userId })}::jsonb, now())`),
+    );
+    await instance.tick();
+
+    const digest = mail
+      .messages()
+      .find((message) => message.subject.includes('updates') || message.subject.includes('update'));
+    expect(digest).toBeDefined();
+    expect(digest!.text).toContain('A customer replied to an email you sent');
+    for (const secret of ['Secret subject line', 'Secret words', 'sam@customer.example']) {
+      expect(digest!.text).not.toContain(secret);
+      expect(digest!.html ?? '').not.toContain(secret);
+    }
+    expect(digest!.text).not.toContain('Assigned to you');
   });
 });

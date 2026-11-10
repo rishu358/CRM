@@ -228,6 +228,19 @@ test.describe('email', () => {
     );
   });
 
+  test('says on Settings > Email that replies are not filed on the record, because this stack sets no inbound domain', async ({
+    page,
+  }) => {
+    await signIn(page, credentials.owner);
+    await page.goto('/settings/email');
+    const replies = page.getByTestId('email-replies-status');
+    await expect(replies).toBeVisible();
+    // Read-only by design: it is set up by whoever runs the installation, so there is nothing here to press.
+    await expect(replies).toHaveAttribute('data-state', 'off');
+    await expect(replies).toContainText('Customers’ replies are not filed on the record');
+    await expect(replies.getByRole('button')).toHaveCount(0);
+  });
+
   test('shows the blocked addresses, empty at first, and no pause, to an administrator', async ({
     page,
   }) => {

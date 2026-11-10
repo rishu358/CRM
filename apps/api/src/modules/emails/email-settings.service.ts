@@ -137,6 +137,7 @@ export class EmailSettingsService {
       sendingAddress: this.emails.sendingAddress(),
       defaultFromName: facts.name,
       usage: await this.emails.usageFor(tx, actor),
+      replyCapture: this.emails.replyCapture(),
       paused: await this.pausedState(tx, actor),
     };
   }

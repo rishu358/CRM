@@ -114,6 +114,14 @@ export class EmailsService {
     @Inject(API_ENV_TOKEN) private readonly env: ApiEnv,
   ) {}
 
+  /** Whether a customer's reply is filed on the record, for Settings > Email (ADR-0077). */
+  replyCapture(): { state: 'on' | 'off' | 'unsupported'; domain: string | null } {
+    const domain = inboundDomainOf(this.env);
+    if (domain === null) return { state: 'off', domain: null };
+    // Only Resend has a receiving adapter; the worker says the same at start-up.
+    return { state: this.env.EMAIL_PROVIDER === 'resend' ? 'on' : 'unsupported', domain };
+  }
+
   /** The address mail is sent from: the outreach address, or the system one when none is set. */
   sendingAddress(): string | null {
     return bareAddress(this.env.EMAIL_OUTREACH_FROM ?? this.env.EMAIL_FROM);
@@ -672,6 +680,10 @@ export class EmailsService {
       message,
       sentByName: message.createdBy === null ? null : (names.get(message.createdBy) ?? null),
       retriedById,
+      repliedToAddress:
+        message.replyToEmailId === null
+          ? null
+          : await this.repository.addressOf(tx, message.tenantId, message.replyToEmailId),
       cursorValue: '',
     });
   }
@@ -707,6 +719,17 @@ function iso(value: Date | null): string | null {
   return value === null ? null : value.toISOString();
 }
 
+/**
+ * Is a reply from the address we wrote to? A claim, shown beside "unverified": true or false for a reply whose sent
+ * email still holds its recipient, null for what we sent and for a reply whose sender or original has been erased.
+ */
+function senderMatches(row: EmailListRow): boolean | null {
+  const m = row.message;
+  if (m.direction !== 'inbound' || m.erasedAt !== null || m.fromAddress === '') return null;
+  if (row.repliedToAddress === null) return null;
+  return row.repliedToAddress.toLowerCase() === m.fromAddress.toLowerCase();
+}
+
 function toDto(row: EmailListRow): EmailMessage {
   const m = row.message;
   return {
@@ -715,6 +738,7 @@ function toDto(row: EmailListRow): EmailMessage {
     status: m.status,
     fromName: m.fromName,
     fromAddress: m.direction === 'inbound' && m.fromAddress !== '' ? m.fromAddress : null,
+    senderMatchesRecipient: senderMatches(row),
     toAddress: m.toAddress,
     replyTo: m.replyTo,
     subject: m.subject,

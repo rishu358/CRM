@@ -29,6 +29,7 @@ interface Email {
   body: string;
   attachmentCount: number;
   bodyShortened: boolean;
+  senderMatchesRecipient: boolean | null;
   erased: boolean;
 }
 
@@ -49,16 +50,22 @@ const call = (token: string, method: 'GET' | 'POST', url: string, body?: Record<
 async function fileReply(
   tenantId: string,
   contactId: string,
-  options: { from?: string; body?: string; attachments?: number; shortened?: boolean } = {},
+  options: {
+    from?: string;
+    body?: string;
+    attachments?: number;
+    shortened?: boolean;
+    answers?: string;
+  } = {},
 ): Promise<string> {
   const id = randomUUID();
   await superuser.query(
     `insert into email_messages
        (id, tenant_id, direction, status, source_object_type, source_record_id, contact_id, from_name,
         from_address, to_address, subject, body_text, message_id, provider_message_id, attachment_count,
-        body_shortened)
+        body_shortened, reply_to_email_id)
      values ($1, $2, 'inbound', 'received', 'contact', $3, $3, 'Sam Customer', $4, 'priya@company.example',
-             'Re: Your quote', $5, $6, $7, $8, $9)`,
+             'Re: Your quote', $5, $6, $7, $8, $9, $10)`,
     [
       id,
       tenantId,
@@ -69,6 +76,7 @@ async function fileReply(
       `recv-${id}`,
       options.attachments ?? 0,
       options.shortened ?? false,
+      options.answers ?? null,
     ],
   );
   await superuser.query(
@@ -260,5 +268,150 @@ describe('a filed reply, read through the API', () => {
       [id],
     );
     expect(row.rows[0]).toEqual({ status: 'received', direction: 'inbound' });
+  });
+});
+
+describe('whether a reply came from the address we wrote to', () => {
+  const sentTo = async (address: string | null): Promise<string> => {
+    const sent = dataOf<Email>(
+      await call(adminA.token, 'POST', '/emails', {
+        objectType: 'contact',
+        recordId: contactA,
+        subject: `To ${address ?? 'nobody'}`,
+        body: 'Hi',
+      }),
+    );
+    if (address !== null) {
+      await superuser.query(`update email_messages set to_address = $2 where id = $1`, [
+        sent.id,
+        address,
+      ]);
+    }
+    return sent.id;
+  };
+  const claimFor = async (replyId: string) =>
+    dataOf<Email[]>(await listFor(adminA.token, contactA)).find((email) => email.id === replyId)
+      ?.senderMatchesRecipient;
+
+  it('is true when the sender is the address the email was written to, whatever the case', async () => {
+    const original = await sentTo('sam@customer.example');
+    const reply = await fileReply(tenantA, contactA, {
+      from: 'sam@customer.example',
+      answers: original,
+    });
+    expect(await claimFor(reply)).toBe(true);
+    const upper = await sentTo('Sam@Customer.Example');
+    const second = await fileReply(tenantA, contactA, {
+      from: 'sam@customer.example',
+      answers: upper,
+    });
+    expect(await claimFor(second)).toBe(true);
+  });
+
+  it('is false when the reply comes from another address, which is what an assistant or a forward looks like', async () => {
+    const original = await sentTo('sam@customer.example');
+    const reply = await fileReply(tenantA, contactA, {
+      from: 'someone-else@elsewhere.example',
+      answers: original,
+    });
+    expect(await claimFor(reply)).toBe(false);
+  });
+
+  it('is not known when the email it answers is gone or has been erased, and for anything we sent', async () => {
+    const original = await sentTo('sam@customer.example');
+    const reply = await fileReply(tenantA, contactA, { answers: original });
+    await superuser.query(
+      `update email_messages set to_address = null, erased_at = now(), subject = '', body_text = '' where id = $1`,
+      [original],
+    );
+    expect(await claimFor(reply)).toBeNull();
+
+    const standalone = await fileReply(tenantA, contactA);
+    expect(await claimFor(standalone)).toBeNull();
+
+    const sent = dataOf<Email>(
+      await call(adminA.token, 'POST', '/emails', {
+        objectType: 'contact',
+        recordId: contactA,
+        subject: 'Out',
+        body: 'Hi',
+      }),
+    );
+    expect(sent.senderMatchesRecipient).toBeNull();
+  });
+
+  it('is not known for a reply that has itself been erased, and shows no address then', async () => {
+    const original = await sentTo('sam@customer.example');
+    const reply = await fileReply(tenantA, contactA, { answers: original });
+    await superuser.query(
+      `update email_messages set erased_at = now(), from_address = '', from_name = 'Erased', subject = '', body_text = '', to_address = null where id = $1`,
+      [reply],
+    );
+    const shown = dataOf<Email[]>(await listFor(adminA.token, contactA)).find(
+      (email) => email.id === reply,
+    )!;
+    expect(shown).toMatchObject({ senderMatchesRecipient: null, fromAddress: null, erased: true });
+  });
+});
+
+describe('whether replies are filed, for Settings > Email', () => {
+  const settingsOf = async (token: string) =>
+    dataOf<{ replyCapture: { state: string; domain: string | null } }>(
+      await call(token, 'GET', '/email-settings'),
+    ).replyCapture;
+
+  it('says unsupported where an inbound domain is set but the provider cannot receive (this stack sends to memory)', async () => {
+    expect(await settingsOf(adminA.token)).toEqual({
+      state: 'unsupported',
+      domain: 'reply.example.com',
+    });
+  });
+
+  it('says on where the provider is one that receives, and the domain it receives at', async () => {
+    const resend = await startApiHarness(inject('dbUrls'), {
+      EMAIL_OUTREACH_FROM: 'mail@send.example',
+      EMAIL_INBOUND_DOMAIN: 'Reply.Example.com',
+      EMAIL_PROVIDER: 'resend',
+      RESEND_API_KEY: `re_${'a'.repeat(24)}`,
+    });
+    try {
+      const token = await resend.signIn(adminA.userId, tenantA);
+      const response = await request(resend, {
+        method: 'GET',
+        url: '/api/v1/email-settings',
+        token,
+      });
+      expect(dataOf<{ replyCapture: unknown }>(response).replyCapture).toEqual({
+        state: 'on',
+        domain: 'reply.example.com',
+      });
+    } finally {
+      await resend.close();
+    }
+  });
+
+  it('says off where no inbound domain is set, and shows no domain', async () => {
+    const off = await startApiHarness(inject('dbUrls'), {
+      EMAIL_OUTREACH_FROM: 'mail@send.example',
+    });
+    try {
+      const token = await off.signIn(adminA.userId, tenantA);
+      const response = await request(off, { method: 'GET', url: '/api/v1/email-settings', token });
+      expect(dataOf<{ replyCapture: unknown }>(response).replyCapture).toEqual({
+        state: 'off',
+        domain: null,
+      });
+    } finally {
+      await off.close();
+    }
+  });
+
+  it('is the installation’s setting, so every company sees the same answer', async () => {
+    expect((await call(adminA.token, 'GET', '/email-settings')).status).toBe(200);
+    expect((await call(adminB.token, 'GET', '/email-settings')).status).toBe(200);
+    expect(await settingsOf(adminB.token)).toEqual({
+      state: 'unsupported',
+      domain: 'reply.example.com',
+    });
   });
 });

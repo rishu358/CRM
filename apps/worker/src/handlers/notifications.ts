@@ -250,6 +250,8 @@ function renderDigest(
   const lines = rows.map((row) => {
     // Web-form notifications say what happened and carry nothing a visitor typed.
     if (row.type === 'lead.web_form_new') return 'A new lead from a web form is assigned to you';
+    // A reply says that one arrived and nothing the customer wrote (ADR-0077).
+    if (row.type === 'email.reply_received') return 'A customer replied to an email you sent';
     if (row.type === 'lead.web_form_duplicate') {
       return 'A web form was filled in by someone who matches a record you own';
     }
@@ -330,5 +332,39 @@ export function notifyWebFormDuplicate(options: NotificationHandlerOptions) {
       sourceEventId: event.id,
     });
     if (written) await scheduleDigest(tx, event, owner, options.digestWindowMinutes);
+  };
+}
+
+/**
+ * A customer replied to an email somebody sent (ADR-0077). The person who sent it is told, in the bell, and **the
+ * notification carries ids only**: the customer's words are never copied into a notification row or a digest, so a
+ * stranger's text cannot reach the bell or an email by this route (the reply itself is read through the email
+ * endpoint, with the reader's own permissions).
+ *
+ * Driven by `email.replied.v1`, which the worker's own filing of a reply announces on the record the sent email was
+ * sent from. No digest is scheduled for it: a reply is news for the bell, not worth an email about an email.
+ */
+export function notifyEmailReply() {
+  return async (tx: Tx, event: OutboxRow): Promise<void> => {
+    const repliedTo = event.payload['repliedToId'];
+    const reply = event.payload['emailId'];
+    if (typeof repliedTo !== 'string' || typeof reply !== 'string') return;
+    if (event.object_type === null || event.record_id === null) return;
+
+    const sent = await tx.execute(sql`
+      select created_by from email_messages
+      where tenant_id = ${event.tenant_id}::uuid and id = ${repliedTo}::uuid
+      limit 1
+    `);
+    const sender = (sent.rows as unknown as { created_by: string | null }[])[0]?.created_by;
+    if (sender === null || sender === undefined) return;
+
+    await insertNotification(tx, {
+      tenantId: event.tenant_id,
+      userId: sender,
+      type: 'email.reply_received',
+      payload: { emailId: reply, objectType: event.object_type, recordId: event.record_id },
+      sourceEventId: event.id,
+    });
   };
 }
