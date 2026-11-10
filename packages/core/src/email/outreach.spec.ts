@@ -84,6 +84,39 @@ describe('rendering', () => {
     expect(renderEmailText('a\r\nb', 'Shop')).toBe('a\nb\n\n-- \nShop');
     expect(renderEmailText('a', null)).toBe('a');
   });
+
+  it('puts the unsubscribe sentence under the same separator, after the footer, in text and HTML', () => {
+    const unsubscribe = {
+      companyName: 'Sharma <Traders>',
+      pageUrl: 'https://app.example/u/v1.abc.def',
+    };
+    expect(renderEmailText('Hi', 'Shop', unsubscribe)).toBe(
+      'Hi\n\n-- \nShop\n\nTo stop receiving email from Sharma <Traders>, open: https://app.example/u/v1.abc.def',
+    );
+    expect(renderEmailText('Hi', null, unsubscribe)).toBe(
+      'Hi\n\n-- \nTo stop receiving email from Sharma <Traders>, open: https://app.example/u/v1.abc.def',
+    );
+    const html = renderEmailHtml('Hi', 'Shop', unsubscribe);
+    expect(html).toContain('Sharma &lt;Traders&gt;');
+    expect(html).not.toContain('<Traders>');
+    expect(html).toContain('<a href="https://app.example/u/v1.abc.def">unsubscribe</a>');
+    expect(html.indexOf('Shop')).toBeLessThan(html.indexOf('unsubscribe'));
+  });
+
+  it('escapes a link that tries to leave its attribute, so only the address we built is ever a link', () => {
+    const html = renderEmailHtml('Hi', null, {
+      companyName: 'Shop',
+      pageUrl: 'https://app.example/u/x"><script>alert(1)</script>',
+    });
+    expect(html).not.toContain('<script>');
+    expect(html).not.toContain('"><');
+    expect(html).toContain('u/x&quot;&gt;&lt;script&gt;');
+  });
+
+  it('adds nothing when there is no link, so older callers and system mail are unchanged', () => {
+    expect(renderEmailText('a', 'Shop', null)).toBe(renderEmailText('a', 'Shop'));
+    expect(renderEmailHtml('a', 'Shop', null)).toBe(renderEmailHtml('a', 'Shop'));
+  });
 });
 
 describe('limits and days', () => {

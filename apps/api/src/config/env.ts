@@ -21,6 +21,7 @@ export type ApiEnv = EnvFor<'api'>;
 export function loadApiEnv(source?: EnvSource): ApiEnv {
   const env = loadEnv('api', source);
   assertPreviousAuthSecrets(env);
+  assertUnsubscribeSecrets(env);
   // A production process with development settings does not start (ADR-0041).
   assertProductionConfig(productionInput(env));
   return env;
@@ -32,6 +33,8 @@ function productionInput(env: ApiEnv): ProductionConfigInput {
     scope: 'api',
     authSecret: env.AUTH_SECRET,
     authSecretPrevious: env.AUTH_SECRET_PREVIOUS,
+    emailUnsubscribeSecret: env.EMAIL_UNSUBSCRIBE_SECRET,
+    emailUnsubscribeSecretPrevious: env.EMAIL_UNSUBSCRIBE_SECRET_PREVIOUS,
     emailProvider: env.EMAIL_PROVIDER,
     emailFrom: env.EMAIL_FROM,
     resendApiKey: env.RESEND_API_KEY,
@@ -90,6 +93,42 @@ export function previousAuthSecrets(env: Pick<ApiEnv, 'AUTH_SECRET_PREVIOUS'>): 
     .split(',')
     .map((key) => key.trim())
     .filter((key) => key.length > 0);
+}
+
+/**
+ * `EMAIL_UNSUBSCRIBE_SECRET_PREVIOUS` as a list, newest first. Empty when none is held. These only ever check a
+ * link (ADR-0076); a link is always signed with the current key.
+ */
+export function previousUnsubscribeSecrets(
+  env: Pick<ApiEnv, 'EMAIL_UNSUBSCRIBE_SECRET_PREVIOUS'>,
+): string[] {
+  return (env.EMAIL_UNSUBSCRIBE_SECRET_PREVIOUS ?? '')
+    .split(',')
+    .map((key) => key.trim())
+    .filter((key) => key.length > 0);
+}
+
+/** Refuses a malformed unsubscribe key list at start-up, naming the variable and never a key. */
+function assertUnsubscribeSecrets(env: ApiEnv): void {
+  const previous = previousUnsubscribeSecrets(env);
+  const current = env.EMAIL_UNSUBSCRIBE_SECRET;
+  if (previous.length > 0 && (current === undefined || current === '')) {
+    throw new Error('EMAIL_UNSUBSCRIBE_SECRET_PREVIOUS needs EMAIL_UNSUBSCRIBE_SECRET to be set');
+  }
+  if (previous.length > MAX_PREVIOUS_KEYS) {
+    throw new Error(
+      `EMAIL_UNSUBSCRIBE_SECRET_PREVIOUS holds ${String(previous.length)} keys; at most ${String(MAX_PREVIOUS_KEYS)} are accepted. ` +
+        'Remove the keys whose links no longer matter.',
+    );
+  }
+  if (previous.some((key) => key.length < 32)) {
+    throw new Error(
+      'Every key in EMAIL_UNSUBSCRIBE_SECRET_PREVIOUS must be at least 32 characters',
+    );
+  }
+  if (current !== undefined && previous.includes(current)) {
+    throw new Error('EMAIL_UNSUBSCRIBE_SECRET must not also be listed in its _PREVIOUS');
+  }
 }
 
 /** Refuses a malformed key list at start-up, naming the variable and never a key. */

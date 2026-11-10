@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import {
   assertConnectedRoles,
@@ -7,10 +8,15 @@ import {
   type ProductionConfigInput,
 } from './production.js';
 
+/** A key that is long, varied and nothing like a placeholder, made here so no secret-shaped literal is committed. */
+const keyFrom = (label: string): string =>
+  createHash('sha256').update(`production-spec:${label}`).digest('base64');
+
 /** A configuration a real deployment could be running: every field good. */
 const GOOD: ProductionConfigInput = {
   nodeEnv: 'production',
   authSecret: 'q8Zr3vXk1LmN7pTc0YbUe5HwJd2GfAoS9iRtVxCz4KuBn6MyPqEl',
+  emailUnsubscribeSecret: keyFrom('unsubscribe'),
   emailProvider: 'resend',
   emailFrom: 'CRM <no-reply@mail.acme-crm.io>',
   resendApiKey: 're_live_abcdefghijklmnop',
@@ -34,6 +40,60 @@ const problemsOf = (change: Partial<ProductionConfigInput>) =>
 describe('production configuration', () => {
   it('accepts a configuration a real deployment could run', () => {
     expect(productionConfigProblems(GOOD)).toEqual({ problems: [], warnings: [] });
+  });
+
+  describe('the unsubscribe secret (ADR-0076)', () => {
+    it.each([
+      [undefined, 'EMAIL_UNSUBSCRIBE_SECRET is not set'],
+      ['', 'EMAIL_UNSUBSCRIBE_SECRET is not set'],
+      ['short', 'EMAIL_UNSUBSCRIBE_SECRET must be at least 32'],
+      ['aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'too few distinct'],
+      ['dev-only-insecure-secret-change-me-before-any-real-use-0000', 'placeholder'],
+    ])(
+      'refuses %j, because production would otherwise sign links with a shared key',
+      (value, expected) => {
+        expect(problemsOf({ emailUnsubscribeSecret: value })).toContain(expected);
+      },
+    );
+
+    it('refuses the same value as AUTH_SECRET, so rotating one never ends the other', () => {
+      expect(problemsOf({ emailUnsubscribeSecret: GOOD.authSecret })).toContain(
+        'must be a different value from AUTH_SECRET',
+      );
+    });
+
+    it('checks the earlier keys it still accepts, and allows none', () => {
+      expect(problemsOf({ emailUnsubscribeSecretPrevious: undefined })).toBe('');
+      expect(problemsOf({ emailUnsubscribeSecretPrevious: '' })).toBe('');
+      expect(problemsOf({ emailUnsubscribeSecretPrevious: keyFrom('older') })).toBe('');
+      expect(
+        problemsOf({
+          emailUnsubscribeSecretPrevious: `${keyFrom('older')}, ${keyFrom('oldest')}`,
+        }),
+      ).toBe('');
+      expect(problemsOf({ emailUnsubscribeSecretPrevious: 'short' })).toContain(
+        'EMAIL_UNSUBSCRIBE_SECRET_PREVIOUS must be at least 32',
+      );
+    });
+
+    it('is not asked of the worker, which never signs or checks a link', () => {
+      const report = productionConfigProblems({
+        ...GOOD,
+        scope: 'worker',
+        emailUnsubscribeSecret: undefined,
+      });
+      expect(report.problems.join(' | ')).not.toContain('EMAIL_UNSUBSCRIBE_SECRET');
+    });
+
+    it('asks nothing outside production, where the key falls back to one derived from AUTH_SECRET', () => {
+      expect(
+        productionConfigProblems({
+          ...GOOD,
+          nodeEnv: 'development',
+          emailUnsubscribeSecret: undefined,
+        }),
+      ).toEqual({ problems: [], warnings: [] });
+    });
   });
 
   it('checks nothing outside production', () => {

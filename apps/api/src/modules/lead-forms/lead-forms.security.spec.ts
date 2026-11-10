@@ -290,6 +290,9 @@ describe('(d) unauthenticated requests get 401, except the two public routes', (
     'POST /public/forms/{key}/submissions',
     // Where the mail service reports what happened to an email (ADR-0075): signed, never called by people.
     'POST /public/email-events/{provider}',
+    // The link at the foot of every email (ADR-0076): a signed token is the only credential.
+    'GET /public/email-unsubscribe/{token}',
+    'POST /public/email-unsubscribe/{token}',
     // The sign-in family and invitations: public by nature, each guarded by its own credential.
     'POST /auth/sign-up',
     'POST /auth/sign-in',

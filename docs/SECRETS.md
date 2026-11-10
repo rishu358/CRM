@@ -25,23 +25,25 @@ checklist for an incident. [`SECURITY.md`](../SECURITY.md) says how to report a 
 
 ## What each secret protects
 
-| Secret                                       | Held by             | Protects                                                                                       |
-| -------------------------------------------- | ------------------- | ---------------------------------------------------------------------------------------------- |
-| `DATABASE_URL`                               | API, worker         | The application database role: every tenant's business data, behind row-level security.        |
-| `DATABASE_AUTH_URL`                          | API                 | The identity role: users, password hashes, sessions, authenticator secrets.                    |
-| `DATABASE_WORKER_URL`                        | worker              | The background role: the event relay, with cross-tenant reads of the outbox.                   |
-| `DATABASE_ERASURE_URL`                       | worker              | The one role that may redact audit history for an erasure request (ADR-0032).                  |
-| `DATABASE_MIGRATION_URL`                     | migration job only  | The role that owns the schema. Never given to a running service.                               |
-| `AUTH_SECRET`                                | API                 | Authenticator (MFA) secrets and backup codes at rest, and the cookie signer.                   |
-| `AUTH_SECRET_PREVIOUS`                       | API                 | The same, for stored values written under an earlier `AUTH_SECRET`. Only during rotation.      |
-| `RESEND_API_KEY`                             | API, worker         | Sending mail as the application, through Resend.                                               |
-| `RESEND_WEBHOOK_SECRET`                      | API                 | Checking that a delivery report really comes from Resend (ADR-0075). Not used for sending.     |
-| `SES_ACCESS_KEY_ID`, `SES_SECRET_ACCESS_KEY` | API, worker         | Sending mail as the application, through Amazon SES.                                           |
-| `SMTP_PASSWORD`                              | API, worker         | Sending mail as the application, through an SMTP server.                                       |
-| `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`   | API, worker         | Every uploaded file, import and export in the bucket.                                          |
-| `REDIS_URL`                                  | API                 | Rate-limit counters (nothing sensitive is stored; the password is still a secret).             |
-| `GOOGLE_CLIENT_SECRET`                       | API                 | Sign in with Google for this application.                                                      |
-| `PERF_ADMIN_URL`                             | a developer's shell | A privileged database connection for load tests against a scratch environment. Never deployed. |
+| Secret                                       | Held by             | Protects                                                                                                       |
+| -------------------------------------------- | ------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`                               | API, worker         | The application database role: every tenant's business data, behind row-level security.                        |
+| `DATABASE_AUTH_URL`                          | API                 | The identity role: users, password hashes, sessions, authenticator secrets.                                    |
+| `DATABASE_WORKER_URL`                        | worker              | The background role: the event relay, with cross-tenant reads of the outbox.                                   |
+| `DATABASE_ERASURE_URL`                       | worker              | The one role that may redact audit history for an erasure request (ADR-0032).                                  |
+| `DATABASE_MIGRATION_URL`                     | migration job only  | The role that owns the schema. Never given to a running service.                                               |
+| `AUTH_SECRET`                                | API                 | Authenticator (MFA) secrets and backup codes at rest, and the cookie signer.                                   |
+| `AUTH_SECRET_PREVIOUS`                       | API                 | The same, for stored values written under an earlier `AUTH_SECRET`. Only during rotation.                      |
+| `RESEND_API_KEY`                             | API, worker         | Sending mail as the application, through Resend.                                                               |
+| `RESEND_WEBHOOK_SECRET`                      | API                 | Checking that a delivery report really comes from Resend (ADR-0075). Not used for sending.                     |
+| `EMAIL_UNSUBSCRIBE_SECRET`                   | API                 | Signing the unsubscribe link in every email, so a link cannot be forged (ADR-0076). Not rotated on a schedule. |
+| `EMAIL_UNSUBSCRIBE_SECRET_PREVIOUS`          | API                 | Earlier unsubscribe keys whose links must keep working. Only checks a link, never signs one.                   |
+| `SES_ACCESS_KEY_ID`, `SES_SECRET_ACCESS_KEY` | API, worker         | Sending mail as the application, through Amazon SES.                                                           |
+| `SMTP_PASSWORD`                              | API, worker         | Sending mail as the application, through an SMTP server.                                                       |
+| `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`   | API, worker         | Every uploaded file, import and export in the bucket.                                                          |
+| `REDIS_URL`                                  | API                 | Rate-limit counters (nothing sensitive is stored; the password is still a secret).                             |
+| `GOOGLE_CLIENT_SECRET`                       | API                 | Sign in with Google for this application.                                                                      |
+| `PERF_ADMIN_URL`                             | a developer's shell | A privileged database connection for load tests against a scratch environment. Never deployed.                 |
 
 Also secret, and not in the registry because the application never holds them: the **managed-database
 administrator** credential (RUNBOOK §9.4), which belongs in a password manager and is used by a person, once,
@@ -78,6 +80,26 @@ account is affected.
 
 **Does not sign anyone out.** A session is a random token stored hashed in the database; it is not keyed by
 `AUTH_SECRET`, and a test proves a session survives a rotation.
+
+### `EMAIL_UNSUBSCRIBE_SECRET`: the one secret you do not rotate on a schedule
+
+Every email sent from a record carries an unsubscribe link, signed with this key (ADR-0076). A link in an email sent
+last year has to work today, so the rule above ("rotate at least yearly") does **not** apply to this one: changing
+the value ends every link already sent under the old one, and a person who clicks such a link is told it is not
+valid. It is deliberately **not** `AUTH_SECRET`, so that rotating the session secret never touches these links, and
+production refuses to start if the two are the same value, if it is unset, or if it looks like a placeholder.
+
+1. **Generate it once**: `openssl rand -base64 48`, before the first real email is sent. Never reuse one from
+   another environment. Setting it for the first time on a stack that has been sending emails ends the links in those
+   emails (without it the API signs with a key derived from `AUTH_SECRET`, which is only for development).
+2. **Leave it alone.** There is no scheduled rotation. The only reason to change it is exposure, and the cost of
+   exposure is small: someone who has the key **and** an email's id (a random, non-guessable id that is never shown)
+   could unsubscribe that person from that company's email. They could not read anything or send anything.
+3. **If you must change it**: set `EMAIL_UNSUBSCRIBE_SECRET` to the new value and put the **old** one in
+   `EMAIL_UNSUBSCRIBE_SECRET_PREVIOUS` (newest first, comma separated, at most three). New emails are signed with
+   the new key, and links under the old one still work, because a link is checked against every key held. Keep the old
+   key there for as long as links in the emails it signed should keep working; remove it only when you accept that the
+   oldest links stop working.
 
 ### Database passwords (five roles)
 

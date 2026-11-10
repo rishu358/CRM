@@ -101,11 +101,11 @@ export const REGISTRY = {
   ),
   API_URL: defaultedUrl(
     {
-      scopes: ['api', 'web'],
+      scopes: ['api', 'web', 'worker'],
       group: 'addresses',
       requirement: 'production',
       description:
-        "The API's own public origin. The API uses it to build the Google OAuth redirect URI, which Google compares byte for byte; the web app forwards every API call to it.",
+        "The API's own public origin. The API uses it to build the Google OAuth redirect URI, which Google compares byte for byte; the web app forwards every API call to it; the worker builds the address a mail program posts to for its own unsubscribe button from it.",
       local: 'http://localhost:3001',
       example: 'https://api.example.com',
       note: 'Must be `https` in production. The web app reaches the API only over this public URL.',
@@ -744,6 +744,36 @@ export const REGISTRY = {
         'Resend dashboard, Webhooks: add an endpoint at `<API_URL>/api/v1/public/email-events/resend` for the events email.delivered, email.bounced, email.complained and email.suppressed, then copy its signing secret.',
       example: 'CHANGE_ME',
       note: 'API only, never the web app. Only needed when `EMAIL_PROVIDER=resend`. Until it is set, "Sent" is the last status an email reaches.',
+    },
+    { min: 1 },
+  ),
+
+  EMAIL_UNSUBSCRIBE_SECRET: optionalText(
+    {
+      scopes: ['api'],
+      group: 'email',
+      secret: true,
+      requirement: 'production',
+      description:
+        'Signs the unsubscribe link in every email sent from a record, so a link cannot be forged or made for an email that was never sent. Left unset in development, the API signs with a key derived from `AUTH_SECRET` so nothing needs configuring; production refuses to start without it.',
+      obtain:
+        '`openssl rand -base64 48`. Generate one per environment; never reuse, and never the same value as `AUTH_SECRET`.',
+      example: 'CHANGE_ME',
+      note: 'API only, never the web app or the worker (the worker reads the signed token from the database). Unlike every other secret it is **not rotated on a schedule**: a link in an email sent last year must still work, and changing the value ends it. Set it before the first real email is sent, and read docs/SECRETS.md before ever changing it.',
+    },
+    { min: 32, message: 'EMAIL_UNSUBSCRIBE_SECRET must be at least 32 characters' },
+  ),
+  EMAIL_UNSUBSCRIBE_SECRET_PREVIOUS: optionalText(
+    {
+      scopes: ['api'],
+      group: 'email',
+      secret: true,
+      description:
+        'Earlier `EMAIL_UNSUBSCRIBE_SECRET` values whose links must keep working, newest first, separated by commas. Used only to check a link, never to sign one.',
+      obtain:
+        'The value `EMAIL_UNSUBSCRIBE_SECRET` had before you changed it. See docs/SECRETS.md.',
+      example: 'CHANGE_ME',
+      note: 'Keep an old key here for as long as links in the email it signed should keep working. Each key must be at least 32 characters, and at most three are accepted. Needs `EMAIL_UNSUBSCRIBE_SECRET` to be set.',
     },
     { min: 1 },
   ),

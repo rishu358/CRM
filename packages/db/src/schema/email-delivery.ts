@@ -18,7 +18,9 @@ export const emailProviderEvents = pgTable(
     provider: text('provider').notNull(),
     providerEventId: text('provider_event_id').notNull(),
     emailMessageId: uuid('email_message_id').notNull(),
-    eventType: text('event_type').$type<'delivered' | 'bounced' | 'complained'>().notNull(),
+    eventType: text('event_type')
+      .$type<'delivered' | 'bounced' | 'complained' | 'unsubscribed'>()
+      .notNull(),
   },
   (table) => [
     uniqueIndex('email_provider_events_once_key').on(

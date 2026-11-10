@@ -43,7 +43,8 @@ const relay = () =>
     .on('email.provider_event.v1', applyEmailProviderEvent())
     .on('email.delivered.v1', projectTimeline)
     .on('email.bounced.v1', projectTimeline)
-    .on('email.complained.v1', projectTimeline);
+    .on('email.complained.v1', projectTimeline)
+    .on('email.unsubscribed.v1', projectTimeline);
 
 interface Made {
   id: string;
@@ -81,7 +82,7 @@ async function sentEmail(
 
 async function report(
   emailId: string,
-  eventType: 'delivered' | 'bounced' | 'complained',
+  eventType: 'delivered' | 'bounced' | 'complained' | 'unsubscribed',
   reason: string | null = null,
   tenant = tenantId,
 ): Promise<void> {
@@ -364,5 +365,142 @@ describe('a bad run', () => {
       [tenant],
     );
     expect(quiet.rows[0]?.n).toBe(0);
+  });
+});
+
+describe('a person unsubscribing from the link in an email (ADR-0076)', () => {
+  const consentOf = async (id: string) =>
+    (
+      await superuserPool.query<{ consent: { email?: { status?: string; source?: string } } }>(
+        `select consent from contacts where id = $1`,
+        [id],
+      )
+    ).rows[0]!.consent;
+
+  it('blocks the address for good, withdraws consent on the contacts that carry it, and files one line on the record', async () => {
+    const address = `stopper-${newId().slice(-8)}@customer.example`;
+    const mail = await sentEmail({ address });
+    const carrier = await fixtures.createContact(tenantId, {
+      ownerId: userId,
+      lastName: 'Stopper',
+      email: address,
+    });
+    const bystander = await fixtures.createContact(tenantId, {
+      ownerId: userId,
+      lastName: 'Bystander',
+      email: `other-${newId().slice(-8)}@customer.example`,
+    });
+    const rival = await fixtures.createContact(otherTenantId, {
+      lastName: 'Rival',
+      email: address,
+    });
+
+    await report(mail.id, 'unsubscribed');
+    await relay().tick();
+
+    // It says nothing about the mail itself: the status is what it was.
+    expect((await statusOf(mail.id)).status).toBe('sent');
+    expect(await blocksFor(tenantId, address)).toEqual([
+      { reason: 'unsubscribed', source_email_id: mail.id },
+    ]);
+    // The same address in another company is not blocked, and that company's contact is untouched.
+    expect(await blocksFor(otherTenantId, address)).toEqual([]);
+
+    expect((await consentOf(carrier)).email).toMatchObject({
+      status: 'withdrawn',
+      source: 'unsubscribe_link',
+    });
+    expect((await consentOf(bystander)).email).toBeUndefined();
+    expect((await consentOf(rival)).email).toBeUndefined();
+
+    const lines = await eventsAbout(mail.id, 'email.unsubscribed.v1');
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toMatchObject({ object_type: 'contact', record_id: mail.recordId });
+    const audit = await superuserPool.query(
+      `select action, changes from audit_logs where tenant_id = $1 and record_id = $2`,
+      [tenantId, carrier],
+    );
+    expect(audit.rows).toHaveLength(1);
+    // The block itself is in the audit log too: who (nobody), what and which email, never the address.
+    const blockAudit = await superuserPool.query<{ action: string; changes: unknown }>(
+      `select a.action, a.changes from audit_logs a
+       join email_suppressions s on s.id = a.record_id
+       where a.tenant_id = $1 and a.object_type = 'email_suppression' and s.source_email_id = $2`,
+      [tenantId, mail.id],
+    );
+    expect(blockAudit.rows).toHaveLength(1);
+    expect(blockAudit.rows[0]).toMatchObject({
+      action: 'create',
+      changes: { reason: { new: 'unsubscribed' }, source: { new: `email:${mail.id}` } },
+    });
+    expect(JSON.stringify([audit.rows, blockAudit.rows, lines])).not.toContain(address);
+  });
+
+  it('is applied once however many emails to that address are unsubscribed from: one block, one audit entry', async () => {
+    const address = `twice-${newId().slice(-8)}@customer.example`;
+    const first = await sentEmail({ address });
+    const second = await sentEmail({ address });
+    const carrier = await fixtures.createContact(tenantId, {
+      ownerId: userId,
+      lastName: 'Twice',
+      email: address,
+    });
+
+    await report(first.id, 'unsubscribed');
+    await report(second.id, 'unsubscribed');
+    await relay().tick();
+
+    expect(await blocksFor(tenantId, address)).toHaveLength(1);
+    const audit = await superuserPool.query(
+      `select id from audit_logs where tenant_id = $1 and record_id = $2`,
+      [tenantId, carrier],
+    );
+    expect(audit.rows).toHaveLength(1);
+  });
+
+  it('is not a bad run: any number of people stopping never pauses the company’s email', async () => {
+    // A company of its own, so no pause another test caused can be mistaken for one this caused.
+    const quiet = (await fixtures.createTenant({ name: 'Events Quiet' })).tenantId;
+    for (let i = 0; i < 8; i += 1) {
+      const mail = await sentEmail({ tenant: quiet });
+      await report(mail.id, 'unsubscribed', null, quiet);
+    }
+    await relay().tick();
+    const pauses = await superuserPool.query<{ n: number }>(
+      `select count(*)::int as n from email_pauses where tenant_id = $1`,
+      [quiet],
+    );
+    expect(pauses.rows[0]!.n).toBe(0);
+    const blocks = await superuserPool.query<{ n: number }>(
+      `select count(*)::int as n from email_suppressions where tenant_id = $1 and reason = 'unsubscribed'`,
+      [quiet],
+    );
+    expect(blocks.rows[0]!.n).toBe(8);
+  });
+
+  it('does not fail for an email an erasure has already scrubbed, and still files the line', async () => {
+    const mail = await sentEmail({ erased: true });
+    await report(mail.id, 'unsubscribed');
+    await relay().tick();
+    expect(await eventsAbout(mail.id, 'email.unsubscribed.v1')).toHaveLength(1);
+    const blocks = await superuserPool.query<{ n: number }>(
+      `select count(*)::int as n from email_suppressions where tenant_id = $1 and source_email_id = $2`,
+      [tenantId, mail.id],
+    );
+    expect(blocks.rows[0]!.n).toBe(0);
+  });
+
+  it('cannot be lifted afterwards by anyone: the database refuses', async () => {
+    const address = `final-${newId().slice(-8)}@customer.example`;
+    const mail = await sentEmail({ address });
+    await report(mail.id, 'unsubscribed');
+    await relay().tick();
+    await expect(
+      superuserPool.query(
+        `update email_suppressions set lifted_at = now(), lifted_by = $3
+         where tenant_id = $1 and address_hash = $2`,
+        [tenantId, emailSuppressionKey(tenantId, address), userId],
+      ),
+    ).rejects.toThrow(/email_suppressions_lift_chk/);
   });
 });

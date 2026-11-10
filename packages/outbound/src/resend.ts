@@ -1,6 +1,11 @@
 import type { EmailMessage, EmailProvider, EmailReceipt } from '@crm/core';
 import { GuardedOutboundHttp } from './client.js';
-import { assertSendable, formatFromHeader, providerMessageIdFrom } from './message.js';
+import {
+  assertSendable,
+  formatFromHeader,
+  providerMessageIdFrom,
+  unsubscribeHeaders,
+} from './message.js';
 import { OutboundError, type OutboundHttp } from './types.js';
 
 /**
@@ -78,6 +83,9 @@ export class ResendEmailProvider implements EmailProvider {
       subject: message.subject,
       text: message.text,
       ...(message.html === undefined ? {} : { html: message.html }),
+      ...(unsubscribeHeaders(message) === undefined
+        ? {}
+        : { headers: unsubscribeHeaders(message) }),
     });
 
     let status: number;

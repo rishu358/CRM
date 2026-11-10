@@ -42,6 +42,11 @@ import type { EventHandler, OutboxRow } from '../relay.js';
  *   4. **a bad run pauses the company's email** (`shouldPauseEmail`): too many hard bounces among the last
  *      fifty sent, or complaints in a day. One live pause at a time.
  *
+ * A fifth thing is not the mail service's: **the person's own click on the unsubscribe link** (ADR-0076) arrives
+ * the same way, as the type `unsubscribed`. It blocks the address and withdraws consent exactly as a complaint
+ * does, files one line on the record the email was sent from, and says nothing about whether the mail arrived
+ * (the status stays as it was). It is not a bad run, so it never counts toward a pause.
+ *
  * Nothing here sends, and nothing written holds the address, the subject or the provider's words: the
  * block list holds a hash, the events hold ids and a closed reason. Delivery of the outbox event is at least
  * once, and every step is idempotent: a second run finds the status already moved, the block already there
@@ -93,10 +98,23 @@ export function applyEmailProviderEvent(): EventHandler {
       });
     }
 
+    if (type === 'unsubscribed') {
+      await tx.insert(outboxEvents).values({
+        id: newId(),
+        tenantId: event.tenant_id,
+        eventType: 'email.unsubscribed.v1',
+        objectType: message.sourceObjectType,
+        recordId: message.sourceRecordId,
+        payload: { emailId },
+        actorId: null,
+      });
+    }
+
     const blockedFor = suppressionFor(type);
     if (blockedFor === null) return;
     await blockAddress(tx, event, message, blockedFor);
-    await pauseIfBadRun(tx, event);
+    // Only the mail service's own bad news is a bad run: a person who chose to stop is not one.
+    if (type !== 'unsubscribed') await pauseIfBadRun(tx, event);
   };
 }
 
@@ -109,7 +127,7 @@ async function blockAddress(
   // An erasure may have scrubbed the address already: then there is nothing left to block by.
   if (message.toAddress === null) return;
 
-  await tx
+  const created = await tx
     .insert(emailSuppressions)
     .values({
       id: newId(),
@@ -119,24 +137,45 @@ async function blockAddress(
       sourceEmailId: message.id,
     })
     // One live block per address: a second report for the same address adds nothing.
-    .onConflictDoNothing();
+    .onConflictDoNothing()
+    .returning({ id: emailSuppressions.id });
+  // Every block added is in the audit log, with the email that caused it and never the address (ADR-0076).
+  const block = created[0];
+  if (block !== undefined) {
+    await tx.insert(auditLogs).values({
+      id: newId(),
+      tenantId: event.tenant_id,
+      actorId: null,
+      action: 'create',
+      objectType: 'email_suppression',
+      recordId: block.id,
+      changes: { reason: { new: reason }, source: { new: `email:${message.id}` } },
+    });
+  }
 
   // A bounce says the address does not work, not that the person refused: only a refusal withdraws consent.
   if (reason === 'hard_bounce') return;
 
   // The person has said they do not want this email, which is the withdrawal of consent the send path
   // already respects (`contacts.consent`). Each contact that carries the address gets it, and an audit entry.
+  // A contact that has already withdrawn is left as it is: the first refusal is the one on record.
+  const source = reason === 'unsubscribed' ? 'unsubscribe_link' : 'spam_complaint';
+  const note =
+    reason === 'unsubscribed'
+      ? 'email withdrawn: unsubscribed from the link in an email'
+      : 'email withdrawn: reported as spam';
   const changed = await tx.execute(sql`
     update contacts
     set consent = jsonb_set(
           coalesce(consent, '{}'::jsonb),
           '{email}',
-          jsonb_build_object('status', 'withdrawn', 'source', 'spam_complaint', 'at', now()),
+          jsonb_build_object('status', 'withdrawn', 'source', ${source}::text, 'at', now()),
           true),
         updated_at = now()
     where tenant_id = ${event.tenant_id}::uuid
       and email = ${message.toAddress}
       and deleted_at is null
+      and coalesce(consent #>> '{email,status}', '') <> 'withdrawn'
     returning id
   `);
   for (const row of changed.rows as unknown as { id: string }[]) {
@@ -147,7 +186,7 @@ async function blockAddress(
       action: 'update',
       objectType: 'contact',
       recordId: row.id,
-      changes: { consent: { new: 'email withdrawn: reported as spam' } },
+      changes: { consent: { new: note } },
     });
   }
 }

@@ -559,6 +559,8 @@ describe('delivery events, blocked addresses and the pause (migration 0034)', ()
         'status',
         'from_name',
         'reply_to',
+        // The token in the unsubscribe link (migration 0035): the door checks a signature, never reads one.
+        'unsubscribe_token',
       ]) {
         const error = await captureDbError(() =>
           withoutTenant(db.auth.db, (tx) =>
@@ -813,5 +815,71 @@ describe('delivery events, blocked addresses and the pause (migration 0034)', ()
       );
       expect(bad.code).toBe(CHECK_VIOLATION);
     });
+  });
+});
+
+describe('the unsubscribe link (migration 0035)', () => {
+  let message: string;
+  let rival: string;
+
+  beforeAll(async () => {
+    message = await insertMessage(tenantA, { status: 'sent' });
+    rival = await insertMessage(tenantB, { status: 'sent' });
+    await superuser.query(`update email_messages set unsubscribe_token = $2 where id = $1`, [
+      message,
+      `v1.${message}.${'A'.repeat(43)}`,
+    ]);
+  });
+
+  it('is readable by the application role and the worker inside the company, and by nobody across it', async () => {
+    for (const role of [db.app, db.worker]) {
+      const own = await withTenant(role.db, as(tenantA), (tx) =>
+        tx.execute(sql`select unsubscribe_token from email_messages where id = ${message}`),
+      );
+      expect(own.rows).toEqual([{ unsubscribe_token: `v1.${message}.${'A'.repeat(43)}` }]);
+      const across = await withTenant(role.db, as(tenantB), (tx) =>
+        tx.execute(sql`select unsubscribe_token from email_messages where id = ${message}`),
+      );
+      expect(across.rows).toEqual([]);
+    }
+    const none = await withTenant(db.app.db, as(tenantB), (tx) =>
+      tx.execute(sql`select unsubscribe_token from email_messages where id = ${rival}`),
+    );
+    expect(none.rows).toEqual([{ unsubscribe_token: null }]);
+  });
+
+  it('is set once, when the message is written: neither the application role nor the worker can change it', async () => {
+    for (const role of [db.app, db.worker]) {
+      const error = await captureDbError(() =>
+        withTenant(role.db, as(tenantA), (tx) =>
+          tx.execute(sql`update email_messages set unsubscribe_token = 'x' where id = ${message}`),
+        ),
+      );
+      expect(error.code).toBe(INSUFFICIENT_PRIVILEGE);
+    }
+  });
+
+  it('refuses an empty token and one that is far too long', async () => {
+    for (const token of ['', 'a'.repeat(201)]) {
+      const error = await captureDbError(() =>
+        superuser.query(`update email_messages set unsubscribe_token = $2 where id = $1`, [
+          rival,
+          token,
+        ]),
+      );
+      expect(error.code, `${token.length} characters`).toBe(CHECK_VIOLATION);
+    }
+  });
+
+  it('records a person’s own unsubscribe as an event type of its own, and still refuses an unknown type', async () => {
+    const insert = (type: string) =>
+      superuser.query(
+        `insert into email_provider_events
+           (id, tenant_id, provider, provider_event_id, email_message_id, event_type)
+         values ($1, $2, 'unsubscribe_link', $3, $4, $5)`,
+        [randomUUID(), tenantA, `u-${randomUUID()}`, message, type],
+      );
+    await expect(insert('unsubscribed')).resolves.toBeDefined();
+    expect((await captureDbError(() => insert('opened'))).code).toBe(CHECK_VIOLATION);
   });
 });

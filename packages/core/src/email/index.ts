@@ -24,6 +24,13 @@ export interface EmailMessage {
   readonly replyTo?: string;
   /** Our own `Message-ID` (`<id@domain>`), so a reply can be matched to the email later (ADR-0073). */
   readonly messageId?: string;
+  /**
+   * The address a mail program posts to for its own "unsubscribe" button (RFC 8058): carried as the
+   * `List-Unsubscribe` header, with `List-Unsubscribe-Post: List-Unsubscribe=One-Click`, by each adapter that can
+   * carry a header. The sentence in the body is what is relied on until a real send shows the header survives
+   * (ADR-0076). Validated by each adapter.
+   */
+  readonly unsubscribeUrl?: string;
 }
 
 /** What a provider tells us about a message it accepted. Nothing in it is secret. */
@@ -40,3 +47,4 @@ export interface EmailProvider {
 export * from './events.js';
 export * from './merge-fields.js';
 export * from './outreach.js';
+export * from './unsubscribe.js';

@@ -283,3 +283,16 @@ export type EmailSuppression = z.infer<typeof emailSuppressionSchema>;
 /** `{provider}` is the name of an adapter that reports events, nothing else. Unknown names answer 404. */
 export const emailEventParamsSchema = z.object({ provider: z.string().min(1).max(32) }).strict();
 export type EmailEventParams = z.infer<typeof emailEventParamsSchema>;
+
+// ---- the unsubscribe link every email carries (ADR-0076) --------------------------------------------------------
+
+/** The token in the link's path. Its shape and signature are checked before anything else happens. */
+export const emailUnsubscribeParamsSchema = z.object({ token: z.string().max(200) }).strict();
+export type EmailUnsubscribeParams = z.infer<typeof emailUnsubscribeParamsSchema>;
+
+/** The unsubscribe routes take no query string at all. */
+export const emailUnsubscribeQuerySchema = z.object({}).strict();
+
+/** What the page needs to ask its question: whose email it is, and nothing else. */
+export const emailUnsubscribePageSchema = z.object({ companyName: z.string() }).strict();
+export type EmailUnsubscribePage = z.infer<typeof emailUnsubscribePageSchema>;

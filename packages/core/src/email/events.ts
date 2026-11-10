@@ -8,8 +8,11 @@
 
 import type { EmailStatus } from './outreach.js';
 
-/** The only kinds of event we act on. Anything else a provider sends is ignored, not stored. */
-export const EMAIL_EVENT_TYPES = ['delivered', 'bounced', 'complained'] as const;
+/**
+ * The only kinds of event we act on. Anything else a provider sends is ignored, not stored. `unsubscribed` is
+ * not a provider's: it is the person's own click on the link in the email (ADR-0076), recorded the same way.
+ */
+export const EMAIL_EVENT_TYPES = ['delivered', 'bounced', 'complained', 'unsubscribed'] as const;
 export type EmailEventType = (typeof EMAIL_EVENT_TYPES)[number];
 
 /**
@@ -37,7 +40,7 @@ export interface EmailProviderEvent {
   readonly at: Date;
 }
 
-/** Why an address is not written to. `unsubscribed` is written by PR 3b. */
+/** Why an address is not written to. */
 export const EMAIL_SUPPRESSION_REASONS = ['hard_bounce', 'complaint', 'unsubscribed'] as const;
 export type EmailSuppressionReason = (typeof EMAIL_SUPPRESSION_REASONS)[number];
 
@@ -45,6 +48,7 @@ export type EmailSuppressionReason = (typeof EMAIL_SUPPRESSION_REASONS)[number];
 export function suppressionFor(type: EmailEventType): EmailSuppressionReason | null {
   if (type === 'bounced') return 'hard_bounce';
   if (type === 'complained') return 'complaint';
+  if (type === 'unsubscribed') return 'unsubscribed';
   return null;
 }
 
@@ -65,6 +69,9 @@ export function statusAfter(current: EmailStatus, type: EmailEventType): EmailSt
       return current === 'sent' || current === 'delivered' || current === 'bounced'
         ? 'complained'
         : null;
+    case 'unsubscribed':
+      // The person's refusal says nothing about whether the mail arrived: the status stays as it was.
+      return null;
   }
 }
 

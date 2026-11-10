@@ -22,6 +22,7 @@ import { LeadsModule } from './modules/leads/leads.module.js';
 import { CustomizationModule } from './modules/customization/customization.module.js';
 import { DashboardModule } from './modules/dashboard/dashboard.module.js';
 import { EmailEventsModule } from './modules/email-events/email-events.module.js';
+import { EmailUnsubscribeModule } from './modules/email-unsubscribe/email-unsubscribe.module.js';
 import { EmailsModule } from './modules/emails/emails.module.js';
 import { NotificationsModule } from './modules/notifications/notifications.module.js';
 import { PipelineEditorModule } from './modules/pipeline-editor/pipeline-editor.module.js';
@@ -81,6 +82,7 @@ export class AppModule {
         MergeModule,
         EmailsModule,
         EmailEventsModule,
+        EmailUnsubscribeModule,
       ],
       controllers: [HealthController, OpenApiController],
       providers: [{ provide: APP_GUARD, useExisting: AuthGuard }],

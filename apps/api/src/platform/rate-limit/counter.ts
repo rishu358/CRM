@@ -62,7 +62,8 @@ export type RateLimitKind =
   | 'public-tenant'
   | 'public-bad-key'
   | 'public-view-form'
-  | 'public-repeat';
+  | 'public-repeat'
+  | 'public-unsubscribe';
 
 /** The key for one subject. Only ids and addresses go in: nothing a person typed. */
 export function rateLimitKey(kind: RateLimitKind, subject: string): string {

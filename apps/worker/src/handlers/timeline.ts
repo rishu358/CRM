@@ -59,6 +59,8 @@ const SUMMARIES: Readonly<Record<string, string>> = {
   'email.delivered.v1': 'Email delivered',
   'email.bounced.v1': 'Email bounced',
   'email.complained.v1': 'Email reported as spam',
+  // The person's own click on the link at the foot of an email (ADR-0076). An id only.
+  'email.unsubscribed.v1': 'Unsubscribed from email',
 };
 
 export async function projectTimeline(tx: Tx, event: OutboxRow): Promise<void> {
