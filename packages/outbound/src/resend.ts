@@ -4,6 +4,7 @@ import {
   assertSendable,
   formatFromHeader,
   providerMessageIdFrom,
+  replyAddresses,
   unsubscribeHeaders,
 } from './message.js';
 import { OutboundError, type OutboundHttp } from './types.js';
@@ -79,7 +80,7 @@ export class ResendEmailProvider implements EmailProvider {
     const body = JSON.stringify({
       from: formatFromHeader(this.options.from, message.fromName),
       to: [message.to],
-      ...(message.replyTo === undefined ? {} : { reply_to: message.replyTo }),
+      ...(replyAddresses(message) === undefined ? {} : { reply_to: replyAddresses(message) }),
       subject: message.subject,
       text: message.text,
       ...(message.html === undefined ? {} : { html: message.html }),

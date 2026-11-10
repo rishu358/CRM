@@ -306,3 +306,105 @@ describe('the unsubscribe headers (ADR-0076)', () => {
     });
   }
 });
+
+describe('the second reply address (ADR-0077)', () => {
+  const capture = 'r.0197c5a21b6e7f3a9c0d2e4f6a8b0c1d.abcdefghijklmnopqrstuvwxyz@reply.example.com';
+  const withCapture = { ...message, captureAddress: capture };
+
+  it('Resend sends the rep’s address and ours as a list, and a single address as before without one', async () => {
+    const first = fakeHttp({ id: 'a' });
+    await new ResendEmailProvider({ apiKey: 'k', from: FROM, http: first.http }).send(withCapture);
+    expect(sentBody(first.seen)['reply_to']).toEqual(['priya@sharma.example', capture]);
+
+    const second = fakeHttp({ id: 'b' });
+    await new ResendEmailProvider({ apiKey: 'k', from: FROM, http: second.http }).send(message);
+    expect(sentBody(second.seen)['reply_to']).toBe('priya@sharma.example');
+  });
+
+  it('SES sends both in its list of reply addresses', async () => {
+    const { http, seen } = fakeHttp({ MessageId: 'x' });
+    await new SesEmailProvider({
+      region: 'ap-south-1',
+      accessKeyId: 'AKIAEXAMPLEEXAMPLE12',
+      secretAccessKey: 'exampleSecretKeyExampleSecretKey0000000',
+      from: FROM,
+      http,
+    }).send(withCapture);
+    expect(sentBody(seen)['ReplyToAddresses']).toEqual(['priya@sharma.example', capture]);
+  });
+
+  it('SMTP passes both as a list for the library to write as one header', async () => {
+    const calls: Record<string, unknown>[] = [];
+    const provider = new SmtpEmailProvider({
+      host: 'smtp.example',
+      port: 587,
+      security: 'starttls',
+      from: FROM,
+      nodeEnv: 'test',
+      transport: {
+        sendMail: (options: Record<string, unknown>) => {
+          calls.push(options);
+          return Promise.resolve({});
+        },
+      } as never,
+    });
+    await provider.send(withCapture);
+    await provider.send(message);
+    expect(calls[0]?.['replyTo']).toEqual(['priya@sharma.example', capture]);
+    expect(calls[1]?.['replyTo']).toBe('priya@sharma.example');
+  });
+
+  const { replyTo: _noReplyTo, ...withoutReplyTo } = message;
+  const unsafe: [string, Record<string, unknown>][] = [
+    ['one with no address of the rep’s beside it', { ...withoutReplyTo, captureAddress: capture }],
+    [
+      'one that is not the shape we issue',
+      { ...message, captureAddress: 'someone@customer.example' },
+    ],
+    ['one with a line break', { ...message, captureAddress: `${capture}\r\nBcc: x@evil.example` }],
+    ['a list of addresses', { ...message, captureAddress: `${capture}, other@x.example` }],
+    ['one with a display name', { ...message, captureAddress: `Someone <${capture}>` }],
+    ['an empty one', { ...message, captureAddress: '' }],
+  ];
+  for (const [what, patch] of unsafe) {
+    it(`every adapter refuses ${what}`, async () => {
+      let sent = 0;
+      const { http } = fakeHttp({});
+      const counting: OutboundHttp = {
+        request: (request) => {
+          sent += 1;
+          return http.request(request);
+        },
+      };
+      const providers = [
+        new ResendEmailProvider({ apiKey: 'k', from: FROM, http: counting }),
+        new SesEmailProvider({
+          region: 'ap-south-1',
+          accessKeyId: 'AKIAEXAMPLEEXAMPLE12',
+          secretAccessKey: 'exampleSecretKeyExampleSecretKey0000000',
+          from: FROM,
+          http: counting,
+        }),
+        new SmtpEmailProvider({
+          host: 'smtp.example',
+          port: 587,
+          security: 'starttls',
+          from: FROM,
+          nodeEnv: 'test',
+          transport: {
+            sendMail: () => {
+              sent += 1;
+              return Promise.resolve({});
+            },
+          } as never,
+        }),
+      ];
+      for (const provider of providers) {
+        const error = await provider.send(patch as never).catch((e: unknown) => e);
+        expect(error).toBeInstanceOf(EmailSendError);
+        expect((error as EmailSendError).retryable).toBe(false);
+      }
+      expect(sent).toBe(0);
+    });
+  }
+});

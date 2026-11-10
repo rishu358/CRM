@@ -328,6 +328,16 @@ describe('what an erasure and a purge do to mail', () => {
     });
     const mine = await insertMessage(tenantA, { subject: 'About Erase' });
     const other = await insertMessage(tenantA, { subject: 'About somebody else' });
+    // A reply the person sent holds their own address and name, so it is scrubbed too (ADR-0077).
+    const reply = randomUUID();
+    await superuser.query(
+      `insert into email_messages
+         (id, tenant_id, direction, status, source_object_type, source_record_id, contact_id, from_name,
+          from_address, to_address, subject, body_text, message_id, provider_message_id)
+       values ($1, $2, 'inbound', 'received', 'contact', $3, $3, 'Erase Person', 'erase@customer.example',
+               'rep@company.example', 'Re: About Erase', 'Their own words', $4, $5)`,
+      [reply, tenantA, person, `<${reply}@customer.example>`, `recv-${reply}`],
+    );
     await superuser.query(`update email_messages set contact_id = $2 where id = $1`, [
       mine,
       person,
@@ -355,6 +365,31 @@ describe('what an erasure and a purge do to mail', () => {
     const scrubbed = rows.rows.find((row) => row.id === mine);
     expect(scrubbed).toMatchObject({ to_address: null, subject: '', body_text: '' });
     expect(scrubbed?.erased_at).not.toBeNull();
+    const replyRow = await superuser.query<{
+      from_name: string;
+      from_address: string;
+      to_address: string | null;
+      subject: string;
+      body_text: string;
+      erased_at: Date | null;
+    }>(
+      `select from_name, from_address, to_address, subject, body_text, erased_at from email_messages where id = $1`,
+      [reply],
+    );
+    expect(replyRow.rows[0]).toMatchObject({
+      from_name: 'Erased',
+      from_address: '',
+      to_address: null,
+      subject: '',
+      body_text: '',
+    });
+    expect(replyRow.rows[0]?.erased_at).not.toBeNull();
+    // What we sent keeps the company's own sending name and address: they are not the person's.
+    const sentRow = await superuser.query<{ from_name: string; from_address: string }>(
+      `select from_name, from_address from email_messages where id = $1`,
+      [mine],
+    );
+    expect(sentRow.rows[0]).toEqual({ from_name: 'Acme', from_address: 'mail@send.example' });
     const untouched = rows.rows.find((row) => row.id === other);
     expect(untouched).toMatchObject({ subject: 'About somebody else', erased_at: null });
   });
@@ -881,5 +916,227 @@ describe('the unsubscribe link (migration 0035)', () => {
       );
     await expect(insert('unsubscribed')).resolves.toBeDefined();
     expect((await captureDbError(() => insert('opened'))).code).toBe(CHECK_VIOLATION);
+  });
+});
+
+describe('inbound replies (migration 0036)', () => {
+  const INSUFFICIENT = INSUFFICIENT_PRIVILEGE;
+
+  const insertInbound = (
+    role: 'app' | 'worker' | 'superuser',
+    tenant: string,
+    id = randomUUID(),
+  ) => {
+    const statement = sql`
+      insert into email_messages
+        (id, tenant_id, direction, status, source_object_type, source_record_id, from_name, from_address,
+         to_address, subject, body_text, message_id, provider_message_id)
+      values (${id}, ${tenant}, 'inbound', 'received', 'contact', ${randomUUID()}, 'Sam', 'sam@customer.example',
+              'rep@company.example', 'Re: Hi', 'Thanks', ${`<${id}@customer.example>`}, ${`recv-${id}`})`;
+    if (role === 'superuser') {
+      return superuser.query(
+        `insert into email_messages
+           (id, tenant_id, direction, status, source_object_type, source_record_id, from_name, from_address,
+            to_address, subject, body_text, message_id, provider_message_id)
+         values ($1, $2, 'inbound', 'received', 'contact', $3, 'Sam', 'sam@customer.example',
+                 'rep@company.example', 'Re: Hi', 'Thanks', $4, $5)`,
+        [id, tenant, randomUUID(), `<${id}@customer.example>`, `recv-${id}`],
+      );
+    }
+    return withTenant(db[role].db, as(tenant), (tx) => tx.execute(statement));
+  };
+
+  const insertOutboundAs = (role: 'app' | 'worker', tenant: string) => {
+    const id = randomUUID();
+    return withTenant(db[role].db, as(tenant), (tx) =>
+      tx.execute(sql`
+        insert into email_messages
+          (id, tenant_id, source_object_type, source_record_id, from_name, from_address, to_address,
+           subject, body_text, message_id)
+        values (${id}, ${tenant}, 'contact', ${randomUUID()}, 'Acme', 'mail@send.example', 'c@d.example',
+                'Hi', 'Body', ${`<${id}@send.example>`})`),
+    );
+  };
+
+  it('lets the worker write a received message in its own company and nothing else of the kind', async () => {
+    const inserted = await insertInbound('worker', tenantA);
+    expect(inserted.rowCount).toBe(1);
+
+    // Not an outbound one: no bug in the worker can write an email that says it was sent.
+    const outbound = await captureDbError(() => insertOutboundAs('worker', tenantA));
+    expect(outbound.code).toBe('42501');
+    // And not in another company: a different error, the tenant policy, but never a row.
+    const across = await captureDbError(() => insertInbound('worker', tenantB));
+    expect(across.code).toBeDefined();
+    const filedInB = await superuser.query(
+      `select 1 from email_messages where tenant_id = $1 and direction = 'inbound'`,
+      [tenantB],
+    );
+    expect(filedInB.rowCount).toBe(0);
+  });
+
+  it('does not let the API role write a received message: it writes what we send and nothing else', async () => {
+    const error = await captureDbError(() => insertInbound('app', tenantA));
+    expect(error.code).toBe('42501');
+    const outbound = await insertOutboundAs('app', tenantA);
+    expect(outbound.rowCount).toBe(1);
+  });
+
+  it('keeps the worker able to read, and not able to change, what it filed beyond what it could before', async () => {
+    const id = randomUUID();
+    await insertInbound('worker', tenantA, id);
+    for (const column of [
+      'from_address',
+      'body_text',
+      'subject',
+      'direction',
+      'reply_to_email_id',
+    ]) {
+      const error = await captureDbError(() =>
+        withTenant(db.worker.db, as(tenantA), (tx) =>
+          tx.execute(sql.raw(`update email_messages set ${column} = ${column} where id = '${id}'`)),
+        ),
+      );
+      expect(error.code, column).toBe(INSUFFICIENT);
+    }
+  });
+
+  it('lets the worker link a received message, and only a received one', async () => {
+    const reply = randomUUID();
+    await insertInbound('superuser', tenantA, reply);
+    const linked = await withTenant(db.worker.db, as(tenantA), (tx) =>
+      tx.execute(sql`
+        insert into email_message_links (id, tenant_id, email_message_id, object_type, record_id)
+        values (${randomUUID()}, ${tenantA}, ${reply}, 'contact', ${randomUUID()})`),
+    );
+    expect(linked.rowCount).toBe(1);
+
+    const refused = await captureDbError(() =>
+      withTenant(db.worker.db, as(tenantA), (tx) =>
+        tx.execute(sql`
+          insert into email_message_links (id, tenant_id, email_message_id, object_type, record_id)
+          values (${randomUUID()}, ${tenantA}, ${messageA}, 'contact', ${randomUUID()})`),
+      ),
+    );
+    expect(refused.code).toBe('42501');
+  });
+
+  it('stores a received message as one that is received, and nothing else as that', async () => {
+    const wrong = (statement: string) =>
+      captureDbError(() =>
+        superuser.query(statement, [
+          randomUUID(),
+          tenantA,
+          randomUUID(),
+          `<${randomUUID()}@x.example>`,
+        ]),
+      );
+    const columns = `(id, tenant_id, source_object_type, source_record_id, from_name, from_address, to_address, subject, body_text, message_id, direction, status)`;
+    const values = `($1, $2, 'contact', $3, 'x', 'a@b.example', 'c@d.example', 's', 'b', $4,`;
+    expect(
+      (await wrong(`insert into email_messages ${columns} values ${values} 'inbound', 'sent')`))
+        .code,
+    ).toBe(CHECK_VIOLATION);
+    expect(
+      (
+        await wrong(
+          `insert into email_messages ${columns} values ${values} 'outbound', 'received')`,
+        )
+      ).code,
+    ).toBe(CHECK_VIOLATION);
+  });
+
+  it('keeps the reply-only columns off what we sent, and the sent-only column off a reply', async () => {
+    const sent = await insertMessage(tenantA, {});
+    for (const change of [
+      `update email_messages set reply_to_email_id = '${messageA}' where id = '${sent}'`,
+      `update email_messages set attachment_count = 1 where id = '${sent}'`,
+      `update email_messages set body_shortened = true where id = '${sent}'`,
+    ]) {
+      expect((await captureDbError(() => superuser.query(change))).code, change).toBe(
+        CHECK_VIOLATION,
+      );
+    }
+    const reply = randomUUID();
+    await insertInbound('superuser', tenantA, reply);
+    expect(
+      (
+        await captureDbError(() =>
+          superuser.query(`update email_messages set reply_token = 'r.x' where id = $1`, [reply]),
+        )
+      ).code,
+    ).toBe(CHECK_VIOLATION);
+    expect(
+      (
+        await captureDbError(() =>
+          superuser.query(`update email_messages set attachment_count = -1 where id = $1`, [reply]),
+        )
+      ).code,
+    ).toBe(CHECK_VIOLATION);
+  });
+
+  it('files one received email once, by the provider’s id, and lets two companies hold the same id', async () => {
+    const providerId = `recv-${randomUUID()}`;
+    const insert = (tenant: string) =>
+      superuser.query(
+        `insert into email_messages
+           (id, tenant_id, direction, status, source_object_type, source_record_id, from_name, from_address,
+            to_address, subject, body_text, message_id, provider_message_id)
+         values ($1, $2, 'inbound', 'received', 'contact', $3, 'S', 'a@b.example', 'c@d.example', 's', 'b', $4, $5)`,
+        [randomUUID(), tenant, randomUUID(), `<${randomUUID()}@x.example>`, providerId],
+      );
+    await insert(tenantA);
+    expect((await captureDbError(() => insert(tenantA))).code).toBe(UNIQUE_VIOLATION);
+    await expect(insert(tenantB)).resolves.toBeDefined();
+  });
+
+  it('records a received reply as an event type of its own, and the routing role still sees none of it', async () => {
+    const insertEvent = (type: string) =>
+      superuser.query(
+        `insert into email_provider_events
+           (id, tenant_id, provider, provider_event_id, email_message_id, event_type)
+         values ($1, $2, 'resend', $3, $4, $5)`,
+        [randomUUID(), tenantA, `e-${randomUUID()}`, messageA, type],
+      );
+    await expect(insertEvent('received')).resolves.toBeDefined();
+    expect((await captureDbError(() => insertEvent('opened'))).code).toBe(CHECK_VIOLATION);
+
+    for (const column of [
+      'reply_token',
+      'reply_to_email_id',
+      'attachment_count',
+      'body_shortened',
+    ]) {
+      const error = await captureDbError(() =>
+        withoutTenant(db.auth.db, (tx) =>
+          tx.execute(sql.raw(`select ${column} from email_messages limit 1`)),
+        ),
+      );
+      expect(error.code, column).toBe(INSUFFICIENT);
+    }
+  });
+
+  it('points a reply at the email it answers in the same company only, and lets the pointer go if that email is purged', async () => {
+    const reply = randomUUID();
+    await insertInbound('superuser', tenantA, reply);
+    const across = await captureDbError(() =>
+      superuser.query(`update email_messages set reply_to_email_id = $2 where id = $1`, [
+        reply,
+        messageB,
+      ]),
+    );
+    expect(across.code).toBe('23503');
+
+    const sent = await insertMessage(tenantA, {});
+    await superuser.query(`update email_messages set reply_to_email_id = $2 where id = $1`, [
+      reply,
+      sent,
+    ]);
+    await superuser.query(`delete from email_messages where id = $1`, [sent]);
+    const after = await superuser.query<{ reply_to_email_id: string | null }>(
+      `select reply_to_email_id from email_messages where id = $1`,
+      [reply],
+    );
+    expect(after.rows[0]?.reply_to_email_id).toBeNull();
   });
 });

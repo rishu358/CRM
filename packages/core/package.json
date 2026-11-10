@@ -31,6 +31,10 @@
       "types": "./dist/lead-forms/token.d.ts",
       "default": "./dist/lead-forms/token.js"
     },
+    "./email-reply-address": {
+      "types": "./dist/email/reply-address-token.d.ts",
+      "default": "./dist/email/reply-address-token.js"
+    },
     "./email-unsubscribe-token": {
       "types": "./dist/email/unsubscribe-token.d.ts",
       "default": "./dist/email/unsubscribe-token.js"

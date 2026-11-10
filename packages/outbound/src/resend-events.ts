@@ -1,6 +1,7 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import {
   EMAIL_EVENT_TOLERANCE_SECONDS,
+  isReplyAddressShape,
   type EmailBounceReason,
   type EmailProviderEvent,
 } from '@crm/core';
@@ -90,6 +91,24 @@ function bounceReason(subType: unknown): EmailBounceReason {
   return subType === 'Suppressed' ? 'blocked' : 'other';
 }
 
+/**
+ * The recipients of a received message that have the shape of one of our reply addresses, and nothing else. The
+ * sender, the customer's own address on a copy and everything else in the message stay here: they are people.
+ */
+function replyRecipients(fields: Record<string, unknown>): string[] {
+  const found = new Set<string>();
+  for (const name of ['to', 'cc', 'bcc', 'received_for']) {
+    const list = fields[name];
+    if (!Array.isArray(list)) continue;
+    for (const entry of list.slice(0, 50)) {
+      if (typeof entry !== 'string') continue;
+      const address = entry.trim().toLowerCase();
+      if (isReplyAddressShape(address)) found.add(address);
+    }
+  }
+  return [...found].slice(0, 10);
+}
+
 function normalize(eventId: string, rawBody: string): EmailProviderEvent[] {
   let parsed: unknown;
   try {
@@ -115,6 +134,14 @@ function normalize(eventId: string, rawBody: string): EmailProviderEvent[] {
       return [{ ...base, type: 'delivered', reason: null }];
     case 'email.complained':
       return [{ ...base, type: 'complained', reason: null }];
+    case 'email.received': {
+      // A customer's reply (ADR-0077). Here `email_id` is Resend's id for the **received** message, not one of
+      // ours; the door finds ours from the reply address among the recipients.
+      const recipients = replyRecipients(fields);
+      return recipients.length === 0
+        ? []
+        : [{ ...base, type: 'received', reason: null, recipients }];
+    }
     case 'email.suppressed':
       // Resend did not send it: the address is on Resend's own list, which is a permanent refusal for us too.
       return [{ ...base, type: 'bounced', reason: 'blocked' }];

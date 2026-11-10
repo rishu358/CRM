@@ -38,11 +38,12 @@ import type {
   EmailSendInput,
   EmailUsage,
 } from '@crm/contracts';
+import { issueReplyToken } from '@crm/core/email-reply-address';
 import { issueUnsubscribeToken } from '@crm/core/email-unsubscribe-token';
 import { isConstraintViolation } from '../../common/db-errors.js';
 import { decodeCursor, encodeCursor } from '../../common/cursor.js';
-import { unsubscribeSigningSecret } from '../../common/unsubscribe-secrets.js';
-import { API_ENV_TOKEN, type ApiEnv } from '../../config/env.js';
+import { replySigningSecret, unsubscribeSigningSecret } from '../../common/unsubscribe-secrets.js';
+import { API_ENV_TOKEN, inboundDomainOf, type ApiEnv } from '../../config/env.js';
 import { DatabaseService } from '../../database/database.service.js';
 import { AuditService } from '../../platform/audit.service.js';
 import { EntitlementsService } from '../../platform/entitlements.service.js';
@@ -315,6 +316,12 @@ export class EmailsService {
       // Every email carries a way to stop receiving them (ADR-0076). Signed here because only the API
       // holds the key; the worker puts the link in the message it sends.
       unsubscribeToken: issueUnsubscribeToken(unsubscribeSigningSecret(this.env), id),
+      // With an inbound domain configured, the email also carries a second reply address (ADR-0077). Signed
+      // here for the same reason: only the API holds the key, and the worker reads the finished token.
+      replyToken:
+        inboundDomainOf(this.env) === null
+          ? null
+          : issueReplyToken(replySigningSecret(this.env), id),
       attempts: 0,
       retryOf,
       queuedAt: now,
@@ -707,6 +714,7 @@ function toDto(row: EmailListRow): EmailMessage {
     direction: m.direction,
     status: m.status,
     fromName: m.fromName,
+    fromAddress: m.direction === 'inbound' && m.fromAddress !== '' ? m.fromAddress : null,
     toAddress: m.toAddress,
     replyTo: m.replyTo,
     subject: m.subject,
@@ -714,6 +722,8 @@ function toDto(row: EmailListRow): EmailMessage {
     failureCode: (m.failureCode as EmailMessage['failureCode']) ?? null,
     bounceReason: (m.bounceReason as EmailMessage['bounceReason']) ?? null,
     erased: m.erasedAt !== null,
+    attachmentCount: m.attachmentCount,
+    bodyShortened: m.bodyShortened,
     contactId: m.contactId,
     sentById: m.createdBy,
     sentByName: row.sentByName,

@@ -19,7 +19,7 @@ export const emailProviderEvents = pgTable(
     providerEventId: text('provider_event_id').notNull(),
     emailMessageId: uuid('email_message_id').notNull(),
     eventType: text('event_type')
-      .$type<'delivered' | 'bounced' | 'complained' | 'unsubscribed'>()
+      .$type<'delivered' | 'bounced' | 'complained' | 'unsubscribed' | 'received'>()
       .notNull(),
   },
   (table) => [

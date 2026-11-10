@@ -33,6 +33,25 @@ export class EmailEventsRepository {
     return only === undefined ? null : { tenantId: only.tenant_id, messageId: only.id };
   }
 
+  /**
+   * Which company a sent email belongs to, or null. The id comes from a reply address whose signature has already
+   * been checked, so a stranger cannot make this look for an id of their choosing. A suspended or deleted company
+   * is null too. One column, and not the address, the words or the token.
+   */
+  async routeEmailId(tx: Tx, emailId: string): Promise<{ tenantId: string } | null> {
+    const result = await tx.execute(sql`
+      select m.tenant_id
+      from email_messages m
+      join tenants t on t.id = m.tenant_id
+      where m.id = ${emailId}::uuid
+        and t.status = 'active'
+        and t.deleted_at is null
+      limit 1
+    `);
+    const row = (result.rows as unknown as { tenant_id: string }[])[0];
+    return row === undefined ? null : { tenantId: row.tenant_id };
+  }
+
   /** Record that this event was received. False means it had been received before: a replay. */
   async insertProviderEvent(
     tx: Tx,

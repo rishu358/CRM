@@ -31,6 +31,12 @@ export interface EmailMessage {
    * (ADR-0076). Validated by each adapter.
    */
   readonly unsubscribeUrl?: string;
+  /**
+   * A second reply address, ours (ADR-0077): the reply line carries `replyTo` **and** this, so an answer reaches
+   * the rep as before and reaches us too. Only valid with a `replyTo`, and only in the shape
+   * `isReplyAddressShape` accepts; each adapter checks both.
+   */
+  readonly captureAddress?: string;
 }
 
 /** What a provider tells us about a message it accepted. Nothing in it is secret. */
@@ -47,4 +53,5 @@ export interface EmailProvider {
 export * from './events.js';
 export * from './merge-fields.js';
 export * from './outreach.js';
+export * from './reply.js';
 export * from './unsubscribe.js';

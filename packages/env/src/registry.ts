@@ -741,7 +741,7 @@ export const REGISTRY = {
       description:
         'Signing secret of the Resend webhook that reports delivered, bounced and spam-reported email (starts with `whsec_`). Unset means the events address answers 404 and nothing is received.',
       obtain:
-        'Resend dashboard, Webhooks: add an endpoint at `<API_URL>/api/v1/public/email-events/resend` for the events email.delivered, email.bounced, email.complained and email.suppressed, then copy its signing secret.',
+        'Resend dashboard, Webhooks: add an endpoint at `<API_URL>/api/v1/public/email-events/resend` for the events email.delivered, email.bounced, email.complained and email.suppressed (and email.received once `EMAIL_INBOUND_DOMAIN` is set), then copy its signing secret.',
       example: 'CHANGE_ME',
       note: 'API only, never the web app. Only needed when `EMAIL_PROVIDER=resend`. Until it is set, "Sent" is the last status an email reaches.',
     },
@@ -774,6 +774,20 @@ export const REGISTRY = {
         'The value `EMAIL_UNSUBSCRIBE_SECRET` had before you changed it. See docs/SECRETS.md.',
       example: 'CHANGE_ME',
       note: 'Keep an old key here for as long as links in the email it signed should keep working. Each key must be at least 32 characters, and at most three are accepted. Needs `EMAIL_UNSUBSCRIBE_SECRET` to be set.',
+    },
+    { min: 1 },
+  ),
+
+  EMAIL_INBOUND_DOMAIN: optionalText(
+    {
+      scopes: ['api', 'worker'],
+      group: 'email',
+      description:
+        "The domain customers' replies are received at (a plain host name, for example `reply.example.com`). Every email sent from a record then carries a second reply address on it, and a reply to it is filed on the record. Unset means the feature is off: no second reply address is added and nothing changes.",
+      obtain:
+        "A subdomain you own, with the MX record Resend shows for receiving (Resend dashboard, Domains, enable receiving). Use a subdomain, not a domain that already receives your staff's mail.",
+      example: 'reply.example.com',
+      note: 'Not a secret. Only needed when `EMAIL_PROVIDER=resend`. Also add the event `email.received` to the Resend webhook endpoint (docs/SECRETS.md). The reply address is signed with the unsubscribe secret, so set `EMAIL_UNSUBSCRIBE_SECRET` first and never change either carelessly: an address in an old email must keep working.',
     },
     { min: 1 },
   ),

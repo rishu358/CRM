@@ -1,10 +1,17 @@
+import { deriveReplySecret as deriveReplyKey } from '@crm/core/email-reply-address';
 import {
   deriveUnsubscribeSecret,
   issueUnsubscribeToken,
   verifyUnsubscribeToken,
 } from '@crm/core/email-unsubscribe-token';
 import { describe, expect, it } from 'vitest';
-import { unsubscribeSigningSecret, unsubscribeVerifySecrets } from './unsubscribe-secrets.js';
+import { issueReplyToken, verifyReplyToken } from '@crm/core/email-reply-address';
+import {
+  replySigningSecret,
+  replyVerifySecrets,
+  unsubscribeSigningSecret,
+  unsubscribeVerifySecrets,
+} from './unsubscribe-secrets.js';
 
 // Keys made from a repeated letter: obviously not real, and only ever used to sign test tokens.
 const AUTH = 'a'.repeat(48);
@@ -69,5 +76,50 @@ describe('with no own secret (development, tests, CI: production refuses to star
     expect(verifyUnsubscribeToken(keys, tokenSignedWith(AUTH))).toBe(ID);
     expect(verifyUnsubscribeToken(keys, tokenSignedWith(AUTH_OLD))).toBe(ID);
     expect(verifyUnsubscribeToken(keys, tokenSignedWith(OWN))).toBeNull();
+  });
+});
+
+describe('the keys of the reply address (ADR-0077)', () => {
+  const replyFor = (secret: string) => issueReplyToken(deriveReplyKey(secret), ID);
+
+  it('use the same secrets as the unsubscribe link, each under its own label', () => {
+    const token = issueReplyToken(replySigningSecret(withOwn), ID);
+    expect(verifyReplyToken(replyVerifySecrets(withOwn), token)).toBe(ID);
+    expect(replySigningSecret(withOwn).equals(unsubscribeSigningSecret(withOwn))).toBe(false);
+  });
+
+  it('accept an address signed under an earlier own key, and refuse one signed under AUTH_SECRET', () => {
+    const keys = replyVerifySecrets(withOwn);
+    expect(verifyReplyToken(keys, replyFor(OWN))).toBe(ID);
+    expect(verifyReplyToken(keys, replyFor(OWN_OLD))).toBe(ID);
+    expect(verifyReplyToken(keys, replyFor(AUTH))).toBeNull();
+    expect(verifyReplyToken(keys, replyFor(AUTH_OLD))).toBeNull();
+  });
+
+  it('are not moved by rotating AUTH_SECRET', () => {
+    const address = replyFor(OWN);
+    const rotated = replyVerifySecrets({
+      ...withOwn,
+      AUTH_SECRET: 'z'.repeat(48),
+      AUTH_SECRET_PREVIOUS: AUTH,
+    });
+    expect(verifyReplyToken(rotated, address)).toBe(ID);
+  });
+
+  it('fall back to AUTH_SECRET in development, as the unsubscribe link does', () => {
+    expect(issueReplyToken(replySigningSecret(fallback), ID)).toBe(replyFor(AUTH));
+    const keys = replyVerifySecrets(fallback);
+    expect(verifyReplyToken(keys, replyFor(AUTH))).toBe(ID);
+    expect(verifyReplyToken(keys, replyFor(AUTH_OLD))).toBe(ID);
+    expect(verifyReplyToken(keys, replyFor(OWN))).toBeNull();
+  });
+
+  it('do not accept a link made for the unsubscribe side: one signature is worth nothing to the other', () => {
+    const unsubscribeKey = unsubscribeSigningSecret(withOwn);
+    expect(verifyReplyToken([unsubscribeKey], issueReplyToken(unsubscribeKey, ID))).toBe(ID);
+    // The same bytes as a key are only a match when the label is the same, which it is not.
+    expect(
+      verifyReplyToken(replyVerifySecrets(withOwn), issueReplyToken(unsubscribeKey, ID)),
+    ).toBeNull();
   });
 });

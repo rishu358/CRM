@@ -30094,11 +30094,18 @@
                     "failed",
                     "delivered",
                     "bounced",
-                    "complained"
+                    "complained",
+                    "received"
                   ]
                 },
                 "fromName": {
                   "type": "string"
+                },
+                "fromAddress": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
                 },
                 "toAddress": {
                   "type": [
@@ -30154,6 +30161,14 @@
                   ]
                 },
                 "erased": {
+                  "type": "boolean"
+                },
+                "attachmentCount": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                },
+                "bodyShortened": {
                   "type": "boolean"
                 },
                 "contactId": {
@@ -30231,6 +30246,7 @@
                 "direction",
                 "status",
                 "fromName",
+                "fromAddress",
                 "toAddress",
                 "replyTo",
                 "subject",
@@ -30238,6 +30254,8 @@
                 "failureCode",
                 "bounceReason",
                 "erased",
+                "attachmentCount",
+                "bodyShortened",
                 "contactId",
                 "sentById",
                 "sentByName",
@@ -30306,11 +30324,18 @@
                   "failed",
                   "delivered",
                   "bounced",
-                  "complained"
+                  "complained",
+                  "received"
                 ]
               },
               "fromName": {
                 "type": "string"
+              },
+              "fromAddress": {
+                "type": [
+                  "string",
+                  "null"
+                ]
               },
               "toAddress": {
                 "type": [
@@ -30366,6 +30391,14 @@
                 ]
               },
               "erased": {
+                "type": "boolean"
+              },
+              "attachmentCount": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "bodyShortened": {
                 "type": "boolean"
               },
               "contactId": {
@@ -30443,6 +30476,7 @@
               "direction",
               "status",
               "fromName",
+              "fromAddress",
               "toAddress",
               "replyTo",
               "subject",
@@ -30450,6 +30484,8 @@
               "failureCode",
               "bounceReason",
               "erased",
+              "attachmentCount",
+              "bodyShortened",
               "contactId",
               "sentById",
               "sentByName",
@@ -30501,11 +30537,18 @@
                   "failed",
                   "delivered",
                   "bounced",
-                  "complained"
+                  "complained",
+                  "received"
                 ]
               },
               "fromName": {
                 "type": "string"
+              },
+              "fromAddress": {
+                "type": [
+                  "string",
+                  "null"
+                ]
               },
               "toAddress": {
                 "type": [
@@ -30561,6 +30604,14 @@
                 ]
               },
               "erased": {
+                "type": "boolean"
+              },
+              "attachmentCount": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "bodyShortened": {
                 "type": "boolean"
               },
               "contactId": {
@@ -30638,6 +30689,7 @@
               "direction",
               "status",
               "fromName",
+              "fromAddress",
               "toAddress",
               "replyTo",
               "subject",
@@ -30645,6 +30697,8 @@
               "failureCode",
               "bounceReason",
               "erased",
+              "attachmentCount",
+              "bodyShortened",
               "contactId",
               "sentById",
               "sentByName",
@@ -30696,11 +30750,18 @@
                   "failed",
                   "delivered",
                   "bounced",
-                  "complained"
+                  "complained",
+                  "received"
                 ]
               },
               "fromName": {
                 "type": "string"
+              },
+              "fromAddress": {
+                "type": [
+                  "string",
+                  "null"
+                ]
               },
               "toAddress": {
                 "type": [
@@ -30756,6 +30817,14 @@
                 ]
               },
               "erased": {
+                "type": "boolean"
+              },
+              "attachmentCount": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "bodyShortened": {
                 "type": "boolean"
               },
               "contactId": {
@@ -30833,6 +30902,7 @@
               "direction",
               "status",
               "fromName",
+              "fromAddress",
               "toAddress",
               "replyTo",
               "subject",
@@ -30840,6 +30910,8 @@
               "failureCode",
               "bounceReason",
               "erased",
+              "attachmentCount",
+              "bodyShortened",
               "contactId",
               "sentById",
               "sentByName",

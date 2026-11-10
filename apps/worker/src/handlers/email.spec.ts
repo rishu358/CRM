@@ -50,7 +50,11 @@ function relay(options: { maxAttempts?: number } = {}): OutboxRelay {
     db: worker.db,
     email,
     logger,
-    origins: { web: 'https://app.example', api: 'https://api.example' },
+    origins: {
+      web: 'https://app.example',
+      api: 'https://api.example',
+      inboundDomain: 'reply.example.com',
+    },
   };
   const instance = new OutboxRelay(worker.db, {
     logger,
@@ -66,16 +70,22 @@ function relay(options: { maxAttempts?: number } = {}): OutboxRelay {
 }
 
 async function queueEmail(
-  options: { status?: string; body?: string; erased?: boolean; token?: string | null } = {},
+  options: {
+    status?: string;
+    body?: string;
+    erased?: boolean;
+    token?: string | null;
+    replyToken?: string | null;
+  } = {},
 ): Promise<string> {
   const id = newId();
   await superuserPool.query(
     `insert into email_messages
        (id, tenant_id, status, source_object_type, source_record_id, contact_id, from_name,
         from_address, reply_to, to_address, subject, body_text, message_id, created_by, updated_by,
-        erased_at, unsubscribe_token)
+        erased_at, unsubscribe_token, reply_token)
      values ($1, $2, $3, 'contact', $4, $4, 'Sharma Traders', 'mail@send.example',
-             'priya@sharma.example', $5, $6, $7, $8, $9, $9, $10, $11)`,
+             'priya@sharma.example', $5, $6, $7, $8, $9, $9, $10, $11, $12)`,
     [
       id,
       tenantId,
@@ -88,6 +98,7 @@ async function queueEmail(
       userId,
       options.erased === true ? new Date() : null,
       options.token ?? null,
+      options.replyToken ?? null,
     ],
   );
   await superuserPool.query(
@@ -190,6 +201,47 @@ describe('sending a queued email', () => {
     expect(sent.unsubscribeUrl).toBe(
       `https://api.example/api/v1/public/email-unsubscribe/${token}`,
     );
+  });
+
+  it('puts our own reply address beside the rep’s, so an answer reaches both', async () => {
+    const replyToken = `r.${newId().replaceAll('-', '')}.abcdefghijklmnopqrstuvwxyz`;
+    const id = await queueEmail({ replyToken });
+    await enqueue('email.queued.v1', id);
+    await relay().tick();
+    const sent = email.messages()[0]!;
+    expect(sent.replyTo).toBe('priya@sharma.example');
+    expect(sent.captureAddress).toBe(`${replyToken}@reply.example.com`);
+  });
+
+  it('adds no second reply address to an email that has no reply token, or when the token is not of the right shape', async () => {
+    for (const replyToken of [
+      null,
+      'r.short',
+      `x.${newId().replaceAll('-', '')}.abcdefghijklmnopqrstuvwxyz`,
+    ]) {
+      const id = await queueEmail({ replyToken });
+      await enqueue('email.queued.v1', id);
+      await relay().tick();
+      expect(email.messages()[0]!.captureAddress, String(replyToken)).toBeUndefined();
+      expect(email.messages()[0]!.replyTo).toBe('priya@sharma.example');
+    }
+  });
+
+  it('adds none while no inbound domain is set, even for an email that carries a token', async () => {
+    const replyToken = `r.${newId().replaceAll('-', '')}.abcdefghijklmnopqrstuvwxyz`;
+    const id = await queueEmail({ replyToken });
+    await enqueue('email.queued.v1', id);
+    const off = new MemoryEmailProvider();
+    const deps = {
+      db: worker.db,
+      email: off,
+      logger,
+      origins: { web: 'https://app.example', api: 'https://api.example', inboundDomain: null },
+    };
+    await new OutboxRelay(worker.db, { logger, batchSize: 100 })
+      .on('email.queued.v1', sendQueuedEmail(deps))
+      .tick();
+    expect(off.messages()[0]!.captureAddress).toBeUndefined();
   });
 
   it('sends an email queued before the link existed without one, and invents nothing', async () => {

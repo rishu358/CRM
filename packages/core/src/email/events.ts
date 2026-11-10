@@ -11,8 +11,15 @@ import type { EmailStatus } from './outreach.js';
 /**
  * The only kinds of event we act on. Anything else a provider sends is ignored, not stored. `unsubscribed` is
  * not a provider's: it is the person's own click on the link in the email (ADR-0076), recorded the same way.
+ * `received` is a customer's reply arriving at one of our reply addresses (ADR-0077); it moves no status.
  */
-export const EMAIL_EVENT_TYPES = ['delivered', 'bounced', 'complained', 'unsubscribed'] as const;
+export const EMAIL_EVENT_TYPES = [
+  'delivered',
+  'bounced',
+  'complained',
+  'unsubscribed',
+  'received',
+] as const;
 export type EmailEventType = (typeof EMAIL_EVENT_TYPES)[number];
 
 /**
@@ -38,6 +45,11 @@ export interface EmailProviderEvent {
   /** Only a permanent bounce counts; a temporary one is the provider's to retry and never reaches us. */
   readonly reason: EmailBounceReason | null;
   readonly at: Date;
+  /**
+   * For `received` only: the recipients of the message that have the **shape of one of our reply addresses**, and
+   * nothing else. The sender and every other recipient stay in the adapter: they are people.
+   */
+  readonly recipients?: readonly string[];
 }
 
 /** Why an address is not written to. */
@@ -71,6 +83,9 @@ export function statusAfter(current: EmailStatus, type: EmailEventType): EmailSt
         : null;
     case 'unsubscribed':
       // The person's refusal says nothing about whether the mail arrived: the status stays as it was.
+      return null;
+    case 'received':
+      // A reply is a new message, not news about one we sent.
       return null;
   }
 }

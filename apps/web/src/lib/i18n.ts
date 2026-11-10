@@ -1937,6 +1937,7 @@ export const en = {
   'email.status.delivered': 'Delivered',
   'email.status.bounced': 'Bounced',
   'email.status.complained': 'Reported as spam',
+  'email.status.received': 'Reply received',
   'email.status.sent.hint': 'Accepted by the mail service. It may not have reached the inbox yet.',
   'email.row.to': 'To {address}',
   'email.row.by': 'by {name}',

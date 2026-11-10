@@ -107,6 +107,8 @@ export const emailMessageSchema = z.object({
   direction: z.enum(['outbound', 'inbound']),
   status: emailStatusSchema,
   fromName: z.string(),
+  /** An inbound message's sender, as **claimed** and unverified; null for what we sent, and once erased. */
+  fromAddress: z.string().nullable(),
   /** Null once an erasure scrubbed the message. */
   toAddress: z.string().nullable(),
   replyTo: z.string().nullable(),
@@ -117,6 +119,10 @@ export const emailMessageSchema = z.object({
   bounceReason: emailBounceReasonSchema.nullable(),
   /** True when a person's erasure scrubbed the address, subject and body. */
   erased: z.boolean(),
+  /** Inbound: how many attachments the message had. They are not saved (ADR-0077). */
+  attachmentCount: z.number().int(),
+  /** Inbound: true when the body was cut to the log's limit. */
+  bodyShortened: z.boolean(),
   contactId: z.uuid().nullable(),
   sentById: z.uuid().nullable(),
   sentByName: z.string().nullable(),

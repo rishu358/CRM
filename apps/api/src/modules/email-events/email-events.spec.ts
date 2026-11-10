@@ -1,7 +1,9 @@
 import { createHmac, randomUUID } from 'node:crypto';
+import { issueReplyToken } from '@crm/core/email-reply-address';
 import { resendSigningKey } from '@crm/outbound';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
+import { replySigningSecret } from '../../common/unsubscribe-secrets.js';
 import { startApiHarness, type ApiHarness } from '../../testing/harness.js';
 
 /**
@@ -12,6 +14,7 @@ import { startApiHarness, type ApiHarness } from '../../testing/harness.js';
  */
 
 const SECRET = 'whsec_plJ3nmyCDGBKInavdOK15jsl';
+const INBOUND_DOMAIN = 'reply.example.com';
 
 let harness: ApiHarness;
 let superuser: pg.Pool;
@@ -107,7 +110,11 @@ const outboxFor = async (messageId: string) =>
 
 beforeAll(async () => {
   const urls = inject('dbUrls');
-  harness = await startApiHarness(urls, { RESEND_WEBHOOK_SECRET: SECRET });
+  harness = await startApiHarness(urls, {
+    RESEND_WEBHOOK_SECRET: SECRET,
+    // Replies (ADR-0077) are only looked for while an inbound domain is set.
+    EMAIL_INBOUND_DOMAIN: INBOUND_DOMAIN,
+  });
   superuser = new pg.Pool({ connectionString: urls.superuser, max: 2 });
 
   tenantA = (await harness.fixtures.createTenant({ name: 'Door Acme' })).tenantId;
@@ -316,5 +323,204 @@ describe('refusing what is not a verified report', () => {
         });
       expect([401, 404, 415, 422]).toContain(response.statusCode);
     });
+  });
+});
+
+describe('a customer’s reply (ADR-0077)', () => {
+  const replyAddressFor = (emailId: string, domain = INBOUND_DOMAIN) =>
+    `${issueReplyToken(replySigningSecret(harness.env), emailId)}@${domain}`;
+
+  /** The same address with one character of its signature changed, from the MIDDLE where every position matters. */
+  const tampered = (address: string): string => {
+    const middle = address.indexOf('@') - 13;
+    return `${address.slice(0, middle)}${address[middle] === 'a' ? 'b' : 'a'}${address.slice(middle + 1)}`;
+  };
+
+  const received = (
+    to: string[],
+    extra: Record<string, unknown> = {},
+    receivedId = `recv-${randomUUID()}`,
+  ) =>
+    JSON.stringify({
+      type: 'email.received',
+      created_at: '2026-11-22T23:41:12.126Z',
+      data: {
+        email_id: receivedId,
+        from: 'customer-sender@customer.example',
+        to,
+        cc: [],
+        bcc: [],
+        message_id: '<reply-1@customer.example>',
+        subject: 'Re: Secret subject of the reply',
+        attachments: [{ id: 'att_1', filename: 'private-contract.pdf' }],
+        ...extra,
+      },
+    });
+
+  const repliesFor = async (messageId: string) =>
+    (
+      await superuser.query<{ tenant_id: string; payload: Record<string, unknown> }>(
+        `select tenant_id, payload from outbox_events
+         where record_id = $1 and event_type = 'email.reply_received.v1'`,
+        [messageId],
+      )
+    ).rows;
+
+  const receivedRows = async (tenantId: string) =>
+    (
+      await superuser.query<{ n: number }>(
+        `select count(*)::int as n from email_provider_events
+         where tenant_id = $1 and event_type = 'received'`,
+        [tenantId],
+      )
+    ).rows[0]!.n;
+
+  it('records a reply to an address we issued once, for the company that owns the email, and queues it for the worker', async () => {
+    const mail = await insertMessage(tenantA, `resend-reply-${randomUUID()}`);
+    const receivedId = `recv-${randomUUID()}`;
+    const body = received([replyAddressFor(mail)], {}, receivedId);
+    const response = await post('resend', body, signedHeaders(body));
+    expect(response.status).toBe(204);
+    expect(response.payload).toBe('');
+
+    const queued = await repliesFor(mail);
+    expect(queued).toHaveLength(1);
+    expect(queued[0]!.tenant_id).toBe(tenantA);
+    expect(Object.keys(queued[0]!.payload).sort()).toEqual(['at', 'emailId', 'providerEmailId']);
+    expect(queued[0]!.payload).toMatchObject({ emailId: mail, providerEmailId: receivedId });
+  });
+
+  it('does nothing the second time the same event is delivered', async () => {
+    const mail = await insertMessage(tenantA, `resend-reply-${randomUUID()}`);
+    const body = received([replyAddressFor(mail)]);
+    const headers = signedHeaders(body);
+    const before = await receivedRows(tenantA);
+    expect((await post('resend', body, headers)).status).toBe(204);
+    expect((await post('resend', body, headers)).status).toBe(204);
+    expect(await receivedRows(tenantA)).toBe(before + 1);
+    expect(await repliesFor(mail)).toHaveLength(1);
+  });
+
+  it('stores and queues ids, never the sender, the subject, an attachment name or the customer’s own address', async () => {
+    const mail = await insertMessage(tenantA, `resend-reply-${randomUUID()}`);
+    const body = received([replyAddressFor(mail), 'rep@company.example']);
+    await post('resend', body, signedHeaders(body));
+    const stored = await superuser.query(
+      `select * from email_provider_events where email_message_id = $1`,
+      [mail],
+    );
+    const everything = JSON.stringify([stored.rows, await repliesFor(mail)]);
+    for (const secret of [
+      'customer-sender@customer.example',
+      'Secret subject of the reply',
+      'private-contract.pdf',
+      'rep@company.example',
+      'reply-1@customer.example',
+    ]) {
+      expect(everything).not.toContain(secret);
+    }
+  });
+
+  it('survives a mail system changing the case of the address', async () => {
+    const mail = await insertMessage(tenantA, `resend-reply-${randomUUID()}`);
+    const body = received([replyAddressFor(mail).toUpperCase()]);
+    expect((await post('resend', body, signedHeaders(body))).status).toBe(204);
+    expect(await repliesFor(mail)).toHaveLength(1);
+  });
+
+  it('uses the first recipient that is ours and checks out, and ignores the ones that are not', async () => {
+    const mail = await insertMessage(tenantA, `resend-reply-${randomUUID()}`);
+    const body = received([tampered(replyAddressFor(mail)), replyAddressFor(mail)]);
+    expect((await post('resend', body, signedHeaders(body))).status).toBe(204);
+    expect(await repliesFor(mail)).toHaveLength(1);
+  });
+
+  it('files nothing, and answers the same, for every address that does not check out', async () => {
+    const mail = await insertMessage(tenantA, `resend-reply-${randomUUID()}`);
+    const good = replyAddressFor(mail);
+    const changed = tampered(good);
+    expect(changed).not.toBe(good);
+    const before = [await receivedRows(tenantA), await receivedRows(tenantB)];
+    const answers = new Set<string>();
+    for (const [what, to] of [
+      ['a changed signature', [changed]],
+      ['another domain', [replyAddressFor(mail, 'mail.example.com')]],
+      ['a subdomain of ours', [replyAddressFor(mail, `x.${INBOUND_DOMAIN}`)]],
+      ['an email that does not exist', [replyAddressFor(randomUUID())]],
+      ['an address of our domain that is not a reply address', [`anyone@${INBOUND_DOMAIN}`]],
+      ['only the customer’s own address', ['customer@customer.example']],
+      ['no recipients', []],
+    ] as const) {
+      const body = received([...to]);
+      const response = await post('resend', body, signedHeaders(body));
+      expect(response.status, what).toBe(204);
+      answers.add(response.payload);
+    }
+    expect(answers.size).toBe(1);
+    expect([await receivedRows(tenantA), await receivedRows(tenantB)]).toEqual(before);
+    expect(await repliesFor(mail)).toHaveLength(0);
+  });
+
+  it('files nothing for the email of a suspended company', async () => {
+    const mail = await insertMessage(tenantB, `resend-reply-${randomUUID()}`);
+    await superuser.query(`update tenants set status = 'suspended' where id = $1`, [tenantB]);
+    try {
+      const body = received([replyAddressFor(mail)]);
+      expect((await post('resend', body, signedHeaders(body))).status).toBe(204);
+      expect(await repliesFor(mail)).toHaveLength(0);
+    } finally {
+      await superuser.query(`update tenants set status = 'active' where id = $1`, [tenantB]);
+    }
+  });
+
+  it('finds the company from the address, whatever the request claims to be', async () => {
+    const mail = await insertMessage(tenantA, `resend-reply-${randomUUID()}`);
+    const rival = await insertMessage(tenantB, `resend-reply-${randomUUID()}`);
+    const adminToken = await harness.signIn(adminB, tenantB);
+    const body = received([replyAddressFor(mail)]);
+    const response = await post('resend', body, {
+      ...signedHeaders(body),
+      'x-tenant-id': tenantB,
+      authorization: `Bearer ${adminToken}`,
+      cookie: `session=${adminToken}`,
+    });
+    expect(response.status).toBe(204);
+    expect((await repliesFor(mail)).map((row) => row.tenant_id)).toEqual([tenantA]);
+    expect(await repliesFor(rival)).toHaveLength(0);
+  });
+
+  it('keeps each company’s replies apart: an address for B’s email never queues anything under A', async () => {
+    const a = await insertMessage(tenantA, `resend-reply-${randomUUID()}`);
+    const b = await insertMessage(tenantB, `resend-reply-${randomUUID()}`);
+    const body = received([replyAddressFor(b)]);
+    await post('resend', body, signedHeaders(body));
+    expect((await repliesFor(b)).map((row) => row.tenant_id)).toEqual([tenantB]);
+    expect(await repliesFor(a)).toHaveLength(0);
+  });
+
+  it('needs a good signature first: an unsigned or forged call to this event is the same fixed 401', async () => {
+    const mail = await insertMessage(tenantA, `resend-reply-${randomUUID()}`);
+    const body = received([replyAddressFor(mail)]);
+    const other = await post('resend', body, { 'content-type': 'application/json' });
+    const wrong = await post('resend', body, {
+      ...signedHeaders(body),
+      'svix-signature': 'v1,AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
+    });
+    expect(other.status).toBe(401);
+    expect(wrong.status).toBe(401);
+    expect(await repliesFor(mail)).toHaveLength(0);
+  });
+
+  it('does nothing while no inbound domain is configured, even for an address that would check out', async () => {
+    const bare = await startApiHarness(inject('dbUrls'), { RESEND_WEBHOOK_SECRET: SECRET });
+    try {
+      const mail = await insertMessage(tenantA, `resend-reply-${randomUUID()}`);
+      const body = received([replyAddressFor(mail)]);
+      const response = await post('resend', body, signedHeaders(body), bare);
+      expect(response.status).toBe(204);
+      expect(await repliesFor(mail)).toHaveLength(0);
+    } finally {
+      await bare.close();
+    }
   });
 });

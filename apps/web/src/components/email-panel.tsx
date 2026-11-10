@@ -138,6 +138,7 @@ function statusTone(status: EmailMessage['status']) {
       return 'destructive' as const;
     case 'queued':
     case 'sending':
+    case 'received':
       return 'neutral' as const;
   }
 }

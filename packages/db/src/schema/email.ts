@@ -1,4 +1,5 @@
 import {
+  boolean,
   date,
   index,
   integer,
@@ -23,7 +24,16 @@ export const emailMessages = pgTable(
     ...baseColumns,
     direction: text('direction').$type<'outbound' | 'inbound'>().notNull().default('outbound'),
     status: text('status')
-      .$type<'queued' | 'sending' | 'sent' | 'failed' | 'delivered' | 'bounced' | 'complained'>()
+      .$type<
+        | 'queued'
+        | 'sending'
+        | 'sent'
+        | 'failed'
+        | 'delivered'
+        | 'bounced'
+        | 'complained'
+        | 'received'
+      >()
       .notNull()
       .default('queued'),
     sourceObjectType: text('source_object_type').$type<'contact' | 'lead' | 'deal'>().notNull(),
@@ -42,6 +52,14 @@ export const emailMessages = pgTable(
     bounceReason: text('bounce_reason'),
     /** The token in this email's unsubscribe link (ADR-0076). Null on a message queued before it existed. */
     unsubscribeToken: text('unsubscribe_token'),
+    /** Outbound: the signed local part of the second reply address this email carries (ADR-0077). */
+    replyToken: text('reply_token'),
+    /** Inbound: the sent email this reply answers. */
+    replyToEmailId: uuid('reply_to_email_id'),
+    /** Inbound: how many attachments the message had. They are not stored. */
+    attachmentCount: integer('attachment_count').notNull().default(0),
+    /** Inbound: true when the body was cut to the log's limit. */
+    bodyShortened: boolean('body_shortened').notNull().default(false),
     attempts: integer('attempts').notNull().default(0),
     retryOf: uuid('retry_of'),
     queuedAt: timestamptz('queued_at').notNull(),
