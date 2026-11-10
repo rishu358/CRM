@@ -186,13 +186,26 @@ describe('a message is written once and never changed by the application', () =>
     );
     expect(settled.rowCount).toBe(1);
 
-    for (const column of ['message_id', 'from_address', 'source_record_id', 'direction']) {
+    for (const column of ['message_id', 'source_record_id', 'direction']) {
       const error = await captureDbError(() =>
         withTenant(db.worker.db, as(tenantA), (tx) =>
           tx.execute(sql.raw(`update email_messages set ${column} = ${column} where id = '${id}'`)),
         ),
       );
       expect(error.code, column).toBe(INSUFFICIENT_PRIVILEGE);
+    }
+    // The sender columns are the worker's to scrub on a reply (migration 0036), so what keeps an email WE sent from
+    // having its sender changed is a trigger, and it refuses a real change, not a self-assignment.
+    for (const change of [
+      `from_address = 'changed@elsewhere.example'`,
+      `from_name = 'Someone Else'`,
+    ]) {
+      const error = await captureDbError(() =>
+        withTenant(db.worker.db, as(tenantA), (tx) =>
+          tx.execute(sql.raw(`update email_messages set ${change} where id = '${id}'`)),
+        ),
+      );
+      expect(error.code, change).toBe(INSUFFICIENT_PRIVILEGE);
     }
   });
 
@@ -965,8 +978,17 @@ describe('inbound replies (migration 0036)', () => {
     // Not an outbound one: no bug in the worker can write an email that says it was sent.
     const outbound = await captureDbError(() => insertOutboundAs('worker', tenantA));
     expect(outbound.code).toBe('42501');
-    // And not in another company: a different error, the tenant policy, but never a row.
-    const across = await captureDbError(() => insertInbound('worker', tenantB));
+    // And not in another company: scoped to A, a row for B is refused by the tenant policy, and no row appears.
+    const across = await captureDbError(() =>
+      withTenant(db.worker.db, as(tenantA), (tx) =>
+        tx.execute(sql`
+          insert into email_messages
+            (id, tenant_id, direction, status, source_object_type, source_record_id, from_name, from_address,
+             to_address, subject, body_text, message_id)
+          values (${randomUUID()}, ${tenantB}, 'inbound', 'received', 'contact', ${randomUUID()}, 'Sam',
+                  'sam@customer.example', 'rep@company.example', 'Re: Hi', 'Thanks', ${`<${randomUUID()}@x.example>`})`),
+      ),
+    );
     expect(across.code).toBeDefined();
     const filedInB = await superuser.query(
       `select 1 from email_messages where tenant_id = $1 and direction = 'inbound'`,
@@ -982,15 +1004,22 @@ describe('inbound replies (migration 0036)', () => {
     expect(outbound.rowCount).toBe(1);
   });
 
-  it('keeps the worker able to read, and not able to change, what it filed beyond what it could before', async () => {
+  it('lets the worker scrub the sender of a reply, and change nothing else of one beyond what it always could', async () => {
     const id = randomUUID();
     await insertInbound('worker', tenantA, id);
+    const scrubbed = await withTenant(db.worker.db, as(tenantA), (tx) =>
+      tx.execute(
+        sql`update email_messages set from_address = '', from_name = 'Erased' where id = ${id}`,
+      ),
+    );
+    expect(scrubbed.rowCount).toBe(1);
     for (const column of [
-      'from_address',
-      'body_text',
-      'subject',
       'direction',
       'reply_to_email_id',
+      'attachment_count',
+      'body_shortened',
+      'message_id',
+      'source_record_id',
     ]) {
       const error = await captureDbError(() =>
         withTenant(db.worker.db, as(tenantA), (tx) =>
@@ -999,26 +1028,6 @@ describe('inbound replies (migration 0036)', () => {
       );
       expect(error.code, column).toBe(INSUFFICIENT);
     }
-  });
-
-  it('lets the worker link a received message, and only a received one', async () => {
-    const reply = randomUUID();
-    await insertInbound('superuser', tenantA, reply);
-    const linked = await withTenant(db.worker.db, as(tenantA), (tx) =>
-      tx.execute(sql`
-        insert into email_message_links (id, tenant_id, email_message_id, object_type, record_id)
-        values (${randomUUID()}, ${tenantA}, ${reply}, 'contact', ${randomUUID()})`),
-    );
-    expect(linked.rowCount).toBe(1);
-
-    const refused = await captureDbError(() =>
-      withTenant(db.worker.db, as(tenantA), (tx) =>
-        tx.execute(sql`
-          insert into email_message_links (id, tenant_id, email_message_id, object_type, record_id)
-          values (${randomUUID()}, ${tenantA}, ${messageA}, 'contact', ${randomUUID()})`),
-      ),
-    );
-    expect(refused.code).toBe('42501');
   });
 
   it('stores a received message as one that is received, and nothing else as that', async () => {

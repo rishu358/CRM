@@ -64,11 +64,13 @@ carries, and a sender line can say anything.
 8. **Limits**, counted from the rows themselves so they hold without Redis: 20 replies filed under one sent email, 500 per
    company per day, 1 MB read from Resend per message (constants in `@crm/core`, a proposal, not a verified standard).
    Past them the message is dropped before anything is fetched.
-9. **The one deliberate widening of a right** (migration 0036): the worker may now `INSERT` into `email_messages` and
-   `email_message_links`, but a **restrictive** row-level policy lets it insert only `direction = 'inbound'` rows (and links
-   only to an inbound message), and a second restrictive policy limits the application role's insert to outbound. So a bug
-   in the worker still cannot write an email that says it was sent, and nothing the API is asked can write a received
-   message. A CHECK ties direction and status together (`inbound` if and only if `received`), and keeps the reply-only
+9. **The deliberate widening of two rights** (migration 0036). The worker may now `INSERT` into `email_messages`, but a
+   **restrictive** row-level policy lets it insert only `direction = 'inbound'` rows, and a second restrictive policy limits the
+   application role's insert to outbound. So a bug in the worker still cannot write an email that says it was sent, and
+   nothing the API is asked can write a received message. And the worker may now change `from_address` and `from_name`,
+   because an erasure must scrub the name and address a person sent a reply from; a **trigger** refuses any change to either
+   column of an email we sent, with the same error a missing grant gives, so the company's own sender stays fixed. (The worker
+   could already link any message, since 0033, so links need no policy of their own.) A CHECK ties direction and status together (`inbound` if and only if `received`), and keeps the reply-only
    columns off what we sent and the sent-only token off a reply. A database spec proves each refusal.
 10. **Erasure covers a reply** like any email: the person's own address and name on an inbound row are scrubbed to empty
     and "Erased", the recipient, subject and body as for outbound, and the row stays so counts and the audit trail stay true.

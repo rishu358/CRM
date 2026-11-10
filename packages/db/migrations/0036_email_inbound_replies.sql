@@ -9,15 +9,17 @@
 -- these, and the one place the worker is allowed to write a message at all.
 --
 -- Size: four columns on email_messages, nullable or with a constant default (no rewrite, on a table that is
--- new in 0032 and small), three small partial indexes, and a CHECK replaced on each of two small tables. The runner
+-- new in 0032 and small), three small partial indexes, a trigger, and a CHECK replaced on each of two small tables. The runner
 -- wraps the file in one transaction.
 --
 -- Who may touch what:
 --   crm_app    unchanged, except that a restrictive policy now limits its INSERT to outbound rows: the API cannot
 --              write a received message, whatever a request says.
---   crm_worker may now INSERT into email_messages and email_message_links, **only inbound rows**, by restrictive
---              policy. It still cannot update a message beyond the columns 0032 and 0034 gave it, and it still
---              cannot write an outbound row, so no bug in the worker can create an email that says it was sent.
+--   crm_worker may now INSERT into email_messages, **only inbound rows**, by restrictive policy. It may also change
+--              the sender columns of a RECEIVED message (an erasure scrubs them), and a trigger refuses the same for
+--              anything we sent. It still cannot update a message beyond that and the columns 0032 and 0034 gave it,
+--              and it still cannot write an outbound row, so no bug in the worker can create an email that says it
+--              was sent. (It could already link any message, since 0033.)
 --   crm_auth   unchanged: it still reads three columns of email_messages and none of the new ones.
 
 -- ---------------------------------------------------------------------------
@@ -70,16 +72,28 @@ CREATE POLICY email_messages_app_outbound_only ON email_messages
   AS RESTRICTIVE FOR INSERT TO crm_app WITH CHECK (direction = 'outbound');
 
 -- ---------------------------------------------------------------------------
--- email_message_links: a reply is linked to the records its original is linked to
+-- A reply holds the sender's own name and address, so an erasure must be able to scrub them
 -- ---------------------------------------------------------------------------
-GRANT INSERT ON email_message_links TO crm_worker;
-CREATE POLICY email_message_links_worker_inbound_only ON email_message_links
-  AS RESTRICTIVE FOR INSERT TO crm_worker
-  WITH CHECK (EXISTS (
-    SELECT 1 FROM email_messages m
-    WHERE m.tenant_id = email_message_links.tenant_id
-      AND m.id = email_message_links.email_message_id
-      AND m.direction = 'inbound'));
+-- The worker's erasure already scrubs the recipient, subject and body of a person's mail. A reply the person SENT
+-- also holds their own name and address (from_name, from_address), so the worker needs those two columns too. But the
+-- sender of an email WE sent is the company's own, and no one may change it, so a trigger refuses any change to either
+-- column of an outbound row, with the same error a missing grant gives.
+GRANT UPDATE (from_address, from_name) ON email_messages TO crm_worker;
+
+CREATE FUNCTION email_messages_sender_guard() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+  IF OLD.direction = 'outbound'
+     AND (NEW.from_address IS DISTINCT FROM OLD.from_address OR NEW.from_name IS DISTINCT FROM OLD.from_name) THEN
+    RAISE EXCEPTION 'The sender of an email we sent cannot be changed' USING ERRCODE = '42501';
+  END IF;
+  RETURN NEW;
+END
+$$;
+
+CREATE TRIGGER email_messages_sender_guard
+  BEFORE UPDATE OF from_address, from_name ON email_messages
+  FOR EACH ROW EXECUTE FUNCTION email_messages_sender_guard();
 
 -- ---------------------------------------------------------------------------
 -- email_provider_events
