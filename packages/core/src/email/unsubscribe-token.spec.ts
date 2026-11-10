@@ -44,8 +44,23 @@ describe('signing and checking the unsubscribe token', () => {
 
   it('refuses a changed signature, a truncated one and anything that is not a token', () => {
     const token = issueUnsubscribeToken(CURRENT, ID);
-    const flipped = `${token.slice(0, -1)}${token.endsWith('A') ? 'B' : 'A'}`;
+    const signature = token.split('.')[2]!;
+    // The FIRST character of the signature, never the last: the last of 43 base64url characters carries only 4
+    // bits of data, so four different last characters decode to the same bytes (see the door's spec).
+    const changedSignature = `${signature.startsWith('A') ? 'B' : 'A'}${signature.slice(1)}`;
+    const flipped = token.replace(signature, changedSignature);
+    expect(flipped).not.toBe(token);
+    expect(
+      Buffer.from(changedSignature, 'base64url').equals(Buffer.from(signature, 'base64url')),
+    ).toBe(false);
     expect(verifyUnsubscribeToken([CURRENT], flipped)).toBeNull();
+    // Whatever the first character is changed to, never accepted.
+    const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+    for (const character of alphabet) {
+      if (character === signature[0]) continue;
+      const other = token.replace(signature, `${character}${signature.slice(1)}`);
+      expect(verifyUnsubscribeToken([CURRENT], other), character).toBeNull();
+    }
     expect(verifyUnsubscribeToken([CURRENT], token.slice(0, -1))).toBeNull();
     for (const value of [undefined, null, 7, {}, '', 'v1', `v1.${ID}`, 'x'.repeat(5000)]) {
       expect(verifyUnsubscribeToken([CURRENT], value)).toBeNull();

@@ -146,7 +146,16 @@ describe('opening the link', () => {
   it('answers the one fixed 404 to every token that does not check out', async () => {
     const mail = await insertMessage(tenantA);
     const signature = mail.token.split('.')[2]!;
-    const flipped = `${mail.token.slice(0, -1)}${mail.token.endsWith('A') ? 'B' : 'A'}`;
+    // Change the FIRST character of the signature, never the last. A 32-byte signature is 43 base64url
+    // characters, 258 bits for 256 bits of data, so the last character carries only 4 bits of data and four
+    // different last characters decode to the same bytes: changing it was a token that still checked out
+    // one time in sixteen. Every other position carries all six of its bits, so a change there always is one.
+    const changedSignature = `${signature.startsWith('A') ? 'B' : 'A'}${signature.slice(1)}`;
+    const flipped = mail.token.replace(signature, changedSignature);
+    expect(flipped).not.toBe(mail.token);
+    expect(
+      Buffer.from(changedSignature, 'base64url').equals(Buffer.from(signature, 'base64url')),
+    ).toBe(false);
     const suspended = await insertMessage(tenantB);
     await superuser.query(`update tenants set status = 'suspended' where id = $1`, [tenantB]);
     try {
