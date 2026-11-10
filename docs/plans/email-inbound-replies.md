@@ -3,11 +3,11 @@
 Written 2026-11-10 for the owner. **Plan only: no code, no migration and no dependency is added by this pull request.**
 Nothing is built until you approve it.
 
-It is the fourth step of `docs/plans/email-send-log.md` (sections 8 and 11). The first three steps are built: #35, #36
-and #37 are merged; #39 (3a: delivery events, blocked addresses, the pause, ADR-0075) and #40 (3b: the unsubscribe link,
-ADR-0076) are open drafts with green checks. **This plan builds on #39 and #40** (the public events door, the signed-token
-machinery and the secret that signs it), so it refers to them by number and ADR, and **should be built only after they
-are merged**.
+It is the fourth step of `docs/plans/email-send-log.md` (sections 8 and 11). The first three steps are built and merged:
+#35, #36 and #37 (send and log, the screens, templates), #39 (3a: delivery events, blocked addresses, the pause,
+ADR-0075) and #40 (3b: the unsubscribe link, ADR-0076). **This plan builds on #39 and #40** (the public events door, the
+signed-token machinery and the secret that signs it), which are now on master, so the migration numbers 0034 and 0035
+are taken and the next is 0036.
 
 ## 1. The short version
 
@@ -180,7 +180,7 @@ is the mechanism, and the sentence in every email says so.
 
 ## 6. Data, permissions and configuration
 
-- **Migration 0036** (the number is re-checked at push, after #39 and #40): widens the status CHECK by `received`; adds
+- **Migration 0036** (the number is re-checked at push): widens the status CHECK by `received`; adds
   `email_messages.reply_token` (nullable, no default, no rewrite); the worker's insert grants and the restrictive policies
   above on `email_messages` and `email_message_links`; a unique partial index on `(tenant_id, provider_message_id)` for
   inbound rows so one received email is filed once; the event-type CHECK on `email_provider_events` widened by
