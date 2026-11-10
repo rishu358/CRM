@@ -46,7 +46,12 @@ afterAll(async () => {
 
 function relay(options: { maxAttempts?: number } = {}): OutboxRelay {
   email = new MemoryEmailProvider();
-  const deps = { db: worker.db, email, logger };
+  const deps = {
+    db: worker.db,
+    email,
+    logger,
+    origins: { web: 'https://app.example', api: 'https://api.example' },
+  };
   const instance = new OutboxRelay(worker.db, {
     logger,
     batchSize: 100,
@@ -61,16 +66,16 @@ function relay(options: { maxAttempts?: number } = {}): OutboxRelay {
 }
 
 async function queueEmail(
-  options: { status?: string; body?: string; erased?: boolean } = {},
+  options: { status?: string; body?: string; erased?: boolean; token?: string | null } = {},
 ): Promise<string> {
   const id = newId();
   await superuserPool.query(
     `insert into email_messages
        (id, tenant_id, status, source_object_type, source_record_id, contact_id, from_name,
         from_address, reply_to, to_address, subject, body_text, message_id, created_by, updated_by,
-        erased_at)
+        erased_at, unsubscribe_token)
      values ($1, $2, $3, 'contact', $4, $4, 'Sharma Traders', 'mail@send.example',
-             'priya@sharma.example', $5, $6, $7, $8, $9, $9, $10)`,
+             'priya@sharma.example', $5, $6, $7, $8, $9, $9, $10, $11)`,
     [
       id,
       tenantId,
@@ -82,6 +87,7 @@ async function queueEmail(
       `<${id}@send.example>`,
       userId,
       options.erased === true ? new Date() : null,
+      options.token ?? null,
     ],
   );
   await superuserPool.query(
@@ -167,6 +173,42 @@ describe('sending a queued email', () => {
     expect(row).toMatchObject({ status: 'sent', failure_code: null, attempts: 1 });
     expect(row.provider_message_id).toMatch(/^memory-/);
     expect(row.sent_at).not.toBeNull();
+  });
+
+  it('puts the unsubscribe sentence and the mail program’s headers in an email that has a token', async () => {
+    const token = `v1.${newId()}.${'A'.repeat(43)}`;
+    const id = await queueEmail({ token });
+    await enqueue('email.queued.v1', id);
+    await relay().tick();
+
+    const sent = email.messages()[0]!;
+    expect(sent.text).toContain(
+      `To stop receiving email from Sharma Traders, open: https://app.example/u/${token}`,
+    );
+    expect(sent.html).toContain(`<a href="https://app.example/u/${token}">unsubscribe</a>`);
+    // The address a mail program posts to is the API's, not the page's.
+    expect(sent.unsubscribeUrl).toBe(
+      `https://api.example/api/v1/public/email-unsubscribe/${token}`,
+    );
+  });
+
+  it('sends an email queued before the link existed without one, and invents nothing', async () => {
+    const id = await queueEmail();
+    await enqueue('email.queued.v1', id);
+    await relay().tick();
+    const sent = email.messages()[0]!;
+    expect(sent.text).not.toContain('To stop receiving');
+    expect(sent.unsubscribeUrl).toBeUndefined();
+  });
+
+  it('does not use a token that is not of the right shape', async () => {
+    const id = await queueEmail({ token: 'not-a-token' });
+    await enqueue('email.queued.v1', id);
+    await relay().tick();
+    const sent = email.messages()[0]!;
+    expect(sent.text).not.toContain('not-a-token');
+    expect(sent.unsubscribeUrl).toBeUndefined();
+    expect((await rowOf(id)).status).toBe('sent');
   });
 
   it('sends nothing the second time the same event is delivered', async () => {

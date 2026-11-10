@@ -199,3 +199,110 @@ describe('every adapter refuses what could inject a header', () => {
     }
   }
 });
+
+describe('the unsubscribe headers (ADR-0076)', () => {
+  const link = 'https://api.example/api/v1/public/email-unsubscribe/v1.id.signature';
+  const withLink = { ...message, unsubscribeUrl: link };
+  const HEADERS = {
+    'List-Unsubscribe': `<${link}>`,
+    'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+  };
+
+  it('Resend carries them as headers, and sends none when the message has no link', async () => {
+    const first = fakeHttp({ id: 'a' });
+    await new ResendEmailProvider({ apiKey: 'k', from: FROM, http: first.http }).send(withLink);
+    expect(sentBody(first.seen)['headers']).toEqual(HEADERS);
+
+    const second = fakeHttp({ id: 'b' });
+    await new ResendEmailProvider({ apiKey: 'k', from: FROM, http: second.http }).send(message);
+    expect(sentBody(second.seen)['headers']).toBeUndefined();
+  });
+
+  it('SES carries them in the message’s own header list', async () => {
+    const { http, seen } = fakeHttp({ MessageId: 'x' });
+    await new SesEmailProvider({
+      region: 'ap-south-1',
+      accessKeyId: 'AKIAEXAMPLEEXAMPLE12',
+      secretAccessKey: 'exampleSecretKeyExampleSecretKey0000000',
+      from: FROM,
+      http,
+    }).send(withLink);
+    const simple = (sentBody(seen)['Content'] as { Simple: Record<string, unknown> }).Simple;
+    expect(simple['Headers']).toEqual(
+      Object.entries(HEADERS).map(([Name, Value]) => ({ Name, Value })),
+    );
+  });
+
+  it('SMTP passes them as headers for the library to write', async () => {
+    const calls: Record<string, unknown>[] = [];
+    const provider = new SmtpEmailProvider({
+      host: 'smtp.example',
+      port: 587,
+      security: 'starttls',
+      from: FROM,
+      nodeEnv: 'test',
+      transport: {
+        sendMail: (options: Record<string, unknown>) => {
+          calls.push(options);
+          return Promise.resolve({});
+        },
+      } as never,
+    });
+    await provider.send(withLink);
+    await provider.send(message);
+    expect(calls[0]?.['headers']).toEqual(HEADERS);
+    expect(calls[1]?.['headers']).toBeUndefined();
+  });
+
+  const unsafe: [string, string][] = [
+    ['a line break', `${link}\r\nBcc: x@evil.example`],
+    ['a space', 'https://api.example/a b'],
+    ['an angle bracket that would end the header value early', 'https://api.example/a>, <mailto:x'],
+    ['a scheme that is not http or https', 'javascript:alert(1)'],
+    ['no address at all', ''],
+    ['an address that is far too long', `https://api.example/${'a'.repeat(600)}`],
+  ];
+  for (const [what, url] of unsafe) {
+    it(`every adapter refuses an unsubscribe address with ${what}`, async () => {
+      let sent = 0;
+      const { http } = fakeHttp({});
+      const counting: OutboundHttp = {
+        request: (request) => {
+          sent += 1;
+          return http.request(request);
+        },
+      };
+      const providers = [
+        new ResendEmailProvider({ apiKey: 'k', from: FROM, http: counting }),
+        new SesEmailProvider({
+          region: 'ap-south-1',
+          accessKeyId: 'AKIAEXAMPLEEXAMPLE12',
+          secretAccessKey: 'exampleSecretKeyExampleSecretKey0000000',
+          from: FROM,
+          http: counting,
+        }),
+        new SmtpEmailProvider({
+          host: 'smtp.example',
+          port: 587,
+          security: 'starttls',
+          from: FROM,
+          nodeEnv: 'test',
+          transport: {
+            sendMail: () => {
+              sent += 1;
+              return Promise.resolve({});
+            },
+          } as never,
+        }),
+      ];
+      for (const provider of providers) {
+        const error = await provider
+          .send({ ...message, unsubscribeUrl: url })
+          .catch((e: unknown) => e);
+        expect(error).toBeInstanceOf(EmailSendError);
+        expect((error as EmailSendError).retryable).toBe(false);
+      }
+      expect(sent).toBe(0);
+    });
+  }
+});

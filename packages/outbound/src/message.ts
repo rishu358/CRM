@@ -12,6 +12,8 @@ import { EmailSendError } from './resend.js';
 
 const HEADER_UNSAFE = /[\r\n\0]/;
 const MESSAGE_ID = /^<[^<>\s@]{1,200}@[^<>\s@]{1,200}>$/;
+/** One address, in angle brackets in a header: no space, bracket or quote can end it early. */
+const UNSUBSCRIBE_URL = /^https?:\/\/[^\s<>"\\]{1,500}$/;
 
 export function assertSendable(message: EmailMessage): void {
   const invalid =
@@ -19,8 +21,24 @@ export function assertSendable(message: EmailMessage): void {
     HEADER_UNSAFE.test(message.subject) ||
     (message.fromName !== undefined && !isValidFromName(message.fromName)) ||
     (message.replyTo !== undefined && !isValidReplyTo(message.replyTo)) ||
-    (message.messageId !== undefined && !MESSAGE_ID.test(message.messageId));
+    (message.messageId !== undefined && !MESSAGE_ID.test(message.messageId)) ||
+    (message.unsubscribeUrl !== undefined &&
+      (HEADER_UNSAFE.test(message.unsubscribeUrl) ||
+        !UNSUBSCRIBE_URL.test(message.unsubscribeUrl)));
   if (invalid) throw new EmailSendError('Email was not sent: invalid_request', null, false);
+}
+
+/**
+ * The headers that let a mail program offer its own "unsubscribe" button (RFC 8058): the address to post to,
+ * and the statement that one post is enough. None when the message carries no address. The same two for every
+ * adapter, so what each one adds to its request is a mapping, not a decision.
+ */
+export function unsubscribeHeaders(message: EmailMessage): Record<string, string> | undefined {
+  if (message.unsubscribeUrl === undefined) return undefined;
+  return {
+    'List-Unsubscribe': `<${message.unsubscribeUrl}>`,
+    'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+  };
 }
 
 /**

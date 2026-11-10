@@ -6948,6 +6948,101 @@
         }
       }
     },
+    "/email-pause/resume": {
+      "post": {
+        "operationId": "resumeEmail",
+        "summary": "Resume the company’s email after a pause",
+        "tags": [
+          "Email"
+        ],
+        "description": "Needs `update` on `tenant_settings`. The company’s email is paused automatically after a bad run of bounces or complaints; this ends the pause. A 409 when it is not paused. Audited.",
+        "responses": {
+          "204": {
+            "description": "Email is no longer paused."
+          },
+          "401": {
+            "description": "No session, or the credentials offered were not accepted. `error.code` is one of: `UNAUTHENTICATED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "The tenant's plan does not include this capability. `error.code` is one of: `ENTITLEMENT_REQUIRED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, but not permitted. `error.code` is one of: `FORBIDDEN`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The write conflicts with the record’s current state. `error.code` is one of: `CONFLICT`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Input failed validation at the API boundary. `error.code` is one of: `VALIDATION_FAILED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded. Limits are per user, per tenant and per address, shared across API instances. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `RATE_LIMITED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote `requestId` when reporting it. `error.code` is one of: `INTERNAL`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/email-settings": {
       "get": {
         "operationId": "getEmailSettings",
@@ -7301,6 +7396,215 @@
           },
           "409": {
             "description": "The write conflicts with the record’s current state. `error.code` is one of: `VERSION_CONFLICT`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Input failed validation at the API boundary. `error.code` is one of: `VALIDATION_FAILED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded. Limits are per user, per tenant and per address, shared across API instances. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `RATE_LIMITED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote `requestId` when reporting it. `error.code` is one of: `INTERNAL`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/email-suppressions": {
+      "get": {
+        "operationId": "listEmailSuppressions",
+        "summary": "The addresses the company’s email is not written to",
+        "tags": [
+          "Email"
+        ],
+        "description": "Needs `read` on `tenant_settings`. An address is blocked after a permanent bounce, a spam complaint or an unsubscribe. `address` is shown while the email that caused the block still holds it. Newest first (ADR-0075).",
+        "responses": {
+          "200": {
+            "description": "The blocked addresses.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmailSuppressionListResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No session, or the credentials offered were not accepted. `error.code` is one of: `UNAUTHENTICATED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "The tenant's plan does not include this capability. `error.code` is one of: `ENTITLEMENT_REQUIRED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, but not permitted. `error.code` is one of: `FORBIDDEN`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Input failed validation at the API boundary. `error.code` is one of: `VALIDATION_FAILED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded. Limits are per user, per tenant and per address, shared across API instances. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `RATE_LIMITED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote `requestId` when reporting it. `error.code` is one of: `INTERNAL`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/email-suppressions/{id}/lift": {
+      "post": {
+        "operationId": "liftEmailSuppression",
+        "summary": "Unblock an address that bounced",
+        "tags": [
+          "Email"
+        ],
+        "description": "Needs `update` on `tenant_settings`. Only a block caused by a permanent bounce can be lifted, after the address has been corrected; a complaint or an unsubscribe is the person’s own refusal and is a 409. Audited.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "The address is no longer blocked."
+          },
+          "401": {
+            "description": "No session, or the credentials offered were not accepted. `error.code` is one of: `UNAUTHENTICATED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "The tenant's plan does not include this capability. `error.code` is one of: `ENTITLEMENT_REQUIRED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, but not permitted. `error.code` is one of: `FORBIDDEN`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such record, or it is outside the caller’s tenant or visibility scope. `error.code` is one of: `NOT_FOUND`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The write conflicts with the record’s current state. `error.code` is one of: `CONFLICT`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -15904,6 +16208,253 @@
           },
           "403": {
             "description": "Authenticated, but not permitted. `error.code` is one of: `FORBIDDEN`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Input failed validation at the API boundary. `error.code` is one of: `VALIDATION_FAILED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded. Limits are per user, per tenant and per address, shared across API instances. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `RATE_LIMITED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote `requestId` when reporting it. `error.code` is one of: `INTERNAL`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/public/email-events/{provider}": {
+      "post": {
+        "operationId": "receiveEmailEvents",
+        "summary": "Where the mail service reports what happened to an email",
+        "tags": [
+          "Email"
+        ],
+        "description": "Public, with no session: it is **not** called by people. The body is the provider’s own, signed with a secret only the provider and this installation hold, and is read from the raw bytes; the signature is checked before anything else. A bad or missing signature is a 401 with one fixed body and nothing is written; a good one is a 204 whatever the events turn out to be. An unknown or unconfigured provider is a 404. The body is capped at 256 KB before it is read. The company is found from the provider’s id for the email, never from anything in the request (ADR-0075).",
+        "security": [],
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 32
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Received."
+          },
+          "401": {
+            "description": "No session, or the credentials offered were not accepted. `error.code` is one of: `UNAUTHENTICATED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such record, or it is outside the caller’s tenant or visibility scope. `error.code` is one of: `NOT_FOUND`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Input failed validation at the API boundary. `error.code` is one of: `VALIDATION_FAILED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded. Limits are per user, per tenant and per address, shared across API instances. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `RATE_LIMITED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote `requestId` when reporting it. `error.code` is one of: `INTERNAL`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/public/email-unsubscribe/{token}": {
+      "get": {
+        "operationId": "getEmailUnsubscribePage",
+        "summary": "Whose email an unsubscribe link belongs to",
+        "tags": [
+          "Email"
+        ],
+        "description": "Public, with no session: the link at the foot of every email. Answers with the name the email was sent under, so the page can ask “stop email from …?”, and **changes nothing**, because mail scanners open every link in a message. A token that is not signed by this installation, a changed id and an email that is gone are the same 404. The company is found from the email the signed token names, never from anything in the request (ADR-0076).",
+        "security": [],
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Whose email it is.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmailUnsubscribePageResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such record, or it is outside the caller’s tenant or visibility scope. `error.code` is one of: `NOT_FOUND`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Input failed validation at the API boundary. `error.code` is one of: `VALIDATION_FAILED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded. Limits are per user, per tenant and per address, shared across API instances. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `RATE_LIMITED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote `requestId` when reporting it. `error.code` is one of: `INTERNAL`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The service is at capacity. Wait the number of seconds in `Retry-After` and try again. `error.code` is one of: `SERVICE_BUSY`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "unsubscribeFromEmail",
+        "summary": "Stop receiving email from the company that sent this one",
+        "tags": [
+          "Email"
+        ],
+        "description": "Public, with no session. The address a mail program posts to for its own “unsubscribe” button (RFC 8058, `List-Unsubscribe-Post: List-Unsubscribe=One-Click`) and the one the page’s button posts to. The body is never read. The address is blocked for the company (a block no one can lift), the matching contacts’ consent to email is withdrawn, and the timeline and audit log say so. Doing it twice is harmless. A token that does not check out is a 404; more than twenty uses of one link in an hour is a 429.",
+        "security": [],
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Done."
+          },
+          "404": {
+            "description": "No such record, or it is outside the caller’s tenant or visibility scope. `error.code` is one of: `NOT_FOUND`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -29023,6 +29574,33 @@
                   "limitPerTenant"
                 ],
                 "additionalProperties": false
+              },
+              "paused": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "since": {
+                        "type": "string"
+                      },
+                      "reason": {
+                        "type": "string",
+                        "enum": [
+                          "bounces",
+                          "complaints"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "since",
+                      "reason"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
               }
             },
             "required": [
@@ -29032,7 +29610,8 @@
               "version",
               "sendingAddress",
               "defaultFromName",
-              "usage"
+              "usage",
+              "paused"
             ],
             "additionalProperties": false
           },
@@ -29122,6 +29701,33 @@
                   "limitPerTenant"
                 ],
                 "additionalProperties": false
+              },
+              "paused": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "since": {
+                        "type": "string"
+                      },
+                      "reason": {
+                        "type": "string",
+                        "enum": [
+                          "bounces",
+                          "complaints"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "since",
+                      "reason"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
               }
             },
             "required": [
@@ -29131,7 +29737,8 @@
               "version",
               "sendingAddress",
               "defaultFromName",
-              "usage"
+              "usage",
+              "paused"
             ],
             "additionalProperties": false
           },
@@ -29216,6 +29823,63 @@
               "version"
             ],
             "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "additionalProperties": false
+      },
+      "EmailSuppressionListResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "address": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "reason": {
+                  "type": "string",
+                  "enum": [
+                    "hard_bounce",
+                    "complaint",
+                    "unsubscribed"
+                  ]
+                },
+                "createdAt": {
+                  "type": "string"
+                },
+                "liftable": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "id",
+                "address",
+                "reason",
+                "createdAt",
+                "liftable"
+              ],
+              "additionalProperties": false
+            }
           },
           "meta": {
             "type": "object",
@@ -29472,6 +30136,23 @@
                     }
                   ]
                 },
+                "bounceReason": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "mailbox_not_found",
+                        "domain_not_found",
+                        "mailbox_full",
+                        "blocked",
+                        "other"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
                 "erased": {
                   "type": "boolean"
                 },
@@ -29555,6 +30236,7 @@
                 "subject",
                 "body",
                 "failureCode",
+                "bounceReason",
                 "erased",
                 "contactId",
                 "sentById",
@@ -29666,6 +30348,23 @@
                   }
                 ]
               },
+              "bounceReason": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "mailbox_not_found",
+                      "domain_not_found",
+                      "mailbox_full",
+                      "blocked",
+                      "other"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
               "erased": {
                 "type": "boolean"
               },
@@ -29749,6 +30448,7 @@
               "subject",
               "body",
               "failureCode",
+              "bounceReason",
               "erased",
               "contactId",
               "sentById",
@@ -29843,6 +30543,23 @@
                   }
                 ]
               },
+              "bounceReason": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "mailbox_not_found",
+                      "domain_not_found",
+                      "mailbox_full",
+                      "blocked",
+                      "other"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
               "erased": {
                 "type": "boolean"
               },
@@ -29926,6 +30643,7 @@
               "subject",
               "body",
               "failureCode",
+              "bounceReason",
               "erased",
               "contactId",
               "sentById",
@@ -30020,6 +30738,23 @@
                   }
                 ]
               },
+              "bounceReason": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "mailbox_not_found",
+                      "domain_not_found",
+                      "mailbox_full",
+                      "blocked",
+                      "other"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
               "erased": {
                 "type": "boolean"
               },
@@ -30103,6 +30838,7 @@
               "subject",
               "body",
               "failureCode",
+              "bounceReason",
               "erased",
               "contactId",
               "sentById",
@@ -30206,6 +30942,37 @@
               },
               "signature": {
                 "type": "string"
+              },
+              "suppressed": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "reason": {
+                        "type": "string",
+                        "enum": [
+                          "hard_bounce",
+                          "complaint",
+                          "unsubscribed"
+                        ]
+                      },
+                      "since": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "reason",
+                      "since"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "paused": {
+                "type": "boolean"
               }
             },
             "required": [
@@ -30217,7 +30984,9 @@
               "usage",
               "senderConfigured",
               "mergeValues",
-              "signature"
+              "signature",
+              "suppressed",
+              "paused"
             ],
             "additionalProperties": false
           },
@@ -40120,6 +40889,34 @@
               ],
               "additionalProperties": false
             }
+          },
+          "meta": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "additionalProperties": false
+      },
+      "EmailUnsubscribePageResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "object",
+            "properties": {
+              "companyName": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "companyName"
+            ],
+            "additionalProperties": false
           },
           "meta": {
             "type": "object",

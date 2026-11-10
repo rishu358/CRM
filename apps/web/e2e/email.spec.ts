@@ -227,4 +227,14 @@ test.describe('email', () => {
       'Contact: first name',
     );
   });
+
+  test('shows the blocked addresses, empty at first, and no pause, to an administrator', async ({
+    page,
+  }) => {
+    await signIn(page, credentials.owner);
+    await page.goto('/settings/email');
+    const blocked = page.getByTestId('email-suppressions');
+    await expect(blocked.getByText('No blocked addresses')).toBeVisible();
+    await expect(page.getByTestId('email-paused-banner')).toHaveCount(0);
+  });
 });

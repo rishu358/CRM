@@ -2,6 +2,11 @@ import { ErrorCode } from '@crm/core';
 import { z } from 'zod';
 import {
   emailContextQuerySchema,
+  emailEventParamsSchema,
+  emailUnsubscribePageSchema,
+  emailUnsubscribeParamsSchema,
+  emailUnsubscribeQuerySchema,
+  emailSuppressionSchema,
   emailSignatureSchema,
   emailSignatureUpdateSchema,
   emailTemplateCreateSchema,
@@ -312,5 +317,114 @@ export const emailRoutes: RouteDefinition[] = [
       data: emailSignatureSchema,
     },
     errors: [ErrorCode.VERSION_CONFLICT, ErrorCode.ENTITLEMENT_REQUIRED],
+  },
+  {
+    method: 'GET',
+    path: '/email-suppressions',
+    operationId: 'listEmailSuppressions',
+    tag: 'Email',
+    summary: 'The addresses the company’s email is not written to',
+    description:
+      'Needs `read` on `tenant_settings`. An address is blocked after a permanent bounce, a spam ' +
+      'complaint or an unsubscribe. `address` is shown while the email that caused the block still holds ' +
+      'it. Newest first (ADR-0075).',
+    auth: 'session',
+    response: {
+      kind: 'object',
+      status: 200,
+      name: 'EmailSuppressionListResponse',
+      description: 'The blocked addresses.',
+      data: z.array(emailSuppressionSchema),
+    },
+    errors: [ErrorCode.ENTITLEMENT_REQUIRED],
+  },
+  {
+    method: 'POST',
+    path: '/email-suppressions/{id}/lift',
+    operationId: 'liftEmailSuppression',
+    tag: 'Email',
+    summary: 'Unblock an address that bounced',
+    description:
+      'Needs `update` on `tenant_settings`. Only a block caused by a permanent bounce can be lifted, ' +
+      'after the address has been corrected; a complaint or an unsubscribe is the person’s own refusal and ' +
+      'is a 409. Audited.',
+    auth: 'session',
+    params: emailParamsSchema,
+    response: { kind: 'empty', status: 204, description: 'The address is no longer blocked.' },
+    errors: [ErrorCode.NOT_FOUND, ErrorCode.CONFLICT, ErrorCode.ENTITLEMENT_REQUIRED],
+  },
+  {
+    method: 'POST',
+    path: '/email-pause/resume',
+    operationId: 'resumeEmail',
+    tag: 'Email',
+    summary: 'Resume the company’s email after a pause',
+    description:
+      'Needs `update` on `tenant_settings`. The company’s email is paused automatically after a bad run ' +
+      'of bounces or complaints; this ends the pause. A 409 when it is not paused. Audited.',
+    auth: 'session',
+    response: { kind: 'empty', status: 204, description: 'Email is no longer paused.' },
+    errors: [ErrorCode.CONFLICT, ErrorCode.ENTITLEMENT_REQUIRED],
+  },
+  {
+    method: 'POST',
+    path: '/public/email-events/{provider}',
+    operationId: 'receiveEmailEvents',
+    tag: 'Email',
+    summary: 'Where the mail service reports what happened to an email',
+    description:
+      'Public, with no session: it is **not** called by people. The body is the provider’s own, signed ' +
+      'with a secret only the provider and this installation hold, and is read from the raw bytes; the ' +
+      'signature is checked before anything else. A bad or missing signature is a 401 with one fixed body ' +
+      'and nothing is written; a good one is a 204 whatever the events turn out to be. An unknown or ' +
+      'unconfigured provider is a 404. The body is capped at 256 KB before it is read. The company is ' +
+      'found from the provider’s id for the email, never from anything in the request (ADR-0075).',
+    auth: 'public',
+    params: emailEventParamsSchema,
+    response: { kind: 'empty', status: 204, description: 'Received.' },
+    errors: [ErrorCode.UNAUTHENTICATED, ErrorCode.NOT_FOUND],
+  },
+  {
+    method: 'GET',
+    path: '/public/email-unsubscribe/{token}',
+    operationId: 'getEmailUnsubscribePage',
+    tag: 'Email',
+    summary: 'Whose email an unsubscribe link belongs to',
+    description:
+      'Public, with no session: the link at the foot of every email. Answers with the name the email was ' +
+      'sent under, so the page can ask “stop email from …?”, and **changes nothing**, because mail ' +
+      'scanners open every link in a message. A token that is not signed by this installation, a changed ' +
+      'id and an email that is gone are the same 404. The company is found from the email the signed token ' +
+      'names, never from anything in the request (ADR-0076).',
+    auth: 'public',
+    params: emailUnsubscribeParamsSchema,
+    query: emailUnsubscribeQuerySchema,
+    response: {
+      kind: 'object',
+      status: 200,
+      name: 'EmailUnsubscribePageResponse',
+      description: 'Whose email it is.',
+      data: emailUnsubscribePageSchema,
+    },
+    errors: [ErrorCode.NOT_FOUND],
+  },
+  {
+    method: 'POST',
+    path: '/public/email-unsubscribe/{token}',
+    operationId: 'unsubscribeFromEmail',
+    tag: 'Email',
+    summary: 'Stop receiving email from the company that sent this one',
+    description:
+      'Public, with no session. The address a mail program posts to for its own “unsubscribe” button ' +
+      '(RFC 8058, `List-Unsubscribe-Post: List-Unsubscribe=One-Click`) and the one the page’s button posts ' +
+      'to. The body is never read. The address is blocked for the company (a block no one can lift), the ' +
+      'matching contacts’ consent to email is withdrawn, and the timeline and audit log say so. Doing it ' +
+      'twice is harmless. A token that does not check out is a 404; more than twenty uses of one link in ' +
+      'an hour is a 429.',
+    auth: 'public',
+    params: emailUnsubscribeParamsSchema,
+    query: emailUnsubscribeQuerySchema,
+    response: { kind: 'empty', status: 204, description: 'Done.' },
+    errors: [ErrorCode.NOT_FOUND, ErrorCode.RATE_LIMITED],
   },
 ];

@@ -1638,6 +1638,18 @@ export const en = {
     'The link may be wrong, or the form may have been switched off.',
   'publicForm.submit': 'Send',
   'publicForm.sending': 'Sending',
+  // The page the link at the foot of an email opens (ADR-0076). Counsel reads this wording before the first
+  // real customer sends; it is all here so that is one edit.
+  'unsubscribe.pageTitle': 'Unsubscribe',
+  'unsubscribe.ask.title': 'Stop emails from {company}?',
+  'unsubscribe.ask.description':
+    'You will no longer receive email from {company} sent through this service. This cannot be undone from this page.',
+  'unsubscribe.ask.button': 'Stop emails',
+  'unsubscribe.done.title': 'You will not receive more email',
+  'unsubscribe.done.description': 'Your request has been recorded. You can close this page.',
+  'unsubscribe.invalid.title': 'This link is not valid',
+  'unsubscribe.invalid.description':
+    'It may have been copied incompletely. If you still want to stop receiving email, reply to the message you received and say so.',
   'publicForm.required': 'This is required',
   'publicForm.requiredMark': 'required',
   'publicForm.consentRequired': 'Please tick the box to continue',
@@ -2048,6 +2060,48 @@ export const en = {
     '{name} will no longer be offered. Emails already sent from it are not changed.',
   'email.templates.delete.confirm': 'Delete template',
   'email.templates.delete.error': 'The template was not deleted. Try again.',
+  // Delivery status, blocked addresses and the pause (ADR-0075).
+  'email.bounce.is_mailbox_not_found': 'The mail service says this address does not exist.',
+  'email.bounce.is_domain_not_found':
+    'The mail service says the domain of this address does not exist.',
+  'email.bounce.is_mailbox_full': 'The mailbox of this address is full.',
+  'email.bounce.is_blocked':
+    'This address is on the mail service’s own block list, so the email was not sent.',
+  'email.bounce.is_other': 'The mail service reports that this address cannot receive email.',
+  'email.complained.note':
+    'The person reported this email as spam. They will not be written to again.',
+  'email.suppressed.hard_bounce':
+    'This address bounced, so it is blocked. Correct the address on the record; an administrator can then unblock it under Settings, Email.',
+  'email.suppressed.complaint':
+    'This person reported an email as spam, so they will not be written to again.',
+  'email.suppressed.unsubscribed':
+    'This person unsubscribed, so they will not be written to again.',
+  'email.paused.notice':
+    'Email is paused for your company because many emails bounced or were reported as spam. An administrator can resume it under Settings, Email.',
+  'email.paused.title': 'Email is paused',
+  'email.paused.reason.bounces': 'Too many emails bounced.',
+  'email.paused.reason.complaints': 'Too many emails were reported as spam.',
+  'email.paused.since': 'Paused {when}.',
+  'email.paused.resume': 'Resume email',
+  'email.paused.resume.error': 'Email could not be resumed. Try again.',
+  'email.suppressions.title': 'Blocked addresses',
+  'email.suppressions.description':
+    'Addresses your company’s email is not written to: they bounced, reported spam or unsubscribed.',
+  'email.suppressions.empty.title': 'No blocked addresses',
+  'email.suppressions.empty.description':
+    'An address appears here when an email to it bounces or the person reports it as spam.',
+  'email.suppressions.error.title': 'Blocked addresses could not be loaded',
+  'email.suppressions.reason.hard_bounce': 'Bounced',
+  'email.suppressions.reason.complaint': 'Reported as spam',
+  'email.suppressions.reason.unsubscribed': 'Unsubscribed',
+  'email.suppressions.address.gone': 'Address removed',
+  'email.suppressions.lift': 'Unblock',
+  'email.suppressions.lift.title': 'Unblock this address?',
+  'email.suppressions.lift.body':
+    'Emails to {address} will be allowed again. Do this only after the address has been corrected.',
+  'email.suppressions.lift.confirm': 'Unblock address',
+  'email.suppressions.lift.error': 'The address could not be unblocked.',
+  'email.suppressions.locked': 'The person asked not to be written to. This cannot be undone.',
 } as const;
 
 export type TranslationKey = keyof typeof en;

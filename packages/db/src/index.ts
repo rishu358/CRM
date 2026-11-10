@@ -8,6 +8,7 @@ export * from './search/index.js';
 export * from './import-export/index.js';
 export * from './recycle-bin/index.js';
 export * from './data-rights/index.js';
+export * from './email-suppression.js';
 export * as schema from './schema/index.js';
 export * from './schema/index.js';
 

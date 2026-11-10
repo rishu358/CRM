@@ -1,9 +1,13 @@
 import {
+  isUnsubscribeTokenShape,
   newId,
   renderEmailHtml,
   renderEmailText,
+  unsubscribeOneClickUrl,
+  unsubscribePageUrl,
   type EmailFailureCode,
   type EmailProvider,
+  type EmailUnsubscribe,
 } from '@crm/core';
 import { EmailSendError } from '@crm/outbound';
 import {
@@ -56,6 +60,11 @@ export interface EmailHandlerDeps {
   readonly db: Database;
   /** Sends as the outreach address (`EMAIL_OUTREACH_FROM`), not as the system one. */
   readonly email: EmailProvider;
+  /**
+   * The two public origins the unsubscribe link is built from (ADR-0076): the web app's page, and the API's
+   * address a mail program posts to. Configuration, never a literal.
+   */
+  readonly origins: { readonly web: string; readonly api: string };
   readonly logger: Logger;
 }
 
@@ -113,17 +122,30 @@ export function sendQueuedEmail(deps: EmailHandlerDeps): EventHandler {
       return;
     }
 
+    // Every email says how to stop receiving them (ADR-0076). One queued before the link existed has no
+    // token and goes without it; nothing is made up for it here, because the API signs the tokens.
+    const token = isUnsubscribeTokenShape(message.unsubscribeToken)
+      ? message.unsubscribeToken
+      : null;
+    const unsubscribe: EmailUnsubscribe | null =
+      token === null
+        ? null
+        : { companyName: message.fromName, pageUrl: unsubscribePageUrl(deps.origins.web, token) };
+
     // 2. Send. No transaction is open here.
     let providerMessageId: string | null;
     try {
       const receipt = await deps.email.send({
         to: message.toAddress,
         subject: message.subject,
-        text: renderEmailText(message.bodyText, footer),
-        html: renderEmailHtml(message.bodyText, footer),
+        text: renderEmailText(message.bodyText, footer, unsubscribe),
+        html: renderEmailHtml(message.bodyText, footer, unsubscribe),
         fromName: message.fromName,
         ...(message.replyTo === null ? {} : { replyTo: message.replyTo }),
         messageId: message.messageId,
+        ...(token === null
+          ? {}
+          : { unsubscribeUrl: unsubscribeOneClickUrl(deps.origins.api, token) }),
       });
       providerMessageId = receipt.providerMessageId ?? null;
     } catch (error) {

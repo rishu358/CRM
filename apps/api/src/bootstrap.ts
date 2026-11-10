@@ -13,7 +13,7 @@ import {
   type RequestContext,
 } from './common/request-context.js';
 import { corsOrigins, loadApiEnv, previousAuthSecrets, type ApiEnv } from './config/env.js';
-import { isPublicApiPath, limitPublicBodies } from './common/public-routes.js';
+import { captureRawBody, isPublicApiPath, limitPublicBodies } from './common/public-routes.js';
 import { AddressRateLimitService } from './platform/rate-limit.service.js';
 
 /**
@@ -101,6 +101,8 @@ export async function createApp(env: ApiEnv = loadApiEnv()): Promise<NestFastify
   // is capped before it is read, and the browser's cross-origin approval is never given there: they
   // take no cookies, and v1 has no cross-origin embed.
   limitPublicBodies(instance);
+  // The mail service's reports are signed over their exact bytes, so that one address keeps them raw (ADR-0075).
+  captureRawBody(instance);
 
   const credentialedCors = {
     origin: corsOrigins(env),

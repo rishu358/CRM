@@ -163,17 +163,56 @@ export function escapeHtml(value: string): string {
     .replace(/'/g, '&#39;');
 }
 
-/** The plain-text part: the body, then the company's footer under a conventional separator. */
-export function renderEmailText(body: string, footer: string | null): string {
+/** What the foot of a message needs to say how to stop receiving email (ADR-0076). */
+export interface EmailUnsubscribe {
+  readonly companyName: string;
+  /** The page the person opens (`unsubscribePageUrl`). */
+  readonly pageUrl: string;
+}
+
+/**
+ * The sentence at the foot of the plain text. Counsel reads this wording before the first real customer sends
+ * (the owner's answer to question 6 of the PR 3 plan); it is kept in one place so that is one edit.
+ */
+export function unsubscribeLine(unsubscribe: EmailUnsubscribe): string {
+  return `To stop receiving email from ${unsubscribe.companyName}, open: ${unsubscribe.pageUrl}`;
+}
+
+/** The same sentence for the HTML part, with the link as a link. Everything is escaped. */
+export function unsubscribeHtml(unsubscribe: EmailUnsubscribe): string {
+  return (
+    `To stop receiving email from ${escapeHtml(unsubscribe.companyName)}, ` +
+    `<a href="${escapeHtml(unsubscribe.pageUrl)}">unsubscribe</a>.`
+  );
+}
+
+/**
+ * The plain-text part: the body, then under a conventional separator the company's footer and the sentence
+ * that says how to stop receiving email (ADR-0076), when there is one.
+ */
+export function renderEmailText(
+  body: string,
+  footer: string | null,
+  unsubscribe: EmailUnsubscribe | null = null,
+): string {
   const text = body.replace(/\r\n?/g, '\n').trimEnd();
-  return footer === null || footer.trim() === '' ? text : `${text}\n\n-- \n${footer.trim()}`;
+  const parts = [
+    ...(footer === null || footer.trim() === '' ? [] : [footer.trim()]),
+    ...(unsubscribe === null ? [] : [unsubscribeLine(unsubscribe)]),
+  ];
+  return parts.length === 0 ? text : `${text}\n\n-- \n${parts.join('\n\n')}`;
 }
 
 /**
  * The HTML part, built from the text by escaping it: blank lines become paragraphs, single line
  * breaks become `<br>`. Nothing the sender typed is ever markup, and no link is rewritten or tracked.
+ * The one link it holds is the unsubscribe link, and it goes to the address we built.
  */
-export function renderEmailHtml(body: string, footer: string | null): string {
+export function renderEmailHtml(
+  body: string,
+  footer: string | null,
+  unsubscribe: EmailUnsubscribe | null = null,
+): string {
   const lines = (text: string): string => escapeHtml(text).replace(/\n/g, '<br>');
   const blocks = body
     .replace(/\r\n?/g, '\n')
@@ -182,6 +221,9 @@ export function renderEmailHtml(body: string, footer: string | null): string {
     .map((block) => `<p>${lines(block)}</p>`);
   if (footer !== null && footer.trim() !== '') {
     blocks.push(`<p style="color:#666666;font-size:12px">${lines(footer.trim())}</p>`);
+  }
+  if (unsubscribe !== null) {
+    blocks.push(`<p style="color:#666666;font-size:12px">${unsubscribeHtml(unsubscribe)}</p>`);
   }
   return blocks.join('\n');
 }

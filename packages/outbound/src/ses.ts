@@ -1,6 +1,11 @@
 import type { EmailMessage, EmailProvider, EmailReceipt } from '@crm/core';
 import { GuardedOutboundHttp } from './client.js';
-import { assertSendable, formatFromHeader, providerMessageIdFrom } from './message.js';
+import {
+  assertSendable,
+  formatFromHeader,
+  providerMessageIdFrom,
+  unsubscribeHeaders,
+} from './message.js';
 import { EmailSendError } from './resend.js';
 import { signV4 } from './sigv4.js';
 import { OutboundError, type OutboundHttp } from './types.js';
@@ -89,6 +94,14 @@ export class SesEmailProvider implements EmailProvider {
       Content: {
         Simple: {
           Subject: { Data: message.subject, Charset: 'UTF-8' },
+          ...(unsubscribeHeaders(message) === undefined
+            ? {}
+            : {
+                Headers: Object.entries(unsubscribeHeaders(message) ?? {}).map(([Name, Value]) => ({
+                  Name,
+                  Value,
+                })),
+              }),
           Body: {
             Text: { Data: message.text, Charset: 'UTF-8' },
             ...(message.html === undefined
