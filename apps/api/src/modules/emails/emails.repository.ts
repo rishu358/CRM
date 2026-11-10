@@ -4,8 +4,10 @@ import {
   asc,
   emailMessageLinks,
   emailMessages,
+  emailPauses,
   emailSenderConfig,
   emailSignatures,
+  emailSuppressions,
   emailTemplates,
   eq,
   inArray,
@@ -15,8 +17,10 @@ import {
   users,
   type EmailMessageLinkRow,
   type EmailMessageRow,
+  type EmailPauseRow,
   type EmailSenderConfigRow,
   type EmailSignatureRow,
+  type EmailSuppressionRow,
   type EmailTemplateRow,
   type NewEmailMessageRow,
   type Tx,
@@ -446,5 +450,118 @@ export class EmailsRepository {
       )
       .returning();
     return rows[0] ?? null;
+  }
+
+  // ---- the block list and the pause (ADR-0075) -------------------------------------------------------
+
+  /** The live block on this address (by its hash), if there is one. */
+  async findLiveSuppression(
+    tx: Tx,
+    tenantId: string,
+    addressHash: Buffer,
+  ): Promise<EmailSuppressionRow | null> {
+    const rows = await tx
+      .select()
+      .from(emailSuppressions)
+      .where(
+        and(
+          eq(emailSuppressions.tenantId, tenantId),
+          eq(emailSuppressions.addressHash, addressHash),
+          isNull(emailSuppressions.liftedAt),
+        ),
+      )
+      .limit(1);
+    return rows[0] ?? null;
+  }
+
+  async findSuppression(tx: Tx, tenantId: string, id: string): Promise<EmailSuppressionRow | null> {
+    const rows = await tx
+      .select()
+      .from(emailSuppressions)
+      .where(and(eq(emailSuppressions.tenantId, tenantId), eq(emailSuppressions.id, id)))
+      .limit(1);
+    return rows[0] ?? null;
+  }
+
+  /** The live blocks, newest first, with the address from the email that caused each while it still holds one. */
+  async listLiveSuppressions(
+    tx: Tx,
+    tenantId: string,
+  ): Promise<{ row: EmailSuppressionRow; address: string | null }[]> {
+    const result = await tx.execute(sql`
+      select s.id, m.to_address::text as address
+      from email_suppressions s
+      left join email_messages m on m.tenant_id = s.tenant_id and m.id = s.source_email_id
+      where s.tenant_id = ${tenantId}::uuid and s.lifted_at is null
+      order by s.created_at desc, s.id desc
+      limit 500
+    `);
+    const found = result.rows as unknown as { id: string; address: string | null }[];
+    if (found.length === 0) return [];
+    const rows = await tx
+      .select()
+      .from(emailSuppressions)
+      .where(
+        and(
+          eq(emailSuppressions.tenantId, tenantId),
+          inArray(
+            emailSuppressions.id,
+            found.map((entry) => entry.id),
+          ),
+        ),
+      );
+    const byId = new Map(rows.map((row) => [row.id, row]));
+    const listed: { row: EmailSuppressionRow; address: string | null }[] = [];
+    for (const entry of found) {
+      const row = byId.get(entry.id);
+      if (row !== undefined) listed.push({ row, address: entry.address });
+    }
+    return listed;
+  }
+
+  async liftSuppression(
+    tx: Tx,
+    args: { tenantId: string; id: string; userId: string },
+  ): Promise<boolean> {
+    const rows = await tx
+      .update(emailSuppressions)
+      .set({
+        liftedAt: new Date(),
+        liftedBy: args.userId,
+        updatedAt: new Date(),
+        updatedBy: args.userId,
+      })
+      .where(
+        and(
+          eq(emailSuppressions.tenantId, args.tenantId),
+          eq(emailSuppressions.id, args.id),
+          isNull(emailSuppressions.liftedAt),
+        ),
+      )
+      .returning({ id: emailSuppressions.id });
+    return rows.length > 0;
+  }
+
+  async findLivePause(tx: Tx, tenantId: string): Promise<EmailPauseRow | null> {
+    const rows = await tx
+      .select()
+      .from(emailPauses)
+      .where(and(eq(emailPauses.tenantId, tenantId), isNull(emailPauses.resumedAt)))
+      .limit(1);
+    return rows[0] ?? null;
+  }
+
+  async resumePause(tx: Tx, args: { tenantId: string; userId: string }): Promise<boolean> {
+    const rows = await tx
+      .update(emailPauses)
+      .set({
+        resumedAt: new Date(),
+        resumedBy: args.userId,
+        updatedAt: new Date(),
+        updatedBy: args.userId,
+      })
+      .where(and(eq(emailPauses.tenantId, args.tenantId), isNull(emailPauses.resumedAt)))
+      .returning({ id: emailPauses.id });
+    return rows.length > 0;
   }
 }

@@ -35,6 +35,7 @@ checklist for an incident. [`SECURITY.md`](../SECURITY.md) says how to report a 
 | `AUTH_SECRET`                                | API                 | Authenticator (MFA) secrets and backup codes at rest, and the cookie signer.                   |
 | `AUTH_SECRET_PREVIOUS`                       | API                 | The same, for stored values written under an earlier `AUTH_SECRET`. Only during rotation.      |
 | `RESEND_API_KEY`                             | API, worker         | Sending mail as the application, through Resend.                                               |
+| `RESEND_WEBHOOK_SECRET`                      | API                 | Checking that a delivery report really comes from Resend (ADR-0075). Not used for sending.     |
 | `SES_ACCESS_KEY_ID`, `SES_SECRET_ACCESS_KEY` | API, worker         | Sending mail as the application, through Amazon SES.                                           |
 | `SMTP_PASSWORD`                              | API, worker         | Sending mail as the application, through an SMTP server.                                       |
 | `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`   | API, worker         | Every uploaded file, import and export in the bucket.                                          |
@@ -89,6 +90,11 @@ is no downtime. Check `DATABASE_*` URLs for the new password only in the secret 
 Create a new key or credential in the provider, set it, redeploy, **then** delete the old one in the provider's
 console, so there is no moment with neither. For SES, create the new IAM access key beside the old, and deactivate
 before deleting. The IAM user should be allowed `ses:SendEmail` only.
+
+`RESEND_WEBHOOK_SECRET` (ADR-0075) is the endpoint's signing secret on Resend's Webhooks page. Rolling it in Resend and
+setting the new value here are not one step, so for a short time a real report fails its check and is answered 401. Whether
+Resend retries a refused report is not on the pages we read; the cost of a miss is an email whose status stays at "Sent".
+Set the new value, redeploy, then roll it in Resend straight after.
 
 ### Object storage
 

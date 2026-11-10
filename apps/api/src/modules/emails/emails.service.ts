@@ -1,5 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import {
+  AddressSuppressedError,
   addressDomain,
   assertCan,
   bareAddress,
@@ -7,6 +8,7 @@ import {
   ConflictError,
   ConsentWithdrawnError,
   EMAIL_LIMITS,
+  EmailPausedError,
   emailLimitsFor,
   ForbiddenError,
   isValidBody,
@@ -49,7 +51,7 @@ import { AccountsService } from '../accounts/accounts.service.js';
 import { ContactsService } from '../contacts/contacts.service.js';
 import { DealsService } from '../deals/deals.service.js';
 import { LeadsService } from '../leads/leads.service.js';
-import type { Tx } from '@crm/db';
+import { emailSuppressionKey, type Tx } from '@crm/db';
 import type { EmailMessageRow, NewEmailMessageRow } from '@crm/db';
 import { EmailsRepository, type EmailListRow } from './emails.repository.js';
 
@@ -133,6 +135,8 @@ export class EmailsService {
         senderConfigured: sender.configured,
         mergeValues: await this.mergeValuesFor(tx, actor, resolved, sender),
         signature: signature?.signatureText ?? '',
+        suppressed: await this.suppressionOf(tx, actor, resolved.recipient.email),
+        paused: (await this.repository.findLivePause(tx, actor.tenantId)) !== null,
       };
     });
   }
@@ -260,6 +264,17 @@ export class EmailsService {
     const to = resolved.recipient.email;
     if (to === null || to.trim() === '') throw new NoEmailAddressError();
     if (resolved.recipient.consent === 'withdrawn') throw new ConsentWithdrawnError();
+
+    // Two refusals that are not about the words: the company's email is paused, or this address is blocked.
+    if ((await this.repository.findLivePause(tx, actor.tenantId)) !== null) {
+      throw new EmailPausedError();
+    }
+    const blocked = await this.repository.findLiveSuppression(
+      tx,
+      actor.tenantId,
+      emailSuppressionKey(actor.tenantId, to),
+    );
+    if (blocked !== null) throw new AddressSuppressedError(blocked.reason);
 
     const sender = await this.senderFor(tx, actor);
     const fromAddress = this.sendingAddress();
@@ -530,6 +545,21 @@ export class EmailsService {
     return { subject, body };
   }
 
+  /** Whether this address is blocked, and why, as the context answers it. Null for no address, or not blocked. */
+  private async suppressionOf(
+    tx: Tx,
+    actor: Actor,
+    address: string | null,
+  ): Promise<EmailContext['suppressed']> {
+    if (address === null) return null;
+    const live = await this.repository.findLiveSuppression(
+      tx,
+      actor.tenantId,
+      emailSuppressionKey(actor.tenantId, address),
+    );
+    return live === null ? null : { reason: live.reason, since: live.createdAt.toISOString() };
+  }
+
   /** The footer the company appends to every email, or null. */
   async footerFor(tx: Tx, tenantId: string): Promise<string | null> {
     return (await this.repository.findConfig(tx, tenantId))?.footerText ?? null;
@@ -677,6 +707,7 @@ function toDto(row: EmailListRow): EmailMessage {
     subject: m.subject,
     body: m.bodyText,
     failureCode: (m.failureCode as EmailMessage['failureCode']) ?? null,
+    bounceReason: (m.bounceReason as EmailMessage['bounceReason']) ?? null,
     erased: m.erasedAt !== null,
     contactId: m.contactId,
     sentById: m.createdBy,

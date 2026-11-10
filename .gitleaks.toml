@@ -26,3 +26,7 @@ regexes = ['''^q8Zr3vXk1LmN7pTc0YbUe5HwJd2GfAoS9iRtVxCz4KuBn6MyPqEl$''']
 [[allowlists]]
 description = "docs/adr/0017 quotes a SHA-256 digest (token_hash) of a throwaway session from a local development database as evidence. A digest of an expired dev token, not a credential."
 regexes = ['''^SwHWhyUqZywZtHMe8pTqOdMm7H8J0e4o$''']
+
+[[allowlists]]
+description = "The signing secret Svix publishes for its own manual-verification example (docs.svix.com), used as the test secret in the Resend events specs (packages/outbound/src/resend-events.spec.ts and apps/api/src/modules/email-events/email-events.spec.ts) so the signature check is tested against a vector the vendor published. It signs nothing anywhere."
+regexes = ['''^whsec_plJ3nmyCDGBKInavdOK15jsl$''']

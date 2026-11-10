@@ -525,3 +525,293 @@ describe('templates and signatures (migration 0033)', () => {
     expect(crossed.code).toBeDefined();
   });
 });
+
+describe('delivery events, blocked addresses and the pause (migration 0034)', () => {
+  const hash = (n: number) => Buffer.alloc(32, n);
+  let sentA: string;
+  let sentB: string;
+
+  beforeAll(async () => {
+    sentA = await insertMessage(tenantA, { status: 'sent' });
+    sentB = await insertMessage(tenantB, { status: 'sent' });
+    await superuser.query(`update email_messages set provider_message_id = $2 where id = $1`, [
+      sentA,
+      `prov-a-${sentA}`,
+    ]);
+    await superuser.query(`update email_messages set provider_message_id = $2 where id = $1`, [
+      sentB,
+      `prov-b-${sentB}`,
+    ]);
+  });
+
+  describe('the routing role', () => {
+    it('can turn a provider id into a company and an email, and read nothing else', async () => {
+      const routed = await withoutTenant(db.auth.db, (tx) =>
+        tx.execute(sql`
+          select tenant_id, id from email_messages where provider_message_id = ${`prov-a-${sentA}`}`),
+      );
+      expect(routed.rows).toEqual([{ tenant_id: tenantA, id: sentA }]);
+
+      for (const column of [
+        'to_address',
+        'subject',
+        'body_text',
+        'status',
+        'from_name',
+        'reply_to',
+      ]) {
+        const error = await captureDbError(() =>
+          withoutTenant(db.auth.db, (tx) =>
+            tx.execute(sql.raw(`select ${column} from email_messages limit 1`)),
+          ),
+        );
+        expect(error.code, column).toBe(INSUFFICIENT_PRIVILEGE);
+      }
+      const star = await captureDbError(() =>
+        withoutTenant(db.auth.db, (tx) => tx.execute(sql`select * from email_messages limit 1`)),
+      );
+      expect(star.code).toBe(INSUFFICIENT_PRIVILEGE);
+    });
+
+    it('can neither change nor delete a message, and has no access to the new tables', async () => {
+      for (const statement of [
+        `update email_messages set status = 'sent'`,
+        `delete from email_messages`,
+        `insert into email_provider_events (id) values (gen_random_uuid())`,
+      ]) {
+        const error = await captureDbError(() =>
+          withoutTenant(db.auth.db, (tx) => tx.execute(sql.raw(statement))),
+        );
+        expect(error.code, statement).toBe(INSUFFICIENT_PRIVILEGE);
+      }
+      for (const table of ['email_provider_events', 'email_suppressions', 'email_pauses']) {
+        const error = await captureDbError(() =>
+          withoutTenant(db.auth.db, (tx) => tx.execute(sql.raw(`select * from ${table}`))),
+        );
+        expect(error.code, table).toBe(INSUFFICIENT_PRIVILEGE);
+      }
+    });
+  });
+
+  describe('events', () => {
+    it('records an event once: the same delivery of the same event again is refused by the table', async () => {
+      const insert = (tenant: string, message: string, eventId: string) =>
+        withTenant(db.app.db, as(tenant), (tx) =>
+          tx.execute(sql`
+            insert into email_provider_events
+              (id, tenant_id, provider, provider_event_id, email_message_id, event_type)
+            values (${randomUUID()}, ${tenant}, 'resend', ${eventId}, ${message}, 'delivered')`),
+        );
+      const id = `msg_${randomUUID()}`;
+      await insert(tenantA, sentA, id);
+      expect((await captureDbError(() => insert(tenantA, sentA, id))).code).toBe(UNIQUE_VIOLATION);
+      // The same provider id in another company is another row.
+      await expect(insert(tenantB, sentB, id)).resolves.toBeDefined();
+    });
+
+    it('is the application role’s to write and read, and nobody’s to change', async () => {
+      const error = await captureDbError(() =>
+        withTenant(db.app.db, as(tenantA), (tx) =>
+          tx.execute(sql`update email_provider_events set event_type = 'bounced'`),
+        ),
+      );
+      expect(error.code).toBe(INSUFFICIENT_PRIVILEGE);
+      const worker = await captureDbError(() =>
+        withTenant(db.worker.db, as(tenantA), (tx) =>
+          tx.execute(sql`delete from email_provider_events`),
+        ),
+      );
+      expect(worker.code).toBe(INSUFFICIENT_PRIVILEGE);
+    });
+
+    it('refuses a type or a provider name outside the lists, and keeps each company’s events apart', async () => {
+      const bad = (type: string, provider: string) =>
+        superuser.query(
+          `insert into email_provider_events
+             (id, tenant_id, provider, provider_event_id, email_message_id, event_type)
+           values ($1, $2, $3, $4, $5, $6)`,
+          [randomUUID(), tenantA, provider, `e-${randomUUID()}`, sentA, type],
+        );
+      expect((await captureDbError(() => bad('opened', 'resend'))).code).toBe(CHECK_VIOLATION);
+      expect((await captureDbError(() => bad('delivered', 'Not A Provider'))).code).toBe(
+        CHECK_VIOLATION,
+      );
+      const mine = await withTenant(db.app.db, as(tenantA), (tx) =>
+        tx.execute(sql`select distinct tenant_id from email_provider_events`),
+      );
+      expect(mine.rows).toEqual([{ tenant_id: tenantA }]);
+    });
+
+    it('holds a bounce reason only from the closed list', async () => {
+      const set = (reason: string) =>
+        superuser.query(`update email_messages set bounce_reason = $2 where id = $1`, [
+          sentA,
+          reason,
+        ]);
+      await expect(set('mailbox_not_found')).resolves.toBeDefined();
+      expect(
+        (await captureDbError(() => set('Mailbox does not exist: someone@customer.example'))).code,
+      ).toBe(CHECK_VIOLATION);
+      const worker = await withTenant(db.worker.db, as(tenantA), (tx) =>
+        tx.execute(sql`update email_messages set bounce_reason = 'blocked' where id = ${sentA}`),
+      );
+      expect(worker.rowCount).toBe(1);
+    });
+  });
+
+  describe('blocked addresses', () => {
+    const block = (tenant: string, address: number, reason = 'hard_bounce') =>
+      superuser.query(
+        `insert into email_suppressions (id, tenant_id, address_hash, reason) values ($1, $2, $3, $4)`,
+        [randomUUID(), tenant, hash(address), reason],
+      );
+
+    it('keeps the block per company, and holds a hash, never an address', async () => {
+      await block(tenantA, 1);
+      await block(tenantB, 1);
+      const mine = await withTenant(db.app.db, as(tenantA), (tx) =>
+        tx.execute(sql`select tenant_id, octet_length(address_hash) as n from email_suppressions`),
+      );
+      expect(mine.rows.length).toBeGreaterThan(0);
+      for (const row of mine.rows) {
+        expect(row['tenant_id']).toBe(tenantA);
+        expect(row['n']).toBe(32);
+      }
+      const columns = await superuser.query<{ column_name: string }>(
+        `select column_name from information_schema.columns where table_name = 'email_suppressions'`,
+      );
+      expect(columns.rows.map((row) => row.column_name)).not.toContain('address');
+      expect(
+        (
+          await captureDbError(() =>
+            superuser.query(
+              `insert into email_suppressions (id, tenant_id, address_hash, reason) values ($1, $2, $3, 'hard_bounce')`,
+              [randomUUID(), tenantA, Buffer.alloc(5)],
+            ),
+          )
+        ).code,
+      ).toBe(CHECK_VIOLATION);
+    });
+
+    it('has one live block per address in a company, and a lifted one makes room', async () => {
+      await block(tenantA, 2);
+      expect((await captureDbError(() => block(tenantA, 2, 'complaint'))).code).toBe(
+        UNIQUE_VIOLATION,
+      );
+      await withTenant(db.app.db, as(tenantA), (tx) =>
+        tx.execute(sql`
+          update email_suppressions set lifted_at = now(), lifted_by = ${userA}
+          where address_hash = ${hash(2)}`),
+      );
+      await expect(block(tenantA, 2)).resolves.toBeDefined();
+    });
+
+    it('cannot be lifted when it is a complaint or an unsubscribe, even by a direct update', async () => {
+      for (const [n, reason] of [
+        [3, 'complaint'],
+        [4, 'unsubscribed'],
+      ] as const) {
+        await block(tenantA, n, reason);
+        const error = await captureDbError(() =>
+          withTenant(db.app.db, as(tenantA), (tx) =>
+            tx.execute(sql`
+              update email_suppressions set lifted_at = now(), lifted_by = ${userA}
+              where address_hash = ${hash(n)}`),
+          ),
+        );
+        expect(error.code, reason).toBe(CHECK_VIOLATION);
+      }
+    });
+
+    it('lets the application role lift a block and nothing else about it, and the worker only add one', async () => {
+      const reasonChange = await captureDbError(() =>
+        withTenant(db.app.db, as(tenantA), (tx) =>
+          tx.execute(sql`update email_suppressions set reason = 'complaint'`),
+        ),
+      );
+      expect(reasonChange.code).toBe(INSUFFICIENT_PRIVILEGE);
+      const remove = await captureDbError(() =>
+        withTenant(db.app.db, as(tenantA), (tx) => tx.execute(sql`delete from email_suppressions`)),
+      );
+      expect(remove.code).toBe(INSUFFICIENT_PRIVILEGE);
+      const insertAsApp = await captureDbError(() =>
+        withTenant(db.app.db, as(tenantA), (tx) =>
+          tx.execute(sql`
+            insert into email_suppressions (id, tenant_id, address_hash, reason)
+            values (${randomUUID()}, ${tenantA}, ${hash(9)}, 'hard_bounce')`),
+        ),
+      );
+      expect(insertAsApp.code).toBe(INSUFFICIENT_PRIVILEGE);
+      const added = await withTenant(db.worker.db, as(tenantA), (tx) =>
+        tx.execute(sql`
+          insert into email_suppressions (id, tenant_id, address_hash, reason)
+          values (${randomUUID()}, ${tenantA}, ${hash(8)}, 'complaint')`),
+      );
+      expect(added.rowCount).toBe(1);
+      const lifting = await captureDbError(() =>
+        withTenant(db.worker.db, as(tenantA), (tx) =>
+          tx.execute(sql`update email_suppressions set lifted_at = now(), lifted_by = ${userA}`),
+        ),
+      );
+      expect(lifting.code).toBe(INSUFFICIENT_PRIVILEGE);
+    });
+
+    it('computes the same key for the same address in the same company, whatever its case', async () => {
+      const { emailSuppressionKey } = await import('./email-suppression.js');
+      expect(
+        emailSuppressionKey(tenantA, 'Someone@Customer.Example ').equals(
+          emailSuppressionKey(tenantA, 'someone@customer.example'),
+        ),
+      ).toBe(true);
+      expect(
+        emailSuppressionKey(tenantA, 'someone@customer.example').equals(
+          emailSuppressionKey(tenantB, 'someone@customer.example'),
+        ),
+      ).toBe(false);
+    });
+  });
+
+  describe('the pause', () => {
+    it('allows one live pause per company, and a resumed one makes room', async () => {
+      const pause = (tenant: string) =>
+        superuser.query(
+          `insert into email_pauses (id, tenant_id, reason) values ($1, $2, 'bounces')`,
+          [randomUUID(), tenant],
+        );
+      await pause(tenantA);
+      await pause(tenantB);
+      expect((await captureDbError(() => pause(tenantA))).code).toBe(UNIQUE_VIOLATION);
+      await withTenant(db.app.db, as(tenantA), (tx) =>
+        tx.execute(sql`update email_pauses set resumed_at = now(), resumed_by = ${userA}`),
+      );
+      await expect(pause(tenantA)).resolves.toBeDefined();
+    });
+
+    it('is the worker’s to start and the application role’s to end, and each company sees its own', async () => {
+      const mine = await withTenant(db.app.db, as(tenantB), (tx) =>
+        tx.execute(sql`select distinct tenant_id from email_pauses`),
+      );
+      expect(mine.rows).toEqual([{ tenant_id: tenantB }]);
+      const start = await captureDbError(() =>
+        withTenant(db.app.db, as(tenantB), (tx) =>
+          tx.execute(sql`
+            insert into email_pauses (id, tenant_id, reason) values (${randomUUID()}, ${tenantB}, 'complaints')`),
+        ),
+      );
+      expect(start.code).toBe(INSUFFICIENT_PRIVILEGE);
+      const reasonChange = await captureDbError(() =>
+        withTenant(db.app.db, as(tenantB), (tx) =>
+          tx.execute(sql`update email_pauses set reason = 'complaints'`),
+        ),
+      );
+      expect(reasonChange.code).toBe(INSUFFICIENT_PRIVILEGE);
+      const bad = await captureDbError(() =>
+        superuser.query(
+          `insert into email_pauses (id, tenant_id, reason) values ($1, $2, 'boredom')`,
+          [randomUUID(), tenantB],
+        ),
+      );
+      expect(bad.code).toBe(CHECK_VIOLATION);
+    });
+  });
+});

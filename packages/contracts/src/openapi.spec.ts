@@ -85,6 +85,8 @@ describe('openapi document', () => {
         'POST /auth/sign-up',
         'POST /auth/verify-email',
         'POST /invitations/accept',
+        // Where the mail service reports what happened to an email: signed, never called by people (ADR-0075).
+        'POST /public/email-events/{provider}',
       ].sort(),
     );
   });
