@@ -339,11 +339,13 @@ describe('the unsubscribe link (ADR-0076)', () => {
   // Sent as the administrator, so these do not spend the sales rep’s daily allowance that later tests count.
   it('signs a token for every email it queues, naming that email, and never shows it to the sender', async () => {
     const sent = dataOf<Email>(await send(admin.token, ok('With a link')));
-    const row = await superuser.query<{ unsubscribe_token: string | null }>(
-      `select unsubscribe_token from email_messages where id = $1`,
-      [sent.id],
-    );
+    const row = await superuser.query<{
+      unsubscribe_token: string | null;
+      reply_token: string | null;
+    }>(`select unsubscribe_token, reply_token from email_messages where id = $1`, [sent.id]);
     const token = row.rows[0]?.unsubscribe_token ?? null;
+    // No inbound domain is set in this stack, so the email carries no second reply address (ADR-0077).
+    expect(row.rows[0]?.reply_token).toBeNull();
     expect(token).not.toBeNull();
     // This stack sets no unsubscribe secret of its own, so the key is the one derived from AUTH_SECRET: the
     // development fallback. Production refuses to start like this; the own-secret path is in the door's spec.

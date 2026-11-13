@@ -1,6 +1,6 @@
 import { bareAddress, type EmailMessage, type EmailProvider, type EmailReceipt } from '@crm/core';
 import { createTransport, type Transporter } from 'nodemailer';
-import { assertSendable, unsubscribeHeaders } from './message.js';
+import { assertSendable, replyAddresses, unsubscribeHeaders } from './message.js';
 import { EmailSendError } from './resend.js';
 
 /**
@@ -126,7 +126,7 @@ export class SmtpEmailProvider implements EmailProvider {
         subject: message.subject,
         text: message.text,
         ...(message.html === undefined ? {} : { html: message.html }),
-        ...(message.replyTo === undefined ? {} : { replyTo: message.replyTo }),
+        ...(replyAddresses(message) === undefined ? {} : { replyTo: replyAddresses(message) }),
         ...(message.messageId === undefined ? {} : { messageId: message.messageId }),
         ...(unsubscribeHeaders(message) === undefined
           ? {}

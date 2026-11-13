@@ -21,7 +21,13 @@ describe('what an event does to an email’s status', () => {
 
   it('never touches an email that failed or is still in flight', () => {
     for (const status of ['queued', 'sending', 'failed'] as const) {
-      for (const type of ['delivered', 'bounced', 'complained', 'unsubscribed'] as const) {
+      for (const type of [
+        'delivered',
+        'bounced',
+        'complained',
+        'unsubscribed',
+        'received',
+      ] as const) {
         expect(statusAfter(status, type), `${status} ${type}`).toBeNull();
       }
     }
@@ -33,6 +39,15 @@ describe('a person’s own unsubscribe', () => {
     for (const status of ['sent', 'delivered', 'bounced', 'complained'] as const) {
       expect(statusAfter(status, 'unsubscribed'), status).toBeNull();
     }
+  });
+});
+
+describe('a customer’s reply', () => {
+  it('is a new message, not news about one we sent: no status moves and no address is blocked', () => {
+    for (const status of ['sent', 'delivered', 'bounced', 'complained', 'received'] as const) {
+      expect(statusAfter(status, 'received'), status).toBeNull();
+    }
+    expect(suppressionFor('received')).toBeNull();
   });
 });
 

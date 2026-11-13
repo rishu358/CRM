@@ -1,5 +1,7 @@
 import {
   isUnsubscribeTokenShape,
+  REPLY_LOCAL_PATTERN,
+  replyAddress,
   newId,
   renderEmailHtml,
   renderEmailText,
@@ -64,7 +66,12 @@ export interface EmailHandlerDeps {
    * The two public origins the unsubscribe link is built from (ADR-0076): the web app's page, and the API's
    * address a mail program posts to. Configuration, never a literal.
    */
-  readonly origins: { readonly web: string; readonly api: string };
+  readonly origins: {
+    readonly web: string;
+    readonly api: string;
+    /** The domain replies are received at, or null while the feature is off (ADR-0077). */
+    readonly inboundDomain?: string | null;
+  };
   readonly logger: Logger;
 }
 
@@ -132,6 +139,18 @@ export function sendQueuedEmail(deps: EmailHandlerDeps): EventHandler {
         ? null
         : { companyName: message.fromName, pageUrl: unsubscribePageUrl(deps.origins.web, token) };
 
+    // A second reply address, ours, so an answer reaches the rep as before and reaches us too (ADR-0077). Only
+    // while an inbound domain is configured, only for a token of the right shape, and only when the message has
+    // a reply address of its own for the rep to keep receiving answers at.
+    const inboundDomain = deps.origins.inboundDomain ?? null;
+    const captureAddress =
+      inboundDomain !== null &&
+      message.replyTo !== null &&
+      message.replyToken !== null &&
+      REPLY_LOCAL_PATTERN.test(message.replyToken)
+        ? replyAddress(message.replyToken, inboundDomain)
+        : null;
+
     // 2. Send. No transaction is open here.
     let providerMessageId: string | null;
     try {
@@ -143,6 +162,7 @@ export function sendQueuedEmail(deps: EmailHandlerDeps): EventHandler {
         fromName: message.fromName,
         ...(message.replyTo === null ? {} : { replyTo: message.replyTo }),
         messageId: message.messageId,
+        ...(captureAddress === null ? {} : { captureAddress }),
         ...(token === null
           ? {}
           : { unsubscribeUrl: unsubscribeOneClickUrl(deps.origins.api, token) }),

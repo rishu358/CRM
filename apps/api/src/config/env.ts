@@ -1,5 +1,6 @@
 import {
   assertProductionConfig,
+  normalizeInboundDomain,
   productionConfigProblems,
   type ProductionConfigInput,
 } from '@crm/core';
@@ -22,6 +23,7 @@ export function loadApiEnv(source?: EnvSource): ApiEnv {
   const env = loadEnv('api', source);
   assertPreviousAuthSecrets(env);
   assertUnsubscribeSecrets(env);
+  assertInboundDomain(env);
   // A production process with development settings does not start (ADR-0041).
   assertProductionConfig(productionInput(env));
   return env;
@@ -106,6 +108,22 @@ export function previousUnsubscribeSecrets(
     .split(',')
     .map((key) => key.trim())
     .filter((key) => key.length > 0);
+}
+
+/**
+ * `EMAIL_INBOUND_DOMAIN` as a plain lower-case host name, or null when it is unset (the feature is off). A value
+ * that is set but is not a host name is refused at start-up instead: a typo must not quietly print reply
+ * addresses that go nowhere (ADR-0077).
+ */
+export function inboundDomainOf(env: Pick<ApiEnv, 'EMAIL_INBOUND_DOMAIN'>): string | null {
+  return normalizeInboundDomain(env.EMAIL_INBOUND_DOMAIN);
+}
+
+function assertInboundDomain(env: ApiEnv): void {
+  const value = env.EMAIL_INBOUND_DOMAIN;
+  if (value !== undefined && value.trim() !== '' && inboundDomainOf(env) === null) {
+    throw new Error('EMAIL_INBOUND_DOMAIN must be a plain host name such as reply.example.com');
+  }
 }
 
 /** Refuses a malformed unsubscribe key list at start-up, naming the variable and never a key. */

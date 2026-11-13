@@ -1,5 +1,6 @@
 import {
   assertProductionConfig,
+  normalizeInboundDomain,
   productionConfigProblems,
   type ProductionConfigInput,
 } from '@crm/core';
@@ -20,7 +21,17 @@ export function loadWorkerEnv(source?: EnvSource): WorkerEnv {
   const env = loadEnv('worker', source);
   // A production process with development settings does not start (ADR-0041).
   assertProductionConfig(productionInput(env));
+  if (env.EMAIL_INBOUND_DOMAIN !== undefined && env.EMAIL_INBOUND_DOMAIN.trim() !== '') {
+    if (inboundDomainOf(env) === null) {
+      throw new Error('EMAIL_INBOUND_DOMAIN must be a plain host name such as reply.example.com');
+    }
+  }
   return env;
+}
+
+/** The inbound domain as a plain lower-case host name, or null when it is unset (the feature is off). */
+export function inboundDomainOf(env: Pick<WorkerEnv, 'EMAIL_INBOUND_DOMAIN'>): string | null {
+  return normalizeInboundDomain(env.EMAIL_INBOUND_DOMAIN);
 }
 
 function productionInput(env: WorkerEnv): ProductionConfigInput {

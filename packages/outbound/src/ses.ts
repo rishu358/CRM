@@ -4,6 +4,7 @@ import {
   assertSendable,
   formatFromHeader,
   providerMessageIdFrom,
+  replyAddresses,
   unsubscribeHeaders,
 } from './message.js';
 import { EmailSendError } from './resend.js';
@@ -90,7 +91,9 @@ export class SesEmailProvider implements EmailProvider {
     const body = JSON.stringify({
       FromEmailAddress: formatFromHeader(this.options.from, message.fromName),
       Destination: { ToAddresses: [message.to] },
-      ...(message.replyTo === undefined ? {} : { ReplyToAddresses: [message.replyTo] }),
+      ...(message.replyTo === undefined
+        ? {}
+        : { ReplyToAddresses: [replyAddresses(message)].flat() }),
       Content: {
         Simple: {
           Subject: { Data: message.subject, Charset: 'UTF-8' },

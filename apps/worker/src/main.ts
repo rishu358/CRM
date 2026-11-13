@@ -1,9 +1,9 @@
-import { assertConnectedRoles } from '@crm/core';
+import { assertConnectedRoles, bareAddress } from '@crm/core';
 import { createDbClient, PostgresSearchProvider, readPoolRole, withTenant } from '@crm/db';
 import { createStorageProvider } from '@crm/storage';
 import { pino } from 'pino';
-import { loadWorkerEnv, productionWarnings } from './env.js';
-import { createEmailProvider } from './email/provider.js';
+import { inboundDomainOf, loadWorkerEnv, productionWarnings } from './env.js';
+import { createEmailProvider, createInboundEmailProvider } from './email/provider.js';
 import { pruneActivityLinks } from './handlers/activities.js';
 import { pruneAttachments, purgeAttachment, verifyAttachment } from './handlers/attachments.js';
 
@@ -24,6 +24,7 @@ import {
 import { indexSearchDocument, removeSearchDocument } from './handlers/search.js';
 import { removeSampleDataJob } from './handlers/sample-data.js';
 import { failEmailOnExhaustion, sendQueuedEmail, watchEmail } from './handlers/email.js';
+import { fileReply } from './handlers/email-replies.js';
 import { applyEmailProviderEvent } from './handlers/email-events.js';
 import { linkLeadEmailsOnConversion } from './handlers/email-links.js';
 import { projectTimeline } from './handlers/timeline.js';
@@ -87,6 +88,7 @@ relay.on('email.delivered.v1', projectTimeline);
 relay.on('email.bounced.v1', projectTimeline);
 relay.on('email.complained.v1', projectTimeline);
 relay.on('email.unsubscribed.v1', projectTimeline);
+relay.on('email.replied.v1', projectTimeline);
 relay.on('contact.merged.v1', projectTimeline);
 relay.on('account.merged.v1', projectTimeline);
 
@@ -131,7 +133,7 @@ const notificationOptions = {
 const emailDeps = {
   db: client.db,
   logger,
-  origins: { web: env.WEB_URL, api: env.API_URL },
+  origins: { web: env.WEB_URL, api: env.API_URL, inboundDomain: inboundDomainOf(env) },
   email: createEmailProvider({
     kind: env.EMAIL_PROVIDER,
     nodeEnv: env.NODE_ENV,
@@ -152,6 +154,37 @@ const emailDeps = {
 relay.on('email.queued.v1', sendQueuedEmail(emailDeps));
 relay.on('email.watchdog_due.v1', watchEmail(emailDeps));
 relay.onExhausted('email.queued.v1', failEmailOnExhaustion(emailDeps));
+// A customer's reply, fetched and filed on the record (ADR-0077). Only while an inbound domain is set and this
+// configuration can receive: otherwise the door never queues one, and nothing here is registered.
+const inboundDomain = inboundDomainOf(env);
+const inboundEmail =
+  inboundDomain === null
+    ? null
+    : createInboundEmailProvider({
+        kind: env.EMAIL_PROVIDER,
+        nodeEnv: env.NODE_ENV,
+        resendApiKey: env.RESEND_API_KEY,
+      });
+if (inboundDomain !== null && inboundEmail === null) {
+  logger.warn(
+    { provider: env.EMAIL_PROVIDER },
+    'EMAIL_INBOUND_DOMAIN is set but this email provider cannot receive: replies are not filed',
+  );
+}
+if (inboundEmail !== null) {
+  relay.on(
+    'email.reply_received.v1',
+    fileReply({
+      db: client.db,
+      inbound: inboundEmail,
+      logger,
+      ownAddresses: [env.EMAIL_FROM, env.EMAIL_OUTREACH_FROM]
+        .map((from) => (from === undefined ? null : bareAddress(from)))
+        .filter((address): address is string => address !== null)
+        .map((address) => address.toLowerCase()),
+    }),
+  );
+}
 // What the mail service reported about an email, applied inside the company it belongs to (ADR-0075).
 relay.on('email.provider_event.v1', applyEmailProviderEvent());
 // A converted lead's emails also show on the contact and deal it became (ADR-0074).

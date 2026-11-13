@@ -35,7 +35,9 @@ const ALLOWED: Readonly<Record<string, readonly string[]>> = {
   'email-events.service.ts': [
     '@nestjs/common',
     '@crm/core',
+    '@crm/core/email-reply-address',
     '@crm/outbound',
+    '../../common/unsubscribe-secrets.js',
     '../../config/env.js',
     '../../database/database.service.js',
     '../../platform/outbox.service.js',
@@ -92,9 +94,10 @@ describe('what the events door may import', () => {
     expect(everything).toContain('emailProviderEvents');
   });
 
-  it('uses the unscoped database entry point once, for the routing read, and never an actor', () => {
+  it('uses the unscoped database entry point twice, for the two routing reads, and never an actor', () => {
     const service = codeOf('email-events.service.ts');
-    expect(service.match(/runAsAuth\(/g)).toHaveLength(1);
+    // One finds a company from the provider's id for an email we sent, the other from a reply address.
+    expect(service.match(/runAsAuth\(/g)).toHaveLength(2);
     expect(service).not.toMatch(/\bActor\b/);
     expect(service).not.toMatch(/\bfetch\s*\(/);
   });
@@ -105,5 +108,38 @@ describe('what the events door may import', () => {
     expect(text).not.toMatch(/^@Public/m);
     expect(codeOf('email-events.controller.ts')).not.toMatch(/cookies|x-tenant-id|authorization/i);
     expect(codeOf('email-events.service.ts')).not.toMatch(/cookies|x-tenant-id|authorization/i);
+  });
+
+  it('reads one column as the routing role for a reply, and checks the address before it reads anything', () => {
+    const repository = codeOf('email-events.repository.ts');
+    const start = repository.indexOf('async routeEmailId');
+    const end = repository.indexOf('async insertProviderEvent');
+    expect(start).toBeGreaterThan(-1);
+    expect(end).toBeGreaterThan(start);
+    const routing = repository.slice(start, end);
+    expect(routing).toContain('select m.tenant_id');
+    for (const column of [
+      'reply_token',
+      'unsubscribe_token',
+      'to_address',
+      'from_address',
+      'subject',
+      'body_text',
+    ]) {
+      expect(routing, column).not.toContain(column);
+    }
+
+    const service = codeOf('email-events.service.ts');
+    const reply = service.slice(service.indexOf('private async receiveReply'));
+    expect(reply.indexOf('verifyReplyToken(')).toBeGreaterThan(-1);
+    expect(reply.indexOf('verifyReplyToken(')).toBeLessThan(reply.indexOf('runAsAuth('));
+  });
+
+  it('never fetches or stores a message: the door only records that one arrived', () => {
+    const everything = ['email-events.service.ts', 'email-events.repository.ts']
+      .map((file) => codeOf(file))
+      .join('\n');
+    expect(everything).not.toMatch(/insert\(emailMessages\)|into email_messages/);
+    expect(everything).not.toMatch(/retrieve\(|InboundEmailProvider/);
   });
 });

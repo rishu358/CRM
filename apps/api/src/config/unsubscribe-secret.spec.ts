@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { loadApiEnv } from './env.js';
+import { inboundDomainOf, loadApiEnv } from './env.js';
 
 /**
  * The unsubscribe link's own secret (ADR-0076) as the API loads it: optional outside production, and a malformed
@@ -69,4 +69,34 @@ describe('EMAIL_UNSUBSCRIBE_SECRET', () => {
       }),
     ).toThrow('must not also be listed');
   });
+});
+
+describe('EMAIL_INBOUND_DOMAIN (ADR-0077)', () => {
+  it('is off unless it is set, so nothing changes for an installation that never sets it', () => {
+    const env = loadApiEnv(base);
+    expect(env.EMAIL_INBOUND_DOMAIN).toBeUndefined();
+    expect(inboundDomainOf(env)).toBeNull();
+    expect(inboundDomainOf(loadApiEnv({ ...base, EMAIL_INBOUND_DOMAIN: '' }))).toBeNull();
+  });
+
+  it('is read as a lower-case host name', () => {
+    const env = loadApiEnv({ ...base, EMAIL_INBOUND_DOMAIN: 'Reply.Example.COM' });
+    expect(inboundDomainOf(env)).toBe('reply.example.com');
+  });
+
+  it.each([
+    'localhost',
+    'reply.example.com/path',
+    'https://reply.example.com',
+    'user@reply.example.com',
+    'reply example.com',
+    'reply..example.com',
+  ])(
+    'refuses %j at start-up, naming the variable, so a typo prints no addresses that go nowhere',
+    (value) => {
+      expect(() => loadApiEnv({ ...base, EMAIL_INBOUND_DOMAIN: value })).toThrow(
+        /EMAIL_INBOUND_DOMAIN must be a plain host name/,
+      );
+    },
+  );
 });

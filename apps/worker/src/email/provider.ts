@@ -1,5 +1,16 @@
-import type { EmailMessage, EmailProvider, EmailReceipt } from '@crm/core';
-import { createRemoteEmailProvider, EmailSendError } from '@crm/outbound';
+import type {
+  EmailMessage,
+  EmailProvider,
+  EmailReceipt,
+  InboundEmailProvider,
+  ReceivedEmail,
+} from '@crm/core';
+import {
+  createRemoteEmailProvider,
+  createResendInboundEmailProvider,
+  EmailFetchError,
+  EmailSendError,
+} from '@crm/outbound';
 import type { Logger } from 'pino';
 
 /**
@@ -122,4 +133,68 @@ export function createEmailProvider(config: EmailProviderConfig): EmailProvider 
     );
   }
   return kind === 'memory' ? new MemoryEmailProvider() : new ConsoleEmailProvider(logger);
+}
+
+/** Keeps received messages in memory, for tests and a local stack: nothing arrives from anywhere. */
+export class MemoryInboundEmailProvider implements InboundEmailProvider {
+  private readonly messages = new Map<string, ReceivedEmail>();
+  private readonly failures: EmailFetchError[] = [];
+  private fetches = 0;
+
+  /** Make a received message available under a provider id, as Resend's would be. */
+  add(providerEmailId: string, message: ReceivedEmail): void {
+    this.messages.set(providerEmailId, message);
+  }
+
+  /** Make the next fetch fail, as the real adapter would (tests only). */
+  failNext(options: { retryable: boolean; status?: number | null }): void {
+    this.failures.push(
+      new EmailFetchError(
+        'Received email was not fetched: test',
+        options.status ?? null,
+        options.retryable,
+      ),
+    );
+  }
+
+  /** How many times a message was asked for. */
+  fetchCount(): number {
+    return this.fetches;
+  }
+
+  async retrieve(providerEmailId: string): Promise<ReceivedEmail> {
+    this.fetches += 1;
+    const failure = this.failures.shift();
+    if (failure !== undefined) throw failure;
+    const found = this.messages.get(providerEmailId);
+    if (found === undefined) {
+      throw new EmailFetchError('Received email was not fetched: not found', 404, false);
+    }
+    return Promise.resolve(found);
+  }
+}
+
+export interface InboundEmailConfig {
+  readonly kind: EmailProviderConfig['kind'];
+  readonly nodeEnv: string;
+  readonly resendApiKey?: string | undefined;
+}
+
+/**
+ * What can fetch a received message, or null when this configuration cannot receive (ADR-0077). Only Resend
+ * receives; Amazon SES and SMTP have no receiving adapter. The console and memory providers get a memory
+ * one outside production, so a local stack runs; in production they get none, for the same reason they cannot send.
+ */
+export function createInboundEmailProvider(
+  config: InboundEmailConfig,
+): InboundEmailProvider | null {
+  if (config.kind === 'resend') {
+    return config.resendApiKey === undefined || config.resendApiKey === ''
+      ? null
+      : createResendInboundEmailProvider({ apiKey: config.resendApiKey });
+  }
+  if (config.kind === 'console' || config.kind === 'memory') {
+    return config.nodeEnv === 'production' ? null : new MemoryInboundEmailProvider();
+  }
+  return null;
 }

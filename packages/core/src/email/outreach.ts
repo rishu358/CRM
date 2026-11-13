@@ -26,6 +26,8 @@ export const EMAIL_STATUSES = [
   'delivered',
   'bounced',
   'complained',
+  // A reply a customer sent back (ADR-0077): the only status an inbound message has.
+  'received',
 ] as const;
 export type EmailStatus = (typeof EMAIL_STATUSES)[number];
 

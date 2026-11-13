@@ -240,3 +240,94 @@ describe('the events', () => {
     }
   });
 });
+
+describe('a received reply (ADR-0077)', () => {
+  const HEX = '0197c5a21b6e7f3a9c0d2e4f6a8b0c1d';
+  const OURS = `r.${HEX}.abcdefghijklmnopqrstuvwxyz@reply.example.com`;
+  const receivedPayload = (data: Record<string, unknown>) =>
+    JSON.stringify({
+      type: 'email.received',
+      created_at: '2026-11-22T23:41:12.126Z',
+      data: {
+        email_id: '4ef9a417-02e9-4d39-ad75-9611e0fcc33c',
+        from: 'sam@customer.example',
+        to: [OURS],
+        cc: [],
+        bcc: [],
+        message_id: '<abc@customer.example>',
+        subject: 'Re: Your confidential quote',
+        attachments: [
+          { id: 'att_1', filename: 'secret-contract.pdf', content_type: 'application/pdf' },
+        ],
+        ...data,
+      },
+    });
+
+  it('reads the id of the received message and the reply addresses among the recipients, and nothing else', () => {
+    const result = verifyResendEvents(signed(receivedPayload({})));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.events).toEqual([
+      {
+        providerEventId: 'msg_test_1',
+        // Resend's id for the received message, not one of ours.
+        providerMessageId: '4ef9a417-02e9-4d39-ad75-9611e0fcc33c',
+        type: 'received',
+        reason: null,
+        at: new Date('2026-11-22T23:41:12.126Z'),
+        recipients: [OURS],
+      },
+    ]);
+    const everything = JSON.stringify(result.events);
+    for (const secret of [
+      'sam@customer.example',
+      'Your confidential quote',
+      'secret-contract.pdf',
+      'abc@customer.example',
+    ]) {
+      expect(everything).not.toContain(secret);
+    }
+  });
+
+  it('keeps only recipients that have the shape of one of our addresses: the customer’s own copy stays here', () => {
+    const result = verifyResendEvents(
+      signed(
+        receivedPayload({
+          to: ['rep@company.example', OURS.toUpperCase()],
+          cc: ['sam@customer.example', 'not an address'],
+          bcc: [7, null, OURS],
+          received_for: [OURS],
+        }),
+      ),
+    );
+    expect(eventsOf(result)[0]?.recipients).toEqual([OURS]);
+    expect(JSON.stringify(eventsOf(result))).not.toContain('rep@company.example');
+  });
+
+  it('has nothing to act on when no recipient looks like one of ours, or the shape is wrong', () => {
+    for (const data of [
+      { to: ['rep@company.example'] },
+      { to: [] },
+      { to: 'not a list' },
+      { to: [`r.${HEX}.short@reply.example.com`] },
+      { email_id: 'has spaces in it' },
+      { email_id: 42 },
+    ]) {
+      expect(
+        eventsOf(verifyResendEvents(signed(receivedPayload(data)))),
+        JSON.stringify(data),
+      ).toEqual([]);
+    }
+  });
+
+  it('keeps at most ten reply addresses, so a message cannot make the door do unbounded work', () => {
+    const many = Array.from(
+      { length: 30 },
+      (_, index) =>
+        `r.${HEX}.${'abcdefghijklmnopqrstuvwxy'}${'abcdefghijklmnopqrstuvwxyz'[index % 26]}@reply.example.com`,
+    );
+    const recipients = eventsOf(verifyResendEvents(signed(receivedPayload({ to: many }))))[0]
+      ?.recipients;
+    expect(recipients?.length).toBeLessThanOrEqual(10);
+  });
+});

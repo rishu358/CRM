@@ -7,6 +7,12 @@ export { createSesEmailProvider, SesEmailProvider } from './ses.js';
 export { createSmtpEmailProvider, SmtpEmailProvider, type SmtpSecurity } from './smtp.js';
 export { createRemoteEmailProvider, type RemoteEmailConfig } from './email.js';
 export { resendSigningKey, verifyResendEvents, type ResendEventResult } from './resend-events.js';
+export {
+  createResendInboundEmailProvider,
+  EmailFetchError,
+  parseFromHeader,
+  ResendReceivingProvider,
+} from './resend-receiving.js';
 
 /**
  * The options a caller may set. The rule for which addresses are acceptable is not one

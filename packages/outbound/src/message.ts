@@ -1,4 +1,10 @@
-import { bareAddress, isValidFromName, isValidReplyTo, type EmailMessage } from '@crm/core';
+import {
+  bareAddress,
+  isReplyAddressShape,
+  isValidFromName,
+  isValidReplyTo,
+  type EmailMessage,
+} from '@crm/core';
 import { EmailSendError } from './resend.js';
 
 /**
@@ -22,10 +28,24 @@ export function assertSendable(message: EmailMessage): void {
     (message.fromName !== undefined && !isValidFromName(message.fromName)) ||
     (message.replyTo !== undefined && !isValidReplyTo(message.replyTo)) ||
     (message.messageId !== undefined && !MESSAGE_ID.test(message.messageId)) ||
+    // Our own reply address is only ever added beside the rep's, never alone, and only in the shape we issue.
+    (message.captureAddress !== undefined &&
+      (message.replyTo === undefined || !isReplyAddressShape(message.captureAddress))) ||
     (message.unsubscribeUrl !== undefined &&
       (HEADER_UNSAFE.test(message.unsubscribeUrl) ||
         !UNSUBSCRIBE_URL.test(message.unsubscribeUrl)));
   if (invalid) throw new EmailSendError('Email was not sent: invalid_request', null, false);
+}
+
+/**
+ * The reply addresses of a message: the rep's, then ours when there is one. One address for what carries only the
+ * rep's (so a message without ours is sent exactly as before), a list of two for what carries both.
+ */
+export function replyAddresses(message: EmailMessage): string | string[] | undefined {
+  if (message.replyTo === undefined) return undefined;
+  return message.captureAddress === undefined
+    ? message.replyTo
+    : [message.replyTo, message.captureAddress];
 }
 
 /**

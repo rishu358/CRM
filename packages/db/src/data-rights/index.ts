@@ -106,7 +106,10 @@ export async function erasePersonalColumns(
   // contact it was written to, or through a link to this record (a lead's mail).
   await tx.execute(sql`
     update email_messages
-    set to_address = null, subject = '', body_text = '', erased_at = now(), updated_at = now()
+    set to_address = null, subject = '', body_text = '', erased_at = now(), updated_at = now(),
+        -- A reply the person sent (ADR-0077) holds their own address and name; the company's own are kept.
+        from_address = case when direction = 'inbound' then '' else from_address end,
+        from_name = case when direction = 'inbound' then 'Erased' else from_name end
     where tenant_id = ${tenantId}::uuid
       and erased_at is null
       and (
