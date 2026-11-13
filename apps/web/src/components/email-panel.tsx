@@ -17,13 +17,14 @@ import {
 import { useState } from 'react';
 import {
   failureKey,
+  splitQuoted,
   useRecordEmails,
   useRetryEmail,
   type EmailMessage,
   type EmailSourceType,
 } from '../lib/emails';
 import { DEFAULT_PREFERENCES, formatDateTime } from '../lib/format';
-import { t } from '../lib/i18n';
+import { t, tPlural } from '../lib/i18n';
 import { SendEmailDialog } from './send-email-dialog';
 
 /**
@@ -145,30 +146,68 @@ function statusTone(status: EmailMessage['status']) {
 
 function EmailRow({ email }: { email: EmailMessage }) {
   const [open, setOpen] = useState(false);
+  const [showQuoted, setShowQuoted] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const retry = useRetryEmail();
   const failed = email.status === 'failed';
   const canRetry = failed && email.retriedById === null && !email.erased;
+  // A reply a customer sent back (ADR-0077): shown as what it claims to be, never as something we verified.
+  const inbound = email.direction === 'inbound';
+  const parts = inbound ? splitQuoted(email.body) : { fresh: email.body, quoted: null };
 
   const doRetry = () => {
     retry.mutate(email.id, { onSuccess: () => setConfirming(false) });
   };
 
   return (
-    <li className="py-3" data-testid="email-row" data-status={email.status}>
+    <li
+      className="py-3"
+      data-testid="email-row"
+      data-status={email.status}
+      data-direction={email.direction}
+    >
       <div className="flex flex-wrap items-center gap-2">
         <span className="font-medium">{email.erased ? t('email.row.erased') : email.subject}</span>
         <span title={email.status === 'sent' ? t('email.status.sent.hint') : undefined}>
           <Badge tone={statusTone(email.status)}>{t(`email.status.${email.status}`)}</Badge>
         </span>
         {email.retriedById !== null ? <Badge tone="neutral">{t('email.row.retried')}</Badge> : null}
+        {inbound && !email.erased ? (
+          <span title={t('email.row.unverified.hint')} data-testid="email-unverified">
+            <Badge tone="neutral">{t('email.row.unverified')}</Badge>
+          </span>
+        ) : null}
       </div>
 
       <p className="mt-0.5 text-sm text-muted-foreground">
-        {email.toAddress === null ? null : `${t('email.row.to', { address: email.toAddress })} · `}
+        {inbound
+          ? email.erased || email.fromAddress === null
+            ? null
+            : `${t('email.row.from', { name: email.fromName, address: email.fromAddress })} · `
+          : email.toAddress === null
+            ? null
+            : `${t('email.row.to', { address: email.toAddress })} · `}
         {email.sentByName === null ? null : `${t('email.row.by', { name: email.sentByName })} · `}
         {formatDateTime(email.sentAt ?? email.queuedAt, DEFAULT_PREFERENCES)}
       </p>
+
+      {inbound && !email.erased ? (
+        <div className="mt-1 space-y-0.5 text-sm text-muted-foreground">
+          {email.senderMatchesRecipient === null ? null : (
+            <p data-testid="email-sender-match" data-matches={String(email.senderMatchesRecipient)}>
+              {email.senderMatchesRecipient ? t('email.row.matches') : t('email.row.differs')}
+            </p>
+          )}
+          {email.bodyShortened ? (
+            <p data-testid="email-shortened">{t('email.row.shortened')}</p>
+          ) : null}
+          {email.attachmentCount > 0 ? (
+            <p data-testid="email-attachments">
+              {tPlural('email.row.attachments', email.attachmentCount)}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
 
       {failed ? (
         <p className="mt-1 text-sm text-destructive" data-testid="email-failure">
@@ -219,9 +258,22 @@ function EmailRow({ email }: { email: EmailMessage }) {
 
       {open && !email.erased ? (
         // Plain text, shown as text: nothing in a message is ever rendered as markup (ADR-0073).
-        <pre className="mt-2 whitespace-pre-wrap break-words rounded-md bg-muted/50 p-3 font-sans text-sm">
-          {email.body}
-        </pre>
+        <div className="mt-2">
+          <pre className="whitespace-pre-wrap break-words rounded-md bg-muted/50 p-3 font-sans text-sm">
+            {showQuoted || parts.quoted === null ? email.body : parts.fresh}
+          </pre>
+          {parts.quoted === null ? null : (
+            <Button
+              variant="ghost"
+              size="sm"
+              aria-expanded={showQuoted}
+              data-testid="email-quoted-toggle"
+              onClick={() => setShowQuoted((value) => !value)}
+            >
+              {showQuoted ? t('email.row.quoted.hide') : t('email.row.quoted.show')}
+            </Button>
+          )}
+        </div>
       ) : null}
 
       {confirming ? (

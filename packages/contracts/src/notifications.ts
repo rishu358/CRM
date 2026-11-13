@@ -22,6 +22,8 @@ export const NOTIFICATION_TYPES = [
   'activity.due',
   'lead.web_form_new',
   'lead.web_form_duplicate',
+  // A customer replied to an email this person sent (ADR-0077). Ids only.
+  'email.reply_received',
 ] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 

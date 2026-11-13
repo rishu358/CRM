@@ -7,6 +7,7 @@ import {
   Button,
   Card,
   CardBody,
+  CardHeader,
   ErrorState,
   Input,
   NoPermissionState,
@@ -97,12 +98,37 @@ export function EmailSettingsScreen() {
       )}
       <SettingsForm settings={query.data.data} />
       <div className="mt-6">
+        <EmailRepliesStatus replyCapture={query.data.data.replyCapture} />
+      </div>
+      <div className="mt-6">
         <EmailTemplatesPanel />
       </div>
       <div className="mt-6">
         <EmailSuppressionsPanel />
       </div>
     </AppShell>
+  );
+}
+
+/**
+ * Whether a customer's reply is filed on the record (ADR-0077): read-only, because it is set up by whoever runs the
+ * installation (an environment variable and a DNS record), not by a company's own administrator. Saying so plainly
+ * is the point: nothing here can be switched, so nothing here pretends to be a switch.
+ */
+function EmailRepliesStatus({ replyCapture }: { replyCapture: EmailSettings['replyCapture'] }) {
+  return (
+    <Card data-testid="email-replies-status" data-state={replyCapture.state}>
+      <CardHeader title={t('email.replies.title')} />
+      <CardBody>
+        <p className="text-sm">
+          {replyCapture.state === 'on'
+            ? t('email.replies.on', { domain: replyCapture.domain ?? '' })
+            : replyCapture.state === 'unsupported'
+              ? t('email.replies.unsupported')
+              : t('email.replies.off')}
+        </p>
+      </CardBody>
+    </Card>
   );
 }
 

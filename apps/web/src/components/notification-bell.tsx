@@ -1,6 +1,7 @@
 'use client';
 
 import { BellIcon, Button, IconButton, cn } from '@crm/ui';
+import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { DEFAULT_PREFERENCES, formatDateTime } from '../lib/format';
 import { t } from '../lib/i18n';
@@ -8,6 +9,7 @@ import {
   useMarkAllNotificationsRead,
   useMarkNotificationRead,
   useNotifications,
+  recordPath,
   useUnreadCount,
   type NotificationRecord,
 } from '../lib/notifications';
@@ -25,6 +27,7 @@ export function NotificationBell() {
   const list = useNotifications(open);
   const markRead = useMarkNotificationRead();
   const markAll = useMarkAllNotificationsRead();
+  const router = useRouter();
   const panelRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -110,7 +113,15 @@ export function NotificationBell() {
                   <button
                     type="button"
                     className="flex w-full flex-col gap-0.5 rounded-md px-2 py-2 text-left transition-colors duration-fast hover:bg-accent/60"
-                    onClick={() => markRead.mutate(notification.id)}
+                    onClick={() => {
+                      markRead.mutate(notification.id);
+                      // A reply opens the record it was filed on; the others only read, as they always have.
+                      const target = recordPath(notification);
+                      if (target !== null) {
+                        setOpen(false);
+                        router.push(target);
+                      }
+                    }}
                   >
                     <span
                       className={cn(
@@ -144,7 +155,8 @@ export function NotificationBell() {
  * rather than HTML (ADR-0024).
  */
 function describe(notification: NotificationRecord): string {
-  // The two web-form kinds carry ids only, so their line is fixed words: nothing a visitor typed.
+  // A reply and the two web-form kinds carry ids only, so their line is fixed words: nothing a stranger typed.
+  if (notification.type === 'email.reply_received') return t('notifications.emailReply');
   if (notification.type === 'lead.web_form_new') return t('notifications.webFormLead');
   if (notification.type === 'lead.web_form_duplicate') return t('notifications.webFormDuplicate');
 

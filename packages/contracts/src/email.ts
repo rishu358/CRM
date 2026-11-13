@@ -119,6 +119,11 @@ export const emailMessageSchema = z.object({
   bounceReason: emailBounceReasonSchema.nullable(),
   /** True when a person's erasure scrubbed the address, subject and body. */
   erased: z.boolean(),
+  /**
+   * Inbound: whether the sender's address is the one we wrote to (true), a different one (false), or not known
+   * (null: what we sent, or the email it answers has been erased). A claim the screen shows beside "unverified".
+   */
+  senderMatchesRecipient: z.boolean().nullable(),
   /** Inbound: how many attachments the message had. They are not saved (ADR-0077). */
   attachmentCount: z.number().int(),
   /** Inbound: true when the body was cut to the log's limit. */
@@ -184,6 +189,15 @@ export const emailSettingsSchema = z.object({
   /** The company's name, which `fromName` starts as. */
   defaultFromName: z.string(),
   usage: emailUsageSchema,
+  /**
+   * Whether a customer's reply is filed on the record (ADR-0077): `on`, `off` (no inbound domain is configured), or
+   * `unsupported` (one is, but this installation's email provider cannot receive). The domain is shown to those who
+   * may read the settings, who are the ones who set it up.
+   */
+  replyCapture: z.object({
+    state: z.enum(['on', 'off', 'unsupported']),
+    domain: z.string().nullable(),
+  }),
   /** Set while the company's email is paused after a bad run of bounces or complaints (ADR-0075). */
   paused: z.object({ since: z.string(), reason: z.enum(['bounces', 'complaints']) }).nullable(),
 });

@@ -253,3 +253,25 @@ export function useResumeEmail() {
     onSuccess: () => client.invalidateQueries({ queryKey: emailKeys.all }),
   });
 }
+
+/**
+ * A reply's body, split where the earlier conversation starts (ADR-0077): the new words, and the history quoted
+ * below them. **Nothing is removed**: both parts are the customer's message as received, and the screen only
+ * folds the second one behind a button. The split is deliberately simple and may miss, in which case the whole
+ * message simply shows: a line that says "On ... wrote:", a line that starts with `>`, or a line saying it is the
+ * original message. A message that starts with the quote has no new words above it, so it is not split.
+ */
+export function splitQuoted(body: string): { fresh: string; quoted: string | null } {
+  const lines = body.split('\n');
+  const start = lines.findIndex(
+    (line) =>
+      /^On .{1,200} wrote:\s*$/i.test(line) ||
+      /^>/.test(line) ||
+      /^-{2,}\s*(?:original message|forwarded message)\s*-{2,}\s*$/i.test(line),
+  );
+  if (start <= 0) return { fresh: body, quoted: null };
+  const fresh = lines.slice(0, start).join('\n').trimEnd();
+  return fresh === ''
+    ? { fresh: body, quoted: null }
+    : { fresh, quoted: lines.slice(start).join('\n') };
+}

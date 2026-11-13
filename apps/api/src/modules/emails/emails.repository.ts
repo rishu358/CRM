@@ -33,6 +33,8 @@ export interface EmailListRow {
   readonly message: EmailMessageRow;
   readonly sentByName: string | null;
   readonly retriedById: string | null;
+  /** For a reply: the address the email it answers was sent to, or null (not a reply, or erased). */
+  readonly repliedToAddress: string | null;
   /** The created-at instant at full precision, as text: the keyset cursor's value. */
   readonly cursorValue: string;
 }
@@ -129,7 +131,9 @@ export class EmailsRepository {
       select m.id, m.created_at::text as cursor_value,
              u.name as sent_by_name,
              (select r.id from email_messages r
-               where r.tenant_id = m.tenant_id and r.retry_of = m.id limit 1) as retried_by_id
+               where r.tenant_id = m.tenant_id and r.retry_of = m.id limit 1) as retried_by_id,
+             (select o.to_address::text from email_messages o
+               where o.tenant_id = m.tenant_id and o.id = m.reply_to_email_id) as replied_to_address
       from email_message_links l
       join email_messages m on m.tenant_id = l.tenant_id and m.id = l.email_message_id
       left join users u on u.id = m.created_by
@@ -145,6 +149,7 @@ export class EmailsRepository {
       cursor_value: string;
       sent_by_name: string | null;
       retried_by_id: string | null;
+      replied_to_address: string | null;
     }[];
     if (found.length === 0) return [];
 
@@ -169,10 +174,21 @@ export class EmailsRepository {
         message,
         sentByName: row.sent_by_name,
         retriedById: row.retried_by_id,
+        repliedToAddress: row.replied_to_address,
         cursorValue: row.cursor_value,
       });
     }
     return page;
+  }
+
+  /** The address an email was sent to, or null: gone, or scrubbed by an erasure. */
+  async addressOf(tx: Tx, tenantId: string, emailId: string): Promise<string | null> {
+    const rows = await tx
+      .select({ toAddress: emailMessages.toAddress })
+      .from(emailMessages)
+      .where(and(eq(emailMessages.tenantId, tenantId), eq(emailMessages.id, emailId)))
+      .limit(1);
+    return rows[0]?.toAddress ?? null;
   }
 
   // ---- sender configuration -------------------------------------------------------------------

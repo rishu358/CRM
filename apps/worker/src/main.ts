@@ -18,6 +18,7 @@ import {
   notifyAssignment,
   notifyReminder,
   notifyWebFormDuplicate,
+  notifyEmailReply,
   notifyWebFormLead,
   sendDigest,
 } from './handlers/notifications.js';
@@ -89,6 +90,8 @@ relay.on('email.bounced.v1', projectTimeline);
 relay.on('email.complained.v1', projectTimeline);
 relay.on('email.unsubscribed.v1', projectTimeline);
 relay.on('email.replied.v1', projectTimeline);
+// ...and tells the person who sent the email it answers, in the bell (ADR-0077).
+relay.on('email.replied.v1', notifyEmailReply());
 relay.on('contact.merged.v1', projectTimeline);
 relay.on('account.merged.v1', projectTimeline);
 

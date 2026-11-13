@@ -29575,6 +29575,30 @@
                 ],
                 "additionalProperties": false
               },
+              "replyCapture": {
+                "type": "object",
+                "properties": {
+                  "state": {
+                    "type": "string",
+                    "enum": [
+                      "on",
+                      "off",
+                      "unsupported"
+                    ]
+                  },
+                  "domain": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "state",
+                  "domain"
+                ],
+                "additionalProperties": false
+              },
               "paused": {
                 "anyOf": [
                   {
@@ -29611,6 +29635,7 @@
               "sendingAddress",
               "defaultFromName",
               "usage",
+              "replyCapture",
               "paused"
             ],
             "additionalProperties": false
@@ -29702,6 +29727,30 @@
                 ],
                 "additionalProperties": false
               },
+              "replyCapture": {
+                "type": "object",
+                "properties": {
+                  "state": {
+                    "type": "string",
+                    "enum": [
+                      "on",
+                      "off",
+                      "unsupported"
+                    ]
+                  },
+                  "domain": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "state",
+                  "domain"
+                ],
+                "additionalProperties": false
+              },
               "paused": {
                 "anyOf": [
                   {
@@ -29738,6 +29787,7 @@
               "sendingAddress",
               "defaultFromName",
               "usage",
+              "replyCapture",
               "paused"
             ],
             "additionalProperties": false
@@ -30163,6 +30213,12 @@
                 "erased": {
                   "type": "boolean"
                 },
+                "senderMatchesRecipient": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                },
                 "attachmentCount": {
                   "type": "integer",
                   "minimum": -9007199254740991,
@@ -30254,6 +30310,7 @@
                 "failureCode",
                 "bounceReason",
                 "erased",
+                "senderMatchesRecipient",
                 "attachmentCount",
                 "bodyShortened",
                 "contactId",
@@ -30393,6 +30450,12 @@
               "erased": {
                 "type": "boolean"
               },
+              "senderMatchesRecipient": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
               "attachmentCount": {
                 "type": "integer",
                 "minimum": -9007199254740991,
@@ -30484,6 +30547,7 @@
               "failureCode",
               "bounceReason",
               "erased",
+              "senderMatchesRecipient",
               "attachmentCount",
               "bodyShortened",
               "contactId",
@@ -30606,6 +30670,12 @@
               "erased": {
                 "type": "boolean"
               },
+              "senderMatchesRecipient": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
               "attachmentCount": {
                 "type": "integer",
                 "minimum": -9007199254740991,
@@ -30697,6 +30767,7 @@
               "failureCode",
               "bounceReason",
               "erased",
+              "senderMatchesRecipient",
               "attachmentCount",
               "bodyShortened",
               "contactId",
@@ -30819,6 +30890,12 @@
               "erased": {
                 "type": "boolean"
               },
+              "senderMatchesRecipient": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
               "attachmentCount": {
                 "type": "integer",
                 "minimum": -9007199254740991,
@@ -30910,6 +30987,7 @@
               "failureCode",
               "bounceReason",
               "erased",
+              "senderMatchesRecipient",
               "attachmentCount",
               "bodyShortened",
               "contactId",

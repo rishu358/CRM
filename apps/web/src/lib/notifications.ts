@@ -17,6 +17,26 @@ export interface NotificationRecord {
   readonly createdAt: string;
 }
 
+/**
+ * Where a notification leads, when it names a record (a reply, ADR-0077), or null. Only ids go into the address,
+ * and only ones of the right shape: nothing a stranger wrote can reach it.
+ */
+export function recordPath(notification: NotificationRecord): string | null {
+  if (notification.type !== 'email.reply_received') return null;
+  const { objectType, recordId } = notification.payload;
+  if (
+    typeof recordId !== 'string' ||
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(recordId)
+  ) {
+    return null;
+  }
+  const section: Record<string, string> = { contact: 'contacts', lead: 'leads', deal: 'deals' };
+  const found = typeof objectType === 'string' ? section[objectType] : undefined;
+  return found === undefined || !Object.hasOwn(section, String(objectType))
+    ? null
+    : `/${found}/${recordId}`;
+}
+
 interface NotificationListEnvelope {
   readonly data: NotificationRecord[];
   readonly meta: { nextCursor: string | null; hasMore: boolean; unread: number };
